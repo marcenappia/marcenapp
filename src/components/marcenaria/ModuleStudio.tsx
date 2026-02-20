@@ -94,7 +94,7 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
     try {
       const imageBase64 = generatedImage.split(',')[1];
       const analysisPrompt = `Analyze this furniture strictly. Estimate dims (meters). Return ONLY valid JSON: {"width": 2.0, "height": 2.5, "depth": 0.6, "drawers": 4, "doors": 4}`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: analysisPrompt }, { inlineData: { mimeType: 'image/png', data: imageBase64 } }] }], generationConfig: { responseMimeType: "application/json" } })
       });
@@ -118,36 +118,39 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
       const decPrompt = `INTERIOR STYLING: Apply a ${selectedDecor.label} style. ${selectedDecor.prompt}`;
       let newImage: string | null = null;
 
+      const MODEL_IMG = 'gemini-2.5-flash-image';
+      const MODEL_TXT = 'gemini-1.5-flash';
+
+      const callImageAPI = async (parts: any[]) => {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_IMG}:generateContent?key=${API_KEY}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseModalities: ["IMAGE", "TEXT"] } })
+        });
+        const data = await res.json();
+        if (data.error) {
+          const code = data.error.code;
+          if (code === 429) throw new Error("QUOTA_EXCEEDED");
+          throw new Error(data.error.message || "Erro API");
+        }
+        return data.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data || null;
+      };
+
       if (sketchImage && envImage) {
         const finalPrompt = `ACT AS AN EXPERT ARCHITECTURAL VISUALIZER. Input 1: OBJECT. Input 2: ENVIRONMENT. TASK: Composite Object into Environment seamlessly. Match perspective. Style: ${selectedStyle.prompt}. ${decPrompt} User Instruction: ${prompt}`;
         const parts = [{ text: finalPrompt }, { inlineData: { mimeType: sketchMime, data: sketchBase64 } }, { inlineData: { mimeType: envMime, data: envBase64 } }];
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${API_KEY}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseModalities: ["IMAGE", "TEXT"] } })
-        });
-        const data = await response.json();
-        const img = data.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
+        const img = await callImageAPI(parts);
         if (img) newImage = `data:image/png;base64,${img}`;
       } else if (sketchImage) {
         const finalPrompt = isRefining
-          ? `ACT AS A 3D MODELER AND RENDERER. TASK: Re-render the provided image with the following STRUCTURAL MODIFICATIONS. USER COMMAND: "${prompt}". CRITICAL: Keep everything else exactly the same.`
-          : `ACT AS A 3D RENDERING ENGINE. TASK: Transform this sketch into a Photorealistic Image. Style: ${selectedStyle.prompt}. ${decPrompt}. Specific Details: ${prompt}`;
+          ? `ACT AS A 3D MODELER AND RENDERER. TASK: Re-render the provided image with STRUCTURAL MODIFICATIONS. USER COMMAND: "${prompt}". Keep everything else the same.`
+          : `ACT AS A 3D RENDERING ENGINE. Transform this sketch into a Photorealistic Image. Style: ${selectedStyle.prompt}. ${decPrompt}. Details: ${prompt}`;
         const parts = [{ text: finalPrompt }, { inlineData: { mimeType: sketchMime, data: sketchBase64 } }];
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${API_KEY}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseModalities: ["IMAGE", "TEXT"] } })
-        });
-        const data = await response.json();
-        const img = data.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
+        const img = await callImageAPI(parts);
         if (img) newImage = `data:image/png;base64,${img}`;
       } else {
-        const finalPrompt = `Architectural render of ${prompt}, style ${selectedStyle.prompt}, 8k, ultra detailed. ${decPrompt}`;
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${API_KEY}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: finalPrompt }] }], generationConfig: { responseModalities: ["IMAGE", "TEXT"] } })
-        });
-        const data = await response.json();
-        const img = data.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
+        const finalPrompt = `Photorealistic interior design image of ${prompt}, style: ${selectedStyle.prompt}, ultra detailed, 8k. ${decPrompt}`;
+        const parts = [{ text: finalPrompt }];
+        const img = await callImageAPI(parts);
         if (img) newImage = `data:image/png;base64,${img}`;
       }
 
@@ -157,7 +160,12 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
         throw new Error("Falha na geração. Tente novamente.");
       }
     } catch (e: any) {
-      setError(e?.message || "Erro de conexão. Tente novamente.");
+      const msg = e?.message || "Erro de conexão.";
+      if (msg === "QUOTA_EXCEEDED" || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED")) {
+        setError("⚠️ Cota da API excedida. Ative o faturamento em aistudio.google.com ou aguarde alguns minutos e tente novamente.");
+      } else {
+        setError(msg);
+      }
     } finally { setLoading(false); }
   };
 

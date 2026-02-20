@@ -42,7 +42,7 @@ const ModuleElevator = ({ setBudgetProject, navigateTo }: Props) => {
     setAnalyzingLayout(true);
     try {
       const promptText = "Atue como um Arquiteto Especialista. Analise esta planta baixa. Sugira, em apenas 1 ou 2 frases diretas, o melhor local para construir a marcenaria (armários, painéis, etc). Seja objetivo.";
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: promptText }, { inlineData: { mimeType: "image/png", data: planBase64 } }] }] })
       });
@@ -63,13 +63,14 @@ const ModuleElevator = ({ setBudgetProject, navigateTo }: Props) => {
         : `Creative Mode: Furnish and decorate the space. Apply ${selectedDecor.label} style (${selectedDecor.prompt}).`;
       const placementPrompt = furniturePlacement ? `\n\nFURNITURE PLACEMENT: "${furniturePlacement}". Integrate it naturally.` : "";
       const finalPrompt = `ACT AS A 3D RENDERING ENGINE. INPUT: 2D Floor Plan. TASK: Create a ${viewPrompt} based STRICTLY on the plan lines. RULES: 1. ${strictInstruction} 2. Rise the walls from the black lines. 3. Apply realistic textures. 4. ${roomPrompt}. 5. Neutral daylight.${placementPrompt}`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${API_KEY}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: finalPrompt }, { inlineData: { mimeType: 'image/png', data: planBase64 } }] }], generationConfig: { responseModalities: ["IMAGE", "TEXT"] } })
       });
       const data = await response.json();
       const img = data.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
       if (img) { setGeneratedImage(`data:image/png;base64,${img}`); setShowModal(true); }
+      else if (data.error) throw new Error(data.error.message || "Sem imagem gerada.");
       else throw new Error("Sem imagem gerada.");
     } catch (e: any) { alert(e.message || "Erro API"); } finally { setLoading(false); }
   };
@@ -80,7 +81,7 @@ const ModuleElevator = ({ setBudgetProject, navigateTo }: Props) => {
     try {
       const imageBase64 = generatedImage.split(',')[1];
       const analysisPrompt = `Analyze furniture strictly. Estimate dims (meters). Return JSON: {"width": 2.0, "height": 2.5, "depth": 0.6, "drawers": 4, "doors": 4}`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: analysisPrompt }, { inlineData: { mimeType: 'image/png', data: imageBase64 } }] }], generationConfig: { responseMimeType: "application/json" } })
       });
