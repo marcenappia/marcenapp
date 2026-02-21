@@ -3,7 +3,7 @@ import {
   Upload, ArrowUpFromLine, Loader2, Sparkles, Sofa,
   Download, DollarSign, Maximize2, X
 } from 'lucide-react';
-import { Button, Card, Modal, DecorationPanel, API_KEY, type DecorOption } from './shared';
+import { Button, Card, Modal, DecorationPanel, callAIImage, callAIText, type DecorOption } from './shared';
 
 interface Props {
   setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
@@ -42,12 +42,7 @@ const ModuleElevator = ({ setBudgetProject, navigateTo }: Props) => {
     setAnalyzingLayout(true);
     try {
       const promptText = "Atue como um Arquiteto Especialista. Analise esta planta baixa. Sugira, em apenas 1 ou 2 frases diretas, o melhor local para construir a marcenaria (armários, painéis, etc). Seja objetivo.";
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: promptText }, { inlineData: { mimeType: "image/png", data: planBase64 } }] }] })
-      });
-      const data = await response.json();
-      const suggestion = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const suggestion = await callAIText(promptText, [{ mimeType: "image/png", data: planBase64 }]);
       if (suggestion) setFurniturePlacement(suggestion);
     } catch { alert("Erro ao analisar layout da planta."); } finally { setAnalyzingLayout(false); }
   };
@@ -63,14 +58,9 @@ const ModuleElevator = ({ setBudgetProject, navigateTo }: Props) => {
         : `Creative Mode: Furnish and decorate the space. Apply ${selectedDecor.label} style (${selectedDecor.prompt}).`;
       const placementPrompt = furniturePlacement ? `\n\nFURNITURE PLACEMENT: "${furniturePlacement}". Integrate it naturally.` : "";
       const finalPrompt = `ACT AS A 3D RENDERING ENGINE. INPUT: 2D Floor Plan. TASK: Create a ${viewPrompt} based STRICTLY on the plan lines. RULES: 1. ${strictInstruction} 2. Rise the walls from the black lines. 3. Apply realistic textures. 4. ${roomPrompt}. 5. Neutral daylight.${placementPrompt}`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${API_KEY}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: finalPrompt }, { inlineData: { mimeType: 'image/png', data: planBase64 } }] }], generationConfig: { responseModalities: ["IMAGE", "TEXT"] } })
-      });
-      const data = await response.json();
-      const img = data.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
-      if (img) { setGeneratedImage(`data:image/png;base64,${img}`); setShowModal(true); }
-      else if (data.error) throw new Error(data.error.message || "Sem imagem gerada.");
+      
+      const imageUrl = await callAIImage(finalPrompt, [{ mimeType: 'image/png', data: planBase64 }]);
+      if (imageUrl) { setGeneratedImage(imageUrl); setShowModal(true); }
       else throw new Error("Sem imagem gerada.");
     } catch (e: any) { alert(e.message || "Erro API"); } finally { setLoading(false); }
   };
@@ -81,15 +71,10 @@ const ModuleElevator = ({ setBudgetProject, navigateTo }: Props) => {
     try {
       const imageBase64 = generatedImage.split(',')[1];
       const analysisPrompt = `Analyze furniture strictly. Estimate dims (meters). Return JSON: {"width": 2.0, "height": 2.5, "depth": 0.6, "drawers": 4, "doors": 4}`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: analysisPrompt }, { inlineData: { mimeType: 'image/png', data: imageBase64 } }] }], generationConfig: { responseMimeType: "application/json" } })
-      });
-      const data = await response.json();
-      let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = await callAIText(analysisPrompt, [{ mimeType: 'image/png', data: imageBase64 }], true);
       if (text) {
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        const est = JSON.parse(text);
+        const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const est = JSON.parse(clean);
         setBudgetProject((prev: any) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
         setShowModal(false); navigateTo('orcamento');
       }
