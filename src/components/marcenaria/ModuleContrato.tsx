@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, Plus, Printer, Loader2, X, Scale } from 'lucide-react';
-import { Button, Card, Modal, InputGroup, API_KEY } from './shared';
+import { Button, Card, Modal, InputGroup, callAIText } from './shared';
 
 const ModuleContrato = () => {
   const [data, setData] = useState({ client: "Cliente", value: 8500, days: 45, crooked: true, pipes: true });
@@ -14,12 +14,7 @@ const ModuleContrato = () => {
     setLoadingAi(true);
     try {
       const prompt = `Atue como Advogado especialista em contratos de marcenaria. Escreva uma cláusula contratual curta e objetiva sobre: "${aiPrompt}". Responda em Português, de forma formal e juridicamente sólida.`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
-      const res = await response.json();
-      const text = res.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = await callAIText(prompt);
       if (text) { setCustomClauses([...customClauses, text]); setAiPrompt(""); }
     } catch { alert("Erro na IA. Tente novamente."); } finally { setLoadingAi(false); }
   };
@@ -35,21 +30,11 @@ const ModuleContrato = () => {
 
             <div className="pt-4 border-t border-slate-100 space-y-3">
               <label className="flex items-center gap-3 text-sm text-slate-700 font-medium cursor-pointer hover:text-slate-900 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={data.crooked}
-                  onChange={e => setData({ ...data, crooked: e.target.checked })}
-                  className="accent-indigo-600 w-4 h-4"
-                />
+                <input type="checkbox" checked={data.crooked} onChange={e => setData({ ...data, crooked: e.target.checked })} className="accent-indigo-600 w-4 h-4" />
                 Cláusula Parede Torta
               </label>
               <label className="flex items-center gap-3 text-sm text-slate-700 font-medium cursor-pointer hover:text-slate-900 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={data.pipes}
-                  onChange={e => setData({ ...data, pipes: e.target.checked })}
-                  className="accent-indigo-600 w-4 h-4"
-                />
+                <input type="checkbox" checked={data.pipes} onChange={e => setData({ ...data, pipes: e.target.checked })} className="accent-indigo-600 w-4 h-4" />
                 Cláusula Risco Hidráulico
               </label>
             </div>
