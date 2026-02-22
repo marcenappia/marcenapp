@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, Box
+  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, Settings
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import ModuleDashboard from '../components/marcenaria/ModuleDashboard';
 import ModuleStudio from '../components/marcenaria/ModuleStudio';
 import ModuleElevator from '../components/marcenaria/ModuleElevator';
 import ModuleOrcamento from '../components/marcenaria/ModuleOrcamento';
 import ModuleCorte from '../components/marcenaria/ModuleCorte';
 import ModuleContrato from '../components/marcenaria/ModuleContrato';
+import logo from '@/assets/marcenapp-logo.jpeg';
 
 const modules = [
   { id: 'dashboard', label: 'Visão Geral', mobileLabel: 'Início', icon: Home },
@@ -34,10 +36,12 @@ const defaultProject = {
 };
 
 const Index = () => {
+  const { profile, signOut } = useAuth();
   const [activeModule, setActiveModule] = useState('studio');
   const [budgetProject, setBudgetProject] = useState(defaultProject);
   const [parts, setParts] = useState<any[]>([]);
   const [gallery, setGallery] = useState<string[]>([]);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const activeModuleData = modules.find(m => m.id === activeModule)!;
   const ActiveIcon = activeModuleData.icon;
@@ -55,14 +59,15 @@ const Index = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
+    <div className="flex h-screen bg-background font-sans overflow-hidden">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col border-r border-slate-800 z-20 shrink-0">
-        <div className="p-4 flex items-center gap-2.5 font-bold text-white border-b border-slate-800 h-16">
-          <div className="p-1.5 bg-indigo-600 rounded-lg">
-            <Box size={18} className="text-white" />
+      <aside className="hidden md:flex w-64 bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-text))] flex-col border-r border-[hsl(var(--sidebar-border))] z-20 shrink-0">
+        <div className="p-4 flex items-center gap-3 font-bold text-white border-b border-[hsl(var(--sidebar-border))] h-16">
+          <img src={logo} alt="M" className="w-9 h-9 rounded-full border-2 border-[hsl(var(--sidebar-active))]" />
+          <div className="leading-tight">
+            <span className="tracking-tight text-sm">MARCENA<span className="text-[hsl(var(--sidebar-active))]">PP</span></span>
+            <p className="text-[10px] text-[hsl(var(--sidebar-text))] font-normal">Marcenaria 4.0</p>
           </div>
-          <span className="tracking-tight">Marcenaria<span className="text-indigo-400">.OS</span></span>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {modules.map(m => (
@@ -71,8 +76,8 @@ const Index = () => {
               onClick={() => setActiveModule(m.id)}
               className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
                 activeModule === m.id
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50'
-                  : 'hover:bg-slate-800 hover:text-white text-slate-400'
+                  ? 'bg-[hsl(var(--sidebar-active))] text-white shadow-lg shadow-[hsl(var(--sidebar-active)/0.4)]'
+                  : 'hover:bg-white/5 hover:text-white text-[hsl(var(--sidebar-text))]'
               }`}
             >
               <m.icon size={18} />
@@ -80,21 +85,49 @@ const Index = () => {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-800">
-          <div className="text-xs text-slate-600 text-center">
-            Powered by Gemini AI
-          </div>
+        <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
+          <button
+            onClick={signOut}
+            className="w-full flex items-center gap-3 p-3 rounded-xl text-[hsl(var(--sidebar-text))] hover:bg-white/5 hover:text-red-400 transition-all text-left"
+          >
+            <LogOut size={18} />
+            <span className="font-medium text-sm">Sair</span>
+          </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 h-full overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 bg-background h-full overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-slate-200 px-4 md:px-8 h-16 flex items-center sticky top-0 z-10 shadow-sm shrink-0">
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 truncate">
-            <ActiveIcon size={20} className="text-indigo-600 shrink-0" />
+        <header className="bg-card border-b border-border px-4 md:px-8 h-16 flex items-center justify-between sticky top-0 z-10 shadow-sm shrink-0">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2 truncate">
+            <ActiveIcon size={20} className="text-[hsl(var(--sidebar-active))] shrink-0" />
             <span className="truncate">{activeModuleData.label}</span>
           </h2>
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center gap-2 p-2 rounded-xl hover:bg-muted transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full bg-[hsl(var(--sidebar-active))] flex items-center justify-center text-white text-sm font-bold">
+                {profile?.name?.charAt(0)?.toUpperCase() || <User size={16} />}
+              </div>
+            </button>
+            {showUserMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                <div className="absolute right-0 top-12 z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-56">
+                  <div className="px-3 py-2 border-b border-border mb-2">
+                    <p className="font-semibold text-foreground text-sm truncate">{profile?.name || 'Usuário'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{profile?.company || ''}</p>
+                  </div>
+                  <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                    <LogOut size={16} /> Sair
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </header>
 
         {/* Module Content */}
@@ -105,16 +138,16 @@ const Index = () => {
         </div>
 
         {/* Mobile Bottom Nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-1 py-1 z-50 flex justify-around items-center pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border px-1 py-1 z-50 flex justify-around items-center pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
           {modules.map(m => (
             <button
               key={m.id}
               onClick={() => setActiveModule(m.id)}
               className={`flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all flex-1 ${
-                activeModule === m.id ? 'text-indigo-600' : 'text-slate-400'
+                activeModule === m.id ? 'text-[hsl(var(--sidebar-active))]' : 'text-muted-foreground'
               }`}
             >
-              <div className={`p-1.5 rounded-xl transition-colors ${activeModule === m.id ? 'bg-indigo-50' : 'bg-transparent'}`}>
+              <div className={`p-1.5 rounded-xl transition-colors ${activeModule === m.id ? 'bg-[hsl(var(--sidebar-active)/0.1)]' : 'bg-transparent'}`}>
                 <m.icon size={20} strokeWidth={activeModule === m.id ? 2.5 : 2} />
               </div>
               <span className="text-[9px] font-semibold tracking-tight">{m.mobileLabel}</span>

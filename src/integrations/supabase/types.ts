@@ -14,7 +14,147 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      custom_clauses: {
+        Row: {
+          clause_text: string
+          created_at: string
+          id: string
+          prompt: string | null
+          user_id: string
+        }
+        Insert: {
+          clause_text: string
+          created_at?: string
+          id?: string
+          prompt?: string | null
+          user_id: string
+        }
+        Update: {
+          clause_text?: string
+          created_at?: string
+          id?: string
+          prompt?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      gallery_images: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string
+          prompt: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url: string
+          prompt?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string
+          prompt?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          company: string | null
+          created_at: string
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          back_material: string | null
+          created_at: string
+          depth: number | null
+          doors: number | null
+          drawers: number | null
+          external_material: string | null
+          handle_type: string | null
+          height: number | null
+          id: string
+          internal_material: string | null
+          labor_rate: number | null
+          modules: number | null
+          name: string
+          profit_margin: number | null
+          updated_at: string
+          user_id: string
+          width: number | null
+        }
+        Insert: {
+          back_material?: string | null
+          created_at?: string
+          depth?: number | null
+          doors?: number | null
+          drawers?: number | null
+          external_material?: string | null
+          handle_type?: string | null
+          height?: number | null
+          id?: string
+          internal_material?: string | null
+          labor_rate?: number | null
+          modules?: number | null
+          name?: string
+          profit_margin?: number | null
+          updated_at?: string
+          user_id: string
+          width?: number | null
+        }
+        Update: {
+          back_material?: string | null
+          created_at?: string
+          depth?: number | null
+          doors?: number | null
+          drawers?: number | null
+          external_material?: string | null
+          handle_type?: string | null
+          height?: number | null
+          id?: string
+          internal_material?: string | null
+          labor_rate?: number | null
+          modules?: number | null
+          name?: string
+          profit_margin?: number | null
+          updated_at?: string
+          user_id?: string
+          width?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
