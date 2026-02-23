@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Plus, Printer, Loader2, X, Scale } from 'lucide-react';
-import { Button, Card, Modal, InputGroup, callAIText } from './shared';
+import { Button, Card, Modal, InputGroup, callAIText, requireAuth } from './shared';
+import { useNavigate } from 'react-router-dom';
 
 const ModuleContrato = () => {
   const [data, setData] = useState({ client: "Cliente", value: 8500, days: 45, crooked: true, pipes: true });
@@ -9,8 +10,12 @@ const ModuleContrato = () => {
   const [aiPrompt, setAiPrompt] = useState("");
   const [loadingAi, setLoadingAi] = useState(false);
 
+  const nav = useNavigate();
+
   const generateClause = async () => {
     if (!aiPrompt) return;
+    const authed = await requireAuth();
+    if (!authed) { nav('/auth'); return; }
     setLoadingAi(true);
     try {
       const prompt = `Atue como Advogado especialista em contratos de marcenaria. Escreva uma cláusula contratual curta e objetiva sobre: "${aiPrompt}". Responda em Português, de forma formal e juridicamente sólida.`;

@@ -3,7 +3,8 @@ import {
   Upload, MapPin, Wand2, RefreshCcw, Loader2, Sparkles, 
   Download, DollarSign, Maximize2, X, Mic
 } from 'lucide-react';
-import { Button, Card, Modal, DecorationPanel, callAIImage, callAIText, type DecorOption } from './shared';
+import { Button, Card, Modal, DecorationPanel, callAIImage, callAIText, requireAuth, type DecorOption } from './shared';
+import { useNavigate } from 'react-router-dom';
 
 const styles = [
   { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
@@ -90,6 +91,8 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
 
   const analyzeForBudget = async () => {
     if (!generatedImage) return;
+    const authed = await requireAuth();
+    if (!authed) { nav('/auth'); return; }
     setAnalyzing(true);
     try {
       const imageBase64 = generatedImage.split(',')[1];
@@ -106,8 +109,12 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
     } finally { setAnalyzing(false); }
   };
 
+  const nav = useNavigate();
+
   const generate = async () => {
     if (!prompt && !sketchImage) { setError("Adicione um prompt ou imagem."); return; }
+    const authed = await requireAuth();
+    if (!authed) { nav('/auth'); return; }
     setLoading(true); setError(null);
     try {
       const decPrompt = `INTERIOR STYLING: Apply a ${selectedDecor.label} style. ${selectedDecor.prompt}`;

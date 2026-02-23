@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, ChevronDown, Sofa, Box, Coffee, Leaf, Gem, Briefcase } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 // --- AI HELPERS ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -9,6 +10,12 @@ const aiHeaders = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${SUPABASE_KEY}`,
 });
+
+/** Returns true if user is logged in, false otherwise */
+export const requireAuth = async (): Promise<boolean> => {
+  const { data: { session } } = await supabase.auth.getSession();
+  return !!session;
+};
 
 export const callAIImage = async (prompt: string, images?: { mimeType: string; data: string }[]) => {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-image`, {

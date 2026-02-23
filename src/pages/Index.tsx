@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, Settings
+  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, LogIn
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import ModuleDashboard from '../components/marcenaria/ModuleDashboard';
 import ModuleStudio from '../components/marcenaria/ModuleStudio';
 import ModuleElevator from '../components/marcenaria/ModuleElevator';
@@ -36,7 +37,8 @@ const defaultProject = {
 };
 
 const Index = () => {
-  const { profile, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState('studio');
   const [budgetProject, setBudgetProject] = useState(defaultProject);
   const [parts, setParts] = useState<any[]>([]);
@@ -86,13 +88,23 @@ const Index = () => {
           ))}
         </nav>
         <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
-          <button
-            onClick={signOut}
-            className="w-full flex items-center gap-3 p-3 rounded-xl text-[hsl(var(--sidebar-text))] hover:bg-white/5 hover:text-red-400 transition-all text-left"
-          >
-            <LogOut size={18} />
-            <span className="font-medium text-sm">Sair</span>
-          </button>
+          {user ? (
+            <button
+              onClick={signOut}
+              className="w-full flex items-center gap-3 p-3 rounded-xl text-[hsl(var(--sidebar-text))] hover:bg-white/5 hover:text-red-400 transition-all text-left"
+            >
+              <LogOut size={18} />
+              <span className="font-medium text-sm">Sair</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/auth')}
+              className="w-full flex items-center gap-3 p-3 rounded-xl text-[hsl(var(--sidebar-text))] hover:bg-white/5 hover:text-green-400 transition-all text-left"
+            >
+              <LogIn size={18} />
+              <span className="font-medium text-sm">Entrar / Cadastrar</span>
+            </button>
+          )}
         </div>
       </aside>
 
@@ -105,27 +117,38 @@ const Index = () => {
             <span className="truncate">{activeModuleData.label}</span>
           </h2>
           <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 p-2 rounded-xl hover:bg-muted transition-colors"
-            >
-              <div className="w-8 h-8 rounded-full bg-[hsl(var(--sidebar-active))] flex items-center justify-center text-white text-sm font-bold">
-                {profile?.name?.charAt(0)?.toUpperCase() || <User size={16} />}
-              </div>
-            </button>
-            {showUserMenu && (
+            {user ? (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-                <div className="absolute right-0 top-12 z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-56">
-                  <div className="px-3 py-2 border-b border-border mb-2">
-                    <p className="font-semibold text-foreground text-sm truncate">{profile?.name || 'Usuário'}</p>
-                    <p className="text-xs text-muted-foreground truncate">{profile?.company || ''}</p>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-2 p-2 rounded-xl hover:bg-muted transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-full bg-[hsl(var(--sidebar-active))] flex items-center justify-center text-white text-sm font-bold">
+                    {profile?.name?.charAt(0)?.toUpperCase() || <User size={16} />}
                   </div>
-                  <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                    <LogOut size={16} /> Sair
-                  </button>
-                </div>
+                </button>
+                {showUserMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                    <div className="absolute right-0 top-12 z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-56">
+                      <div className="px-3 py-2 border-b border-border mb-2">
+                        <p className="font-semibold text-foreground text-sm truncate">{profile?.name || 'Usuário'}</p>
+                        <p className="text-xs text-muted-foreground truncate">{profile?.company || ''}</p>
+                      </div>
+                      <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <LogOut size={16} /> Sair
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
+            ) : (
+              <button
+                onClick={() => navigate('/auth')}
+                className="flex items-center gap-2 p-2 px-4 rounded-xl bg-[hsl(var(--sidebar-active))] text-white text-sm font-medium hover:opacity-90 transition-colors"
+              >
+                <LogIn size={16} /> Entrar
+              </button>
             )}
           </div>
         </header>
