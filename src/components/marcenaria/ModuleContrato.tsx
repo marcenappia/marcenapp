@@ -1,16 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Plus, Printer, Loader2, X, Scale } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, callAIText, requireAuth } from './shared';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 const ModuleContrato = () => {
+  const nav = useNavigate();
+  const { user } = useAuth();
   const [data, setData] = useState({ client: "Cliente", value: 8500, days: 45, crooked: true, pipes: true });
   const [showModal, setShowModal] = useState(false);
-  const [customClauses, setCustomClauses] = useState<string[]>([]);
+  const [customClauses, setCustomClauses] = useState<{ id?: string; text: string; prompt?: string }[]>([]);
   const [aiPrompt, setAiPrompt] = useState("");
   const [loadingAi, setLoadingAi] = useState(false);
 
-  const nav = useNavigate();
+  // Load clauses from DB
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('custom_clauses')
+      .select('id, clause_text, prompt')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .then(({ data: rows }) => {
+        if (rows) {
+          setCustomClauses(rows.map(r => ({ id: r.id, text: r.clause_text, prompt: r.prompt || '' })));
+        }
+      });
+  }, [user]);
 
   const generateClause = async () => {
     if (!aiPrompt) return;
@@ -20,8 +37,28 @@ const ModuleContrato = () => {
     try {
       const prompt = `Atue como Advogado especialista em contratos de marcenaria. Escreva uma cláusula contratual curta e objetiva sobre: "${aiPrompt}". Responda em Português, de forma formal e juridicamente sólida.`;
       const text = await callAIText(prompt);
-      if (text) { setCustomClauses([...customClauses, text]); setAiPrompt(""); }
+      if (text) {
+        let newId: string | undefined;
+        if (user) {
+          const { data: inserted } = await supabase.from('custom_clauses').insert({
+            user_id: user.id,
+            clause_text: text,
+            prompt: aiPrompt,
+          }).select('id').single();
+          newId = inserted?.id;
+        }
+        setCustomClauses(prev => [...prev, { id: newId, text, prompt: aiPrompt }]);
+        setAiPrompt("");
+      }
     } catch { alert("Erro na IA. Tente novamente."); } finally { setLoadingAi(false); }
+  };
+
+  const removeClause = async (idx: number) => {
+    const clause = customClauses[idx];
+    if (clause.id && user) {
+      await supabase.from('custom_clauses').delete().eq('id', clause.id);
+    }
+    setCustomClauses(prev => prev.filter((_, i) => i !== idx));
   };
 
   return (
@@ -112,14 +149,14 @@ const ModuleContrato = () => {
             )}
 
             {customClauses.map((clause, idx) => (
-              <div key={idx} className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded text-sm text-justify leading-relaxed relative group">
+              <div key={clause.id || idx} className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded text-sm text-justify leading-relaxed relative group">
                 <button
-                  onClick={() => setCustomClauses(customClauses.filter((_, i) => i !== idx))}
+                  onClick={() => removeClause(idx)}
                   className="absolute top-2 right-2 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition-all"
                 >
                   <X size={14} />
                 </button>
-                <strong>CLÁUSULA ADICIONAL {idx + 1}:</strong> {clause}
+                <strong>CLÁUSULA ADICIONAL {idx + 1}:</strong> {clause.text}
               </div>
             ))}
 
@@ -154,7 +191,7 @@ const ModuleContrato = () => {
           <p className="mb-6"><strong>Prazo:</strong> {data.days} dias úteis</p>
           {customClauses.length > 0 && (
             <div className="mb-6 space-y-2">
-              {customClauses.map((c, i) => <p key={i} className="text-sm"><strong>Cláusula {i + 1}:</strong> {c}</p>)}
+              {customClauses.map((c, i) => <p key={i} className="text-sm"><strong>Cláusula {i + 1}:</strong> {c.text}</p>)}
             </div>
           )}
           <p className="text-sm text-slate-600">Declaro estar de acordo com todas as cláusulas apresentadas neste instrumento.</p>

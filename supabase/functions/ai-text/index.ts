@@ -23,7 +23,7 @@ serve(async (req) => {
       }
     }
 
-    const model = "gemini-2.5-flash-preview-05-20";
+    const model = "gemini-2.0-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
 
     const body: any = {
