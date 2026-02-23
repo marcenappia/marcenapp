@@ -2,64 +2,73 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+    if (!GEMINI_KEY) throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
 
     const { prompt, images } = await req.json();
-    // images: array of { mimeType, data } base64 objects
 
-    const contentParts: any[] = [{ type: "text", text: prompt }];
+    const parts: any[] = [{ text: prompt }];
     if (images && images.length > 0) {
       for (const img of images) {
-        contentParts.push({
-          type: "image_url",
-          image_url: { url: `data:${img.mimeType};base64,${img.data}` }
+        parts.push({
+          inline_data: { mime_type: img.mimeType, data: img.data }
         });
       }
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+    const model = "gemini-2.5-flash-preview-05-20";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
+
+    const body = {
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        responseModalities: ["TEXT", "IMAGE"],
       },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: contentParts }],
-        modalities: ["image", "text"],
-      }),
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
       const status = response.status;
-      const body = await response.text();
-      console.error("AI gateway error:", status, body);
+      const errBody = await response.text();
+      console.error("Gemini API error:", status, errBody);
       if (status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
+        return new Response(JSON.stringify({ error: "Rate limit exceeded. Tente novamente em alguns segundos." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "Credits exhausted. Please add credits in workspace settings." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ error: `AI error: ${status}` }), {
+      return new Response(JSON.stringify({ error: `Gemini error: ${status}` }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    const text = data.choices?.[0]?.message?.content;
+    const candidate = data.candidates?.[0]?.content?.parts;
+    
+    let imageUrl: string | null = null;
+    let text: string | null = null;
+
+    if (candidate) {
+      for (const part of candidate) {
+        if (part.inline_data) {
+          imageUrl = `data:${part.inline_data.mime_type};base64,${part.inline_data.data}`;
+        }
+        if (part.text) {
+          text = part.text;
+        }
+      }
+    }
 
     return new Response(JSON.stringify({ imageUrl, text }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
