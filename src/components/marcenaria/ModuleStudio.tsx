@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { Button, Card, Modal, DecorationPanel, callAIImage, callAIText, requireAuth, type DecorOption } from './shared';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 const styles = [
   { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
@@ -20,6 +22,8 @@ interface Props {
 }
 
 const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Props) => {
+  const nav = useNavigate();
+  const { user } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [sketchImage, setSketchImage] = useState<string | null>(null);
   const [sketchBase64, setSketchBase64] = useState<string | null>(null);
@@ -38,9 +42,35 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
   const [selectedStyle, setSelectedStyle] = useState(styles[0]);
   const recognitionRef = useRef<any>(null);
 
+  // Load gallery from DB
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('gallery_images')
+      .select('image_url, prompt')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const urls = data.map(d => d.image_url);
+          setGallery(urls);
+          if (!generatedImage) setGeneratedImage(urls[0]);
+        }
+      });
+  }, [user]);
+
   useEffect(() => {
     if (!generatedImage && gallery.length > 0) setGeneratedImage(gallery[0]);
   }, []);
+
+  const saveToGallery = async (imageUrl: string, promptText: string) => {
+    if (!user) return;
+    await supabase.from('gallery_images').insert({
+      user_id: user.id,
+      image_url: imageUrl,
+      prompt: promptText,
+    });
+  };
 
   const toggleRecording = () => {
     if (isRecording) {
@@ -109,8 +139,6 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
     } finally { setAnalyzing(false); }
   };
 
-  const nav = useNavigate();
-
   const generate = async () => {
     if (!prompt && !sketchImage) { setError("Adicione um prompt ou imagem."); return; }
     const authed = await requireAuth();
@@ -140,7 +168,10 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
       }
 
       if (newImage) {
-        setGeneratedImage(newImage); setGallery(prev => [newImage!, ...prev]); setShowModal(true);
+        setGeneratedImage(newImage);
+        setGallery(prev => [newImage!, ...prev]);
+        setShowModal(true);
+        await saveToGallery(newImage, prompt);
       } else {
         throw new Error("Falha na geração. Tente novamente.");
       }
