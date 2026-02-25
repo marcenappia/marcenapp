@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_messages: {
+        Row: {
+          budget: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          sender: string
+          text: string | null
+          user_id: string
+        }
+        Insert: {
+          budget?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          sender?: string
+          text?: string | null
+          user_id: string
+        }
+        Update: {
+          budget?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          sender?: string
+          text?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       custom_clauses: {
         Row: {
           clause_text: string

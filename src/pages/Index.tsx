@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, LogIn
+  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, LogIn, MessageSquare
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -11,9 +11,11 @@ import ModuleElevator from '../components/marcenaria/ModuleElevator';
 import ModuleOrcamento from '../components/marcenaria/ModuleOrcamento';
 import ModuleCorte from '../components/marcenaria/ModuleCorte';
 import ModuleContrato from '../components/marcenaria/ModuleContrato';
+import ModuleChat from '../components/marcenaria/ModuleChat';
 import logo from '@/assets/marcenapp-logo.jpeg';
 
 const modules = [
+  { id: 'chat', label: 'IARA Chat', mobileLabel: 'Chat', icon: MessageSquare },
   { id: 'dashboard', label: 'Visão Geral', mobileLabel: 'Início', icon: Home },
   { id: 'studio', label: 'Studio 3D', mobileLabel: 'Studio', icon: Wand2 },
   { id: 'elevator', label: 'Elevador Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine },
@@ -40,7 +42,7 @@ const defaultProject = {
 const Index = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState('studio');
+  const [activeModule, setActiveModule] = useState('chat');
   const [budgetProject, setBudgetProject] = useState(defaultProject);
   const [parts, setParts] = useState<any[]>([]);
   const [gallery, setGallery] = useState<string[]>([]);
@@ -121,6 +123,7 @@ const Index = () => {
 
   const renderModule = () => {
     switch (activeModule) {
+      case 'chat': return <ModuleChat />;
       case 'dashboard': return <ModuleDashboard projectData={budgetProject} partsData={parts} navigateTo={setActiveModule} />;
       case 'studio': return <ModuleStudio setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} />;
       case 'elevator': return <ModuleElevator setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
