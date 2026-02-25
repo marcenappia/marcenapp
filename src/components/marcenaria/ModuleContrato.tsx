@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Plus, Printer, Loader2, X, Scale } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, callAIText, requireAuth } from './shared';
-import { useNavigate } from 'react-router-dom';
+import AuthDialog from './AuthDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
 const ModuleContrato = () => {
-  const nav = useNavigate();
   const { user } = useAuth();
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [data, setData] = useState({ client: "Cliente", value: 8500, days: 45, crooked: true, pipes: true });
   const [showModal, setShowModal] = useState(false);
   const [customClauses, setCustomClauses] = useState<{ id?: string; text: string; prompt?: string }[]>([]);
@@ -32,7 +32,7 @@ const ModuleContrato = () => {
   const generateClause = async () => {
     if (!aiPrompt) return;
     const authed = await requireAuth();
-    if (!authed) { nav('/auth'); return; }
+    if (!authed) { setShowAuthDialog(true); return; }
     setLoadingAi(true);
     try {
       const prompt = `Atue como Advogado especialista em contratos de marcenaria. Escreva uma cláusula contratual curta e objetiva sobre: "${aiPrompt}". Responda em Português, de forma formal e juridicamente sólida.`;
@@ -198,6 +198,12 @@ const ModuleContrato = () => {
           <div className="mt-16 border-t border-slate-800 w-1/2 pt-2 text-sm">Assinatura do Contratante</div>
         </div>
       </Modal>
+
+      <AuthDialog
+        isOpen={showAuthDialog}
+        onClose={() => setShowAuthDialog(false)}
+        onSuccess={() => setShowAuthDialog(false)}
+      />
     </>
   );
 };
