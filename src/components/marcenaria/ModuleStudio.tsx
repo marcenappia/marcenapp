@@ -4,7 +4,7 @@ import {
   Download, DollarSign, Maximize2, X, Mic
 } from 'lucide-react';
 import { Button, Card, Modal, DecorationPanel, callAIImage, callAIText, requireAuth, type DecorOption } from './shared';
-import { useNavigate } from 'react-router-dom';
+import AuthDialog from './AuthDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -22,8 +22,9 @@ interface Props {
 }
 
 const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Props) => {
-  const nav = useNavigate();
   const { user } = useAuth();
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [prompt, setPrompt] = useState("");
   const [sketchImage, setSketchImage] = useState<string | null>(null);
   const [sketchBase64, setSketchBase64] = useState<string | null>(null);
@@ -122,7 +123,11 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
   const analyzeForBudget = async () => {
     if (!generatedImage) return;
     const authed = await requireAuth();
-    if (!authed) { nav('/auth'); return; }
+    if (!authed) {
+      setPendingAction(() => () => analyzeForBudget());
+      setShowAuthDialog(true);
+      return;
+    }
     setAnalyzing(true);
     try {
       const imageBase64 = generatedImage.split(',')[1];
@@ -142,7 +147,11 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
   const generate = async () => {
     if (!prompt && !sketchImage) { setError("Adicione um prompt ou imagem."); return; }
     const authed = await requireAuth();
-    if (!authed) { nav('/auth'); return; }
+    if (!authed) {
+      setPendingAction(() => () => generate());
+      setShowAuthDialog(true);
+      return;
+    }
     setLoading(true); setError(null);
     try {
       const decPrompt = `INTERIOR STYLING: Apply a ${selectedDecor.label} style. ${selectedDecor.prompt}`;
@@ -322,6 +331,12 @@ const ModuleStudio = ({ setBudgetProject, navigateTo, gallery, setGallery }: Pro
           <img src={generatedImage || ''} className="max-w-full max-h-[70vh] rounded shadow-2xl" />
         </div>
       </Modal>
+
+      <AuthDialog
+        isOpen={showAuthDialog}
+        onClose={() => { setShowAuthDialog(false); setPendingAction(null); }}
+        onSuccess={() => { if (pendingAction) pendingAction(); setPendingAction(null); }}
+      />
     </>
   );
 };
