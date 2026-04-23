@@ -18,7 +18,7 @@ serve(async (req) => {
     if (images && images.length > 0) {
       for (const img of images) {
         parts.push({
-          inline_data: { mime_type: img.mimeType, data: img.data }
+          inlineData: { mimeType: img.mimeType, data: img.data }
         });
       }
     }
@@ -61,8 +61,10 @@ serve(async (req) => {
 
     if (candidate) {
       for (const part of candidate) {
-        if (part.inline_data) {
-          imageUrl = `data:${part.inline_data.mime_type};base64,${part.inline_data.data}`;
+        const inline = part.inlineData || part.inline_data;
+        if (inline) {
+          const mime = inline.mimeType || inline.mime_type;
+          imageUrl = `data:${mime};base64,${inline.data}`;
         }
         if (part.text) {
           text = part.text;
