@@ -1,9 +1,46 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const ImageSchema = z.object({
+  mimeType: z
+    .string()
+    .regex(/^image\/(png|jpeg|jpg|webp|gif)$/i, {
+      message: "mimeType must be image/png, image/jpeg, image/webp or image/gif",
+    }),
+  data: z
+    .string()
+    .min(1, { message: "image data cannot be empty" })
+    .max(15_000_000, { message: "image data exceeds 15MB base64 limit" }),
+});
+
+const SizeSchema = z
+  .object({
+    width: z.number().int().min(64).max(4096),
+    height: z.number().int().min(64).max(4096),
+  })
+  .optional();
+
+const BodySchema = z.object({
+  prompt: z
+    .string({ required_error: "prompt is required" })
+    .trim()
+    .min(1, { message: "prompt cannot be empty" })
+    .max(4000, { message: "prompt must be 4000 characters or fewer" }),
+  images: z.array(ImageSchema).max(8, { message: "maximum 8 images allowed" }).optional(),
+  size: SizeSchema,
+});
+
+function badRequest(error: unknown) {
+  return new Response(JSON.stringify({ error }), {
+    status: 400,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -12,7 +49,19 @@ serve(async (req) => {
     const GEMINI_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     if (!GEMINI_KEY) throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
 
-    const { prompt, images } = await req.json();
+    let raw: unknown;
+    try {
+      raw = await req.json();
+    } catch {
+      return badRequest("Invalid JSON body");
+    }
+
+    const parsed = BodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return badRequest(parsed.error.flatten().fieldErrors);
+    }
+
+    const { prompt, images, size } = parsed.data;
 
     const parts: any[] = [{ text: prompt }];
     if (images && images.length > 0) {
@@ -26,10 +75,11 @@ serve(async (req) => {
     const model = "gemini-2.5-flash-image";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
 
-    const body = {
+    const body: Record<string, any> = {
       contents: [{ role: "user", parts }],
       generationConfig: {
         responseModalities: ["TEXT", "IMAGE"],
+        ...(size ? { imageConfig: { width: size.width, height: size.height } } : {}),
       },
     };
 
