@@ -192,8 +192,8 @@ serve(async (req) => {
     const body: Record<string, any> = {
       contents: [{ role: "user", parts }],
       generationConfig: {
-        response_modalities: ["TEXT", "IMAGE"],
-        image_config: { width, height },
+        responseModalities: ["TEXT", "IMAGE"],
+        imageConfig: { width, height },
       },
     };
 
