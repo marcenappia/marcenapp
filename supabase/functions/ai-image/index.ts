@@ -193,6 +193,7 @@ serve(async (req) => {
       contents: [{ role: "user", parts }],
       generationConfig: {
         responseModalities: ["TEXT", "IMAGE"],
+        ...(width && height ? { image_config: { width, height } } : {}),
       },
     };
 
