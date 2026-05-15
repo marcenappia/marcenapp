@@ -237,7 +237,17 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ imageUrl, text, width, height }), {
+    return new Response(JSON.stringify({ 
+      imageUrl, 
+      text, 
+      width, 
+      height,
+      promptStats: {
+        wordCount,
+        charCount: prompt.length,
+        tokenEstimate: Math.ceil(prompt.length / 4)
+      }
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
