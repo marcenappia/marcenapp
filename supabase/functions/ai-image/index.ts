@@ -160,11 +160,14 @@ serve(async (req) => {
     }
 
     // 5. Size: default missing dimension; re-check bounds for safety.
-    let width: number | undefined;
-    let height: number | undefined;
-    if (size && (size.width !== undefined || size.height !== undefined)) {
-      width = size.width ?? size.height ?? DEFAULT_DIM;
-      height = size.height ?? size.width ?? DEFAULT_DIM;
+    let width = DEFAULT_DIM;
+    let height = DEFAULT_DIM;
+    if (size) {
+      if (size.width !== undefined || size.height !== undefined) {
+        width = size.width ?? size.height ?? DEFAULT_DIM;
+        height = size.height ?? size.width ?? DEFAULT_DIM;
+      }
+      
       if (width < MIN_DIM || width > MAX_DIM || height < MIN_DIM || height > MAX_DIM) {
         return badRequest({
           message: "Validation failed",
@@ -190,7 +193,7 @@ serve(async (req) => {
       contents: [{ role: "user", parts }],
       generationConfig: {
         responseModalities: ["TEXT", "IMAGE"],
-        ...(width && height ? { imageConfig: { width, height } } : {}),
+        imageConfig: { width, height },
       },
     };
 
@@ -235,7 +238,7 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ imageUrl, text }), {
+    return new Response(JSON.stringify({ imageUrl, text, width, height }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
