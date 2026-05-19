@@ -99,7 +99,10 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          onboarding_completed: string[] | null
+          onboarding_step: number | null
           phone: string | null
+          reduce_motion: boolean | null
           updated_at: string
           user_id: string
         }
@@ -109,7 +112,10 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          onboarding_completed?: string[] | null
+          onboarding_step?: number | null
           phone?: string | null
+          reduce_motion?: boolean | null
           updated_at?: string
           user_id: string
         }
@@ -119,7 +125,10 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          onboarding_completed?: string[] | null
+          onboarding_step?: number | null
           phone?: string | null
+          reduce_motion?: boolean | null
           updated_at?: string
           user_id?: string
         }
