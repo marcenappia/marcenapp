@@ -42,20 +42,24 @@ const Index = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialModule = searchParams.get('module') || 'chat';
-  const [activeModule, setActiveModule] = useState(initialModule);
+  const activeModule = searchParams.get('module') || 'chat';
+  
+  const setActiveModule = (id: string) => {
+    setSearchParams({ module: id }, { replace: true });
+  };
+
   const [budgetProject, setBudgetProject] = useState(defaultProject);
   const [parts, setParts] = useState<any[]>([]);
   const [gallery, setGallery] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
-    setSearchParams({ module: activeModule }, { replace: true });
     const moduleData = modules.find(m => m.id === activeModule);
     if (moduleData) {
       document.title = `${moduleData.label} | Marcenapp`;
     }
-  }, [activeModule, setSearchParams]);
+  }, [activeModule]);
+
 
   // Persistence logic moved to hook
   useProjectPersistence(budgetProject, setBudgetProject);
