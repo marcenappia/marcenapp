@@ -1,82 +1,72 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
-test.describe('Accessibility and Navigation', () => {
+test.describe('Accessibility Audit & Keyboard Navigation', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to the app and bypass onboarding if needed
     await page.goto('/');
-    // Use aria-label or text to find skip button
+    // Skip onboarding
     const skipButton = page.getByRole('button', { name: /pular/i });
     if (await skipButton.isVisible()) {
       await skipButton.click();
     }
+    // Wait for animation
+    await page.waitForTimeout(500);
   });
 
-  test('should have visible focus indicators on desktop sidebar', async ({ page, isMobile }) => {
-    test.skip(!!isMobile, 'Sidebar is hidden on mobile');
+  test('should not have any detectable accessibility violations', async ({ page }) => {
+    const accessibilityScanResults = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
 
-    const firstNavButton = page.locator('#nav-chat');
-    await page.keyboard.press('Tab');
-    
-    // Continue tabbing until we hit a nav button if there are header links
-    let currentFocus = await page.evaluate(() => document.activeElement?.id);
-    while (currentFocus !== 'nav-chat' && currentFocus !== 'nav-dashboard') {
-       await page.keyboard.press('Tab');
-       currentFocus = await page.evaluate(() => document.activeElement?.id);
-    }
-
-    await expect(page.locator(':focus')).toBeVisible();
-    
-    // Check for focus ring class (which provides visible focus)
-    const classList = await page.locator(':focus').evaluate((el) => Array.from(el.classList));
-    expect(classList).toContain('focus-visible:ring-2');
+    expect(accessibilityScanResults.violations).toEqual([]);
   });
 
-  test('should have ARIA labels for all menu items', async ({ page }) => {
-    const navButtons = await page.getByRole('button').all();
-    for (const button of navButtons) {
-      const ariaLabel = await button.getAttribute('aria-label');
-      const text = await button.innerText();
-      // On mobile, text might be short, but label should be descriptive
-      if (text.length > 0 && text.length < 5) {
-         expect(ariaLabel).toBeTruthy();
-      }
-    }
-  });
+  test('should show aria-current on active module', async ({ page }) => {
+    const chatBtn = page.locator('#nav-chat');
+    // On Index.tsx, chat is default
+    await expect(chatBtn).toHaveAttribute('aria-current', 'page');
 
-  test('should navigate using keyboard in sidebar', async ({ page, isMobile }) => {
-    test.skip(!!isMobile, 'Sidebar navigation test for desktop only');
-    
-    await page.keyboard.press('Tab');
-    // Find dashboard link (Visão Geral)
     const dashboardBtn = page.locator('#nav-dashboard');
+    await dashboardBtn.click();
+    await expect(dashboardBtn).toHaveAttribute('aria-current', 'page');
+    await expect(chatBtn).not.toHaveAttribute('aria-current');
+  });
+
+  test('should follow correct tab order in sidebar', async ({ page, isMobile }) => {
+    test.skip(!!isMobile, 'Sidebar tab order test for desktop only');
     
-    // Tab until dashboard is focused
-    let isFocused = false;
-    for (let i = 0; i < 15; i++) {
-      const focused = await dashboardBtn.evaluate((el) => document.activeElement === el);
-      if (focused) {
-        isFocused = true;
-        break;
+    // Focus start
+    await page.keyboard.press('Tab');
+    
+    // We expect to cycle through all modules
+    const moduleIds = ['chat', 'dashboard', 'studio', 'elevator', 'orcamento', 'corte', 'contrato'];
+    
+    for (const id of moduleIds) {
+      // Find current focused element ID
+      let currentId = await page.evaluate(() => document.activeElement?.id);
+      
+      // If we are not on a nav button yet (maybe on logo or header), keep tabbing
+      while (!currentId?.startsWith('nav-')) {
+        await page.keyboard.press('Tab');
+        currentId = await page.evaluate(() => document.activeElement?.id);
       }
+      
+      expect(currentId).toBe(`nav-${id}`);
       await page.keyboard.press('Tab');
     }
-    
-    expect(isFocused).toBe(true);
-    await page.keyboard.press('Enter');
-    
-    // Check header updates
-    await expect(page.getByRole('heading', { name: /Visão Geral/i })).toBeVisible();
   });
 
-  test('should show correct labels on mobile resolutions', async ({ page, isMobile }) => {
-    test.skip(!isMobile, 'Mobile bottom nav test only');
+  test('mobile bottom nav should be accessible', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'Mobile test only');
+
+    const accessibilityScanResults = await new AxeBuilder({ page })
+      .include('nav.md\\:hidden')
+      .analyze();
+
+    expect(accessibilityScanResults.violations).toEqual([]);
     
-    // Bottom nav should be visible
-    const bottomNav = page.locator('nav.md\\:hidden');
-    await expect(bottomNav).toBeVisible();
-    
-    // Check specifically for one module's mobile label
-    await expect(page.getByText('Planta')).toBeVisible();
-    await expect(page.getByText('Custo')).toBeVisible();
+    // Verify aria-current on mobile
+    const mobileChat = page.getByRole('button', { name: 'IARA Chat' });
+    await expect(mobileChat).toHaveAttribute('aria-current', 'page');
   });
 });
