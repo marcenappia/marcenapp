@@ -135,7 +135,9 @@ serve(async (req) => {
     const { prompt: rawPrompt, images, size } = parsed.data;
 
     // 4. Prompt: trim, reject whitespace-only, char/word limits.
+    const isWhitespaceTrimmed = rawPrompt !== rawPrompt.trim();
     const prompt = rawPrompt.trim();
+    
     if (prompt.length === 0) {
       return badRequest({
         message: "Validation failed",
@@ -245,7 +247,19 @@ serve(async (req) => {
       promptStats: {
         wordCount,
         charCount: prompt.length,
-        tokenEstimate: Math.ceil(prompt.length / 4)
+        tokenEstimate: Math.ceil(prompt.length / 4),
+        tokenFormula: "Math.ceil(charCount / 4)",
+        normalization: {
+          whitespaceTrimmed: isWhitespaceTrimmed,
+          truncated: false, // We currently reject instead of truncate
+        },
+        thresholds: {
+          maxChars: MAX_PROMPT_CHARS,
+          maxWords: MAX_PROMPT_WORDS,
+          minDimension: MIN_DIM,
+          maxDimension: MAX_DIM,
+          defaultDimension: DEFAULT_DIM,
+        }
       }
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
