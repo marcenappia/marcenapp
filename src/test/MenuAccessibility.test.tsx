@@ -16,6 +16,7 @@ vi.mock('@/integrations/supabase/client', () => {
       on: vi.fn().mockReturnThis(),
       subscribe: vi.fn().mockReturnThis(),
     })),
+    removeChannel: vi.fn().mockResolvedValue({}),
     then: vi.fn((cb) => Promise.resolve(cb({ data: [], error: null }))),
   };
   mock.eq.mockReturnValue(mock);
@@ -57,6 +58,8 @@ describe('Menu Accessibility and Keyboard Navigation', () => {
     window.innerWidth = 1200;
     vi.clearAllMocks();
     localStorage.setItem('marcenapp_onboarding_seen', 'true');
+    // Polyfill scrollIntoView
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
   const renderIndex = () => {
