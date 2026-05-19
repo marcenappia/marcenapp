@@ -1,18 +1,35 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { requireAuth } from '@/components/marcenaria/shared';
-import { useStudioStore } from '@/store/useStudioStore';
+import { useStudioStore, ImageData } from '@/store/useStudioStore';
 import { studioService } from '../services/studioService';
 import { iaraService } from '@/modules/iara/services/iaraService';
 
-const styles = [
+interface StudioStyle {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
+const styles: StudioStyle[] = [
   { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
   { id: 'minimalist', label: 'Minimalista', prompt: 'minimalist interior design, soft lighting, clean lines' },
   { id: 'industrial', label: 'Industrial', prompt: 'industrial chic, exposed brick, concrete, dramatic lighting' }
 ];
 
-export const useStudio = (setBudgetProject: any, navigateTo: any, gallery: string[], setGallery: any) => {
+interface DecorStyle {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
+export const useStudio = (
+  setBudgetProject: React.Dispatch<React.SetStateAction<any>>, 
+  navigateTo: (route: string) => void, 
+  gallery: string[], 
+  setGallery: React.Dispatch<React.SetStateAction<string[]>>
+) => {
   const { user } = useAuth();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
@@ -26,13 +43,12 @@ export const useStudio = (setBudgetProject: any, navigateTo: any, gallery: strin
   
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [selectedDecor, setSelectedDecor] = useState<any>({ id: 'minimal', label: 'Minimalista', prompt: 'Minimalist decoration, few objects, clean.' });
+  const [selectedDecor, setSelectedDecor] = useState<DecorStyle>({ id: 'minimal', label: 'Minimalista', prompt: 'Minimalist decoration, few objects, clean.' });
   const [isRefining, setIsRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [selectedStyle, setSelectedStyle] = useState(styles[0]);
-  const recognitionRef = useRef<any>(null);
+  const [selectedStyle, setSelectedStyle] = useState<StudioStyle>(styles[0]);
 
   // Studio Store integration
   const generatedImage = useStudioStore(state => state.generatedImage);
@@ -79,7 +95,7 @@ export const useStudio = (setBudgetProject: any, navigateTo: any, gallery: strin
     }
     setLoading(true); setError(null);
     try {
-      const imgs = [];
+      const imgs: ImageData[] = [];
       if (sketchBase64 && sketchMime) imgs.push({ mimeType: sketchMime, data: sketchBase64 });
       if (envBase64 && envMime) imgs.push({ mimeType: envMime, data: envBase64 });
 
@@ -120,7 +136,14 @@ export const useStudio = (setBudgetProject: any, navigateTo: any, gallery: strin
     try {
       const imageBase64 = generatedImage.split(',')[1];
       const est = await iaraService.analyzeImage(imageBase64);
-      setBudgetProject((prev: any) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
+      setBudgetProject((prev: any) => ({ 
+        ...prev, 
+        width: est.width || 2, 
+        height: est.height || 2.5, 
+        depth: est.depth || 0.6, 
+        drawers: est.drawers || 2, 
+        doors: est.doors || 2 
+      }));
       setShowModal(false); navigateTo('orcamento');
     } catch {
       alert("Não foi possível analisar. Redirecionando..."); navigateTo('orcamento');
