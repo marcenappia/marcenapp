@@ -114,15 +114,23 @@ const Auth = () => {
             className="w-full py-3 rounded-xl bg-[hsl(var(--sidebar-active))] text-white font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="animate-spin" size={18} />}
-            {isLogin ? 'Entrar' : 'Cadastrar'}
+            {isReset ? 'Enviar Recuperação' : isLogin ? 'Entrar' : 'Cadastrar'}
           </button>
         </form>
 
         <p className="text-center text-[hsl(var(--sidebar-text))] text-sm">
-          {isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}
-          <button onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
-            {isLogin ? 'Cadastre-se' : 'Entrar'}
-          </button>
+          {isReset ? (
+            <button onClick={() => { setIsReset(false); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
+              Voltar para o login
+            </button>
+          ) : (
+            <>
+              {isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}
+              <button onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
+                {isLogin ? 'Cadastre-se' : 'Entrar'}
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>
