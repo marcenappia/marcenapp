@@ -196,6 +196,7 @@ const Index = () => {
             <button
               key={m.id}
               aria-label={m.label}
+              aria-current={activeModule === m.id ? 'page' : undefined}
               onClick={() => setActiveModule(m.id)}
               className={`flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sidebar-active))] ${
                 activeModule === m.id ? 'text-[hsl(var(--sidebar-active))]' : 'text-muted-foreground'
