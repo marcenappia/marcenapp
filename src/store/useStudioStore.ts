@@ -17,6 +17,11 @@ export interface RenderCommand {
   error?: string;
   resultUrl?: string;
   timestamp: number;
+  metadata?: {
+    origin: 'iara' | 'manual';
+    originalPrompt?: string;
+    targetModule?: string;
+  };
 }
 
 export interface StudioState {

@@ -41,6 +41,12 @@ export const StudioWorker = () => {
   };
 
   const processCommand = async (command: RenderCommand) => {
+    // Validação de Contrato/Schema
+    if (!command.prompt || (!command.images?.length && command.metadata?.origin === 'iara')) {
+      failCommand(command.id, "Comando inválido: Faltam parâmetros obrigatórios ou contexto visual.");
+      return;
+    }
+
     currentlyProcessing.current = command.id;
     startProcessing(command.id);
     
