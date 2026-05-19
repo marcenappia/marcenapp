@@ -12,6 +12,10 @@ vi.mock('@/integrations/supabase/client', () => {
     eq: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
+    channel: vi.fn(() => ({
+      on: vi.fn().mockReturnThis(),
+      subscribe: vi.fn().mockReturnThis(),
+    })),
     then: vi.fn((cb) => Promise.resolve(cb({ data: [], error: null }))),
   };
   mock.eq.mockReturnValue(mock);
