@@ -214,6 +214,15 @@ const Index = () => {
                         <p className="font-semibold text-foreground text-sm truncate">{profile?.name || 'Usuário'}</p>
                         <p className="text-xs text-muted-foreground truncate">{profile?.company || ''}</p>
                       </div>
+                      <button 
+                        onClick={() => {
+                          localStorage.removeItem('marcenapp_onboarding_seen');
+                          window.location.reload();
+                        }} 
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted rounded-lg transition-colors"
+                      >
+                        <Sparkles size={16} className="text-amber-500" /> Tutorial
+                      </button>
                       <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <LogOut size={16} /> Sair
                       </button>
