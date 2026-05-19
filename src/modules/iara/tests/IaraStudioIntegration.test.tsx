@@ -5,20 +5,28 @@ import { iaraService } from '../services/iaraService';
 import { studioService } from '@/modules/ambientes/services/studioService';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-vi.mock('@/integrations/supabase/client', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({ 
-        eq: vi.fn(() => ({
-          order: vi.fn(() => Promise.resolve({ data: [], error: null }))
-        }))
-      })),
-      insert: vi.fn(() => Promise.resolve({ error: null })),
+vi.mock('@/integrations/supabase/client', () => {
+  const mock: any = {
+    from: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    insert: vi.fn(() => Promise.resolve({ error: null })),
+    then: vi.fn((cb) => {
+      if (cb) return Promise.resolve(cb({ data: [], error: null }));
+      return Promise.resolve({ data: [], error: null });
+    }),
+    channel: vi.fn(() => ({ 
+      on: vi.fn().mockReturnThis(), 
+      subscribe: vi.fn().mockReturnThis() 
     })),
-    channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn().mockReturnThis() })),
     removeChannel: vi.fn(),
-  }
-}));
+  };
+  mock.eq.mockReturnValue(mock);
+  mock.order.mockReturnValue(mock);
+  mock.select.mockReturnValue(mock);
+  return { supabase: mock };
+});
 
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'test-user' } }),
