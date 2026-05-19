@@ -22,17 +22,19 @@ export interface ImageAnalysis {
 
 export const iaraService = {
   /**
-   * CAMADA COGNITIVA: Interpreta a intenção do usuário.
-   * Não executa ações, apenas entende "o que" o usuário quer.
+   * CAMADA COGNITIVA: Orquestra a intenção do usuário.
+   * Não executa renderização, apenas decide qual subsistema deve agir.
    */
   interpretCommand: async (prompt: string): Promise<CommandDecision> => {
     const lower = prompt.toLowerCase();
     
-    if (lower.includes("render") || lower.includes("mostre") || lower.includes("veja") || lower.includes("materializa")) {
+    // Identifica se a intenção é visual/materialização
+    if (lower.includes("render") || lower.includes("mostre") || lower.includes("veja") || lower.includes("materializa") || lower.includes("desenhe")) {
       return { type: 'RENDER_REQUEST', details: prompt };
     }
     
-    if (lower.includes("quanto") || lower.includes("preço") || lower.includes("orçamento")) {
+    // Identifica se a intenção é financeira
+    if (lower.includes("quanto") || lower.includes("preço") || lower.includes("orçamento") || lower.includes("valor")) {
       return { type: 'BUDGET_REQUEST', details: prompt };
     }
 

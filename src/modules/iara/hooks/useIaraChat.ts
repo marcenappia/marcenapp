@@ -28,18 +28,21 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
     const lastCommand = commandQueue[commandQueue.length - 1];
     
     const notifyChat = async () => {
-      if (lastCommand.status === 'completed' && lastCommand.resultUrl) {
-        const compressed = await compressImage(lastCommand.resultUrl);
+      // Evita loops infinitos ou notificações duplicadas
+      const lastProcessedId = localStorage.getItem('last_processed_command_id');
+      if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
+
+      if (lastCommand.status === 'completed') {
+        localStorage.setItem('last_processed_command_id', lastCommand.id);
         await saveMessage({
           sender: 'iara',
-          text: `Materialização concluída! O projeto foi gerado com sucesso no Estúdio.`,
-          image_url: compressed,
+          text: `A materialização foi concluída com sucesso no Estúdio! Você pode visualizar o resultado agora acessando o módulo de Materialização.`,
         });
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
         await saveMessage({
           sender: 'iara',
-          text: `Desculpe, ocorreu um erro no Estúdio ao processar sua solicitação: ${lastCommand.error}.`,
+          text: `Desculpe, o Estúdio encontrou um problema ao processar sua solicitação: ${lastCommand.error}.`,
         });
         setIsTyping(false);
       }
@@ -126,14 +129,15 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
         
         await saveMessage({ 
           sender: 'iara', 
-          text: `Entendido. Coloquei sua solicitação na fila de processamento do Estúdio. (Orçamento estimado: R$ ${budget}). Vou te avisar assim que terminar!` 
+          text: `Solicitação orquestrada com sucesso! Enviei os comandos para o Estúdio processar a materialização visual. (Orçamento estimado: R$ ${budget}). Vou te avisar assim que o Estúdio concluir!` 
         });
       } else {
-        await saveMessage({ sender: 'iara', text: 'Entendido. Estou processando sua dúvida técnica...' });
+        await saveMessage({ sender: 'iara', text: 'Analisando sua solicitação técnica...' });
+        // Lógica de chat normal delegada à IA
         setIsTyping(false);
       }
     } catch (e: any) {
-      await saveMessage({ sender: 'iara', text: `Erro no processamento: ${e?.message || 'Tente novamente.'}` });
+      await saveMessage({ sender: 'iara', text: `Erro na orquestração: ${e?.message || 'Tente novamente.'}` });
       setIsTyping(false);
     }
   };

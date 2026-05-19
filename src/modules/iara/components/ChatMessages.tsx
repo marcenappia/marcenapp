@@ -31,20 +31,16 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
           <div key={msg.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
             <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl p-1 shadow-md ${isUser ? 'bg-primary rounded-tr-sm' : 'bg-card border border-border rounded-tl-sm'}`}>
               {msg.image_url && (
-                <div className="relative rounded-xl overflow-hidden mb-1 group cursor-zoom-in" onClick={() => !isUser && onImageZoom({ url: msg.image_url!, budget: msg.budget })}>
-                  <img src={msg.image_url} className="w-full h-auto max-h-[300px] object-cover" alt="Render" />
-                  {!isUser && (
-                    <>
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                        <Maximize2 size={24} className="text-white" />
-                      </div>
-                      {msg.budget && (
-                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                          <span className="text-[10px] font-black text-white italic">R$ {msg.budget}</span>
-                        </div>
-                      )}
-                    </>
+                <div className="relative rounded-xl overflow-hidden mb-1 group cursor-zoom-in" onClick={() => isUser && onImageZoom({ url: msg.image_url!, budget: msg.budget })}>
+                  <img src={msg.image_url} className="w-full h-auto max-h-[300px] object-cover" alt="Referência" />
+                  {isUser && (
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <Maximize2 size={24} className="text-white" />
+                    </div>
                   )}
+                  <div className="absolute top-2 right-2">
+                    <span className="bg-black/40 text-[8px] text-white px-2 py-0.5 rounded-full uppercase font-bold tracking-widest backdrop-blur-sm">Contexto</span>
+                  </div>
                 </div>
               )}
               {msg.text && (
