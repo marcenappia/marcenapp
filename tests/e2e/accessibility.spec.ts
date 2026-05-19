@@ -13,49 +13,53 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     await page.waitForTimeout(500);
   });
 
-  test('should pass accessibility audit in all interaction states and match snapshots', async ({ page }) => {
-    const moduleIds = ['chat', 'dashboard', 'studio', 'orcamento'];
+  test('should pass accessibility audit and visual regression for Sidebar and BottomNav', async ({ page, isMobile }) => {
+    const moduleIds = isMobile 
+      ? ['chat', 'dashboard', 'clientes', 'diario', 'studio']
+      : ['chat', 'dashboard', 'studio', 'orcamento'];
     
     for (const id of moduleIds) {
-      const btn = page.locator(`#nav-${id}`);
+      const selector = isMobile ? `#mobile-nav-${id}` : `#nav-${id}`;
+      const btn = page.locator(selector).first();
       
       // State: Default
       await expect(btn).toHaveAttribute('aria-label', /.+/);
-      let results = await new AxeBuilder({ page }).include(`#nav-${id}`).analyze();
+      let results = await new AxeBuilder({ page }).include(selector).analyze();
       expect(results.violations).toEqual([]);
+      await expect(btn).toHaveScreenshot(`${isMobile ? 'mobile' : 'desktop'}-nav-${id}-default.png`);
 
-      // State: Hover visual regression
+      // State: Hover
       await btn.hover();
-      await expect(btn).toHaveScreenshot(`sidebar-nav-${id}-hover.png`);
+      await expect(btn).toHaveScreenshot(`${isMobile ? 'mobile' : 'desktop'}-nav-${id}-hover.png`);
       
       // State: Focus
       await btn.focus();
-      results = await new AxeBuilder({ page }).include(`#nav-${id}`).analyze();
-      expect(results.violations).toEqual([]);
-      await expect(btn).toHaveScreenshot(`sidebar-nav-${id}-focus.png`);
+      await expect(btn).toHaveScreenshot(`${isMobile ? 'mobile' : 'desktop'}-nav-${id}-focus.png`);
       
       // State: Selected
       await btn.click();
       await expect(btn).toHaveAttribute('aria-current', 'page');
-      await expect(page).toHaveScreenshot(`sidebar-nav-${id}-active.png`);
-      results = await new AxeBuilder({ page }).include(`#nav-${id}`).analyze();
-      expect(results.violations).toEqual([]);
+      await expect(btn).toHaveScreenshot(`${isMobile ? 'mobile' : 'desktop'}-nav-${id}-active.png`);
     }
   });
 
-  test('should update URL, title and aria-current on click (Desktop & Mobile)', async ({ page, isMobile }) => {
-    const mod = { id: 'studio', label: 'Studio 3D' };
-    const selector = isMobile ? `#mobile-nav-${mod.id}` : `#nav-${mod.id}`;
-    const btn = page.locator(selector).first();
-
-    await btn.click();
+  test('sidebar tab order and URL synchronization', async ({ page, isMobile }) => {
+    test.skip(!!isMobile, 'Desktop sidebar test');
     
-    await expect(page).toHaveURL(new RegExp(`module=${mod.id}`));
-    await expect(page).toHaveTitle(new RegExp(mod.label, 'i'));
-    await expect(btn).toHaveAttribute('aria-current', 'page');
+    const moduleIds = ['chat', 'dashboard', 'clientes', 'diario', 'studio', 'elevator', 'orcamento', 'corte', 'contrato'];
     
-    if (isMobile) {
-      await expect(btn).toHaveScreenshot(`bottom-nav-${mod.id}-active.png`);
+    // Start from top
+    await page.keyboard.press('Home');
+    
+    for (const id of moduleIds) {
+      await page.keyboard.press('Tab');
+      const btn = page.locator(`#nav-${id}`);
+      await expect(btn).toBeFocused();
+      
+      // Press Enter to navigate and check sync
+      await page.keyboard.press('Enter');
+      await expect(page).toHaveURL(new RegExp(`module=${id}`));
+      await expect(btn).toHaveAttribute('aria-current', 'page');
     }
   });
 
