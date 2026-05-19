@@ -28,24 +28,26 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
     const lastCommand = commandQueue[commandQueue.length - 1];
     
     const notifyChat = async () => {
-      if (lastCommand.status === 'completed' && lastCommand.resultUrl) {
-        const compressed = await compressImage(lastCommand.resultUrl);
+      if (lastCommand.status === 'completed') {
+        // IARA não recebe mais a imagem. Ela apenas confirma que o Estúdio concluiu.
         await saveMessage({
           sender: 'iara',
-          text: `Materialização concluída! O projeto foi gerado com sucesso no Estúdio.`,
-          image_url: compressed,
+          text: `A materialização foi concluída com sucesso no Estúdio! Você pode visualizar o resultado agora acessando o módulo de Materialização.`,
         });
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
         await saveMessage({
           sender: 'iara',
-          text: `Desculpe, ocorreu um erro no Estúdio ao processar sua solicitação: ${lastCommand.error}.`,
+          text: `Desculpe, o Estúdio encontrou um problema ao processar sua solicitação: ${lastCommand.error}.`,
         });
         setIsTyping(false);
+      } else if (lastCommand.status === 'processing') {
+        await saveMessage({
+          sender: 'iara',
+          text: `O Estúdio já está trabalhando na sua visualização. Estou acompanhando o progresso por aqui.`,
+        });
       }
     };
-
-    notifyChat();
   }, [commandQueue]);
 
   useEffect(() => {
