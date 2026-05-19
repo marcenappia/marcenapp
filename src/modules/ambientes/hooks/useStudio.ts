@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { callAIImage, callAIText, requireAuth } from '@/components/marcenaria/shared';
+import { requireAuth } from '@/components/marcenaria/shared';
+import { useStudioStore } from '@/store/useStudioStore';
+import { studioService } from '../services/studioService';
+import { iaraService } from '@/modules/iara/services/iaraService';
 
 const styles = [
   { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
@@ -30,6 +33,44 @@ export const useStudio = (setBudgetProject: any, navigateTo: any, gallery: strin
   const [isRecording, setIsRecording] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState(styles[0]);
   const recognitionRef = useRef<any>(null);
+
+  // Studio Store integration
+  const pendingCommand = useStudioStore(state => state.pendingCommand);
+  const clearCommand = useStudioStore(state => state.clearCommand);
+  const setStoreResult = useStudioStore(state => state.setResult);
+  const setStoreRendering = useStudioStore(state => state.setRendering);
+
+  // Escuta comandos vindos da IARA
+  useEffect(() => {
+    if (pendingCommand) {
+      handleIaraCommand(pendingCommand);
+    }
+  }, [pendingCommand]);
+
+  const handleIaraCommand = async (command: any) => {
+    setStoreRendering(true);
+    setLoading(true);
+    try {
+      const result = await studioService.generateVisual(
+        command.prompt, 
+        command.images, 
+        selectedStyle.prompt, 
+        command.decor || selectedDecor.prompt
+      );
+      if (result) {
+        setGeneratedImage(result);
+        setGallery((prev: string[]) => [result!, ...prev]);
+        setStoreResult(result);
+        await saveToGallery(result, command.prompt);
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+      setStoreRendering(false);
+      clearCommand();
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -66,23 +107,20 @@ export const useStudio = (setBudgetProject: any, navigateTo: any, gallery: strin
     }
     setLoading(true); setError(null);
     try {
-      const decPrompt = `INTERIOR STYLING: Apply a ${selectedDecor.label} style. ${selectedDecor.prompt}`;
-      let newImage: string | null = null;
       const imgs = [];
       if (sketchBase64 && sketchMime) imgs.push({ mimeType: sketchMime, data: sketchBase64 });
       if (envBase64 && envMime) imgs.push({ mimeType: envMime, data: envBase64 });
 
-      if (sketchImage && envImage) {
-        const finalPrompt = `ACT AS AN EXPERT ARCHITECTURAL VISUALIZER. Input 1: OBJECT. Input 2: ENVIRONMENT. TASK: Composite Object into Environment seamlessly. Match perspective. Style: ${selectedStyle.prompt}. ${decPrompt} User Instruction: ${prompt}`;
-        newImage = await callAIImage(finalPrompt, imgs);
-      } else if (sketchImage) {
-        const finalPrompt = isRefining
-          ? `ACT AS A 3D MODELER AND RENDERER. TASK: Re-render the provided image with STRUCTURAL MODIFICATIONS. USER COMMAND: "${prompt}". Keep everything else the same.`
-          : `ACT AS A 3D RENDERING ENGINE. Transform this sketch into a Photorealistic Image. Style: ${selectedStyle.prompt}. ${decPrompt}. Details: ${prompt}`;
-        newImage = await callAIImage(finalPrompt, imgs);
+      let newImage: string | null = null;
+      if (isRefining && generatedImage) {
+        newImage = await studioService.refineVisual(generatedImage, prompt);
       } else {
-        const finalPrompt = `Photorealistic interior design image of ${prompt}, style: ${selectedStyle.prompt}, ultra detailed, 8k. ${decPrompt}`;
-        newImage = await callAIImage(finalPrompt);
+        newImage = await studioService.generateVisual(
+          prompt, 
+          imgs, 
+          selectedStyle.prompt, 
+          selectedDecor.prompt
+        );
       }
 
       if (newImage) {
@@ -109,14 +147,9 @@ export const useStudio = (setBudgetProject: any, navigateTo: any, gallery: strin
     setAnalyzing(true);
     try {
       const imageBase64 = generatedImage.split(',')[1];
-      const analysisPrompt = `Analyze this furniture strictly. Estimate dims (meters). Return ONLY valid JSON: {"width": 2.0, "height": 2.5, "depth": 0.6, "drawers": 4, "doors": 4}`;
-      const text = await callAIText(analysisPrompt, [{ mimeType: 'image/png', data: imageBase64 }], true);
-      if (text) {
-        const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        const est = JSON.parse(clean);
-        setBudgetProject((prev: any) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
-        setShowModal(false); navigateTo('orcamento');
-      }
+      const est = await iaraService.analyzeImage(imageBase64);
+      setBudgetProject((prev: any) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
+      setShowModal(false); navigateTo('orcamento');
     } catch {
       alert("Não foi possível analisar. Redirecionando..."); navigateTo('orcamento');
     } finally { setAnalyzing(false); }
