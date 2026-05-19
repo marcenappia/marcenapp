@@ -82,14 +82,15 @@ const Index = () => {
             <button
               key={m.id}
               id={`nav-${m.id}`}
+              aria-label={m.label}
               onClick={() => setActiveModule(m.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
+              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sidebar-active))] ${
                 activeModule === m.id
                   ? 'bg-[hsl(var(--sidebar-active))] text-white shadow-lg shadow-[hsl(var(--sidebar-active)/0.4)]'
                   : 'hover:bg-white/5 hover:text-white text-[hsl(var(--sidebar-text))]'
               }`}
             >
-              <m.icon size={18} />
+              <m.icon size={18} aria-hidden="true" />
               <span className="font-medium text-sm">{m.label}</span>
             </button>
           ))}
@@ -192,13 +193,14 @@ const Index = () => {
           {modules.map(m => (
             <button
               key={m.id}
+              aria-label={m.label}
               onClick={() => setActiveModule(m.id)}
-              className={`flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all flex-1 ${
+              className={`flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sidebar-active))] ${
                 activeModule === m.id ? 'text-[hsl(var(--sidebar-active))]' : 'text-muted-foreground'
               }`}
             >
               <div className={`p-1.5 rounded-xl transition-colors ${activeModule === m.id ? 'bg-[hsl(var(--sidebar-active)/0.1)]' : 'bg-transparent'}`}>
-                <m.icon size={20} strokeWidth={activeModule === m.id ? 2.5 : 2} />
+                <m.icon size={20} strokeWidth={activeModule === m.id ? 2.5 : 2} aria-hidden="true" />
               </div>
               <span className="text-[9px] font-semibold tracking-tight">{m.mobileLabel}</span>
             </button>
