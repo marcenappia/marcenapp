@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useStudioStore, RenderCommand } from '@/store/useStudioStore';
+import { useStudioStore } from '@/store/useStudioStore';
+import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,13 +10,11 @@ import { useAuth } from '@/hooks/useAuth';
  */
 export const StudioWorker = () => {
   const { user } = useAuth();
-  const commandQueue = useStudioStore(state => state.commandQueue);
+  const commandQueue = useMarcenappOS(state => state.commandHistory.filter(cmd => cmd.target === 'studio'));
   const isRendering = useStudioStore(state => state.isRendering);
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
   const failCommand = useStudioStore(state => state.failCommand);
-  const cancelCommand = useStudioStore(state => state.cancelCommand);
-
   
   // Ref para evitar processamento duplo se o estado mudar rápido demais
   const currentlyProcessing = useRef<string | null>(null);
@@ -42,25 +41,25 @@ export const StudioWorker = () => {
     }
   };
 
-  const processCommand = async (command: RenderCommand) => {
+  const processCommand = async (osCommand: any) => {
+    const command = osCommand.payload;
+    
     // Verifica se o comando foi cancelado antes de iniciar
-    const currentCmd = useStudioStore.getState().commandQueue.find(c => c.id === command.id);
-    if (currentCmd?.status === 'cancelled') {
+    if (osCommand.status === 'cancelled') {
       currentlyProcessing.current = null;
       return;
     }
 
     // Validação de Contrato/Schema
     if (!command.prompt || (!command.images?.length && command.metadata?.origin === 'iara')) {
-      failCommand(command.id, "Comando inválido: Faltam parâmetros obrigatórios ou contexto visual.");
+      failCommand(osCommand.id, "Comando inválido: Faltam parâmetros obrigatórios ou contexto visual.");
       return;
     }
 
-    currentlyProcessing.current = command.id;
-    startProcessing(command.id);
+    currentlyProcessing.current = osCommand.id;
+    startProcessing(osCommand.id);
     
     try {
-      // Simulação de interrupção (AbortController poderia ser usado aqui se o service suportasse)
       const result = await studioService.generateVisual(
         command.prompt, 
         command.images,
@@ -69,21 +68,20 @@ export const StudioWorker = () => {
       );
 
       // Verifica se foi cancelado DURANTE o processamento
-      const checkCancel = useStudioStore.getState().commandQueue.find(c => c.id === command.id);
+      const checkCancel = useMarcenappOS.getState().commandHistory.find(c => c.id === osCommand.id);
       if (checkCancel?.status === 'cancelled') {
         return;
       }
 
       if (result) {
-        await completeCommand(command.id, result);
+        await completeCommand(osCommand.id, result);
         await saveToGallery(result, command.prompt);
       } else {
-
         throw new Error("O serviço de IA não retornou uma imagem válida.");
       }
     } catch (error: any) {
       console.error("StudioWorker Error:", error);
-      failCommand(command.id, error?.message || "Erro desconhecido na geração.");
+      failCommand(osCommand.id, error?.message || "Erro desconhecido na geração.");
     } finally {
       currentlyProcessing.current = null;
     }

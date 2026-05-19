@@ -1,6 +1,7 @@
 import React from 'react';
-import { Maximize2, Loader2, CheckCircle2, AlertCircle, RefreshCcw, XCircle } from 'lucide-react';
+import { Maximize2, Loader2, AlertCircle, RefreshCcw, XCircle } from 'lucide-react';
 import { useStudioStore } from '@/store/useStudioStore';
+import { useMarcenappOS } from '@/store/useMarcenappOS';
 
 export interface ChatMessage {
   id: string;
@@ -24,15 +25,13 @@ interface ChatMessagesProps {
 }
 
 export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }: ChatMessagesProps) => {
-  const commandQueue = useStudioStore(state => state.commandQueue);
-  const removeFromQueue = useStudioStore(state => state.removeFromQueue);
+  const commandHistory = useMarcenappOS(state => state.commandHistory);
   const cancelCommand = useStudioStore(state => state.cancelCommand);
   const enqueueCommand = useStudioStore(state => state.enqueueCommand);
 
-  const activeCommands = commandQueue.filter(cmd => 
-    cmd.metadata?.origin === 'iara' && (cmd.status === 'pending' || cmd.status === 'processing' || cmd.status === 'failed' || cmd.status === 'cancelled')
+  const activeCommands = commandHistory.filter(cmd => 
+    cmd.source === 'iara' && (cmd.status === 'pending' || cmd.status === 'processing' || cmd.status === 'failed' || cmd.status === 'cancelled')
   );
-
 
   return (
     <main className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin relative">
@@ -60,14 +59,12 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
                      cmd.status === 'failed' ? 'Falha no Estúdio' : 
                      cmd.status === 'cancelled' ? 'Comando Cancelado' : 'Na Fila do Estúdio'}
                   </span>
-
                 </div>
                 <div className="flex items-center gap-1">
                   {(cmd.status === 'failed' || cmd.status === 'cancelled') && (
                     <button 
                       onClick={() => {
-                        const { id, status, timestamp, ...cleanCmd } = cmd;
-                        removeFromQueue(cmd.id);
+                        const { id, status, timestamp, result, ...cleanCmd } = cmd.payload;
                         enqueueCommand(cleanCmd);
                       }}
                       className="p-1 hover:bg-muted rounded text-primary transition-colors"
@@ -81,7 +78,7 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
                       if (cmd.status === 'pending' || cmd.status === 'processing') {
                         cancelCommand(cmd.id);
                       } else {
-                        removeFromQueue(cmd.id);
+                        // Comandos em histórico do OS não são removidos via UI aqui para manter memória
                       }
                     }}
                     className="p-1 hover:bg-muted rounded text-muted-foreground transition-colors"
@@ -91,7 +88,7 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
                   </button>
                 </div>
               </div>
-              <p className="text-[10px] text-muted-foreground truncate italic">"{cmd.metadata?.originalPrompt}"</p>
+              <p className="text-[10px] text-muted-foreground truncate italic">"{cmd.payload?.metadata?.originalPrompt || cmd.payload?.prompt}"</p>
             </div>
           ))}
         </div>

@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { compressImage } from '@/utils/format';
 import { ChatMessage } from '../components/ChatMessages';
 import { iaraService } from '../services/iaraService';
-import { useStudioStore, RenderCommand } from '@/store/useStudioStore';
+import { useStudioStore } from '@/store/useStudioStore';
+import { useMarcenappOS } from '@/store/useMarcenappOS';
 
 export const useIaraChat = (factors: { L: number, A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void) => {
   const { user } = useAuth();
@@ -16,33 +16,31 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
   const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   
+  const commandHistory = useMarcenappOS(state => state.commandHistory);
   const enqueueCommand = useStudioStore(state => state.enqueueCommand);
-  const commandQueue = useStudioStore(state => state.commandQueue);
   const recognitionRef = useRef<any>(null);
 
   // Monitora mudanças de status na fila de comandos para notificar o usuário
   useEffect(() => {
-    if (commandQueue.length === 0) return;
-
-    // Pega o comando mais recente para verificar se houve mudança significativa de status
-    const lastCommand = commandQueue[commandQueue.length - 1];
+    if (commandHistory.length === 0) return;
+    const lastCommand = commandHistory[0];
     
     const notifyChat = async () => {
       // Evita loops infinitos ou notificações duplicadas
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
 
-      if (lastCommand.status === 'completed' && lastCommand.resultUrl) {
+      if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
         
         // Validação rigorosa: Vincular resultado ao ID do comando no chat
         await saveMessage({
           sender: 'iara',
           text: `A materialização foi concluída com sucesso no Estúdio! (Ref: ${lastCommand.id})`,
-          image_url: lastCommand.resultUrl, // Exibe o resultado se presente
+          image_url: lastCommand.result.resultUrl, 
           metadata: {
             commandId: lastCommand.id,
-            resultUrl: lastCommand.resultUrl
+            resultUrl: lastCommand.result.resultUrl
           }
         });
         setIsTyping(false);
@@ -56,7 +54,7 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
     };
 
     notifyChat();
-  }, [commandQueue]);
+  }, [commandHistory]);
 
   useEffect(() => {
     if (!user) return;
@@ -122,7 +120,7 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
       const decision = await iaraService.interpretCommand(promptText);
       
       if (decision.type === 'RENDER_REQUEST' && decision.command) {
-        const budget = iaraService.calculateSmartBudget(promptText, factors, decorStyle);
+        const budget = iaraService.calculateSmartBudget(promptText, { L: factors.L, A: factors.A }, decorStyle);
         
         // Hash estável e determinístico para idempotência
         const hashPayload = `${promptText}-${decorStyle}-${factors.L}-${factors.A}-${currentBaseRaw?.substring(0, 500)}`;
@@ -135,7 +133,6 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
         const idempotencyKey = `iara-${Math.abs(hash).toString(36)}`;
 
         // ENVIA PARA A FILA DO ESTÚDIO VIA COMMAND BUS (Contrato Tipado)
-
         enqueueCommand({
           prompt: `MARCENAPP 4.0: Crie um móvel de estilo ${decorStyle}. REFINAMENTO: ${promptText}.`,
           idempotencyKey,
@@ -156,7 +153,7 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
           text: `Comando orquestrado para o Estúdio! (Orçamento: R$ ${budget}). Vou te notificar assim que a materialização for concluída.` 
         });
       } else if (decision.type === 'BUDGET_REQUEST' && decision.command) {
-        const budget = iaraService.calculateSmartBudget(promptText, factors, decorStyle);
+        const budget = iaraService.calculateSmartBudget(promptText, { L: factors.L, A: factors.A }, decorStyle);
         await saveMessage({ 
           sender: 'iara', 
           text: `Cálculo financeiro orquestrado via Estela. O valor estimado para este projeto é de R$ ${budget}.` 
@@ -164,7 +161,6 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
         setIsTyping(false);
       } else {
         await saveMessage({ sender: 'iara', text: 'Analisando sua solicitação técnica...' });
-        // Lógica de chat normal delegada à IA
         setIsTyping(false);
       }
     } catch (e: any) {
