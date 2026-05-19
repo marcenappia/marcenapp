@@ -48,33 +48,41 @@ const Auth = () => {
     setError('');
     setSuccess('');
 
-    if (isReset) {
-      if (countdown > 0) return;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth`,
-      });
-      if (error) {
-        setError(error.message);
+    try {
+      if (isReset) {
+        if (countdown > 0) {
+          setLoading(false);
+          return;
+        }
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth`,
+        });
+        if (error) {
+          setError(error.message);
+        } else {
+          setSuccess('E-mail de recuperação enviado!');
+          setCountdown(30);
+        }
+      } else if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) setError(error.message);
       } else {
-        setSuccess('E-mail de recuperação enviado!');
-        setCountdown(30);
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name },
+            emailRedirectTo: window.location.origin,
+          },
+        });
+        if (error) setError(error.message);
+        else setSuccess('Verifique seu e-mail para confirmar o cadastro.');
       }
-    } else if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-    } else {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { name },
-          emailRedirectTo: window.location.origin,
-        },
-      });
-      if (error) setError(error.message);
-      else setSuccess('Verifique seu e-mail para confirmar o cadastro.');
+    } catch (err: any) {
+      setError(err.message || 'Ocorreu um erro inesperado.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
