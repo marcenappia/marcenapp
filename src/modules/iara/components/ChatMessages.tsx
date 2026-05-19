@@ -22,11 +22,13 @@ interface ChatMessagesProps {
 export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }: ChatMessagesProps) => {
   const commandQueue = useStudioStore(state => state.commandQueue);
   const removeFromQueue = useStudioStore(state => state.removeFromQueue);
+  const cancelCommand = useStudioStore(state => state.cancelCommand);
   const enqueueCommand = useStudioStore(state => state.enqueueCommand);
 
   const activeCommands = commandQueue.filter(cmd => 
-    cmd.metadata?.origin === 'iara' && (cmd.status === 'pending' || cmd.status === 'processing' || cmd.status === 'failed')
+    cmd.metadata?.origin === 'iara' && (cmd.status === 'pending' || cmd.status === 'processing' || cmd.status === 'failed' || cmd.status === 'cancelled')
   );
+
 
   return (
     <main className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin relative">
@@ -44,16 +46,20 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
                     <Loader2 size={14} className="animate-spin text-primary" />
                   ) : cmd.status === 'failed' ? (
                     <AlertCircle size={14} className="text-destructive" />
+                  ) : cmd.status === 'cancelled' ? (
+                    <XCircle size={14} className="text-muted-foreground" />
                   ) : (
                     <div className="w-3 h-3 rounded-full bg-muted-foreground animate-pulse" />
                   )}
                   <span className="text-[10px] font-bold uppercase tracking-wider">
                     {cmd.status === 'processing' ? 'Estúdio Processando' : 
-                     cmd.status === 'failed' ? 'Falha no Estúdio' : 'Na Fila do Estúdio'}
+                     cmd.status === 'failed' ? 'Falha no Estúdio' : 
+                     cmd.status === 'cancelled' ? 'Comando Cancelado' : 'Na Fila do Estúdio'}
                   </span>
+
                 </div>
                 <div className="flex items-center gap-1">
-                  {cmd.status === 'failed' && (
+                  {(cmd.status === 'failed' || cmd.status === 'cancelled') && (
                     <button 
                       onClick={() => {
                         const { id, status, timestamp, ...cleanCmd } = cmd;
@@ -67,9 +73,15 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
                     </button>
                   )}
                   <button 
-                    onClick={() => removeFromQueue(cmd.id)}
+                    onClick={() => {
+                      if (cmd.status === 'pending' || cmd.status === 'processing') {
+                        cancelCommand(cmd.id);
+                      } else {
+                        removeFromQueue(cmd.id);
+                      }
+                    }}
                     className="p-1 hover:bg-muted rounded text-muted-foreground transition-colors"
-                    title="Remover"
+                    title={cmd.status === 'pending' || cmd.status === 'processing' ? "Cancelar" : "Remover"}
                   >
                     <XCircle size={14} />
                   </button>
