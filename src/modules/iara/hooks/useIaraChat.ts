@@ -4,9 +4,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { compressImage } from '@/utils/format';
 import { ChatMessage } from '../components/ChatMessages';
 import { iaraService } from '../services/iaraService';
-import { useStudioStore } from '@/store/useStudioStore';
+import { useStudioStore, RenderCommand } from '@/store/useStudioStore';
 
-export const useIaraChat = (factors: any, decorStyle: string, setShowAuthDialog: (val: boolean) => void) => {
+export const useIaraChat = (factors: { L: number, A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -16,25 +16,37 @@ export const useIaraChat = (factors: any, decorStyle: string, setShowAuthDialog:
   const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   
-  const requestRender = useStudioStore(state => state.requestRender);
-  const lastResult = useStudioStore(state => state.lastResult);
+  const enqueueCommand = useStudioStore(state => state.enqueueCommand);
+  const commandQueue = useStudioStore(state => state.commandQueue);
   const recognitionRef = useRef<any>(null);
 
-  // Efeito para receber o resultado do Estúdio de volta no chat
+  // Monitora mudanças de status na fila de comandos para notificar o usuário
   useEffect(() => {
-    if (lastResult && isTyping) {
-      const addResultToChat = async () => {
-        const compressed = await compressImage(lastResult);
+    if (commandQueue.length === 0) return;
+
+    // Pega o comando mais recente para verificar se houve mudança significativa de status
+    const lastCommand = commandQueue[commandQueue.length - 1];
+    
+    const notifyChat = async () => {
+      if (lastCommand.status === 'completed' && lastCommand.resultUrl) {
+        const compressed = await compressImage(lastCommand.resultUrl);
         await saveMessage({
           sender: 'iara',
-          text: `Materialização concluída via Módulo Estúdio.`,
+          text: `Materialização concluída! O projeto foi gerado com sucesso no Estúdio.`,
           image_url: compressed,
         });
         setIsTyping(false);
-      };
-      addResultToChat();
-    }
-  }, [lastResult]);
+      } else if (lastCommand.status === 'failed') {
+        await saveMessage({
+          sender: 'iara',
+          text: `Desculpe, ocorreu um erro no Estúdio ao processar sua solicitação: ${lastCommand.error}.`,
+        });
+        setIsTyping(false);
+      }
+    };
+
+    notifyChat();
+  }, [commandQueue]);
 
   useEffect(() => {
     if (!user) return;
@@ -97,14 +109,13 @@ export const useIaraChat = (factors: any, decorStyle: string, setShowAuthDialog:
     await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
 
     try {
-      // INTERPRETAÇÃO IARA:
       const decision = await iaraService.interpretCommand(promptText);
       
       if (decision.type === 'RENDER_REQUEST') {
         const budget = iaraService.calculateSmartBudget(promptText, factors, decorStyle);
         
-        // ENVIA COMANDO PARA ESTÚDIO (Não gera render aqui!)
-        requestRender({
+        // ENVIA PARA A FILA DO ESTÚDIO
+        enqueueCommand({
           prompt: `MARCENAPP 4.0: Crie um móvel de estilo ${decorStyle}. REFINAMENTO: ${promptText}. Dimensões: L:${factors.L} A:${factors.A}.`,
           images: [
             { mimeType: 'image/jpeg', data: currentBaseRaw! },
@@ -113,15 +124,12 @@ export const useIaraChat = (factors: any, decorStyle: string, setShowAuthDialog:
           decor: decorStyle
         });
         
-        // Iara apenas confirma que enviou o comando
         await saveMessage({ 
           sender: 'iara', 
-          text: `Entendido. Estou enviando as especificações técnicas para o Módulo de Estúdio para renderização fotorrealista. (Orçamento estimado: R$ ${budget})` 
+          text: `Entendido. Coloquei sua solicitação na fila de processamento do Estúdio. (Orçamento estimado: R$ ${budget}). Vou te avisar assim que terminar!` 
         });
-        // Note: isTyping continua true até o useEffect do lastResult disparar ou timeout
       } else {
-        // Chat comum ou outras funções
-        await saveMessage({ sender: 'iara', text: 'Estou processando sua solicitação técnica...' });
+        await saveMessage({ sender: 'iara', text: 'Entendido. Estou processando sua dúvida técnica...' });
         setIsTyping(false);
       }
     } catch (e: any) {
@@ -161,17 +169,6 @@ export const useIaraChat = (factors: any, decorStyle: string, setShowAuthDialog:
   };
 
   return {
-    messages,
-    chatInput,
-    setChatInput,
-    isTyping,
-    isListening,
-    handleSend,
-    handleImageSelect,
-    toggleRecording,
-    maskingImage,
-    setMaskingImage,
-    pendingUpload,
-    setPendingUpload
+    messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload
   };
 };

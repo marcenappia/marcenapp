@@ -1,8 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { ProjectData } from '../types';
 
-export const useProjectPersistence = (budgetProject: any, setBudgetProject: any) => {
+export const useProjectPersistence = (
+  budgetProject: ProjectData, 
+  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>
+) => {
   const { user } = useAuth();
   const saveTimeout = useRef<NodeJS.Timeout>();
 

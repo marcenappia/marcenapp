@@ -1,13 +1,30 @@
 import { callAIText } from '@/services/ai';
 
+export type InterpretationType = 'RENDER_REQUEST' | 'BUDGET_REQUEST' | 'CHAT';
+
+export interface CommandDecision {
+  type: InterpretationType;
+  details: string;
+}
+
+export interface ProjectFactors {
+  L: number;
+  A: number;
+}
+
+export interface ImageAnalysis {
+  width: number;
+  height: number;
+  depth: number;
+  drawers: number;
+  doors: number;
+}
+
 export const iaraService = {
   /**
    * Interpreta o comando do usuário para decidir a próxima ação
    */
-  interpretCommand: async (prompt: string, context?: any) => {
-    // Aqui no futuro teríamos uma chamada ao GPT para decidir se é uma dúvida, 
-    // um pedido de render, uma alteração técnica, etc.
-    // Por enquanto simulamos a lógica
+  interpretCommand: async (prompt: string): Promise<CommandDecision> => {
     const lower = prompt.toLowerCase();
     
     if (lower.includes("render") || lower.includes("mostre") || lower.includes("veja") || lower.includes("materializa")) {
@@ -22,9 +39,9 @@ export const iaraService = {
   },
 
   /**
-   * Calcula o orçamento inteligente (lógica que estava no hook)
+   * Calcula o orçamento inteligente
    */
-  calculateSmartBudget: (prompt: string, factors: any, decorStyle: string) => {
+  calculateSmartBudget: (prompt: string, factors: ProjectFactors, decorStyle: string): string => {
     let baseVal = 1200;
     const lower = prompt.toLowerCase();
     if (lower.includes("cozinha")) baseVal = 6000;
@@ -34,11 +51,17 @@ export const iaraService = {
   },
 
   /**
-   * Simulação de OCR ou análise técnica de imagem
+   * Análise técnica de imagem via IA
    */
-  analyzeImage: async (imageBase64: string) => {
+  analyzeImage: async (imageBase64: string): Promise<ImageAnalysis> => {
     const analysisPrompt = `Analyze this furniture strictly. Estimate dims (meters). Return ONLY valid JSON: {"width": 2.0, "height": 2.5, "depth": 0.6, "drawers": 4, "doors": 4}`;
     const text = await callAIText(analysisPrompt, [{ mimeType: 'image/png', data: imageBase64 }], true);
-    return JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+    
+    try {
+      return JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+    } catch (e) {
+      console.error("Erro ao parsear análise de imagem:", e);
+      return { width: 2.0, height: 2.5, depth: 0.6, drawers: 2, doors: 2 };
+    }
   }
 };

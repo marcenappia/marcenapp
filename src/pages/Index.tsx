@@ -19,8 +19,9 @@ import { Contrato } from '@/modules/projetos/components/Contrato';
 // Hooks & Config
 import { modules } from '@/modules/config';
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
+import { ProjectData } from '@/modules/projetos/types';
 
-const defaultProject = {
+const defaultProject: ProjectData = {
   width: 2.40,
   height: 2.60,
   depth: 0.60,
