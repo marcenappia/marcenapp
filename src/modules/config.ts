@@ -34,9 +34,9 @@ export const modules: ModuleConfig[] = [
 ];
 
 export const CATEGORY_LABELS: Record<ModuleCategory, string> = {
-  intelligence: 'Inteligência',
-  portal: 'Portal Gestão',
-  studio: 'Estúdio Visual',
-  finance: 'Estela Financeiro',
-  production: 'Produção'
+  intelligence: 'IARA — Pensa',
+  portal: 'Portal — Organiza',
+  studio: 'Estúdio — Cria Visual',
+  finance: 'Estela — Calcula',
+  production: 'Produção — Executa'
 };
