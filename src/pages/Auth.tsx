@@ -27,7 +27,13 @@ const Auth = () => {
     setError('');
     setSuccess('');
 
-    if (isLogin) {
+    if (isReset) {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+      if (error) setError(error.message);
+      else setSuccess('E-mail de recuperação enviado!');
+    } else if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError(error.message);
     } else {
