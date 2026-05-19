@@ -2,9 +2,17 @@ import { callAIText } from '@/services/ai';
 
 export type InterpretationType = 'RENDER_REQUEST' | 'BUDGET_REQUEST' | 'CHAT';
 
+export interface CommandPayload {
+  target: 'studio' | 'portal' | 'estela' | 'chat';
+  action: string;
+  params: Record<string, any>;
+  context?: any;
+}
+
 export interface CommandDecision {
   type: InterpretationType;
   details: string;
+  command?: CommandPayload;
 }
 
 export interface ProjectFactors {

@@ -114,23 +114,35 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
     try {
       const decision = await iaraService.interpretCommand(promptText);
       
-      if (decision.type === 'RENDER_REQUEST') {
+      if (decision.type === 'RENDER_REQUEST' && decision.command) {
         const budget = iaraService.calculateSmartBudget(promptText, factors, decorStyle);
         
-        // ENVIA PARA A FILA DO ESTÚDIO
+        // ENVIA PARA A FILA DO ESTÚDIO VIA COMMAND BUS (Contrato Tipado)
         enqueueCommand({
-          prompt: `MARCENAPP 4.0: Crie um móvel de estilo ${decorStyle}. REFINAMENTO: ${promptText}. Dimensões: L:${factors.L} A:${factors.A}.`,
+          prompt: `MARCENAPP 4.0: Crie um móvel de estilo ${decorStyle}. REFINAMENTO: ${promptText}.`,
           images: [
             { mimeType: 'image/jpeg', data: currentBaseRaw! },
             { mimeType: 'image/png', data: currentMaskRaw! },
           ],
-          decor: decorStyle
+          decor: decorStyle,
+          metadata: {
+            origin: 'iara',
+            originalPrompt: promptText,
+            targetModule: 'studio'
+          }
         });
         
         await saveMessage({ 
           sender: 'iara', 
-          text: `Solicitação orquestrada com sucesso! Enviei os comandos para o Estúdio processar a materialização visual. (Orçamento estimado: R$ ${budget}). Vou te avisar assim que o Estúdio concluir!` 
+          text: `Comando orquestrado para o Estúdio! (Orçamento: R$ ${budget}). Vou te notificar assim que a materialização for concluída.` 
         });
+      } else if (decision.type === 'BUDGET_REQUEST' && decision.command) {
+        const budget = iaraService.calculateSmartBudget(promptText, factors, decorStyle);
+        await saveMessage({ 
+          sender: 'iara', 
+          text: `Cálculo financeiro orquestrado via Estela. O valor estimado para este projeto é de R$ ${budget}.` 
+        });
+        setIsTyping(false);
       } else {
         await saveMessage({ sender: 'iara', text: 'Analisando sua solicitação técnica...' });
         // Lógica de chat normal delegada à IA
