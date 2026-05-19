@@ -143,13 +143,12 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     await expect(firstBtn).toBeFocused();
   });
 
-  test('mobile bottom nav keyboard navigation (Arrow keys)', async ({ page, isMobile }) => {
+  test('mobile bottom nav keyboard navigation (Arrow keys, Home, End)', async ({ page, isMobile }) => {
     test.skip(!isMobile, 'Mobile test only');
     
     // Mobile nav only shows subset of modules (first 5 in filtered list)
     const mobileModuleIds = ['chat', 'dashboard', 'clientes', 'diario', 'studio']; 
-
-    // Wait for the buttons to be available
+    
     await page.waitForSelector(`#mobile-nav-${mobileModuleIds[0]}`);
     
     const firstBtn = page.locator(`#mobile-nav-${mobileModuleIds[0]}`);
@@ -164,6 +163,60 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     // ArrowRight (wrap to first)
     await page.keyboard.press('ArrowRight');
     await expect(firstBtn).toBeFocused();
+
+    // End key
+    await page.keyboard.press('End');
+    await expect(lastBtn).toBeFocused();
+    await page.keyboard.press('Enter');
+    
+    // Verify selection after navigation
+    const lastModLabel = 'Studio 3D';
+    await expect(page).toHaveURL(/module=studio/);
+    await expect(page).toHaveTitle(new RegExp(lastModLabel, 'i'));
+    await expect(lastBtn).toHaveAttribute('aria-current', 'page');
+
+    // Home key
+    await page.keyboard.press('Home');
+    await expect(firstBtn).toBeFocused();
+    await page.keyboard.press('Space');
+    
+    // Verify selection
+    const firstModLabel = 'IARA Chat';
+    await expect(page).toHaveURL(/module=chat/);
+    await expect(page).toHaveTitle(new RegExp(firstModLabel, 'i'));
+    await expect(firstBtn).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('should synchronize state with browser history (back/forward) and refresh', async ({ page }) => {
+    // Navigate to a few modules
+    const modules = [
+      { id: 'dashboard', label: 'Visão Geral' },
+      { id: 'studio', label: 'Studio 3D' }
+    ];
+
+    for (const mod of modules) {
+      await page.locator(`#nav-${mod.id}`).click();
+      await expect(page).toHaveURL(new RegExp(`module=${mod.id}`));
+      await expect(page).toHaveTitle(new RegExp(mod.label, 'i'));
+    }
+
+    // Go back
+    await page.goBack();
+    await expect(page).toHaveURL(/module=dashboard/);
+    await expect(page).toHaveTitle(/Visão Geral/i);
+    await expect(page.locator('#nav-dashboard')).toHaveAttribute('aria-current', 'page');
+
+    // Refresh
+    await page.reload();
+    await expect(page).toHaveURL(/module=dashboard/);
+    await expect(page).toHaveTitle(/Visão Geral/i);
+    await expect(page.locator('#nav-dashboard')).toHaveAttribute('aria-current', 'page');
+    
+    // Go forward
+    await page.goForward();
+    await expect(page).toHaveURL(/module=studio/);
+    await expect(page).toHaveTitle(/Studio 3D/i);
+    await expect(page.locator('#nav-studio')).toHaveAttribute('aria-current', 'page');
   });
 
 
