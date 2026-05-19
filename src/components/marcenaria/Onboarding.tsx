@@ -178,6 +178,11 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
       const newCompleted = [...completedSteps, step.id];
       setCompletedSteps(newCompleted);
       localStorage.setItem('marcenapp_onboarding_completed', JSON.stringify(newCompleted));
+      if (user) {
+        updateProfilePreferences({ onboarding_completed: newCompleted, onboarding_step: currentStep });
+      }
+    } else if (user && profile?.onboarding_step !== currentStep) {
+      updateProfilePreferences({ onboarding_step: currentStep });
     }
 
     localStorage.setItem('marcenapp_onboarding_step', currentStep.toString());
@@ -195,12 +200,15 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
       clearTimeout(timeoutId);
       window.removeEventListener('resize', updateHighlight);
     };
-  }, [currentStep, isOpen, activeModule, onNavigate, updateHighlight]);
+  }, [currentStep, isOpen, activeModule, onNavigate, updateHighlight, user, profile]);
 
   const toggleReduceMotion = () => {
     const newVal = !reduceMotion;
     setReduceMotion(newVal);
     localStorage.setItem('marcenapp_reduce_motion', newVal.toString());
+    if (user) {
+      updateProfilePreferences({ reduce_motion: newVal });
+    }
   };
 
   const handleNext = () => {
