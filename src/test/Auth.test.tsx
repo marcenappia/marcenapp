@@ -55,9 +55,10 @@ describe('Auth Page - Reset Password Flow', () => {
     });
 
     // Check success message and countdown
-    expect(await screen.findByText(/E-mail de recuperação enviado!/i)).toBeInTheDocument();
+    const successMsg = await screen.findByText(/E-mail de recuperação enviado!/i);
+    expect(successMsg).toBeInTheDocument();
     
-    const resendButton = screen.getByText(/Tente novamente em 30s/i);
+    const resendButton = await screen.findByText(/Tente novamente em 30s/i);
     expect(resendButton).toBeDisabled();
 
     // Fast forward time
