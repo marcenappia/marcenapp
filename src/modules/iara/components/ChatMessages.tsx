@@ -59,7 +59,7 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
 
                 </div>
                 <div className="flex items-center gap-1">
-                  {cmd.status === 'failed' && (
+                  {(cmd.status === 'failed' || cmd.status === 'cancelled') && (
                     <button 
                       onClick={() => {
                         const { id, status, timestamp, ...cleanCmd } = cmd;
@@ -73,9 +73,15 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
                     </button>
                   )}
                   <button 
-                    onClick={() => removeFromQueue(cmd.id)}
+                    onClick={() => {
+                      if (cmd.status === 'pending' || cmd.status === 'processing') {
+                        cancelCommand(cmd.id);
+                      } else {
+                        removeFromQueue(cmd.id);
+                      }
+                    }}
                     className="p-1 hover:bg-muted rounded text-muted-foreground transition-colors"
-                    title="Remover"
+                    title={cmd.status === 'pending' || cmd.status === 'processing' ? "Cancelar" : "Remover"}
                   >
                     <XCircle size={14} />
                   </button>
