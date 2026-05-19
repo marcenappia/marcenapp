@@ -35,42 +35,14 @@ export const useStudio = (setBudgetProject: any, navigateTo: any, gallery: strin
   const recognitionRef = useRef<any>(null);
 
   // Studio Store integration
-  const pendingCommand = useStudioStore(state => state.pendingCommand);
-  const clearCommand = useStudioStore(state => state.clearCommand);
-  const setStoreResult = useStudioStore(state => state.setResult);
-  const setStoreRendering = useStudioStore(state => state.setRendering);
+  const generatedImage = useStudioStore(state => state.generatedImage);
+  const setGeneratedImage = useStudioStore(state => state.setGeneratedImage);
+  const isRendering = useStudioStore(state => state.isRendering);
 
-  // Escuta comandos vindos da IARA
+  // Sincroniza o loading do estúdio com o store global
   useEffect(() => {
-    if (pendingCommand) {
-      handleIaraCommand(pendingCommand);
-    }
-  }, [pendingCommand]);
-
-  const handleIaraCommand = async (command: any) => {
-    setStoreRendering(true);
-    setLoading(true);
-    try {
-      const result = await studioService.generateVisual(
-        command.prompt, 
-        command.images, 
-        selectedStyle.prompt, 
-        command.decor || selectedDecor.prompt
-      );
-      if (result) {
-        setGeneratedImage(result);
-        setGallery((prev: string[]) => [result!, ...prev]);
-        setStoreResult(result);
-        await saveToGallery(result, command.prompt);
-      }
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-      setStoreRendering(false);
-      clearCommand();
-    }
-  };
+    setLoading(isRendering);
+  }, [isRendering]);
 
   useEffect(() => {
     if (!user) return;
