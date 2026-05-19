@@ -140,7 +140,7 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
-      <Onboarding />
+      <Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-text))] flex-col border-r border-[hsl(var(--sidebar-border))] z-20 shrink-0">
         <div className="p-4 flex items-center gap-3 font-bold text-white border-b border-[hsl(var(--sidebar-border))] h-16">
@@ -154,6 +154,7 @@ const Index = () => {
           {modules.map(m => (
             <button
               key={m.id}
+              id={`nav-${m.id}`}
               onClick={() => setActiveModule(m.id)}
               className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
                 activeModule === m.id

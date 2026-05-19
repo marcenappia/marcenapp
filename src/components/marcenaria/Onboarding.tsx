@@ -4,72 +4,161 @@ import {
   ChevronRight, 
   ChevronLeft, 
   MessageSquare, 
-  Home, 
   Wand2, 
-  ArrowUpFromLine, 
   Calculator, 
   Scissors, 
   Scale,
-  Sparkles
+  Sparkles,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from './shared';
 
 interface Step {
+  id: string;
   title: string;
   description: string;
   icon: React.ElementType;
   color: string;
+  targetId?: string; // HTML ID to highlight
+  routeId?: string;  // Module ID to navigate to
 }
 
 const steps: Step[] = [
   {
+    id: 'welcome',
     title: "Bem-vindo ao MarcenApp!",
     description: "Sua marcenaria digital 4.0. Vamos te mostrar como usar nossas ferramentas de IA e gestão para transformar seus projetos.",
     icon: Sparkles,
     color: "text-amber-500"
   },
   {
+    id: 'chat',
     title: "IARA Chat",
     description: "Nossa IA assistente. Peça orçamentos, tire dúvidas técnicas ou peça sugestões de design. Ela entende tudo de marcenaria.",
     icon: MessageSquare,
-    color: "text-blue-500"
+    color: "text-blue-500",
+    targetId: "nav-chat",
+    routeId: "chat"
   },
   {
+    id: 'studio',
     title: "Studio 3D",
     description: "Visualize seus projetos em 3D em tempo real. Teste materiais, cores e layouts com facilidade.",
     icon: Wand2,
-    color: "text-purple-500"
+    color: "text-purple-500",
+    targetId: "nav-studio",
+    routeId: "studio"
   },
   {
-    title: "Orçamento & Corte",
-    description: "Gere orçamentos precisos em segundos e obtenha o plano de corte otimizado para economizar material.",
+    id: 'orcamento',
+    title: "Orçamento & Custo",
+    description: "Gere orçamentos precisos em segundos. Controle seus custos e margem de lucro de forma profissional.",
     icon: Calculator,
-    color: "text-emerald-500"
+    color: "text-emerald-500",
+    targetId: "nav-orcamento",
+    routeId: "orcamento"
   },
   {
-    title: "Contratos Automáticos",
+    id: 'corte',
+    title: "Plano de Corte",
+    description: "Obtenha o plano de corte otimizado para economizar material e agilizar sua produção.",
+    icon: Scissors,
+    color: "text-orange-500",
+    targetId: "nav-corte",
+    routeId: "corte"
+  },
+  {
+    id: 'contrato',
+    title: "Contratos",
     description: "Gere contratos profissionais para seus clientes com apenas alguns cliques, garantindo segurança jurídica.",
     icon: Scale,
-    color: "text-slate-500"
+    color: "text-slate-500",
+    targetId: "nav-contrato",
+    routeId: "contrato"
+  },
+  {
+    id: 'checklist',
+    title: "Pronto para decolar?",
+    description: "Você já conhece as principais ferramentas. Escolha por onde quer começar agora:",
+    icon: CheckCircle2,
+    color: "text-green-500"
   }
 ];
 
-const Onboarding = () => {
+interface OnboardingProps {
+  onNavigate: (moduleId: string) => void;
+  activeModule: string;
+}
+
+const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [highlightStyle, setHighlightStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('marcenapp_onboarding_seen');
-    if (!hasSeenOnboarding) {
+    const savedStep = localStorage.getItem('marcenapp_onboarding_step');
+    
+    if (hasSeenOnboarding === 'false' || !hasSeenOnboarding) {
       setIsOpen(true);
+      if (savedStep) {
+        setCurrentStep(parseInt(savedStep));
+      }
     }
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const step = steps[currentStep];
+    
+    // Auto-navigate
+    if (step.routeId && step.routeId !== activeModule) {
+      onNavigate(step.routeId);
+    }
+
+    // Save progress
+    localStorage.setItem('marcenapp_onboarding_step', currentStep.toString());
+    localStorage.setItem('marcenapp_onboarding_seen', 'false');
+
+    // Highlight logic
+    if (step.targetId) {
+      const updateHighlight = () => {
+        const element = document.getElementById(step.targetId!);
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          setHighlightStyle({
+            top: rect.top - 8,
+            left: rect.left - 8,
+            width: rect.width + 16,
+            height: rect.height + 16,
+            opacity: 1,
+            pointerEvents: 'none'
+          });
+          // Scroll element into view if needed
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          setHighlightStyle({ opacity: 0 });
+        }
+      };
+
+      // Delay a bit to allow navigation/rendering to finish
+      const timeoutId = setTimeout(updateHighlight, 300);
+      window.addEventListener('resize', updateHighlight);
+      return () => {
+        clearTimeout(timeoutId);
+        window.removeEventListener('resize', updateHighlight);
+      };
+    } else {
+      setHighlightStyle({ opacity: 0 });
+    }
+  }, [currentStep, isOpen, activeModule, onNavigate]);
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      closeOnboarding();
+      finishOnboarding();
     }
   };
 
@@ -79,8 +168,10 @@ const Onboarding = () => {
     }
   };
 
-  const closeOnboarding = () => {
+  const finishOnboarding = (moduleId?: string) => {
     localStorage.setItem('marcenapp_onboarding_seen', 'true');
+    localStorage.removeItem('marcenapp_onboarding_step');
+    if (moduleId) onNavigate(moduleId);
     setIsOpen(false);
   };
 
@@ -88,59 +179,91 @@ const Onboarding = () => {
 
   const step = steps[currentStep];
   const Icon = step.icon;
+  const isChecklist = step.id === 'checklist';
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-        <div className="p-6 flex flex-col items-center text-center space-y-6">
-          <div className="relative">
-            <div className={`absolute inset-0 blur-2xl opacity-20 ${step.color.replace('text', 'bg')}`} />
-            <div className={`w-20 h-20 rounded-2xl bg-muted flex items-center justify-center relative border border-border shadow-inner`}>
-              <Icon size={40} className={step.color} />
+    <>
+      {/* Spotlight / Highlight Overlay */}
+      <div 
+        className="fixed z-[190] border-2 border-primary ring-[2000px] ring-slate-950/70 rounded-xl transition-all duration-500 ease-in-out shadow-[0_0_20px_rgba(var(--primary),0.5)]"
+        style={highlightStyle}
+      />
+
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 pointer-events-none">
+        <div className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 pointer-events-auto">
+          <div className="p-6 flex flex-col items-center text-center space-y-6">
+            <div className="relative">
+              <div className={`absolute inset-0 blur-2xl opacity-20 ${step.color.replace('text', 'bg')}`} />
+              <div className={`w-20 h-20 rounded-2xl bg-muted flex items-center justify-center relative border border-border shadow-inner`}>
+                <Icon size={40} className={step.color} />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <h2 className="text-2xl font-black text-foreground tracking-tight italic uppercase">
-              {step.title}
-            </h2>
-            <p className="text-muted-foreground leading-relaxed">
-              {step.description}
-            </p>
-          </div>
+            <div className="space-y-2 w-full">
+              <h2 className="text-2xl font-black text-foreground tracking-tight italic uppercase">
+                {step.title}
+              </h2>
+              <p className="text-muted-foreground leading-relaxed">
+                {step.description}
+              </p>
 
-          <div className="flex gap-1.5">
-            {steps.map((_, i) => (
-              <div 
-                key={i} 
-                className={`h-1.5 rounded-full transition-all duration-300 ${i === currentStep ? 'w-8 bg-primary' : 'w-1.5 bg-muted'}`} 
-              />
-            ))}
-          </div>
-        </div>
+              {isChecklist && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 text-left">
+                  {steps.filter(s => s.routeId).map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => finishOnboarding(s.routeId)}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-primary hover:text-white transition-all group border border-border/50"
+                    >
+                      <s.icon size={18} className={`${s.color} group-hover:text-white transition-colors`} />
+                      <span className="text-sm font-bold">{s.title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-        <div className="p-6 bg-muted/30 border-t border-border flex items-center justify-between">
-          <button 
-            onClick={closeOnboarding}
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Pular tour
-          </button>
-
-          <div className="flex gap-3">
-            {currentStep > 0 && (
-              <Button variant="secondary" onClick={handlePrev} className="px-3">
-                <ChevronLeft size={20} />
-              </Button>
+            {!isChecklist && (
+              <div className="flex gap-1.5">
+                {steps.map((_, i) => (
+                  <div 
+                    key={i} 
+                    className={`h-1.5 rounded-full transition-all duration-300 ${i === currentStep ? 'w-8 bg-primary' : 'w-1.5 bg-muted'}`} 
+                  />
+                ))}
+              </div>
             )}
-            <Button onClick={handleNext} className="min-w-[120px]">
-              {currentStep === steps.length - 1 ? 'Começar agora' : 'Próximo'}
-              {currentStep < steps.length - 1 && <ChevronRight size={18} className="ml-1" />}
-            </Button>
+          </div>
+
+          <div className="p-6 bg-muted/30 border-t border-border flex items-center justify-between">
+            <button 
+              onClick={() => finishOnboarding()}
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Pular tour
+            </button>
+
+            <div className="flex gap-3">
+              {currentStep > 0 && (
+                <Button variant="secondary" onClick={handlePrev} className="px-3">
+                  <ChevronLeft size={20} />
+                </Button>
+              )}
+              {!isChecklist ? (
+                <Button onClick={handleNext} className="min-w-[120px]">
+                  {currentStep === steps.length - 1 ? 'Finalizar' : 'Próximo'}
+                  {currentStep < steps.length - 1 && <ChevronRight size={18} className="ml-1" />}
+                </Button>
+              ) : (
+                <Button onClick={() => finishOnboarding('chat')} className="min-w-[120px]">
+                  Começar agora
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
