@@ -1,8 +1,7 @@
 import { render, act as renderAct } from '@testing-library/react';
-import { StudioWorker } from '../components/StudioWorker';
+import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
 import { useStudioStore } from '@/store/useStudioStore';
-import { studioService } from '../services/studioService';
-import { iaraService } from '@/modules/iara/services/iaraService';
+import { studioService } from '@/modules/ambientes/services/studioService';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 // Minimal Mocks
@@ -22,7 +21,7 @@ vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'u1' } }),
 }));
 
-vi.mock('../services/studioService', () => ({
+vi.mock('@/modules/ambientes/services/studioService', () => ({
   studioService: { generateVisual: vi.fn() }
 }));
 
