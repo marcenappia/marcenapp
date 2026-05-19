@@ -65,6 +65,7 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
+      <StudioWorker />
       <Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
       
       {/* Desktop Sidebar */}
