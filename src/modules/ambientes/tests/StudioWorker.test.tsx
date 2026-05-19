@@ -35,7 +35,7 @@ describe('StudioWorker Queue Processing', () => {
     (studioService.generateVisual as any).mockResolvedValue('http://result.url');
 
     // Enqueue 2 commands
-    act(() => {
+    renderAct(() => {
       useStudioStore.getState().enqueueCommand({ prompt: 'Cmd 1' });
       useStudioStore.getState().enqueueCommand({ prompt: 'Cmd 2' });
     });
