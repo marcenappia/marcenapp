@@ -26,7 +26,8 @@ export const useStudioStore = create<StudioState>((set) => ({
   generatedImage: null,
   isRendering: false,
   requestRender: (command) => set({ 
-    pendingCommand: { ...command, id: Math.random().toString(36).substring(7) } 
+    pendingCommand: { ...command, id: Math.random().toString(36).substring(7) },
+    lastResult: null // Limpa o resultado anterior ao pedir um novo
   }),
   setRendering: (loading) => set({ isRendering: loading }),
   setResult: (url) => set({ lastResult: url }),
