@@ -22,7 +22,8 @@ export interface ImageAnalysis {
 
 export const iaraService = {
   /**
-   * Interpreta o comando do usuário para decidir a próxima ação
+   * CAMADA COGNITIVA: Interpreta a intenção do usuário.
+   * Não executa ações, apenas entende "o que" o usuário quer.
    */
   interpretCommand: async (prompt: string): Promise<CommandDecision> => {
     const lower = prompt.toLowerCase();

@@ -1,13 +1,42 @@
 import { 
-  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, MessageSquare
+  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, MessageSquare, Users, BookOpen
 } from 'lucide-react';
 
-export const modules = [
-  { id: 'chat', label: 'IARA Chat', mobileLabel: 'Chat', icon: MessageSquare },
-  { id: 'dashboard', label: 'Visão Geral', mobileLabel: 'Início', icon: Home },
-  { id: 'studio', label: 'Studio 3D', mobileLabel: 'Studio', icon: Wand2 },
-  { id: 'elevator', label: 'Elevador Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine },
-  { id: 'orcamento', label: 'Orçamento', mobileLabel: 'Custo', icon: Calculator },
-  { id: 'corte', label: 'Plano de Corte', mobileLabel: 'Corte', icon: Scissors },
-  { id: 'contrato', label: 'Contrato', mobileLabel: 'Legal', icon: Scale },
+export type ModuleCategory = 'intelligence' | 'portal' | 'studio' | 'finance' | 'production';
+
+export interface ModuleConfig {
+  id: string;
+  label: string;
+  mobileLabel: string;
+  icon: any;
+  category: ModuleCategory;
+}
+
+export const modules: ModuleConfig[] = [
+  // CAMADA 2 — IARA (Inteligência)
+  { id: 'chat', label: 'IARA Chat', mobileLabel: 'IARA', icon: MessageSquare, category: 'intelligence' },
+  
+  // CAMADA 1 — PORTAL (Gestão)
+  { id: 'dashboard', label: 'Visão Geral', mobileLabel: 'Início', icon: Home, category: 'portal' },
+  { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: Users, category: 'portal' },
+  { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
+  
+  // CAMADA 3 — ESTÚDIO (Materialização)
+  { id: 'studio', label: 'Studio 3D', mobileLabel: 'Studio', icon: Wand2, category: 'studio' },
+  { id: 'elevator', label: 'Elevador Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine, category: 'studio' },
+  
+  // FINANCEIRO — ESTELA
+  { id: 'orcamento', label: 'Estela Financeiro', mobileLabel: 'Estela', icon: Calculator, category: 'finance' },
+  
+  // PRODUÇÃO (Operacional)
+  { id: 'corte', label: 'Plano de Corte', mobileLabel: 'Corte', icon: Scissors, category: 'production' },
+  { id: 'contrato', label: 'Contratos', mobileLabel: 'Legal', icon: Scale, category: 'production' },
 ];
+
+export const CATEGORY_LABELS: Record<ModuleCategory, string> = {
+  intelligence: 'Inteligência',
+  portal: 'Portal Gestão',
+  studio: 'Estúdio Visual',
+  finance: 'Estela Financeiro',
+  production: 'Produção'
+};
