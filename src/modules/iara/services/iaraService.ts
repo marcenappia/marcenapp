@@ -38,12 +38,28 @@ export const iaraService = {
     
     // Identifica se a intenção é visual/materialização
     if (lower.includes("render") || lower.includes("mostre") || lower.includes("veja") || lower.includes("materializa") || lower.includes("desenhe")) {
-      return { type: 'RENDER_REQUEST', details: prompt };
+      return { 
+        type: 'RENDER_REQUEST', 
+        details: prompt,
+        command: {
+          target: 'studio',
+          action: 'GENERATE_VISUAL',
+          params: { prompt, style: 'realistic' }
+        }
+      };
     }
     
     // Identifica se a intenção é financeira
     if (lower.includes("quanto") || lower.includes("preço") || lower.includes("orçamento") || lower.includes("valor")) {
-      return { type: 'BUDGET_REQUEST', details: prompt };
+      return { 
+        type: 'BUDGET_REQUEST', 
+        details: prompt,
+        command: {
+          target: 'estela',
+          action: 'CALCULATE_BUDGET',
+          params: { prompt }
+        }
+      };
     }
 
     return { type: 'CHAT', details: prompt };
