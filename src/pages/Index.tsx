@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, LogIn, MessageSquare
+  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, LogIn, MessageSquare, Sparkles
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
