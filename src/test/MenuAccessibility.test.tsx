@@ -3,19 +3,25 @@ import { BrowserRouter } from 'react-router-dom';
 import Index from '../pages/Index';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-// Super simple mocks to avoid memory issues
-vi.mock('@/integrations/supabase/client', () => ({
-  supabase: {
+vi.mock('@/integrations/supabase/client', () => {
+  const mock: any = {
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue({ data: null }),
+    single: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
     channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn() })),
     removeChannel: vi.fn(),
-    then: vi.fn((cb) => Promise.resolve(cb({ data: [] }))),
-  }
-}));
+    then: vi.fn((cb) => {
+       if (cb) return Promise.resolve(cb({ data: [], error: null }));
+       return Promise.resolve({ data: [], error: null });
+    }),
+  };
+  mock.single.mockReturnValue(Promise.resolve({ data: null, error: null }));
+  return { supabase: mock };
+});
 
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ 
@@ -26,7 +32,6 @@ vi.mock('@/hooks/useAuth', () => ({
 
 vi.mock('@/modules/ambientes/components/StudioWorker', () => ({ StudioWorker: () => null }));
 vi.mock('@/assets/marcenapp-logo.jpeg', () => ({ default: '' }));
-// Mock the heavy modules
 vi.mock('@/modules/iara', () => ({ default: () => <div data-testid="chat">Chat</div> }));
 vi.mock('@/modules/projetos', () => ({ default: () => <div data-testid="dash">Dash</div> }));
 
