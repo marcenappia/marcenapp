@@ -9,6 +9,7 @@ const Auth = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
+  const [isReset, setIsReset] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -26,7 +27,13 @@ const Auth = () => {
     setError('');
     setSuccess('');
 
-    if (isLogin) {
+    if (isReset) {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+      if (error) setError(error.message);
+      else setSuccess('E-mail de recuperação enviado!');
+    } else if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError(error.message);
     } else {
@@ -56,7 +63,7 @@ const Auth = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
+          {!isLogin && !isReset && (
             <input
               type="text"
               placeholder="Nome completo"
@@ -74,15 +81,29 @@ const Auth = () => {
             required
             className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] focus:border-transparent"
           />
-          <input
-            type="password"
-            placeholder="Senha"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            minLength={6}
-            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] focus:border-transparent"
-          />
+          {!isReset && (
+            <input
+              type="password"
+              placeholder="Senha"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] focus:border-transparent"
+            />
+          )}
+
+          {isLogin && !isReset && (
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={() => { setIsReset(true); setError(''); setSuccess(''); }}
+                className="text-xs text-[hsl(var(--sidebar-text))] hover:text-[hsl(var(--sidebar-active))] transition-colors"
+              >
+                Esqueceu a senha?
+              </button>
+            </div>
+          )}
 
           {error && <p className="text-red-400 text-sm bg-red-950/50 p-3 rounded-lg">{error}</p>}
           {success && <p className="text-emerald-400 text-sm bg-emerald-950/50 p-3 rounded-lg">{success}</p>}
@@ -93,15 +114,23 @@ const Auth = () => {
             className="w-full py-3 rounded-xl bg-[hsl(var(--sidebar-active))] text-white font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="animate-spin" size={18} />}
-            {isLogin ? 'Entrar' : 'Cadastrar'}
+            {isReset ? 'Enviar Recuperação' : isLogin ? 'Entrar' : 'Cadastrar'}
           </button>
         </form>
 
         <p className="text-center text-[hsl(var(--sidebar-text))] text-sm">
-          {isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}
-          <button onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
-            {isLogin ? 'Cadastre-se' : 'Entrar'}
-          </button>
+          {isReset ? (
+            <button onClick={() => { setIsReset(false); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
+              Voltar para o login
+            </button>
+          ) : (
+            <>
+              {isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}
+              <button onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
+                {isLogin ? 'Cadastre-se' : 'Entrar'}
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>

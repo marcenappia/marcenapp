@@ -50,9 +50,12 @@ const Index = () => {
 
   const saveTimeout = useRef<NodeJS.Timeout>();
 
-  // Load project from DB
+  // Auth redirect and Load project from DB
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
     supabase
       .from('projects')
       .select('*')
