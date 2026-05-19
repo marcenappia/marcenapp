@@ -16,6 +16,14 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
 
   useEffect(() => {
     if (user) navigate('/');
@@ -28,11 +36,16 @@ const Auth = () => {
     setSuccess('');
 
     if (isReset) {
+      if (countdown > 0) return;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth`,
       });
-      if (error) setError(error.message);
-      else setSuccess('E-mail de recuperação enviado!');
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess('E-mail de recuperação enviado!');
+        setCountdown(30);
+      }
     } else if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError(error.message);
@@ -110,14 +123,31 @@ const Auth = () => {
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="text-xs text-[hsl(var(--sidebar-active))] hover:underline transition-colors font-medium"
+                disabled={loading || countdown > 0}
+                className="text-xs text-[hsl(var(--sidebar-active))] hover:underline transition-colors font-medium disabled:opacity-50 disabled:no-underline"
               >
-                Não recebeu? Reenviar link de redefinição
+                {loading ? 'Enviando...' : countdown > 0 ? `Tente novamente em ${countdown}s` : 'Não recebeu? Reenviar link de redefinição'}
               </button>
             </div>
           )}
 
-          {error && <p className="text-red-400 text-sm bg-red-950/50 p-3 rounded-lg">{error}</p>}
+          {error && (
+            <div className="space-y-2">
+              <p className="text-red-400 text-sm bg-red-950/50 p-3 rounded-lg">{error}</p>
+              {isReset && (
+                <p className="text-center">
+                  <a 
+                    href="https://wa.me/5511999999999" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-[hsl(var(--sidebar-text))] hover:text-white underline"
+                  >
+                    Não resolveu? Fale com o suporte
+                  </a>
+                </p>
+              )}
+            </div>
+          )}
           {success && <p className="text-emerald-400 text-sm bg-emerald-950/50 p-3 rounded-lg">{success}</p>}
 
           <button
