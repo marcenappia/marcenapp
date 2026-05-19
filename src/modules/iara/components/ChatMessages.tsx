@@ -24,14 +24,15 @@ interface ChatMessagesProps {
 }
 
 export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }: ChatMessagesProps) => {
-  const commandQueue = useStudioStore(state => state.commandQueue);
-  const removeFromQueue = useStudioStore(state => state.removeFromQueue);
+  const commandHistory = useMarcenappOS(state => state.commandHistory);
+  const updateCommandStatus = useMarcenappOS(state => state.updateCommandStatus);
   const cancelCommand = useStudioStore(state => state.cancelCommand);
   const enqueueCommand = useStudioStore(state => state.enqueueCommand);
 
-  const activeCommands = commandQueue.filter(cmd => 
-    cmd.metadata?.origin === 'iara' && (cmd.status === 'pending' || cmd.status === 'processing' || cmd.status === 'failed' || cmd.status === 'cancelled')
+  const activeCommands = commandHistory.filter(cmd => 
+    cmd.source === 'iara' && (cmd.status === 'pending' || cmd.status === 'processing' || cmd.status === 'failed' || cmd.status === 'cancelled')
   );
+
 
 
   return (
@@ -63,16 +64,16 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
 
                 </div>
                 <div className="flex items-center gap-1">
-                  {(cmd.status === 'failed' || cmd.status === 'cancelled') && (
+                  {cmd.status === 'failed' && (
                     <button 
                       onClick={() => {
-                        const { id, status, timestamp, ...cleanCmd } = cmd;
-                        removeFromQueue(cmd.id);
+                        const { id, status, timestamp, result, ...cleanCmd } = cmd.payload;
                         enqueueCommand(cleanCmd);
                       }}
                       className="p-1 hover:bg-muted rounded text-primary transition-colors"
                       title="Tentar novamente"
                     >
+
                       <RefreshCcw size={14} />
                     </button>
                   )}
@@ -91,7 +92,7 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
                   </button>
                 </div>
               </div>
-              <p className="text-[10px] text-muted-foreground truncate italic">"{cmd.metadata?.originalPrompt}"</p>
+              <p className="text-[10px] text-muted-foreground truncate italic">"{cmd.payload?.metadata?.originalPrompt || cmd.payload?.prompt}"</p>
             </div>
           ))}
         </div>

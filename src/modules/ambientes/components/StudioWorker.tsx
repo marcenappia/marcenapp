@@ -9,11 +9,12 @@ import { useAuth } from '@/hooks/useAuth';
  */
 export const StudioWorker = () => {
   const { user } = useAuth();
-  const commandQueue = useStudioStore(state => state.commandQueue);
+  const commandQueue = useMarcenappOS(state => state.commandHistory.filter(cmd => cmd.target === 'studio'));
   const isRendering = useStudioStore(state => state.isRendering);
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
   const failCommand = useStudioStore(state => state.failCommand);
+
   const cancelCommand = useStudioStore(state => state.cancelCommand);
 
   

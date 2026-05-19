@@ -17,15 +17,14 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   
   const enqueueCommand = useStudioStore(state => state.enqueueCommand);
-  const commandQueue = useStudioStore(state => state.commandQueue);
+  const commandHistory = useMarcenappOS(state => state.commandHistory);
   const recognitionRef = useRef<any>(null);
 
   // Monitora mudanças de status na fila de comandos para notificar o usuário
   useEffect(() => {
-    if (commandQueue.length === 0) return;
+    if (commandHistory.length === 0) return;
+    const lastCommand = commandHistory[0];
 
-    // Pega o comando mais recente para verificar se houve mudança significativa de status
-    const lastCommand = commandQueue[commandQueue.length - 1];
     
     const notifyChat = async () => {
       // Evita loops infinitos ou notificações duplicadas
