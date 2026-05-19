@@ -131,7 +131,25 @@ const IaraModule = () => {
             A IARA está orquestrando os parâmetros que serão enviados para o Estúdio.
           </div>
           <ThreeScene factors={factors} />
-          {/* ... (restando dos controles mantidos para funcionalidade, mas com semântica de comando) */}
+          <div className="space-y-6 mt-8">
+            {Object.keys(factors).map(key => (
+              <div key={key}>
+                <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                  <span>{key === 'L' ? 'Largura' : key === 'A' ? 'Altura' : key === 'P' ? 'Profundidade' : key === 'E' ? 'Espessura' : key}</span>
+                  <span className="text-primary">{factors[key as keyof typeof factors]}m</span>
+                </div>
+                <input type="range" min={key==='E'?0.01:0.1} max={5} step={0.01} value={factors[key as keyof typeof factors]} onChange={e => setFactors({...factors, [key]: Number(e.target.value)})} className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-primary" />
+              </div>
+            ))}
+            <div>
+              <label className="text-[10px] font-bold uppercase text-muted-foreground mb-1 block">Estilo de Humanização</label>
+              <select value={decorStyle} onChange={e => setDecorStyle(e.target.value)} className="w-full bg-muted border border-border rounded-xl p-2.5 text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none">
+                {['Limpo', 'Cozy', 'Luxo', 'Escritório', 'Minimalista'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+        </aside>
+      )}
 
       {maskingImage && (
         <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
