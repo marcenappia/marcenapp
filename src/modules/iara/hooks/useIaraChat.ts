@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { callAIImage } from '@/services/ai';
 import { compressImage } from '@/utils/format';
 import { ChatMessage } from '../components/ChatMessages';
+import { iaraService } from '../services/iaraService';
+import { useStudioStore } from '@/store/useStudioStore';
 
 export const useIaraChat = (factors: any, decorStyle: string, setShowAuthDialog: (val: boolean) => void) => {
   const { user } = useAuth();
@@ -15,7 +16,25 @@ export const useIaraChat = (factors: any, decorStyle: string, setShowAuthDialog:
   const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   
+  const requestRender = useStudioStore(state => state.requestRender);
+  const lastResult = useStudioStore(state => state.lastResult);
   const recognitionRef = useRef<any>(null);
+
+  // Efeito para receber o resultado do Estúdio de volta no chat
+  useEffect(() => {
+    if (lastResult && isTyping) {
+      const addResultToChat = async () => {
+        const compressed = await compressImage(lastResult);
+        await saveMessage({
+          sender: 'iara',
+          text: `Materialização concluída via Módulo Estúdio.`,
+          image_url: compressed,
+        });
+        setIsTyping(false);
+      };
+      addResultToChat();
+    }
+  }, [lastResult]);
 
   useEffect(() => {
     if (!user) return;
@@ -77,33 +96,36 @@ export const useIaraChat = (factors: any, decorStyle: string, setShowAuthDialog:
 
     await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
 
-    let baseVal = 1200;
-    if (promptText.toLowerCase().includes("cozinha")) baseVal = 6000;
-    if (promptText.toLowerCase().includes("guarda-roupa")) baseVal = 3000;
-    const finalBudget = (baseVal * factors.L * factors.A * (decorStyle === "Luxo" ? 1.5 : 1)).toFixed(2);
-
     try {
-      const finalPrompt = `MARCENAPP 4.0: Crie um móvel de estilo ${decorStyle}. REFINAMENTO DO MESTRE: ${promptText}. Dimensões: L:${factors.L} A:${factors.A}. Fotorrealismo máximo.`;
-      const images = [
-        { mimeType: 'image/jpeg', data: currentBaseRaw! },
-        { mimeType: 'image/png', data: currentMaskRaw! },
-      ];
-      const resultUrl = await callAIImage(finalPrompt, images);
-
-      if (resultUrl) {
-        const compressed = await compressImage(resultUrl);
-        await saveMessage({
-          sender: 'iara',
-          text: `Materialização concluída. Estilo: ${decorStyle}.`,
-          image_url: compressed,
-          budget: finalBudget,
+      // INTERPRETAÇÃO IARA:
+      const decision = await iaraService.interpretCommand(promptText);
+      
+      if (decision.type === 'RENDER_REQUEST') {
+        const budget = iaraService.calculateSmartBudget(promptText, factors, decorStyle);
+        
+        // ENVIA COMANDO PARA ESTÚDIO (Não gera render aqui!)
+        requestRender({
+          prompt: `MARCENAPP 4.0: Crie um móvel de estilo ${decorStyle}. REFINAMENTO: ${promptText}. Dimensões: L:${factors.L} A:${factors.A}.`,
+          images: [
+            { mimeType: 'image/jpeg', data: currentBaseRaw! },
+            { mimeType: 'image/png', data: currentMaskRaw! },
+          ],
+          decor: decorStyle
         });
+        
+        // Iara apenas confirma que enviou o comando
+        await saveMessage({ 
+          sender: 'iara', 
+          text: `Entendido. Estou enviando as especificações técnicas para o Módulo de Estúdio para renderização fotorrealista. (Orçamento estimado: R$ ${budget})` 
+        });
+        // Note: isTyping continua true até o useEffect do lastResult disparar ou timeout
       } else {
-        await saveMessage({ sender: 'iara', text: 'Não foi possível gerar a imagem. Tente novamente.' });
+        // Chat comum ou outras funções
+        await saveMessage({ sender: 'iara', text: 'Estou processando sua solicitação técnica...' });
+        setIsTyping(false);
       }
     } catch (e: any) {
-      await saveMessage({ sender: 'iara', text: `Erro na renderização: ${e?.message || 'Tente novamente.'}` });
-    } finally {
+      await saveMessage({ sender: 'iara', text: `Erro no processamento: ${e?.message || 'Tente novamente.'}` });
       setIsTyping(false);
     }
   };
