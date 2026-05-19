@@ -18,12 +18,25 @@ const Auth = () => {
   const [success, setSuccess] = useState('');
   const [countdown, setCountdown] = useState(0);
 
+  const SUPPORT_LINK = import.meta.env.VITE_SUPPORT_WHATSAPP_LINK || "https://wa.me/5511999999999";
+
   useEffect(() => {
+    let timer: NodeJS.Timeout;
     if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [countdown]);
+
+  // Reset states when switching between login/signup/reset
+  useEffect(() => {
+    setError('');
+    setSuccess('');
+    setLoading(false);
+    // We keep countdown to prevent bypass by switching tabs
+  }, [isLogin, isReset]);
 
   useEffect(() => {
     if (user) navigate('/');
@@ -35,33 +48,41 @@ const Auth = () => {
     setError('');
     setSuccess('');
 
-    if (isReset) {
-      if (countdown > 0) return;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth`,
-      });
-      if (error) {
-        setError(error.message);
+    try {
+      if (isReset) {
+        if (countdown > 0) {
+          setLoading(false);
+          return;
+        }
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth`,
+        });
+        if (error) {
+          setError(error.message);
+        } else {
+          setSuccess('E-mail de recuperação enviado!');
+          setCountdown(30);
+        }
+      } else if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) setError(error.message);
       } else {
-        setSuccess('E-mail de recuperação enviado!');
-        setCountdown(30);
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name },
+            emailRedirectTo: window.location.origin,
+          },
+        });
+        if (error) setError(error.message);
+        else setSuccess('Verifique seu e-mail para confirmar o cadastro.');
       }
-    } else if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-    } else {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { name },
-          emailRedirectTo: window.location.origin,
-        },
-      });
-      if (error) setError(error.message);
-      else setSuccess('Verifique seu e-mail para confirmar o cadastro.');
+    } catch (err: any) {
+      setError(err.message || 'Ocorreu um erro inesperado.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -110,7 +131,10 @@ const Auth = () => {
             <div className="text-right">
               <button
                 type="button"
-                onClick={() => { setIsReset(true); setError(''); setSuccess(''); }}
+                onClick={() => { 
+                  setIsReset(true); 
+                  // States are cleared by the useEffect [isLogin, isReset]
+                }}
                 className="text-xs text-[hsl(var(--sidebar-text))] hover:text-[hsl(var(--sidebar-active))] transition-colors"
               >
                 Esqueceu a senha?
@@ -137,7 +161,7 @@ const Auth = () => {
               {isReset && (
                 <p className="text-center">
                   <a 
-                    href="https://wa.me/5511999999999" 
+                    href={SUPPORT_LINK} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-xs text-[hsl(var(--sidebar-text))] hover:text-white underline"
@@ -162,13 +186,13 @@ const Auth = () => {
 
         <p className="text-center text-[hsl(var(--sidebar-text))] text-sm">
           {isReset ? (
-            <button onClick={() => { setIsReset(false); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
+            <button onClick={() => { setIsReset(false); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
               Voltar para o login
             </button>
           ) : (
             <>
               {isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}
-              <button onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
+              <button onClick={() => { setIsLogin(!isLogin); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
                 {isLogin ? 'Cadastre-se' : 'Entrar'}
               </button>
             </>
