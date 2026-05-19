@@ -14,6 +14,8 @@ export const StudioWorker = () => {
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
   const failCommand = useStudioStore(state => state.failCommand);
+  const cancelCommand = useStudioStore(state => state.cancelCommand);
+
   
   // Ref para evitar processamento duplo se o estado mudar rápido demais
   const currentlyProcessing = useRef<string | null>(null);
@@ -41,6 +43,13 @@ export const StudioWorker = () => {
   };
 
   const processCommand = async (command: RenderCommand) => {
+    // Verifica se o comando foi cancelado antes de iniciar
+    const currentCmd = useStudioStore.getState().commandQueue.find(c => c.id === command.id);
+    if (currentCmd?.status === 'cancelled') {
+      currentlyProcessing.current = null;
+      return;
+    }
+
     // Validação de Contrato/Schema
     if (!command.prompt || (!command.images?.length && command.metadata?.origin === 'iara')) {
       failCommand(command.id, "Comando inválido: Faltam parâmetros obrigatórios ou contexto visual.");
@@ -51,6 +60,7 @@ export const StudioWorker = () => {
     startProcessing(command.id);
     
     try {
+      // Simulação de interrupção (AbortController poderia ser usado aqui se o service suportasse)
       const result = await studioService.generateVisual(
         command.prompt, 
         command.images,
@@ -58,10 +68,17 @@ export const StudioWorker = () => {
         command.decor
       );
 
+      // Verifica se foi cancelado DURANTE o processamento
+      const checkCancel = useStudioStore.getState().commandQueue.find(c => c.id === command.id);
+      if (checkCancel?.status === 'cancelled') {
+        return;
+      }
+
       if (result) {
         await completeCommand(command.id, result);
         await saveToGallery(result, command.prompt);
       } else {
+
         throw new Error("O serviço de IA não retornou uma imagem válida.");
       }
     } catch (error: any) {
