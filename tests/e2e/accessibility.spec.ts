@@ -146,8 +146,9 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
   test('mobile bottom nav keyboard navigation (Arrow keys)', async ({ page, isMobile }) => {
     test.skip(!isMobile, 'Mobile test only');
     
-    // Mobile nav only shows subset of modules
-    const mobileModuleIds = ['chat', 'dashboard', 'studio', 'orcamento']; 
+    // Mobile nav only shows subset of modules (first 5 in filtered list)
+    const mobileModuleIds = ['chat', 'dashboard', 'clientes', 'diario', 'studio']; 
+
     // Wait for the buttons to be available
     await page.waitForSelector(`#mobile-nav-${mobileModuleIds[0]}`);
     
