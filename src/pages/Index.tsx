@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { LogOut, User, LogIn, Sparkles, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/marcenapp-logo.jpeg';
 
@@ -41,11 +41,21 @@ const defaultProject: ProjectData = {
 const Index = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState('chat');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialModule = searchParams.get('module') || 'chat';
+  const [activeModule, setActiveModule] = useState(initialModule);
   const [budgetProject, setBudgetProject] = useState(defaultProject);
   const [parts, setParts] = useState<any[]>([]);
   const [gallery, setGallery] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  useEffect(() => {
+    setSearchParams({ module: activeModule }, { replace: true });
+    const moduleData = modules.find(m => m.id === activeModule);
+    if (moduleData) {
+      document.title = `${moduleData.label} | Marcenapp`;
+    }
+  }, [activeModule, setSearchParams]);
 
   // Persistence logic moved to hook
   useProjectPersistence(budgetProject, setBudgetProject);
