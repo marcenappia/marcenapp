@@ -1,37 +1,49 @@
-import { useEffect } from 'react';
-import { useStudioStore } from '@/store/useStudioStore';
+import { useEffect, useRef } from 'react';
+import { useStudioStore, RenderCommand } from '@/store/useStudioStore';
 import { studioService } from '../services/studioService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
- * Componente "Headless" que processa comandos do estúdio em segundo plano
+ * Componente "Headless" que processa comandos do estúdio em segundo plano seguindo uma fila
  */
 export const StudioWorker = () => {
   const { user } = useAuth();
-  const pendingCommand = useStudioStore(state => state.pendingCommand);
-  const clearCommand = useStudioStore(state => state.clearCommand);
-  const setStoreResult = useStudioStore(state => state.setResult);
-  const setStoreRendering = useStudioStore(state => state.setRendering);
-  const setGeneratedImage = useStudioStore(state => state.setGeneratedImage);
+  const commandQueue = useStudioStore(state => state.commandQueue);
+  const isRendering = useStudioStore(state => state.isRendering);
+  const startProcessing = useStudioStore(state => state.startProcessing);
+  const completeCommand = useStudioStore(state => state.completeCommand);
+  const failCommand = useStudioStore(state => state.failCommand);
+  
+  // Ref para evitar processamento duplo se o estado mudar rápido demais
+  const currentlyProcessing = useRef<string | null>(null);
 
   useEffect(() => {
-    if (pendingCommand) {
-      processCommand(pendingCommand);
+    // Busca o primeiro comando pendente na fila
+    const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
+    
+    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) {
+      processCommand(nextCommand);
     }
-  }, [pendingCommand]);
+  }, [commandQueue, isRendering]);
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
     if (!user) return;
-    await supabase.from('gallery_images').insert({
-      user_id: user.id,
-      image_url: imageUrl,
-      prompt: promptText,
-    });
+    try {
+      await supabase.from('gallery_images').insert({
+        user_id: user.id,
+        image_url: imageUrl,
+        prompt: promptText,
+      });
+    } catch (err) {
+      console.error("Erro ao salvar na galeria:", err);
+    }
   };
 
-  const processCommand = async (command: any) => {
-    setStoreRendering(true);
+  const processCommand = async (command: RenderCommand) => {
+    currentlyProcessing.current = command.id;
+    startProcessing(command.id);
+    
     try {
       const result = await studioService.generateVisual(
         command.prompt, 
@@ -41,17 +53,18 @@ export const StudioWorker = () => {
       );
 
       if (result) {
-        setStoreResult(result);
-        setGeneratedImage(result);
+        await completeCommand(command.id, result);
         await saveToGallery(result, command.prompt);
+      } else {
+        throw new Error("O serviço de IA não retornou uma imagem válida.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("StudioWorker Error:", error);
+      failCommand(command.id, error?.message || "Erro desconhecido na geração.");
     } finally {
-      setStoreRendering(false);
-      clearCommand();
+      currentlyProcessing.current = null;
     }
   };
 
-  return null; // Não renderiza nada visualmente
+  return null;
 };
