@@ -11,6 +11,7 @@ import IaraModule from '@/modules/iara';
 import Dashboard from '@/modules/projetos';
 import { Studio } from '@/modules/ambientes';
 import { Elevator } from '@/modules/ambientes/components/Elevator';
+import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
 import OrcamentoModule from '@/modules/orcamentos';
 import CorteModule from '@/modules/patio';
 import { Contrato } from '@/modules/projetos/components/Contrato';
@@ -64,6 +65,7 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
+      <StudioWorker />
       <Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
       
       {/* Desktop Sidebar */}

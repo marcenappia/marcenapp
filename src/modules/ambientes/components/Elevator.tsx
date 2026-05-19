@@ -4,7 +4,9 @@ import {
   Download, DollarSign, Maximize2, X
 } from 'lucide-react';
 import { Button, Card, Modal, DecorationPanel } from '@/components/marcenaria/shared';
-import { callAIImage, callAIText } from '@/services/ai';
+import { callAIText } from '@/services/ai';
+import { studioService } from '../services/studioService';
+import { iaraService } from '@/modules/iara/services/iaraService';
 
 interface Props {
   setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
@@ -60,7 +62,7 @@ export const Elevator = ({ setBudgetProject, navigateTo }: Props) => {
       const placementPrompt = furniturePlacement ? `\n\nFURNITURE PLACEMENT: "${furniturePlacement}". Integrate it naturally.` : "";
       const finalPrompt = `ACT AS A 3D RENDERING ENGINE. INPUT: 2D Floor Plan. TASK: Create a ${viewPrompt} based STRICTLY on the plan lines. RULES: 1. ${strictInstruction} 2. Rise the walls from the black lines. 3. Apply realistic textures. 4. ${roomPrompt}. 5. Neutral daylight.${placementPrompt}`;
       
-      const imageUrl = await callAIImage(finalPrompt, [{ mimeType: 'image/png', data: planBase64 }]);
+      const imageUrl = await studioService.generateVisual(finalPrompt, [{ mimeType: 'image/png', data: planBase64 }]);
       if (imageUrl) { setGeneratedImage(imageUrl); setShowModal(true); }
       else throw new Error("Sem imagem gerada.");
     } catch (e: any) { alert(e.message || "Erro API"); } finally { setLoading(false); }
@@ -71,14 +73,9 @@ export const Elevator = ({ setBudgetProject, navigateTo }: Props) => {
     setAnalyzing(true);
     try {
       const imageBase64 = generatedImage.split(',')[1];
-      const analysisPrompt = `Analyze furniture strictly. Estimate dims (meters). Return JSON: {"width": 2.0, "height": 2.5, "depth": 0.6, "drawers": 4, "doors": 4}`;
-      const text = await callAIText(analysisPrompt, [{ mimeType: 'image/png', data: imageBase64 }], true);
-      if (text) {
-        const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        const est = JSON.parse(clean);
-        setBudgetProject((prev: any) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
-        setShowModal(false); navigateTo('orcamento');
-      }
+      const est = await iaraService.analyzeImage(imageBase64);
+      setBudgetProject((prev: any) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
+      setShowModal(false); navigateTo('orcamento');
     } catch { alert("Erro análise visual."); navigateTo('orcamento'); } finally { setAnalyzing(false); }
   };
 
