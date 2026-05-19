@@ -52,4 +52,12 @@ describe('IARA Orchestration Logic', () => {
   });
 
   describe('Contract Validation', () => {
-... keep existing code
+    it('should fail if critical params are missing in interpretCommand (simulated logic)', async () => {
+      const prompt = "renderize";
+      const decision = await iaraService.interpretCommand(prompt);
+      
+      expect(decision.type).toBe('RENDER_REQUEST');
+      expect(decision.command?.params.prompt).toBeDefined();
+    });
+  });
+});
