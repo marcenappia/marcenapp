@@ -30,35 +30,49 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
 
       // State: Hover
       await btn.hover();
+      results = await new AxeBuilder({ page }).include(selector).analyze();
+      expect(results.violations).toEqual([]);
       await expect(btn).toHaveScreenshot(`${isMobile ? 'mobile' : 'desktop'}-nav-${id}-hover.png`);
       
       // State: Focus
       await btn.focus();
+      results = await new AxeBuilder({ page }).include(selector).analyze();
+      expect(results.violations).toEqual([]);
       await expect(btn).toHaveScreenshot(`${isMobile ? 'mobile' : 'desktop'}-nav-${id}-focus.png`);
       
       // State: Selected
       await btn.click();
       await expect(btn).toHaveAttribute('aria-current', 'page');
+      results = await new AxeBuilder({ page }).include(selector).analyze();
+      expect(results.violations).toEqual([]);
       await expect(btn).toHaveScreenshot(`${isMobile ? 'mobile' : 'desktop'}-nav-${id}-active.png`);
     }
   });
 
-  test('sidebar tab order and URL synchronization', async ({ page, isMobile }) => {
-    test.skip(!!isMobile, 'Desktop sidebar test');
+  test('navigation tab order and sync (Desktop & Mobile)', async ({ page, isMobile }) => {
+    const moduleIds = isMobile 
+      ? ['chat', 'dashboard', 'clientes', 'diario', 'studio']
+      : ['chat', 'dashboard', 'clientes', 'diario', 'studio', 'elevator', 'orcamento', 'corte', 'contrato'];
     
-    const moduleIds = ['chat', 'dashboard', 'clientes', 'diario', 'studio', 'elevator', 'orcamento', 'corte', 'contrato'];
+    const prefix = isMobile ? '#mobile-nav-' : '#nav-';
     
     // Start from top
     await page.keyboard.press('Home');
     
     for (const id of moduleIds) {
+      // Find the button to get its label for title verification
+      const btn = page.locator(`${prefix}${id}`);
+      const label = await btn.getAttribute('aria-label');
+      
       await page.keyboard.press('Tab');
-      const btn = page.locator(`#nav-${id}`);
       await expect(btn).toBeFocused();
       
-      // Press Enter to navigate and check sync
+      // Press Enter to navigate
       await page.keyboard.press('Enter');
+      
+      // Verify full synchronization
       await expect(page).toHaveURL(new RegExp(`module=${id}`));
+      await expect(page).toHaveTitle(new RegExp(label || id, 'i'));
       await expect(btn).toHaveAttribute('aria-current', 'page');
     }
   });
