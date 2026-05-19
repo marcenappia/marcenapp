@@ -178,13 +178,13 @@ const Auth = () => {
 
         <p className="text-center text-[hsl(var(--sidebar-text))] text-sm">
           {isReset ? (
-            <button onClick={() => { setIsReset(false); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
+            <button onClick={() => { setIsReset(false); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
               Voltar para o login
             </button>
           ) : (
             <>
               {isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}
-              <button onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
+              <button onClick={() => { setIsLogin(!isLogin); }} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">
                 {isLogin ? 'Cadastre-se' : 'Entrar'}
               </button>
             </>
