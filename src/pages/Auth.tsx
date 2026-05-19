@@ -18,12 +18,25 @@ const Auth = () => {
   const [success, setSuccess] = useState('');
   const [countdown, setCountdown] = useState(0);
 
+  const SUPPORT_LINK = import.meta.env.VITE_SUPPORT_WHATSAPP_LINK || "https://wa.me/5511999999999";
+
   useEffect(() => {
+    let timer: NodeJS.Timeout;
     if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [countdown]);
+
+  // Reset states when switching between login/signup/reset
+  useEffect(() => {
+    setError('');
+    setSuccess('');
+    setLoading(false);
+    // We keep countdown to prevent bypass by switching tabs
+  }, [isLogin, isReset]);
 
   useEffect(() => {
     if (user) navigate('/');
