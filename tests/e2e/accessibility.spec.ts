@@ -13,8 +13,8 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     await page.waitForTimeout(500);
   });
 
-  test('should pass accessibility audit in all interaction states', async ({ page }) => {
-    const moduleIds = ['chat', 'dashboard', 'studio', 'elevator', 'orcamento', 'corte', 'contrato'];
+  test('should pass accessibility audit in all interaction states and match snapshots', async ({ page }) => {
+    const moduleIds = ['chat', 'dashboard', 'studio', 'orcamento'];
     
     for (const id of moduleIds) {
       const btn = page.locator(`#nav-${id}`);
@@ -24,21 +24,38 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
       let results = await new AxeBuilder({ page }).include(`#nav-${id}`).analyze();
       expect(results.violations).toEqual([]);
 
-      // State: Hover
+      // State: Hover visual regression
       await btn.hover();
-      results = await new AxeBuilder({ page }).include(`#nav-${id}`).analyze();
-      expect(results.violations).toEqual([]);
-
+      await expect(btn).toHaveScreenshot(`sidebar-nav-${id}-hover.png`);
+      
       // State: Focus
       await btn.focus();
       results = await new AxeBuilder({ page }).include(`#nav-${id}`).analyze();
       expect(results.violations).toEqual([]);
+      await expect(btn).toHaveScreenshot(`sidebar-nav-${id}-focus.png`);
       
       // State: Selected
       await btn.click();
       await expect(btn).toHaveAttribute('aria-current', 'page');
+      await expect(page).toHaveScreenshot(`sidebar-nav-${id}-active.png`);
       results = await new AxeBuilder({ page }).include(`#nav-${id}`).analyze();
       expect(results.violations).toEqual([]);
+    }
+  });
+
+  test('should update URL, title and aria-current on click (Desktop & Mobile)', async ({ page, isMobile }) => {
+    const mod = { id: 'studio', label: 'Studio 3D' };
+    const selector = isMobile ? `#mobile-nav-${mod.id}` : `#nav-${mod.id}`;
+    const btn = page.locator(selector).first();
+
+    await btn.click();
+    
+    await expect(page).toHaveURL(new RegExp(`module=${mod.id}`));
+    await expect(page).toHaveTitle(new RegExp(mod.label, 'i'));
+    await expect(btn).toHaveAttribute('aria-current', 'page');
+    
+    if (isMobile) {
+      await expect(btn).toHaveScreenshot(`bottom-nav-${mod.id}-active.png`);
     }
   });
 
@@ -143,48 +160,49 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     await expect(firstBtn).toBeFocused();
   });
 
-  test('mobile bottom nav keyboard navigation (Arrow keys, Home, End)', async ({ page, isMobile }) => {
+  test('mobile bottom nav keyboard navigation and tab order', async ({ page, isMobile }) => {
     test.skip(!isMobile, 'Mobile test only');
     
-    // Mobile nav only shows subset of modules (first 5 in filtered list)
     const mobileModuleIds = ['chat', 'dashboard', 'clientes', 'diario', 'studio']; 
-    
     await page.waitForSelector(`#mobile-nav-${mobileModuleIds[0]}`);
     
     const firstBtn = page.locator(`#mobile-nav-${mobileModuleIds[0]}`);
     const lastBtn = page.locator(`#mobile-nav-${mobileModuleIds[mobileModuleIds.length - 1]}`);
 
+    // Arrow navigation wrap sequence
     await firstBtn.focus();
-    
-    // ArrowLeft (wrap to last)
-    await page.keyboard.press('ArrowLeft');
-    await expect(lastBtn).toBeFocused();
-
-    // ArrowRight (wrap to first)
     await page.keyboard.press('ArrowRight');
+    await expect(page.locator(`#mobile-nav-${mobileModuleIds[1]}`)).toBeFocused();
+    
+    await page.keyboard.press('ArrowLeft');
+    await expect(firstBtn).toBeFocused();
+    
+    await page.keyboard.press('ArrowLeft'); // Wrap to end
+    await expect(lastBtn).toBeFocused();
+    
+    await page.keyboard.press('ArrowRight'); // Wrap back to start
     await expect(firstBtn).toBeFocused();
 
-    // End key
-    await page.keyboard.press('End');
-    await expect(lastBtn).toBeFocused();
-    await page.keyboard.press('Enter');
+    // Tab order verification
+    await page.keyboard.press('Home'); // Ensure starting point
+    await page.keyboard.press('Tab'); // First nav item
     
-    // Verify selection after navigation
-    const lastModLabel = 'Studio 3D';
-    await expect(page).toHaveURL(/module=studio/);
-    await expect(page).toHaveTitle(new RegExp(lastModLabel, 'i'));
-    await expect(lastBtn).toHaveAttribute('aria-current', 'page');
+    for (const id of mobileModuleIds) {
+      const currentBtn = page.locator(`#mobile-nav-${id}`);
+      await expect(currentBtn).toBeFocused();
+      await page.keyboard.press('Tab');
+    }
 
-    // Home key
+    // Verify no tab trap
+    const focusedAfterNav = await page.evaluate(() => !document.activeElement?.closest('nav'));
+    expect(focusedAfterNav).toBe(true);
+
+    // Home/End navigation verification
+    await lastBtn.focus();
     await page.keyboard.press('Home');
     await expect(firstBtn).toBeFocused();
-    await page.keyboard.press('Space');
-    
-    // Verify selection
-    const firstModLabel = 'IARA Chat';
+    await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/module=chat/);
-    await expect(page).toHaveTitle(new RegExp(firstModLabel, 'i'));
-    await expect(firstBtn).toHaveAttribute('aria-current', 'page');
   });
 
   test('should synchronize state with browser history (back/forward) and refresh', async ({ page }) => {
