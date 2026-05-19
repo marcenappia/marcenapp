@@ -32,11 +32,18 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
 
-      if (lastCommand.status === 'completed') {
+      if (lastCommand.status === 'completed' && lastCommand.resultUrl) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
+        
+        // Validação rigorosa: Vincular resultado ao ID do comando no chat
         await saveMessage({
           sender: 'iara',
-          text: `A materialização foi concluída com sucesso no Estúdio! Você pode visualizar o resultado agora acessando o módulo de Materialização.`,
+          text: `A materialização foi concluída com sucesso no Estúdio! (Ref: ${lastCommand.id})`,
+          image_url: lastCommand.resultUrl, // Exibe o resultado se presente
+          metadata: {
+            commandId: lastCommand.id,
+            resultUrl: lastCommand.resultUrl
+          }
         });
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {

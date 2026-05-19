@@ -10,6 +10,10 @@ export interface ChatMessage {
   image_url: string | null;
   budget: string | null;
   created_at: string;
+  metadata?: {
+    commandId?: string;
+    resultUrl?: string;
+  };
 }
 
 interface ChatMessagesProps {

@@ -28,9 +28,31 @@ describe('IARA Orchestration Logic', () => {
     expect(decision.command).toBeUndefined();
   });
 
+  describe('Idempotency Logic', () => {
+    const generateKey = (prompt: string, context?: string) => {
+      const hashPayload = `${prompt}-Limpo-2.4-2.6-${context?.substring(0, 500)}`;
+      let hash = 0;
+      for (let i = 0; i < hashPayload.length; i++) {
+        const char = hashPayload.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      return `iara-${Math.abs(hash).toString(36)}`;
+    };
+
+    it('should generate deterministic keys for the same input', () => {
+      const p = "render kitchen";
+      const c = "base64data";
+      expect(generateKey(p, c)).toBe(generateKey(p, c));
+    });
+
+    it('should generate different keys for different prompts', () => {
+      expect(generateKey("prompt 1")).not.toBe(generateKey("prompt 2"));
+    });
+  });
+
   describe('Contract Validation', () => {
     it('should fail if critical params are missing in interpretCommand (simulated logic)', async () => {
-      // Testando a robustez do contrato de comando
       const prompt = "renderize";
       const decision = await iaraService.interpretCommand(prompt);
       

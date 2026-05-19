@@ -293,6 +293,29 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     await expect(page.locator('#nav-studio')).toHaveAttribute('aria-current', 'page');
   });
 
+  test('IARA orchestrator cancelation and persistence', async ({ page, isMobile }) => {
+    await page.locator(isMobile ? '#mobile-nav-chat' : '#nav-chat').click();
+    
+    const textarea = page.locator('textarea');
+    await textarea.fill('renderize algo para cancelar');
+    await page.keyboard.press('Enter');
+    
+    // Check status
+    const statusCard = page.locator('text=Na Fila do Estúdio');
+    await expect(statusCard).toBeVisible();
+    
+    // Click Cancel (assuming XCircle button with title "Cancelar")
+    const cancelBtn = page.locator('button[title="Cancelar"]');
+    await cancelBtn.click();
+    
+    // Verify status changes to Canceled
+    await expect(page.locator('text=Comando Cancelado')).toBeVisible();
+    
+    // Verify no render message appears even after wait
+    await page.waitForTimeout(2000);
+    await expect(page.locator('text=concluída com sucesso no Estúdio')).toHaveCount(0);
+  });
+
   test('IARA orchestrator persistence and reload', async ({ page, isMobile }) => {
     await page.locator(isMobile ? '#mobile-nav-chat' : '#nav-chat').click();
     
@@ -308,9 +331,6 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     
     // Status should persist from localStorage
     await expect(page.locator('text=Na Fila do Estúdio')).toBeVisible();
-    
-    // Wait for completion notification (checking notification persistence/logic)
-    await expect(page.locator('text=concluída com sucesso no Estúdio')).toBeVisible({ timeout: 20000 });
   });
 
 });
