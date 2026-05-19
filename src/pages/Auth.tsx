@@ -123,7 +123,10 @@ const Auth = () => {
             <div className="text-right">
               <button
                 type="button"
-                onClick={() => { setIsReset(true); setError(''); setSuccess(''); }}
+                onClick={() => { 
+                  setIsReset(true); 
+                  // States are cleared by the useEffect [isLogin, isReset]
+                }}
                 className="text-xs text-[hsl(var(--sidebar-text))] hover:text-[hsl(var(--sidebar-active))] transition-colors"
               >
                 Esqueceu a senha?
