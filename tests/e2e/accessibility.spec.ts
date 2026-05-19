@@ -74,45 +74,95 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     expect(focusedAfterSidebar.closestSidebar).toBe(false);
   });
 
-  test('should navigate using Enter and Space keys in all modules', async ({ page, isMobile }) => {
-    const modules = [
+  test('should navigate using Enter and Space keys with URL and Title verification', async ({ page, isMobile }) => {
+    const navModules = [
       { id: 'dashboard', label: 'Visão Geral' },
-      { id: 'chat', label: 'IARA Chat' }
+      { id: 'chat', label: 'IARA Chat' },
+      { id: 'studio', label: 'Studio 3D' }
     ];
 
-    for (const mod of modules) {
-      const selector = isMobile ? `button[aria-label="${mod.label}"]` : `#nav-${mod.id}`;
+    for (const mod of navModules) {
+      const selector = isMobile ? `#mobile-nav-${mod.id}` : `#nav-${mod.id}`;
       const btn = page.locator(selector).first();
       
+      // Test Enter
       await btn.focus();
       await page.keyboard.press('Enter');
+      
+      // Verify Header
       await expect(page.getByRole('heading', { name: new RegExp(mod.label, 'i') })).toBeVisible();
+      // Verify Title
+      await expect(page).toHaveTitle(new RegExp(mod.label, 'i'));
+      // Verify URL
+      await expect(page).toHaveURL(new RegExp(`module=${mod.id}`));
+      // Verify ARIA
       await expect(btn).toHaveAttribute('aria-current', 'page');
 
-      // Toggle another one with Space
-      const otherMod = modules.find(m => m.id !== mod.id)!;
-      const otherSelector = isMobile ? `button[aria-label="${otherMod.label}"]` : `#nav-${otherMod.id}`;
+      // Test Space on a different module
+      const otherMod = navModules.find(m => m.id !== mod.id)!;
+      const otherSelector = isMobile ? `#mobile-nav-${otherMod.id}` : `#nav-${otherMod.id}`;
       const otherBtn = page.locator(otherSelector).first();
       
       await otherBtn.focus();
       await page.keyboard.press('Space');
+      
       await expect(page.getByRole('heading', { name: new RegExp(otherMod.label, 'i') })).toBeVisible();
+      await expect(page).toHaveTitle(new RegExp(otherMod.label, 'i'));
+      await expect(page).toHaveURL(new RegExp(`module=${otherMod.id}`));
     }
   });
 
-  test('mobile bottom nav cycle', async ({ page, isMobile }) => {
-    test.skip(!isMobile, 'Mobile test only');
-    const labels = ['IARA Chat', 'Visão Geral', 'Studio 3D', 'Elevador Planta', 'Orçamento', 'Plano de Corte', 'Contrato'];
+  test('sidebar keyboard navigation wrap-around (ArrowUp/ArrowDown)', async ({ page, isMobile }) => {
+    test.skip(!!isMobile, 'Desktop sidebar test only');
     
-    await page.keyboard.press('Tab');
-    for (const label of labels) {
-      let currentLabel = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
-      while (currentLabel !== label) {
-        await page.keyboard.press('Tab');
-        currentLabel = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
-      }
-      expect(currentLabel).toBe(label);
-    }
+    const moduleIds = ['chat', 'dashboard', 'clientes', 'diario', 'studio', 'elevator', 'orcamento', 'corte', 'contrato'];
+    const firstBtn = page.locator(`#nav-${moduleIds[0]}`);
+    const lastBtn = page.locator(`#nav-${moduleIds[moduleIds.length - 1]}`);
+
+    // Start at first item
+    await firstBtn.focus();
+    await expect(firstBtn).toBeFocused();
+
+    // ArrowUp should wrap to last item
+    await page.keyboard.press('ArrowUp');
+    await expect(lastBtn).toBeFocused();
+
+    // ArrowDown should wrap back to first item
+    await page.keyboard.press('ArrowDown');
+    await expect(firstBtn).toBeFocused();
+
+    // ArrowDown twice should go to third item
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator(`#nav-${moduleIds[2]}`)).toBeFocused();
+    
+    // Home/End keys
+    await page.keyboard.press('End');
+    await expect(lastBtn).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(firstBtn).toBeFocused();
+  });
+
+  test('mobile bottom nav keyboard navigation (Arrow keys)', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'Mobile test only');
+    
+    // Mobile nav only shows subset of modules
+    const mobileModuleIds = ['chat', 'dashboard', 'studio', 'orcamento']; 
+    // Wait for the buttons to be available
+    await page.waitForSelector(`#mobile-nav-${mobileModuleIds[0]}`);
+    
+    const firstBtn = page.locator(`#mobile-nav-${mobileModuleIds[0]}`);
+    const lastBtn = page.locator(`#mobile-nav-${mobileModuleIds[mobileModuleIds.length - 1]}`);
+
+    await firstBtn.focus();
+    
+    // ArrowLeft (wrap to last)
+    await page.keyboard.press('ArrowLeft');
+    await expect(lastBtn).toBeFocused();
+
+    // ArrowRight (wrap to first)
+    await page.keyboard.press('ArrowRight');
+    await expect(firstBtn).toBeFocused();
   });
 
 
