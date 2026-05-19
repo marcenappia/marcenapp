@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  profile: { name: string; company: string; phone: string; avatar_url: string } | null;
+  profile: { name: string; company: string; phone: string; avatar_url: string; onboarding_completed: string[]; reduce_motion: boolean; onboarding_step: number } | null;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('name, company, phone, avatar_url')
+        .select('name, company, phone, avatar_url, onboarding_completed, reduce_motion, onboarding_step')
         .eq('user_id', userId)
         .maybeSingle();
       
