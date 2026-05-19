@@ -119,14 +119,35 @@ export const useStudioStore = create<StudioState>()(
     }),
     {
       name: 'marcenapp-studio-storage',
+      version: 2, // Incrementado de 1 para 2 para refletir a nova estrutura de comandos (idempotencyKey, metadata, etc)
       storage: createJSONStorage(() => localStorage),
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          // Migração da versão legada (sem commandQueue)
+          return {
+            ...persistedState,
+            commandQueue: [],
+          };
+        }
+        if (version === 1) {
+          // Migração da versão 1 para 2: Adiciona campos obrigatórios caso faltem
+          return {
+            ...persistedState,
+            commandQueue: persistedState.commandQueue?.map((cmd: any) => ({
+              ...cmd,
+              status: cmd.status || 'pending',
+              metadata: cmd.metadata || { origin: 'manual' }
+            })) || []
+          };
+        }
+        return persistedState;
+      },
       partialize: (state) => ({ 
         commandQueue: state.commandQueue.map(cmd => ({
           ...cmd,
           // Evitamos persistir base64 gigantes no localStorage se possível, 
           // mas para manter consistência entre reloads de rascunhos pendentes, mantemos por enquanto.
-          // Em um app real, seriam URLs de blob ou storage.
-          images: cmd.status === 'completed' ? [] : cmd.images 
+          images: (cmd.status === 'completed' || cmd.status === 'cancelled') ? [] : cmd.images 
         })),
         lastResult: state.lastResult,
         generatedImage: state.generatedImage
