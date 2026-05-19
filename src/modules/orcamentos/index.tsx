@@ -19,7 +19,7 @@ const OrcamentoModule = ({ project, setProject }: Props) => {
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">
             <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-              <Package size={20} className="text-indigo-500" /> Dimensões
+              <Package size={20} className="text-indigo-500" /> Estela — Inteligência Financeira
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <InputGroup label="Largura (m)" value={project.width} onChange={v => setProject({ ...project, width: Number(v) })} suffix="m" />
