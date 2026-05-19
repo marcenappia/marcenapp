@@ -1,6 +1,7 @@
 import React from 'react';
 import { Maximize2, Loader2, CheckCircle2, AlertCircle, RefreshCcw, XCircle } from 'lucide-react';
 import { useStudioStore } from '@/store/useStudioStore';
+import { useMarcenappOS } from '@/store/useMarcenappOS';
 
 export interface ChatMessage {
   id: string;
@@ -32,6 +33,7 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
   const activeCommands = commandHistory.filter(cmd => 
     cmd.source === 'iara' && (cmd.status === 'pending' || cmd.status === 'processing' || cmd.status === 'failed' || cmd.status === 'cancelled')
   );
+
 
 
 

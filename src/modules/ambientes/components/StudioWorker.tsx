@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useStudioStore, RenderCommand } from '@/store/useStudioStore';
+import { useStudioStore } from '@/store/useStudioStore';
+import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';

@@ -4,7 +4,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { compressImage } from '@/utils/format';
 import { ChatMessage } from '../components/ChatMessages';
 import { iaraService } from '../services/iaraService';
-import { useStudioStore, RenderCommand } from '@/store/useStudioStore';
+import { useStudioStore } from '@/store/useStudioStore';
+import { useMarcenappOS } from '@/store/useMarcenappOS';
 
 export const useIaraChat = (factors: { L: number, A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void) => {
   const { user } = useAuth();
@@ -24,6 +25,7 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
   useEffect(() => {
     if (commandHistory.length === 0) return;
     const lastCommand = commandHistory[0];
+
 
     
     const notifyChat = async () => {
@@ -67,6 +69,7 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
       .then(({ data }) => {
         if (data) setMessages(data as ChatMessage[]);
       });
+
 
     const channel = supabase
       .channel('chat_messages_realtime')
