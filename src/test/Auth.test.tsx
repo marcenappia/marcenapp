@@ -32,7 +32,7 @@ const renderAuth = () => {
 describe('Auth Page - Reset Password Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
   it('shows loading state and triggers countdown on success', async () => {
