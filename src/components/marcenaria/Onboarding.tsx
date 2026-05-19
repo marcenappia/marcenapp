@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   X, 
   ChevronRight, 
@@ -9,7 +9,8 @@ import {
   Scissors, 
   Scale,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Circle
 } from 'lucide-react';
 import { Button } from './shared';
 
@@ -19,8 +20,8 @@ interface Step {
   description: string;
   icon: React.ElementType;
   color: string;
-  targetId?: string; // HTML ID to highlight
-  routeId?: string;  // Module ID to navigate to
+  targetId?: string;
+  routeId?: string;
 }
 
 const steps: Step[] = [
@@ -78,8 +79,8 @@ const steps: Step[] = [
   },
   {
     id: 'checklist',
-    title: "Pronto para decolar?",
-    description: "Você já conhece as principais ferramentas. Escolha por onde quer começar agora:",
+    title: "Sua Jornada 4.0",
+    description: "Acompanhe seu progresso e comece a produzir:",
     icon: CheckCircle2,
     color: "text-green-500"
   }
@@ -94,11 +95,23 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [highlightStyle, setHighlightStyle] = useState<React.CSSProperties>({});
+  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
+  // Initialize
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('marcenapp_onboarding_seen');
     const savedStep = localStorage.getItem('marcenapp_onboarding_step');
+    const savedCompleted = localStorage.getItem('marcenapp_onboarding_completed');
+    const savedReduceMotion = localStorage.getItem('marcenapp_reduce_motion') === 'true';
     
+    setReduceMotion(savedReduceMotion);
+    
+    if (savedCompleted) {
+      setCompletedSteps(JSON.parse(savedCompleted));
+    }
+
     if (hasSeenOnboarding === 'false' || !hasSeenOnboarding) {
       setIsOpen(true);
       if (savedStep) {
@@ -107,52 +120,67 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
     }
   }, []);
 
+  const updateHighlight = useCallback(() => {
+    const step = steps[currentStep];
+    if (step.targetId && !reduceMotion) {
+      const element = document.getElementById(step.targetId);
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        setHighlightStyle({
+          top: rect.top - 8,
+          left: rect.left - 8,
+          width: rect.width + 16,
+          height: rect.height + 16,
+          opacity: 1,
+          pointerEvents: 'none'
+        });
+        element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+      } else {
+        setHighlightStyle({ opacity: 0 });
+      }
+    } else {
+      setHighlightStyle({ opacity: 0 });
+    }
+  }, [currentStep, reduceMotion]);
+
   useEffect(() => {
     if (!isOpen) return;
 
     const step = steps[currentStep];
     
-    // Auto-navigate
     if (step.routeId && step.routeId !== activeModule) {
       onNavigate(step.routeId);
     }
 
-    // Save progress
+    // Mark step as completed as soon as it's reached
+    if (!completedSteps.includes(step.id)) {
+      const newCompleted = [...completedSteps, step.id];
+      setCompletedSteps(newCompleted);
+      localStorage.setItem('marcenapp_onboarding_completed', JSON.stringify(newCompleted));
+    }
+
     localStorage.setItem('marcenapp_onboarding_step', currentStep.toString());
     localStorage.setItem('marcenapp_onboarding_seen', 'false');
 
-    // Highlight logic
-    if (step.targetId) {
-      const updateHighlight = () => {
-        const element = document.getElementById(step.targetId!);
-        if (element) {
-          const rect = element.getBoundingClientRect();
-          setHighlightStyle({
-            top: rect.top - 8,
-            left: rect.left - 8,
-            width: rect.width + 16,
-            height: rect.height + 16,
-            opacity: 1,
-            pointerEvents: 'none'
-          });
-          // Scroll element into view if needed
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else {
-          setHighlightStyle({ opacity: 0 });
-        }
-      };
-
-      // Delay a bit to allow navigation/rendering to finish
-      const timeoutId = setTimeout(updateHighlight, 300);
-      window.addEventListener('resize', updateHighlight);
-      return () => {
-        clearTimeout(timeoutId);
-        window.removeEventListener('resize', updateHighlight);
-      };
-    } else {
-      setHighlightStyle({ opacity: 0 });
+    const timeoutId = setTimeout(updateHighlight, 350);
+    window.addEventListener('resize', updateHighlight);
+    
+    // Focus management for accessibility
+    if (modalRef.current) {
+      modalRef.current.focus();
     }
-  }, [currentStep, isOpen, activeModule, onNavigate]);
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', updateHighlight);
+    };
+  }, [currentStep, isOpen, activeModule, onNavigate, updateHighlight]);
+
+  const toggleReduceMotion = () => {
+    const newVal = !reduceMotion;
+    setReduceMotion(newVal);
+    localStorage.setItem('marcenapp_reduce_motion', newVal.toString());
+  };
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -183,24 +211,43 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
 
   return (
     <>
-      {/* Spotlight / Highlight Overlay */}
-      <div 
-        className="fixed z-[190] border-2 border-primary ring-[2000px] ring-slate-950/70 rounded-xl transition-all duration-500 ease-in-out shadow-[0_0_20px_rgba(var(--primary),0.5)]"
-        style={highlightStyle}
-      />
+      {/* Spotlight Overlay */}
+      {!reduceMotion && (
+        <div 
+          role="presentation"
+          aria-hidden="true"
+          className="fixed z-[190] border-2 border-primary ring-[2000px] ring-slate-950/70 rounded-xl transition-all ease-in-out shadow-[0_0_20px_rgba(var(--primary),0.5)]"
+          style={{
+            ...highlightStyle,
+            transitionDuration: reduceMotion ? '0ms' : '500ms'
+          }}
+        />
+      )}
+      {reduceMotion && (
+        <div className="fixed inset-0 z-[190] bg-slate-950/50 backdrop-blur-sm" />
+      )}
 
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 pointer-events-none">
-        <div className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 pointer-events-auto">
+      <div 
+        className="fixed inset-0 z-[200] flex items-center justify-center p-4 pointer-events-none"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="onboarding-title"
+      >
+        <div 
+          ref={modalRef}
+          tabIndex={-1}
+          className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col pointer-events-auto focus:outline-none"
+        >
           <div className="p-6 flex flex-col items-center text-center space-y-6">
             <div className="relative">
-              <div className={`absolute inset-0 blur-2xl opacity-20 ${step.color.replace('text', 'bg')}`} />
+              {!reduceMotion && <div className={`absolute inset-0 blur-2xl opacity-20 ${step.color.replace('text', 'bg')}`} />}
               <div className={`w-20 h-20 rounded-2xl bg-muted flex items-center justify-center relative border border-border shadow-inner`}>
                 <Icon size={40} className={step.color} />
               </div>
             </div>
 
             <div className="space-y-2 w-full">
-              <h2 className="text-2xl font-black text-foreground tracking-tight italic uppercase">
+              <h2 id="onboarding-title" className="text-2xl font-black text-foreground tracking-tight italic uppercase">
                 {step.title}
               </h2>
               <p className="text-muted-foreground leading-relaxed">
@@ -208,23 +255,29 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
               </p>
 
               {isChecklist && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 text-left">
-                  {steps.filter(s => s.routeId).map(s => (
-                    <button
+                <div className="grid grid-cols-1 gap-2 mt-6 text-left">
+                  {steps.filter(s => s.id !== 'welcome' && s.id !== 'checklist').map(s => (
+                    <div
                       key={s.id}
-                      onClick={() => finishOnboarding(s.routeId)}
-                      className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-primary hover:text-white transition-all group border border-border/50"
+                      className="flex items-center justify-between p-3 rounded-xl bg-muted/50 border border-border/50"
                     >
-                      <s.icon size={18} className={`${s.color} group-hover:text-white transition-colors`} />
-                      <span className="text-sm font-bold">{s.title}</span>
-                    </button>
+                      <div className="flex items-center gap-3">
+                        <s.icon size={18} className={s.color} />
+                        <span className="text-sm font-bold">{s.title}</span>
+                      </div>
+                      {completedSteps.includes(s.id) ? (
+                        <CheckCircle2 size={18} className="text-green-500" />
+                      ) : (
+                        <Circle size={18} className="text-muted-foreground" />
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
             </div>
 
             {!isChecklist && (
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5" role="progressbar" aria-valuenow={currentStep + 1} aria-valuemin={1} aria-valuemax={steps.length}>
                 {steps.map((_, i) => (
                   <div 
                     key={i} 
@@ -235,30 +288,44 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
             )}
           </div>
 
-          <div className="p-6 bg-muted/30 border-t border-border flex items-center justify-between">
-            <button 
-              onClick={() => finishOnboarding()}
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Pular tour
-            </button>
+          <div className="p-6 bg-muted/30 border-t border-border flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <button 
+                onClick={() => finishOnboarding()}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Pular tour
+              </button>
 
-            <div className="flex gap-3">
-              {currentStep > 0 && (
-                <Button variant="secondary" onClick={handlePrev} className="px-3">
-                  <ChevronLeft size={20} />
-                </Button>
-              )}
-              {!isChecklist ? (
-                <Button onClick={handleNext} className="min-w-[120px]">
-                  {currentStep === steps.length - 1 ? 'Finalizar' : 'Próximo'}
-                  {currentStep < steps.length - 1 && <ChevronRight size={18} className="ml-1" />}
-                </Button>
-              ) : (
-                <Button onClick={() => finishOnboarding('chat')} className="min-w-[120px]">
-                  Começar agora
-                </Button>
-              )}
+              <div className="flex gap-3">
+                {currentStep > 0 && (
+                  <Button variant="secondary" onClick={handlePrev} className="px-3" aria-label="Passo anterior">
+                    <ChevronLeft size={20} />
+                  </Button>
+                )}
+                {!isChecklist ? (
+                  <Button onClick={handleNext} className="min-w-[120px]">
+                    {currentStep === steps.length - 1 ? 'Finalizar' : 'Próximo'}
+                    {currentStep < steps.length - 1 && <ChevronRight size={18} className="ml-1" />}
+                  </Button>
+                ) : (
+                  <Button onClick={() => finishOnboarding('chat')} className="min-w-[120px]">
+                    Começar agora
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-center border-t border-border pt-4">
+              <button 
+                onClick={toggleReduceMotion}
+                className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
+              >
+                <div className={`w-8 h-4 rounded-full relative transition-colors ${reduceMotion ? 'bg-primary' : 'bg-muted'}`}>
+                  <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${reduceMotion ? 'left-4.5' : 'left-0.5'}`} />
+                </div>
+                Modo reduzir movimento
+              </button>
             </div>
           </div>
         </div>
