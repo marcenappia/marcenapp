@@ -12,6 +12,7 @@ import ModuleOrcamento from '../components/marcenaria/ModuleOrcamento';
 import ModuleCorte from '../components/marcenaria/ModuleCorte';
 import ModuleContrato from '../components/marcenaria/ModuleContrato';
 import ModuleChat from '../components/marcenaria/ModuleChat';
+import Onboarding from '../components/marcenaria/Onboarding';
 import logo from '@/assets/marcenapp-logo.jpeg';
 
 const modules = [
