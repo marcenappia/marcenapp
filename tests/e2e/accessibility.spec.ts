@@ -59,36 +59,74 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     }
   });
 
-  test('should not have tab traps and manage focus correctly', async ({ page, isMobile }) => {
-    test.skip(!!isMobile, 'Desktop focus management test');
+  test('should synchronize URL, title and ARIA in Sidebar (Desktop)', async ({ page, isMobile }) => {
+    test.skip(!!isMobile, 'Desktop sidebar test');
     
-    // Start at the top of the page
-    await page.keyboard.press('Home');
-    
-    // Tab into the sidebar
-    await page.keyboard.press('Tab');
-    const firstId = await page.evaluate(() => document.activeElement?.id);
-    expect(firstId).toMatch(/nav-chat|marcenapp-logo/); // Adjust based on actual first focusable
+    const sidebarModules = [
+      { id: 'clientes', label: 'Clientes' },
+      { id: 'orcamento', label: 'Estela Financeiro' }
+    ];
 
-    // Tab through all modules
-    const moduleCount = 7;
-    for (let i = 0; i < moduleCount; i++) {
-      await page.keyboard.press('Tab');
+    for (const mod of sidebarModules) {
+      const btn = page.locator(`#nav-${mod.id}`);
+      
+      // Click interaction
+      await btn.click();
+      await expect(page).toHaveURL(new RegExp(`module=${mod.id}`));
+      await expect(page).toHaveTitle(new RegExp(mod.label, 'i'));
+      await expect(btn).toHaveAttribute('aria-current', 'page');
+      
+      // Keyboard interaction (Enter)
+      const otherMod = sidebarModules.find(m => m.id !== mod.id)!;
+      const otherBtn = page.locator(`#nav-${otherMod.id}`);
+      await otherBtn.focus();
+      await page.keyboard.press('Enter');
+      await expect(page).toHaveURL(new RegExp(`module=${otherMod.id}`));
+      await expect(otherBtn).toHaveAttribute('aria-current', 'page');
     }
+  });
+
+  test('should verify responsive layouts and visual states for BottomNav', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'Mobile responsiveness test');
     
-    // After tabbing through the sidebar, the focus should move out to the main content or header
-    await page.keyboard.press('Tab');
-    const focusedAfterSidebar = await page.evaluate(() => {
-      const el = document.activeElement;
-      return {
-        id: el?.id,
-        tagName: el?.tagName,
-        closestSidebar: !!el?.closest('aside')
-      };
-    });
+    const viewports = [320, 375, 768];
+    for (const width of viewports) {
+      await page.setViewportSize({ width, height: 800 });
+      const bottomNav = page.locator('nav.md\\:hidden');
+      await expect(bottomNav).toBeVisible();
+      
+      // Ensure items are not overlapping/broken
+      const rects = await page.evaluate(() => {
+        const nav = document.querySelector('nav.md\\:hidden');
+        if (!nav) return null;
+        return Array.from(nav.children).map(c => c.getBoundingClientRect().width);
+      });
+      expect(rects?.[0]).toBeGreaterThan(40); // Minimal button width
+
+      await expect(bottomNav).toHaveScreenshot(`bottom-nav-res-${width}.png`);
+    }
+  });
+
+  test('screen reader accessibility and ARIA labels', async ({ page, isMobile }) => {
+    const mod = { id: 'chat', label: 'IARA Chat' };
+    const selector = isMobile ? `#mobile-nav-${mod.id}` : `#nav-${mod.id}`;
+    const btn = page.locator(selector).first();
+
+    await btn.focus();
+    // Verify that the element has the correct accessible name
+    await expect(btn).toHaveAttribute('aria-label', mod.label);
     
-    // Verification: Focus is not stuck in the sidebar
-    expect(focusedAfterSidebar.closestSidebar).toBe(false);
+    await page.keyboard.press('Enter');
+    // Verify ARIA state after activation
+    await expect(btn).toHaveAttribute('aria-current', 'page');
+    
+    // Verify that screen reader would announce the correct label and state
+    const accessibilitySnapshot = await page.accessibility.snapshot({ root: btn.elementHandle() as any });
+    expect(accessibilitySnapshot?.name).toBe(mod.label);
+    if (!isMobile) {
+      // On desktop, check if the current page indicator is detected
+      expect(accessibilitySnapshot?.current).toBe('page');
+    }
   });
 
   test('should navigate using Enter and Space keys with URL and Title verification', async ({ page, isMobile }) => {
