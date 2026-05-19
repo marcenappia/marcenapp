@@ -293,5 +293,16 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     await expect(page.locator('#nav-studio')).toHaveAttribute('aria-current', 'page');
   });
 
-
+  test('IARA orchestrator to Studio flow', async ({ page, isMobile }) => {
+    // 1. Navigate to IARA
+    await page.locator(isMobile ? '#mobile-nav-chat' : '#nav-chat').click();
+    
+    // 2. Simulate sending a render command
+    const textarea = page.locator('textarea');
+    await textarea.fill('renderize uma cozinha luxo');
+    await page.keyboard.press('Enter');
+    
+    // 3. Verify IARA shows orchestration message, NOT the image
+    await expect(page.locator('text=Comando orquestrado para o Estúdio')).toBeVisible();
+  });
 });
