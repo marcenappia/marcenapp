@@ -31,10 +31,15 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
           <div key={msg.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
             <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl p-1 shadow-md ${isUser ? 'bg-primary rounded-tr-sm' : 'bg-card border border-border rounded-tl-sm'}`}>
               {msg.image_url && (
-                <div className="relative rounded-xl overflow-hidden mb-1">
-                  <img src={msg.image_url} className="w-full h-auto max-h-[300px] object-cover grayscale-[0.5] opacity-80" alt="Referência" />
-                  <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
-                    <span className="bg-black/40 text-[8px] text-white px-2 py-0.5 rounded-full uppercase font-bold tracking-widest backdrop-blur-sm">Referência para Estúdio</span>
+                <div className="relative rounded-xl overflow-hidden mb-1 group cursor-zoom-in" onClick={() => isUser && onImageZoom({ url: msg.image_url!, budget: msg.budget })}>
+                  <img src={msg.image_url} className="w-full h-auto max-h-[300px] object-cover" alt="Referência" />
+                  {isUser && (
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <Maximize2 size={24} className="text-white" />
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2">
+                    <span className="bg-black/40 text-[8px] text-white px-2 py-0.5 rounded-full uppercase font-bold tracking-widest backdrop-blur-sm">Contexto</span>
                   </div>
                 </div>
               )}
