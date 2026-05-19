@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, LogIn, MessageSquare
+  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, LogIn, MessageSquare, Sparkles
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,7 @@ import ModuleOrcamento from '../components/marcenaria/ModuleOrcamento';
 import ModuleCorte from '../components/marcenaria/ModuleCorte';
 import ModuleContrato from '../components/marcenaria/ModuleContrato';
 import ModuleChat from '../components/marcenaria/ModuleChat';
+import Onboarding from '../components/marcenaria/Onboarding';
 import logo from '@/assets/marcenapp-logo.jpeg';
 
 const modules = [
@@ -139,6 +140,7 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
+      <Onboarding />
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-text))] flex-col border-r border-[hsl(var(--sidebar-border))] z-20 shrink-0">
         <div className="p-4 flex items-center gap-3 font-bold text-white border-b border-[hsl(var(--sidebar-border))] h-16">
@@ -212,6 +214,15 @@ const Index = () => {
                         <p className="font-semibold text-foreground text-sm truncate">{profile?.name || 'Usuário'}</p>
                         <p className="text-xs text-muted-foreground truncate">{profile?.company || ''}</p>
                       </div>
+                      <button 
+                        onClick={() => {
+                          localStorage.removeItem('marcenapp_onboarding_seen');
+                          window.location.reload();
+                        }} 
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted rounded-lg transition-colors"
+                      >
+                        <Sparkles size={16} className="text-amber-500" /> Tutorial
+                      </button>
                       <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <LogOut size={16} /> Sair
                       </button>
