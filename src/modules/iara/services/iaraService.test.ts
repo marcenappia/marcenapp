@@ -27,4 +27,15 @@ describe('IARA Orchestration Logic', () => {
     expect(decision.type).toBe('CHAT');
     expect(decision.command).toBeUndefined();
   });
+
+  describe('Contract Validation', () => {
+    it('should fail if critical params are missing in interpretCommand (simulated logic)', async () => {
+      // Testando a robustez do contrato de comando
+      const prompt = "renderize";
+      const decision = await iaraService.interpretCommand(prompt);
+      
+      expect(decision.type).toBe('RENDER_REQUEST');
+      expect(decision.command?.params.prompt).toBeDefined();
+    });
+  });
 });

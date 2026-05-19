@@ -17,6 +17,7 @@ export interface RenderCommand {
   error?: string;
   resultUrl?: string;
   timestamp: number;
+  idempotencyKey?: string;
   metadata?: {
     origin: 'iara' | 'manual';
     originalPrompt?: string;
@@ -47,10 +48,23 @@ export const useStudioStore = create<StudioState>((set) => ({
   isRendering: false,
 
   enqueueCommand: (command) => {
+    const idempotencyKey = command.idempotencyKey || 
+      Math.random().toString(36).substring(7) + Date.now().toString();
+    
+    // Verifica se já existe um comando com esta chave para evitar duplicidade
+    const existingCommand = useStudioStore.getState().commandQueue.find(
+      cmd => cmd.idempotencyKey === idempotencyKey
+    );
+    
+    if (existingCommand) {
+      return existingCommand.id;
+    }
+
     const id = Math.random().toString(36).substring(7);
     const newCommand: RenderCommand = {
       ...command,
       id,
+      idempotencyKey,
       status: 'pending',
       timestamp: Date.now()
     };

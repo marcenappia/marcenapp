@@ -293,16 +293,21 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     await expect(page.locator('#nav-studio')).toHaveAttribute('aria-current', 'page');
   });
 
-  test('IARA orchestrator to Studio flow', async ({ page, isMobile }) => {
-    // 1. Navigate to IARA
+  test('IARA orchestrator to Studio flow with status and result', async ({ page, isMobile }) => {
     await page.locator(isMobile ? '#mobile-nav-chat' : '#nav-chat').click();
     
-    // 2. Simulate sending a render command
     const textarea = page.locator('textarea');
-    await textarea.fill('renderize uma cozinha luxo');
+    await textarea.fill('renderize uma cozinha moderna');
     await page.keyboard.press('Enter');
     
-    // 3. Verify IARA shows orchestration message, NOT the image
-    await expect(page.locator('text=Comando orquestrado para o Estúdio')).toBeVisible();
+    // 1. Check for Command Bus status card
+    await expect(page.locator('text=Na Fila do Estúdio')).toBeVisible();
+    
+    // 2. Wait for completion notification
+    await expect(page.locator('text=concluída com sucesso no Estúdio')).toBeVisible({ timeout: 20000 });
+    
+    // 3. Verify it's not showing a new image in IARA (Segregation rule)
+    const imagesInChat = page.locator('img[alt="Render"]');
+    await expect(imagesInChat).toHaveCount(0);
   });
 });

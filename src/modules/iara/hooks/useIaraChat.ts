@@ -117,9 +117,13 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
       if (decision.type === 'RENDER_REQUEST' && decision.command) {
         const budget = iaraService.calculateSmartBudget(promptText, factors, decorStyle);
         
+        // Gera chave de idempotência baseada no prompt e contexto visual
+        const idempotencyKey = btoa(`${promptText}-${currentBaseRaw?.substring(0, 100)}`);
+
         // ENVIA PARA A FILA DO ESTÚDIO VIA COMMAND BUS (Contrato Tipado)
         enqueueCommand({
           prompt: `MARCENAPP 4.0: Crie um móvel de estilo ${decorStyle}. REFINAMENTO: ${promptText}.`,
+          idempotencyKey,
           images: [
             { mimeType: 'image/jpeg', data: currentBaseRaw! },
             { mimeType: 'image/png', data: currentMaskRaw! },
