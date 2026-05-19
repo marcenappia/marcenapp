@@ -105,6 +105,18 @@ const Auth = () => {
             </div>
           )}
 
+          {isReset && success && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="text-xs text-[hsl(var(--sidebar-active))] hover:underline transition-colors font-medium"
+              >
+                Não recebeu? Reenviar link de redefinição
+              </button>
+            </div>
+          )}
+
           {error && <p className="text-red-400 text-sm bg-red-950/50 p-3 rounded-lg">{error}</p>}
           {success && <p className="text-emerald-400 text-sm bg-emerald-950/50 p-3 rounded-lg">{success}</p>}
 
