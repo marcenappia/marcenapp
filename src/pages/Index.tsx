@@ -1,29 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, LogOut, User, LogIn, MessageSquare, Sparkles
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { LogOut, User, LogIn, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import ModuleDashboard from '../components/marcenaria/ModuleDashboard';
-import ModuleStudio from '../components/marcenaria/ModuleStudio';
-import ModuleElevator from '../components/marcenaria/ModuleElevator';
-import ModuleOrcamento from '../components/marcenaria/ModuleOrcamento';
-import ModuleCorte from '../components/marcenaria/ModuleCorte';
-import ModuleContrato from '../components/marcenaria/ModuleContrato';
-import ModuleChat from '../components/marcenaria/ModuleChat';
-import Onboarding from '../components/marcenaria/Onboarding';
 import logo from '@/assets/marcenapp-logo.jpeg';
 
-const modules = [
-  { id: 'chat', label: 'IARA Chat', mobileLabel: 'Chat', icon: MessageSquare },
-  { id: 'dashboard', label: 'Visão Geral', mobileLabel: 'Início', icon: Home },
-  { id: 'studio', label: 'Studio 3D', mobileLabel: 'Studio', icon: Wand2 },
-  { id: 'elevator', label: 'Elevador Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine },
-  { id: 'orcamento', label: 'Orçamento', mobileLabel: 'Custo', icon: Calculator },
-  { id: 'corte', label: 'Plano de Corte', mobileLabel: 'Corte', icon: Scissors },
-  { id: 'contrato', label: 'Contrato', mobileLabel: 'Legal', icon: Scale },
-];
+// Modular components
+import Onboarding from '../components/marcenaria/Onboarding';
+import IaraModule from '@/modules/iara';
+import Dashboard from '@/modules/projetos';
+import { Studio } from '@/modules/ambientes';
+import { Elevator } from '@/modules/ambientes/components/Elevator';
+import OrcamentoModule from '@/modules/orcamentos';
+import CorteModule from '@/modules/patio';
+import { Contrato } from '@/modules/projetos/components/Contrato';
+
+// Hooks & Config
+import { modules } from '@/modules/config';
+import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
 
 const defaultProject = {
   width: 2.40,
@@ -49,91 +43,21 @@ const Index = () => {
   const [gallery, setGallery] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const saveTimeout = useRef<NodeJS.Timeout>();
-
-  // Auth redirect and Load project from DB
-  useEffect(() => {
-    if (!user) {
-      navigate('/auth');
-      return;
-    }
-    supabase
-      .from('projects')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .then(({ data }) => {
-        if (data && data.length > 0) {
-          const p = data[0];
-          setBudgetProject({
-            width: Number(p.width) || 2.4,
-            height: Number(p.height) || 2.6,
-            depth: Number(p.depth) || 0.6,
-            modules: p.modules || 3,
-            drawers: p.drawers || 4,
-            doors: p.doors || 6,
-            internalMaterial: p.internal_material || 'mdf15_white',
-            externalMaterial: p.external_material || 'mdf18_white',
-            backMaterial: p.back_material || 'mdf6_white',
-            handleType: p.handle_type || 'external',
-            profitMargin: Number(p.profit_margin) || 35,
-            laborRate: Number(p.labor_rate) || 100,
-          });
-        }
-      });
-  }, [user]);
-
-  // Auto-save project on changes (debounced)
-  useEffect(() => {
-    if (!user) return;
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveTimeout.current = setTimeout(async () => {
-      const { data: existing } = await supabase
-        .from('projects')
-        .select('id')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-        .limit(1);
-
-      const projectRow = {
-        user_id: user.id,
-        width: budgetProject.width,
-        height: budgetProject.height,
-        depth: budgetProject.depth,
-        modules: budgetProject.modules,
-        drawers: budgetProject.drawers,
-        doors: budgetProject.doors,
-        internal_material: budgetProject.internalMaterial,
-        external_material: budgetProject.externalMaterial,
-        back_material: budgetProject.backMaterial,
-        handle_type: budgetProject.handleType,
-        profit_margin: budgetProject.profitMargin,
-        labor_rate: budgetProject.laborRate,
-      };
-
-      if (existing && existing.length > 0) {
-        await supabase.from('projects').update(projectRow).eq('id', existing[0].id);
-      } else {
-        await supabase.from('projects').insert(projectRow);
-      }
-    }, 2000);
-
-    return () => { if (saveTimeout.current) clearTimeout(saveTimeout.current); };
-  }, [user, budgetProject]);
+  // Persistence logic moved to hook
+  useProjectPersistence(budgetProject, setBudgetProject);
 
   const activeModuleData = modules.find(m => m.id === activeModule)!;
   const ActiveIcon = activeModuleData.icon;
 
   const renderModule = () => {
     switch (activeModule) {
-      case 'chat': return <ModuleChat />;
-      case 'dashboard': return <ModuleDashboard projectData={budgetProject} partsData={parts} navigateTo={setActiveModule} />;
-      case 'studio': return <ModuleStudio setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} />;
-      case 'elevator': return <ModuleElevator setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
-      case 'orcamento': return <ModuleOrcamento project={budgetProject} setProject={(p: any) => setBudgetProject(p)} />;
-      case 'corte': return <ModuleCorte parts={parts} setParts={setParts} project={budgetProject} />;
-      case 'contrato': return <ModuleContrato />;
+      case 'chat': return <IaraModule />;
+      case 'dashboard': return <Dashboard projectData={budgetProject} partsData={parts} navigateTo={setActiveModule} />;
+      case 'studio': return <Studio setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} />;
+      case 'elevator': return <Elevator setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
+      case 'orcamento': return <OrcamentoModule project={budgetProject} setProject={(p: any) => setBudgetProject(p)} />;
+      case 'corte': return <CorteModule parts={parts} setParts={setParts} project={budgetProject} />;
+      case 'contrato': return <Contrato />;
       default: return null;
     }
   };
@@ -141,6 +65,7 @@ const Index = () => {
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
       <Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
+      
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-text))] flex-col border-r border-[hsl(var(--sidebar-border))] z-20 shrink-0">
         <div className="p-4 flex items-center gap-3 font-bold text-white border-b border-[hsl(var(--sidebar-border))] h-16">
