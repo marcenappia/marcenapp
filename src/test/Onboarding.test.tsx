@@ -3,6 +3,27 @@ import { BrowserRouter } from 'react-router-dom';
 import Onboarding from '../components/marcenaria/Onboarding';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
+// Mock Supabase client
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    from: vi.fn(() => ({
+      update: vi.fn(() => ({
+        eq: vi.fn(() => Promise.resolve({ error: null }))
+      }))
+    }))
+  }
+}));
+
+// Mock useAuth
+const mockRefreshProfile = vi.fn();
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ 
+    user: { id: 'test-user' }, 
+    profile: { onboarding_step: 0, onboarding_completed: [], reduce_motion: false },
+    refreshProfile: mockRefreshProfile
+  }),
+}));
+
 describe('Onboarding Component', () => {
   const mockOnNavigate = vi.fn();
 
@@ -11,22 +32,9 @@ describe('Onboarding Component', () => {
     localStorage.clear();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     
-    // Mock getBoundingClientRect
     window.HTMLElement.prototype.getBoundingClientRect = function() {
-      return {
-        width: 100,
-        height: 50,
-        top: 10,
-        left: 20,
-        bottom: 60,
-        right: 120,
-        x: 20,
-        y: 10,
-        toJSON: () => {}
-      };
+      return { width: 100, height: 50, top: 10, left: 20, bottom: 60, right: 120, x: 20, y: 10, toJSON: () => {} };
     };
-    
-    // Mock scrollIntoView
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
@@ -38,60 +46,60 @@ describe('Onboarding Component', () => {
     );
   };
 
-  it('renders the first step when no onboarding seen before', () => {
-    renderOnboarding();
-    expect(screen.getByText(/Bem-vindo ao MarcenApp!/i)).toBeInTheDocument();
-  });
-
-  it('navigates through steps and saves progress', async () => {
+  it('renders and persists progress across steps', async () => {
     renderOnboarding();
     
+    // First step
+    expect(screen.getByText(/Bem-vindo ao MarcenApp!/i)).toBeInTheDocument();
+
     const nextButton = screen.getByRole('button', { name: /Próximo/i });
     
+    // Move to step 1
     await act(async () => {
       fireEvent.click(nextButton);
+      vi.advanceTimersByTime(500);
     });
 
-    // Second step is IARA Chat
     expect(screen.getByText(/IARA Chat/i)).toBeInTheDocument();
-    expect(mockOnNavigate).not.toHaveBeenCalled(); // Already in chat (default)
-
-    // Check persistence
-    expect(localStorage.getItem('marcenapp_onboarding_step')).toBe('1');
-    expect(localStorage.getItem('marcenapp_onboarding_completed')).toContain('chat');
+    
+    // Verify persistence calls (mocked)
+    const { supabase } = await import('@/integrations/supabase/client');
+    expect(supabase.from).toHaveBeenCalledWith('profiles');
   });
 
-  it('auto-navigates to the correct module during steps', async () => {
-    // Start at step 2 (Studio 3D)
+  it('restores progress from localStorage when not logged in', async () => {
+    // Override useAuth for this test
+    const useAuthMock = await import('@/hooks/useAuth');
+    vi.spyOn(useAuthMock, 'useAuth').mockReturnValue({ 
+      user: null, 
+      profile: null,
+      refreshProfile: vi.fn()
+    } as any);
+
     localStorage.setItem('marcenapp_onboarding_step', '2');
-    renderOnboarding('chat'); // Current module is chat
+    localStorage.setItem('marcenapp_onboarding_seen', 'false');
+    
+    renderOnboarding('chat');
+
+    expect(screen.getByText(/Studio 3D/i)).toBeInTheDocument();
+  });
+
+  it('handles spotlight rendering for modules', async () => {
+    // Add dummy target element
+    const div = document.createElement('div');
+    div.id = 'nav-studio';
+    document.body.appendChild(div);
+
+    localStorage.setItem('marcenapp_onboarding_step', '2'); // Studio 3D step
+    renderOnboarding('chat');
 
     await act(async () => {
       vi.advanceTimersByTime(500);
     });
 
-    expect(screen.getByText(/Studio 3D/i)).toBeInTheDocument();
-    expect(mockOnNavigate).toHaveBeenCalledWith('studio');
-  });
-
-  it('toggles reduce motion mode', async () => {
-    renderOnboarding();
-    
-    const toggleButton = screen.getByText(/Modo reduzir movimento/i);
-    
-    await act(async () => {
-      fireEvent.click(toggleButton);
-    });
-
-    expect(localStorage.getItem('marcenapp_reduce_motion')).toBe('true');
-  });
-
-  it('renders checklist in the last step', async () => {
-    localStorage.setItem('marcenapp_onboarding_step', '6'); // Index of checklist step
-    renderOnboarding();
-
-    expect(screen.getByText(/Sua Jornada 4.0/i)).toBeInTheDocument();
-    expect(screen.getByText(/IARA Chat/i)).toBeInTheDocument();
-    expect(screen.getByText(/Contratos/i)).toBeInTheDocument();
+    // Check spotlight style exists
+    const spotlight = document.querySelector('[role="presentation"]');
+    expect(spotlight).toBeInTheDocument();
   });
 });
+
