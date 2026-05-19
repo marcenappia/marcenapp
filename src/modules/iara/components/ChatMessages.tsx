@@ -1,5 +1,6 @@
 import React from 'react';
-import { Maximize2 } from 'lucide-react';
+import { Maximize2, Loader2, CheckCircle2, AlertCircle, RefreshCcw, XCircle } from 'lucide-react';
+import { useStudioStore } from '@/store/useStudioStore';
 
 export interface ChatMessage {
   id: string;
@@ -19,11 +20,66 @@ interface ChatMessagesProps {
 }
 
 export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }: ChatMessagesProps) => {
+  const commandQueue = useStudioStore(state => state.commandQueue);
+  const removeFromQueue = useStudioStore(state => state.removeFromQueue);
+  const enqueueCommand = useStudioStore(state => state.enqueueCommand);
+
+  const activeCommands = commandQueue.filter(cmd => 
+    cmd.metadata?.origin === 'iara' && (cmd.status === 'pending' || cmd.status === 'processing' || cmd.status === 'failed')
+  );
+
   return (
     <main className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin relative">
       <div className="text-center pb-2">
         <span className="px-3 py-1 bg-muted rounded-full text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Sessão de Materialização</span>
       </div>
+
+      {activeCommands.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {activeCommands.map(cmd => (
+            <div key={cmd.id} className="bg-card border border-border rounded-xl p-3 shadow-sm animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {cmd.status === 'processing' ? (
+                    <Loader2 size={14} className="animate-spin text-primary" />
+                  ) : cmd.status === 'failed' ? (
+                    <AlertCircle size={14} className="text-destructive" />
+                  ) : (
+                    <div className="w-3 h-3 rounded-full bg-muted-foreground animate-pulse" />
+                  )}
+                  <span className="text-[10px] font-bold uppercase tracking-wider">
+                    {cmd.status === 'processing' ? 'Estúdio Processando' : 
+                     cmd.status === 'failed' ? 'Falha no Estúdio' : 'Na Fila do Estúdio'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {cmd.status === 'failed' && (
+                    <button 
+                      onClick={() => {
+                        const { id, status, timestamp, ...cleanCmd } = cmd;
+                        removeFromQueue(cmd.id);
+                        enqueueCommand(cleanCmd);
+                      }}
+                      className="p-1 hover:bg-muted rounded text-primary transition-colors"
+                      title="Tentar novamente"
+                    >
+                      <RefreshCcw size={14} />
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => removeFromQueue(cmd.id)}
+                    className="p-1 hover:bg-muted rounded text-muted-foreground transition-colors"
+                    title="Remover"
+                  >
+                    <XCircle size={14} />
+                  </button>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground truncate italic">"{cmd.metadata?.originalPrompt}"</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {messages.map((msg) => {
         const isUser = msg.sender === 'user';
