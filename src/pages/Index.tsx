@@ -142,7 +142,7 @@ const Index = () => {
           <img src={logo} alt="M" className="w-9 h-9 rounded-full border-2 border-indigo-500" />
           <div className="leading-tight">
             <span className="tracking-tight text-sm">MARCENA<span className="text-indigo-400">PP</span></span>
-            <p className="text-[10px] text-slate-400 font-normal tracking-tight">OS — Inteligência & Produção</p>
+            <p className="text-[10px] text-slate-400 font-normal tracking-tight">OS — Orquestrador Inteligente</p>
           </div>
         </div>
         
