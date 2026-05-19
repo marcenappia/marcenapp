@@ -92,33 +92,52 @@ interface OnboardingProps {
 }
 
 const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
+  const { user, profile, refreshProfile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [highlightStyle, setHighlightStyle] = useState<React.CSSProperties>({});
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [reduceMotion, setReduceMotion] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  const isUpdating = useRef(false);
 
-  // Initialize
+  // Sync state from profile or localStorage
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('marcenapp_onboarding_seen');
-    const savedStep = localStorage.getItem('marcenapp_onboarding_step');
-    const savedCompleted = localStorage.getItem('marcenapp_onboarding_completed');
-    const savedReduceMotion = localStorage.getItem('marcenapp_reduce_motion') === 'true';
     
-    setReduceMotion(savedReduceMotion);
-    
-    if (savedCompleted) {
-      setCompletedSteps(JSON.parse(savedCompleted));
-    }
-
-    if (hasSeenOnboarding === 'false' || !hasSeenOnboarding) {
-      setIsOpen(true);
-      if (savedStep) {
-        setCurrentStep(parseInt(savedStep));
+    if (user && profile) {
+      setReduceMotion(profile.reduce_motion ?? false);
+      setCompletedSteps(profile.onboarding_completed ?? []);
+      setCurrentStep(profile.onboarding_step ?? 0);
+      
+      const allDone = profile.onboarding_completed?.length >= steps.length - 2; // Subtract welcome/checklist
+      if (!allDone && hasSeenOnboarding !== 'true') {
+        setIsOpen(true);
+      }
+    } else {
+      const savedStep = localStorage.getItem('marcenapp_onboarding_step');
+      const savedCompleted = localStorage.getItem('marcenapp_onboarding_completed');
+      const savedReduceMotion = localStorage.getItem('marcenapp_reduce_motion') === 'true';
+      
+      setReduceMotion(savedReduceMotion);
+      if (savedCompleted) setCompletedSteps(JSON.parse(savedCompleted));
+      if (hasSeenOnboarding !== 'true') {
+        setIsOpen(true);
+        if (savedStep) setCurrentStep(parseInt(savedStep));
       }
     }
-  }, []);
+  }, [user, profile]);
+
+  const updateProfilePreferences = async (updates: any) => {
+    if (!user || isUpdating.current) return;
+    isUpdating.current = true;
+    try {
+      await supabase.from('profiles').update(updates).eq('user_id', user.id);
+      await refreshProfile();
+    } finally {
+      isUpdating.current = false;
+    }
+  };
 
   const updateHighlight = useCallback(() => {
     const step = steps[currentStep];
