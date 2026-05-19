@@ -1,36 +1,90 @@
 import { create } from 'zustand';
 
-interface RenderCommand {
-  id: string;
-  prompt: string;
-  images?: { mimeType: string; data: string }[];
-  style?: string;
-  decor?: string;
+export type CommandStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface ImageData {
+  mimeType: string;
+  data: string;
 }
 
-interface StudioState {
-  pendingCommand: RenderCommand | null;
+export interface RenderCommand {
+  id: string;
+  prompt: string;
+  images?: ImageData[];
+  style?: string;
+  decor?: string;
+  status: CommandStatus;
+  error?: string;
+  resultUrl?: string;
+  timestamp: number;
+}
+
+export interface StudioState {
+  commandQueue: RenderCommand[];
   lastResult: string | null;
   generatedImage: string | null;
   isRendering: boolean;
-  requestRender: (command: Omit<RenderCommand, 'id'>) => void;
-  setRendering: (loading: boolean) => void;
-  setResult: (url: string | null) => void;
+  
+  // Actions
+  enqueueCommand: (command: Omit<RenderCommand, 'id' | 'status' | 'timestamp'>) => string;
+  startProcessing: (id: string) => void;
+  completeCommand: (id: string, resultUrl: string) => void;
+  failCommand: (id: string, error: string) => void;
   setGeneratedImage: (url: string | null) => void;
-  clearCommand: () => void;
+  clearQueue: () => void;
+  removeFromQueue: (id: string) => void;
 }
 
 export const useStudioStore = create<StudioState>((set) => ({
-  pendingCommand: null,
+  commandQueue: [],
   lastResult: null,
   generatedImage: null,
   isRendering: false,
-  requestRender: (command) => set({ 
-    pendingCommand: { ...command, id: Math.random().toString(36).substring(7) },
-    lastResult: null // Limpa o resultado anterior ao pedir um novo
-  }),
-  setRendering: (loading) => set({ isRendering: loading }),
-  setResult: (url) => set({ lastResult: url }),
+
+  enqueueCommand: (command) => {
+    const id = Math.random().toString(36).substring(7);
+    const newCommand: RenderCommand = {
+      ...command,
+      id,
+      status: 'pending',
+      timestamp: Date.now()
+    };
+    
+    set((state) => ({
+      commandQueue: [...state.commandQueue, newCommand]
+    }));
+    
+    return id;
+  },
+
+  startProcessing: (id) => set((state) => ({
+    isRendering: true,
+    commandQueue: state.commandQueue.map(cmd => 
+      cmd.id === id ? { ...cmd, status: 'processing' } : cmd
+    )
+  })),
+
+  completeCommand: (id, resultUrl) => set((state) => ({
+    isRendering: false,
+    lastResult: resultUrl,
+    generatedImage: resultUrl,
+    commandQueue: state.commandQueue.map(cmd => 
+      cmd.id === id ? { ...cmd, status: 'completed', resultUrl } : cmd
+    )
+  })),
+
+  failCommand: (id, error) => set((state) => ({
+    isRendering: false,
+    commandQueue: state.commandQueue.map(cmd => 
+      cmd.id === id ? { ...cmd, status: 'failed', error } : cmd
+    )
+  })),
+
   setGeneratedImage: (url) => set({ generatedImage: url }),
-  clearCommand: () => set({ pendingCommand: null }),
+  
+  clearQueue: () => set({ commandQueue: [] }),
+  
+  removeFromQueue: (id) => set((state) => ({
+    commandQueue: state.commandQueue.filter(cmd => cmd.id !== id)
+  })),
 }));
