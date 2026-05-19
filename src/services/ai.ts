@@ -1,5 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
 
+/** Returns true if user is logged in, false otherwise */
+export const requireAuth = async (): Promise<boolean> => {
+  const { data: { session } } = await supabase.auth.getSession();
+  return !!session;
+};
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
