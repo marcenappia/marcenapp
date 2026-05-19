@@ -4,8 +4,8 @@ test.describe('Accessibility and Navigation', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app and bypass onboarding if needed
     await page.goto('/');
-    // Check if onboarding is visible and skip it for menu tests
-    const skipButton = page.getByRole('button', { name: /pular|skip|fechar/i });
+    // Use aria-label or text to find skip button
+    const skipButton = page.getByRole('button', { name: /pular/i });
     if (await skipButton.isVisible()) {
       await skipButton.click();
     }
