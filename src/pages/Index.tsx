@@ -140,6 +140,7 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
+      <Onboarding />
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-text))] flex-col border-r border-[hsl(var(--sidebar-border))] z-20 shrink-0">
         <div className="p-4 flex items-center gap-3 font-bold text-white border-b border-[hsl(var(--sidebar-border))] h-16">
