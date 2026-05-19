@@ -61,12 +61,15 @@ describe('Auth Page - Reset Password Flow', () => {
     const resendButton = await screen.findByText(/Tente novamente em 30s/i);
     expect(resendButton).toBeDisabled();
 
-    // Fast forward time
-    act(() => {
-      vi.advanceTimersByTime(30000);
-    });
+    // Fast forward time - need multiple acts because of 1s intervals
+    for (let i = 0; i < 30; i++) {
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+    }
 
-    expect(screen.getByText(/Não recebeu\? Reenviar/i)).toBeInTheDocument();
+    const resendEnabled = await screen.findByText(/Não recebeu\? Reenviar/i);
+    expect(resendEnabled).not.toBeDisabled();
   });
 
   it('shows support link when error occurs during reset', async () => {
