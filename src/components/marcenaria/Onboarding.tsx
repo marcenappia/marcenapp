@@ -13,6 +13,8 @@ import {
   Circle
 } from 'lucide-react';
 import { Button } from './shared';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Step {
   id: string;
