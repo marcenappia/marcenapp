@@ -120,11 +120,15 @@ const IaraModule = () => {
         setPendingUpload={setPendingUpload}
       />
 
+      {/* Camada de Parametrização delegada ao Estúdio/Operacional no futuro, IARA mantém apenas interface de comando */}
       {isEngineeringOpen && (
         <aside className="absolute right-0 top-16 bottom-0 w-80 bg-card/95 backdrop-blur-md border-l border-border p-6 shadow-2xl z-20 animate-in slide-in-from-right duration-300">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">Parametrização 3D</h3>
+            <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">Comandos do Estúdio</h3>
             <button onClick={() => setIsEngineeringOpen(false)} className="p-1.5 hover:bg-muted rounded-lg transition-colors"><X size={16}/></button>
+          </div>
+          <div className="p-4 bg-muted rounded-xl mb-4 text-[10px] font-bold text-muted-foreground uppercase">
+            A IARA está orquestrando os parâmetros que serão enviados para o Estúdio.
           </div>
           <ThreeScene factors={factors} />
           <div className="space-y-6 mt-8">
