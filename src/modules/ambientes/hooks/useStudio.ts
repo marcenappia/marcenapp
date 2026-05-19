@@ -23,7 +23,7 @@ export const useStudio = (setBudgetProject: any, navigateTo: any, gallery: strin
   const [envImage, setEnvImage] = useState<string | null>(null);
   const [envBase64, setEnvBase64] = useState<string | null>(null);
   const [envMime, setEnvMime] = useState<string | null>(null);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedDecor, setSelectedDecor] = useState<any>({ id: 'minimal', label: 'Minimalista', prompt: 'Minimalist decoration, few objects, clean.' });
