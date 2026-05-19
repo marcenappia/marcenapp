@@ -142,7 +142,7 @@ const Index = () => {
           <img src={logo} alt="M" className="w-9 h-9 rounded-full border-2 border-indigo-500" />
           <div className="leading-tight">
             <span className="tracking-tight text-sm">MARCENA<span className="text-indigo-400">PP</span></span>
-            <p className="text-[10px] text-slate-400 font-normal">Arquitetura em Camadas</p>
+            <p className="text-[10px] text-slate-400 font-normal tracking-tight">OS — Inteligência & Produção</p>
           </div>
         </div>
         
@@ -206,7 +206,7 @@ const Index = () => {
             </div>
             <div className="flex flex-col">
               <span className="truncate leading-none">{activeModuleData.label}</span>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{CATEGORY_LABELS[activeModuleData.category]}</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{CATEGORY_LABELS[activeModuleData.category].split(' — ')[0]}</span>
             </div>
           </h2>
           <div className="relative">
