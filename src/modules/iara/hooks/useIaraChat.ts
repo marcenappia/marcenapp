@@ -39,6 +39,7 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
         await saveMessage({
           sender: 'iara',
           text: `A materialização foi concluída com sucesso no Estúdio! (Ref: ${lastCommand.id})`,
+          image_url: lastCommand.resultUrl, // Exibe o resultado se presente
           metadata: {
             commandId: lastCommand.id,
             resultUrl: lastCommand.resultUrl
