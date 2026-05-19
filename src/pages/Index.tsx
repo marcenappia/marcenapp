@@ -217,12 +217,23 @@ const Index = () => {
                       </div>
                       <button 
                         onClick={() => {
-                          localStorage.removeItem('marcenapp_onboarding_seen');
-                          window.location.reload();
+                          if (window.confirm('Deseja reiniciar o tutorial completo?')) {
+                            localStorage.removeItem('marcenapp_onboarding_seen');
+                            localStorage.removeItem('marcenapp_onboarding_step');
+                            localStorage.removeItem('marcenapp_onboarding_completed');
+                            if (user) {
+                              supabase.from('profiles').update({ 
+                                onboarding_step: 0, 
+                                onboarding_completed: [] 
+                              }).eq('user_id', user.id).then(() => window.location.reload());
+                            } else {
+                              window.location.reload();
+                            }
+                          }
                         }} 
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted rounded-lg transition-colors"
                       >
-                        <Sparkles size={16} className="text-amber-500" /> Tutorial
+                        <Sparkles size={16} className="text-amber-500" /> Reiniciar Tutorial
                       </button>
                       <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <LogOut size={16} /> Sair

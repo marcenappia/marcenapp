@@ -1,0 +1,4 @@
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS onboarding_completed TEXT[] DEFAULT '{}',
+ADD COLUMN IF NOT EXISTS reduce_motion BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS onboarding_step INTEGER DEFAULT 0;
