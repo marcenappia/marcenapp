@@ -153,7 +153,7 @@ const Auth = () => {
               {isReset && (
                 <p className="text-center">
                   <a 
-                    href="https://wa.me/5511999999999" 
+                    href={SUPPORT_LINK} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-xs text-[hsl(var(--sidebar-text))] hover:text-white underline"
