@@ -3,9 +3,8 @@ import { BrowserRouter } from 'react-router-dom';
 import Index from '../pages/Index';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-// Advanced Supabase Mock to handle chainable methods
-const createMockSupabase = () => {
-  const mock = {
+vi.mock('@/integrations/supabase/client', () => {
+  const mock: any = {
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
     single: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -15,17 +14,14 @@ const createMockSupabase = () => {
     limit: vi.fn().mockReturnThis(),
     then: vi.fn((cb) => Promise.resolve(cb({ data: [], error: null }))),
   };
-  // Ensure eq and order return the same mock object for chaining
   mock.eq.mockReturnValue(mock);
   mock.order.mockReturnValue(mock);
   mock.limit.mockReturnValue(mock);
   mock.select.mockReturnValue(mock);
-  return mock;
-};
-
-vi.mock('@/integrations/supabase/client', () => ({
-  supabase: createMockSupabase()
-}));
+  return {
+    supabase: mock
+  };
+});
 
 // Mock useAuth
 vi.mock('@/hooks/useAuth', () => ({
@@ -47,6 +43,11 @@ vi.mock('@/modules/ambientes/components/StudioWorker', () => ({
   StudioWorker: () => null
 }));
 
+// Mock asset
+vi.mock('@/assets/marcenapp-logo.jpeg', () => ({
+  default: 'logo-url'
+}));
+
 describe('Menu Accessibility and Keyboard Navigation', () => {
   beforeEach(() => {
     window.innerWidth = 1200;
@@ -65,7 +66,6 @@ describe('Menu Accessibility and Keyboard Navigation', () => {
   it('nav buttons should have proper ARIA labels and focus indicators', () => {
     renderIndex();
     
-    // Check desktop buttons by aria-label
     const chatBtn = screen.getByLabelText(/IARA Chat/i);
     expect(chatBtn).toBeInTheDocument();
     expect(chatBtn).toHaveClass('focus-visible:ring-2');
@@ -77,8 +77,7 @@ describe('Menu Accessibility and Keyboard Navigation', () => {
     
     renderIndex();
     
-    // In Index.tsx, mobile nav buttons also have aria-label
-    const mobileChatBtn = screen.getAllByLabelText(/IARA Chat/i)[1]; // Second one is mobile
+    const mobileChatBtn = screen.getAllByLabelText(/IARA Chat/i)[1];
     expect(mobileChatBtn).toBeInTheDocument();
     expect(screen.getByText('Chat')).toBeInTheDocument();
   });
