@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { LogOut, User, LogIn, Sparkles, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/marcenapp-logo.jpeg';
 
@@ -41,11 +41,25 @@ const defaultProject: ProjectData = {
 const Index = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState('chat');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeModule = searchParams.get('module') || 'chat';
+  
+  const setActiveModule = (id: string) => {
+    setSearchParams({ module: id }, { replace: true });
+  };
+
   const [budgetProject, setBudgetProject] = useState(defaultProject);
   const [parts, setParts] = useState<any[]>([]);
   const [gallery, setGallery] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  useEffect(() => {
+    const moduleData = modules.find(m => m.id === activeModule);
+    if (moduleData) {
+      document.title = `${moduleData.label} | Marcenapp`;
+    }
+  }, [activeModule]);
+
 
   // Persistence logic moved to hook
   useProjectPersistence(budgetProject, setBudgetProject);
@@ -65,6 +79,45 @@ const Index = () => {
       case 'corte': return <CorteModule parts={parts} setParts={setParts} project={budgetProject} />;
       case 'contrato': return <Contrato />;
       default: return null;
+    }
+  };
+  const handleKeyDown = (e: React.KeyboardEvent, id: string) => {
+    const navButtons = Array.from(document.querySelectorAll('[id^="nav-"]')) as HTMLElement[];
+    const currentIndex = navButtons.findIndex(btn => btn.id === `nav-${id}`);
+    
+    if (currentIndex === -1) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = (currentIndex + 1) % navButtons.length;
+      navButtons[nextIndex].focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = (currentIndex - 1 + navButtons.length) % navButtons.length;
+      navButtons[prevIndex].focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      navButtons[0].focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      navButtons[navButtons.length - 1].focus();
+    }
+  };
+
+  const handleMobileKeyDown = (e: React.KeyboardEvent, id: string) => {
+    const mobileButtons = Array.from(document.querySelectorAll('[id^="mobile-nav-"]')) as HTMLElement[];
+    const currentIndex = mobileButtons.findIndex(btn => btn.id === `mobile-nav-${id}`);
+    
+    if (currentIndex === -1) return;
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = (currentIndex + 1) % mobileButtons.length;
+      mobileButtons[nextIndex].focus();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = (currentIndex - 1 + mobileButtons.length) % mobileButtons.length;
+      mobileButtons[prevIndex].focus();
     }
   };
 
@@ -107,6 +160,7 @@ const Index = () => {
                   aria-label={m.label}
                   aria-current={activeModule === m.id ? 'page' : undefined}
                   onClick={() => setActiveModule(m.id)}
+                  onKeyDown={(e) => handleKeyDown(e, m.id)}
                   className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                     activeModule === m.id
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
@@ -228,9 +282,11 @@ const Index = () => {
           {modules.filter(m => ['intelligence', 'portal', 'studio', 'finance'].includes(m.category)).slice(0, 5).map(m => (
             <button
               key={m.id}
+              id={`mobile-nav-${m.id}`}
               aria-label={m.label}
               aria-current={activeModule === m.id ? 'page' : undefined}
               onClick={() => setActiveModule(m.id)}
+              onKeyDown={(e) => handleMobileKeyDown(e, m.id)}
               className={`flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all flex-1 focus-visible:outline-none ${
                 activeModule === m.id ? 'text-indigo-600' : 'text-slate-400'
               }`}
