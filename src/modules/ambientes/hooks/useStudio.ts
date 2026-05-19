@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { requireAuth } from '@/components/marcenaria/shared';
+import { requireAuth, DecorOption } from '@/components/marcenaria/shared';
 import { useStudioStore, ImageData } from '@/store/useStudioStore';
 import { studioService } from '../services/studioService';
 import { iaraService } from '@/modules/iara/services/iaraService';
@@ -17,12 +17,6 @@ const styles: StudioStyle[] = [
   { id: 'minimalist', label: 'Minimalista', prompt: 'minimalist interior design, soft lighting, clean lines' },
   { id: 'industrial', label: 'Industrial', prompt: 'industrial chic, exposed brick, concrete, dramatic lighting' }
 ];
-
-interface DecorStyle {
-  id: string;
-  label: string;
-  prompt: string;
-}
 
 export const useStudio = (
   setBudgetProject: React.Dispatch<React.SetStateAction<any>>, 
@@ -43,7 +37,13 @@ export const useStudio = (
   
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [selectedDecor, setSelectedDecor] = useState<DecorStyle>({ id: 'minimal', label: 'Minimalista', prompt: 'Minimalist decoration, few objects, clean.' });
+  const [selectedDecor, setSelectedDecor] = useState<DecorOption>({ 
+    id: 'minimal', 
+    label: 'Minimalista', 
+    icon: () => null, // Placeholder since we import the type but need a default object
+    prompt: 'Minimalist style, clean surfaces, few objects, museum-like, organized.' 
+  } as any); // cast to any for the default icon placeholder, but type is DecorOption
+  
   const [isRefining, setIsRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
