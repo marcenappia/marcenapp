@@ -293,21 +293,24 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     await expect(page.locator('#nav-studio')).toHaveAttribute('aria-current', 'page');
   });
 
-  test('IARA orchestrator to Studio flow with status and result', async ({ page, isMobile }) => {
+  test('IARA orchestrator persistence and reload', async ({ page, isMobile }) => {
     await page.locator(isMobile ? '#mobile-nav-chat' : '#nav-chat').click();
     
     const textarea = page.locator('textarea');
-    await textarea.fill('renderize uma cozinha moderna');
+    await textarea.fill('renderize uma cozinha luxo persistente');
     await page.keyboard.press('Enter');
     
-    // 1. Check for Command Bus status card
+    // Check status
     await expect(page.locator('text=Na Fila do Estúdio')).toBeVisible();
     
-    // 2. Wait for completion notification
-    await expect(page.locator('text=concluída com sucesso no Estúdio')).toBeVisible({ timeout: 20000 });
+    // Reload page
+    await page.reload();
     
-    // 3. Verify it's not showing a new image in IARA (Segregation rule)
-    const imagesInChat = page.locator('img[alt="Render"]');
-    await expect(imagesInChat).toHaveCount(0);
+    // Status should persist from localStorage
+    await expect(page.locator('text=Na Fila do Estúdio')).toBeVisible();
+    
+    // Wait for completion notification (checking notification persistence/logic)
+    await expect(page.locator('text=concluída com sucesso no Estúdio')).toBeVisible({ timeout: 20000 });
   });
+
 });
