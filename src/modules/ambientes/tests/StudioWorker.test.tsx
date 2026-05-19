@@ -27,12 +27,19 @@ describe('StudioWorker Queue Processing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useStudioStore.getState().clearQueue();
-    // Reset rendering state
     useStudioStore.setState({ isRendering: false });
   });
 
   it('StudioWorker should process commands from the queue sequentially', async () => {
-    (studioService.generateVisual as any).mockResolvedValue('http://result.url');
+    // Use a deferred promise to control when the first command completes
+    let resolveFirstCommand: (val: string) => void;
+    const firstCommandPromise = new Promise<string>((resolve) => {
+      resolveFirstCommand = resolve;
+    });
+    
+    (studioService.generateVisual as any)
+      .mockReturnValueOnce(firstCommandPromise)
+      .mockResolvedValueOnce('http://result2.url');
 
     // Enqueue 2 commands
     renderAct(() => {
@@ -42,32 +49,31 @@ describe('StudioWorker Queue Processing', () => {
 
     render(<StudioWorker />);
 
-    // Wait for first command to start processing
+    // Wait for first command to be picked up
     await renderAct(async () => {
-      // Small delay to let useEffect run
-      await new Promise(r => setTimeout(r, 0));
+      await new Promise(r => setTimeout(r, 10));
     });
 
-    // Check status of first command
+    // Verify it is processing the first one
     let queue = useStudioStore.getState().commandQueue;
     expect(queue[0].status).toBe('processing');
+    expect(queue[1].status).toBe('pending');
     expect(studioService.generateVisual).toHaveBeenCalledWith('Cmd 1', undefined, undefined, undefined);
 
-    // Complete the first command's mock execution
-    // Wait for the async processCommand to finish
+    // Resolve the first command
     await renderAct(async () => {
-      // studioService.generateVisual is already mocked to resolve
+      resolveFirstCommand!('http://result1.url');
+      await firstCommandPromise;
     });
 
-    // Verify first command is completed
+    // Verify first is completed
     queue = useStudioStore.getState().commandQueue;
     expect(queue[0].status).toBe('completed');
-    expect(queue[0].resultUrl).toBe('http://result.url');
+    expect(queue[0].resultUrl).toBe('http://result1.url');
 
-    // Verify second command starts after first is done
-    // The component re-renders because store changes, triggering next command
+    // Wait for second command to be picked up
     await renderAct(async () => {
-      await new Promise(r => setTimeout(r, 10)); // Give it time to pick next
+      await new Promise(r => setTimeout(r, 50));
     });
 
     queue = useStudioStore.getState().commandQueue;
