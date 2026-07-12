@@ -133,6 +133,7 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
+      <h1 className="sr-only">Marcenapp OS — Plataforma completa para marcenarias: orçamento, 3D, plano de corte e contratos</h1>
       <StudioWorker />
       <Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
       
