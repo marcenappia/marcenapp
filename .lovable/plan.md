@@ -1,95 +1,132 @@
-# Checklist de Refatoração e Otimização — Marcenapp OS
+# Roadmap IARA OS — Marcenapp
 
-Executar em ordem de prioridade. Cada item tem critério de validação em staging.
-
-## 🔴 ALTA — Fundação (executar primeiro)
-
-### 1. Núcleo central de estado (Core Store)
-Consolidar em `src/core/` a autenticação, permissões e Command Bus. Hoje `useAuth`, `useMarcenappOS` e stores por módulo vivem soltos.
-
-- Criar `src/core/useCore.ts` unificando: `session`, `user`, `profile`, `role`, `activeModule`, `commandBus`.
-- Migrar `useMarcenappOS` para dentro do core como slice `bus`.
-- Migrar `useAuth` para slice `auth` (mantendo API pública).
-- IARA, Estúdio, Portal, Estela passam a ler via seletores memoizados (`useCore(s => s.bus.pending)`) — sem stores paralelos.
-- Validação: um único `subscribe` no devtools mostra todo o estado; nenhum módulo importa outro store diretamente.
-
-### 2. RLS + permissões por módulo
-As policies atuais são "own row" via `auth.uid()`. Falta camada de papéis (owner/editor/viewer) para colaboração futura e defesa em profundidade.
-
-- Migração: criar `app_role` enum + tabela `user_roles` + função `has_role()` (security definer).
-- Adicionar checagem `requirePermission(action, resource)` no core antes de qualquer `supabase.from(...).insert/update/delete`.
-- Edge Functions `ai-image`/`ai-text`: validar JWT em código + rate limit por `user_id` (bucket em memória ou tabela `rate_limits`).
-- Zod schema em `ai-text` (hoje só `ai-image` valida).
-- Validação: teste E2E tenta acessar recurso de outro usuário → 403; usuário sem role tenta ação restrita → 403.
-
-### 3. Testes automatizados dos fluxos centrais
-Cobertura mínima para travar regressão nas próximas refatorações.
-
-- Unit (Vitest):
-  - `commandBus.dispatch` idempotência + persistência
-  - `iaraService.interpretCommand` (matriz de prompts → intents)
-  - `orcamentoService.calcular` (fórmulas de custo)
-  - `packParts` (plano de corte)
-- Integração (Vitest + msw): IARA emite comando → Estúdio consome → resultado persiste com mesmo `id`.
-- E2E (Playwright): fluxo completo IARA → Estúdio → Portal → Estela com usuário logado; assert que preview no chat = resultado do Estúdio.
-- Validação: `bunx vitest run` verde, `playwright test` verde no CI.
-
-## 🟡 MÉDIA — Consistência
-
-### 4. Segregação de responsabilidades
-Hoje há vazamento (Estúdio "pensa", IARA às vezes renderiza).
-
-- IARA: só interpreta + emite comando. Nunca chama `callAIImage`.
-- Estúdio: só executa render. Nunca decide o que renderizar.
-- Portal: só apresenta/persiste. Nunca chama IA.
-- Estela: só calcula/orça. Nunca decide layout.
-- Contrato de comunicação: apenas `dispatchCommand` do core.
-- Validação: `rg "callAIImage" src/modules/iara/` = 0 matches; `rg "interpretCommand" src/modules/ambientes/` = 0 matches.
-
-### 5. Migrar `interpretCommand` para LLM real
-Hoje é keyword-matching frágil. Usar `ai-text` com schema JSON estruturado.
-
-- Prompt sistema retorna `{intent, target, params}` validado por Zod.
-- Fallback para keyword quando LLM falhar.
-- Validação: matriz de 20 prompts ambíguos → intent correto em ≥90%.
-
-### 6. Persistência do Command Bus no backend
-Hoje só localStorage — perde histórico entre dispositivos.
-
-- Tabela `command_history` (id, user_id, source, target, action, payload, status, result, created_at).
-- Sync bidirecional core ↔ backend com debounce.
-- Validação: logar no device A, dispatch comando, abrir device B → mesmo histórico visível.
-
-## 🟢 BAIXA — Polimento
-
-### 7. Performance
-- `React.lazy` nos módulos pesados (Studio/Three.js, Elevator).
-- Auditar seletores Zustand com `shallow` — evitar re-renders (já teve React #185).
-- Comprimir imagens da galeria antes de persistir (hoje base64 em texto).
-
-### 8. SEO per-route
-- Adicionar `react-helmet-async` para title/description/canonical por módulo.
-- Atualizar `sitemap.xml` conforme rotas reais forem adicionadas.
-
-### 9. Observabilidade
-- Log estruturado nas Edge Functions (`console.log(JSON.stringify({level, event, user_id}))`).
-- Página `/admin/health` mostrando fila do Command Bus e últimos erros (gated por role `admin`).
+Transformar a IARA de chat em **orquestrador do sistema operacional** da marcenaria.
+Cada versão é incremental e reutiliza as camadas anteriores.
 
 ---
 
-## Ordem sugerida de execução
+## ✅ IARA OS v1 — Function Calling (em execução)
 
-```text
-Sprint 1 (Fundação):     1 → 2 → 3
-Sprint 2 (Consistência): 4 → 5 → 6
-Sprint 3 (Polimento):    7 → 8 → 9
+Substituir `interpretCommand` baseado em `includes()` por LLM (Gemini) que escolhe ferramentas.
+
+### Entregas
+- `supabase/functions/ai-orchestrator/index.ts` — Edge Function com `functionDeclarations` do Gemini.
+- `src/core/toolRegistry.ts` — Registro único de ferramentas com contratos Zod.
+- `src/core/orchestrator.ts` — Executor client-side + fallback keyword.
+- Tabelas: `clientes`, `orchestrator_runs`, `projects.cliente_id`, `projects.nome`.
+- IARA chat migrado para `runOrchestrator()`.
+
+### Ferramentas v1 (contratos estáveis)
+| Nome | Entrada | Saída | Alvo |
+|---|---|---|---|
+| `createCliente` | `{nome, email?, telefone?}` | `{id, nome}` | tabela `clientes` |
+| `createProjeto` | `{nome, clienteNome?, width?, height?, depth?, tipo?}` | `{id, nome, width, height, depth}` | tabela `projects` |
+| `gerarRender` | `{prompt, estilo?}` | `{studioCommandId, status}` | Command Bus → Estúdio |
+| `calcularOrcamento` | `{observacoes?}` | `{total, materiais, maoDeObra}` | fórmula local |
+| `gerarContrato` | `{clienteNome, valor?, prazoDias?, clausulasExtras?}` | `{cliente, valor, clausulasGeradas}` | tabela `custom_clauses` + Contrato |
+
+### Critério de aceite
+Prompt: *"Crie um projeto para o cliente João, gere uma imagem da cozinha planejada, calcule o orçamento e prepare um contrato."*
+→ IA produz plano de 4-5 tool calls → executor roda em sequência → resposta consolidada no chat.
+
+### Fallback
+Se `ai-orchestrator` falhar tecnicamente (rede, quota, JSON inválido), o executor usa keyword matching (comportamento antigo). Zero downtime na migração.
+
+---
+
+## 🔜 IARA OS v2 — Planner Multi-Step (próximo)
+
+Reutiliza o toolRegistry do v1. Adiciona controle de execução.
+
+### Escopo
+- **Plano estruturado**: `{ steps: [{id, tool, args, dependsOn?, status}] }`.
+- **Estados por etapa**: `pending | running | completed | failed | skipped`.
+- **Dependências**: `gerarContrato` só roda se `calcularOrcamento` completou; `gerarRender` só após `createProjeto`.
+- **Progresso no chat**: cada step vira uma mensagem com badge de status atualizada via subscribe.
+- **Retomada após falha**: usuário clica "tentar de novo esta etapa" sem refazer as anteriores.
+- **Cancelamento**: interromper plano em execução.
+- **Persistência**: tabela `orchestrator_plans` (id, run_id, steps jsonb, current_step).
+
+### Novo contrato
+```ts
+interface PlanStep {
+  id: string;
+  tool: string;
+  args: Record<string, any>;
+  dependsOn?: string[];
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  result?: ToolResult;
+  attempts: number;
+}
 ```
 
-## Detalhes técnicos
+### Critério de aceite
+Prompt complexo dispara 6+ etapas. Se etapa 3 falhar, etapas 4+ ficam `skipped`. Usuário retoma da etapa 3 sem perder as anteriores.
 
-- **Migração `user_roles`**: enum `app_role AS ENUM ('owner','editor','viewer','admin')`, tabela com `(user_id, role)` unique, função `has_role(_user_id uuid, _role app_role)` SECURITY DEFINER, GRANT `SELECT` a `authenticated`, GRANT `ALL` a `service_role`.
-- **Core store**: usar Zustand `combine` + `persist` com `partialize` (não persistir `commandBus.processing`, só `history`) e `migrate` versionado (já implementado, manter).
-- **Rate limit Edge Functions**: tabela `rate_limits (user_id, endpoint, window_start, count)`, checar antes de chamar Gemini, 429 se exceder (ex: 30 req/min por usuário).
-- **Testes E2E**: reusar `LOVABLE_BROWSER_SUPABASE_*` do sandbox para sessão autenticada.
+---
 
-Não vou executar nenhuma etapa até você aprovar. Cada sprint pode ser iniciado independentemente — me diga qual atacar primeiro.
+## 🔜 IARA OS v3 — Memória Cognitiva
+
+Reutiliza toolRegistry + planner. Personaliza decisões sem alterar contratos.
+
+### Tabela `iara_memory`
+```sql
+CREATE TABLE public.iara_memory (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  categoria TEXT NOT NULL,  -- 'material' | 'fornecedor' | 'margem' | 'acabamento' | 'estilo' | 'regra_comercial' | 'preferencia'
+  chave TEXT NOT NULL,       -- 'mdf_padrao', 'fornecedor_ferragens', 'margem_min'
+  valor JSONB NOT NULL,
+  peso NUMERIC DEFAULT 1.0,  -- reforço/decaimento por uso
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (user_id, categoria, chave)
+);
+```
+
+### Fluxo
+1. Antes de chamar `ai-orchestrator`, buscar top-N memórias relevantes por categoria.
+2. Injetar como bloco `PREFERÊNCIAS DO USUÁRIO` no `systemInstruction`.
+3. Após execução bem-sucedida, `saveMemory()` extrai novos padrões (ex: usuário sempre pediu MDF 18 branco → salva `material.mdf_padrao`).
+4. Decaimento: memórias não usadas há 90 dias perdem peso.
+
+### Categorias iniciais
+- `material.mdf_padrao`, `material.tampo_padrao`
+- `fornecedor.ferragens`, `fornecedor.mdf`
+- `comercial.margem_min`, `comercial.prazo_padrao`
+- `estilo.decor_default`, `estilo.paleta_favorita`
+- `regra.parede_torta_sempre`, `regra.pipes_sempre`
+
+### Critério de aceite
+Após 5 projetos consecutivos usando MDF 18 branco, novo pedido de "cozinha" pré-preenche esse material sem o usuário mencionar.
+
+---
+
+## 🧰 Sprints paralelas (do plano anterior)
+
+Ainda pendentes, atacáveis em paralelo ao IARA OS quando fizer sentido:
+
+### 🔴 Fundação
+1. **Núcleo central de estado** (`src/core/useCore.ts` unificando auth + bus + permissões).
+2. **RLS + permissões por módulo** (roles `owner/editor/viewer`, `requirePermission()` antes de mutações, rate limit nas Edge Functions).
+3. **Testes automatizados** (Vitest para services/registry, Playwright E2E para fluxo IARA→Estúdio→Portal→Estela).
+
+### 🟡 Consistência
+4. **Segregação de responsabilidades** (IARA só interpreta, Estúdio só renderiza, Portal só apresenta, Estela só calcula).
+5. **Persistência do Command Bus** em `command_history` (sync device A ↔ device B).
+
+### 🟢 Polimento
+6. **Performance** (React.lazy nos módulos pesados, seletores Zustand com shallow, compressão de imagens).
+7. **SEO por rota** (react-helmet-async, sitemap dinâmico).
+8. **Observabilidade** (log estruturado nas Edge Functions, `/admin/health` gated por role).
+
+---
+
+## Ordem sugerida
+
+```text
+Agora:       IARA OS v1 (Function Calling)     ← em execução
+Próximo:     IARA OS v2 (Planner) + Sprint 🔴 #3 (testes cobrindo v1)
+Depois:      IARA OS v3 (Memória) + Sprint 🔴 #2 (RLS/roles)
+Paralelo:    Sprints 🟡 e 🟢 conforme dor surgir
+```
