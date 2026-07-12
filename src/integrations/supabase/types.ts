@@ -44,6 +44,42 @@ export type Database = {
         }
         Relationships: []
       }
+      clientes: {
+        Row: {
+          created_at: string
+          email: string | null
+          endereco: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          telefone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       custom_clauses: {
         Row: {
           clause_text: string
@@ -92,6 +128,45 @@ export type Database = {
         }
         Relationships: []
       }
+      orchestrator_runs: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          plan: Json | null
+          results: Json | null
+          status: string
+          updated_at: string
+          used_fallback: boolean
+          user_id: string
+          user_prompt: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          plan?: Json | null
+          results?: Json | null
+          status?: string
+          updated_at?: string
+          used_fallback?: boolean
+          user_id: string
+          user_prompt: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          plan?: Json | null
+          results?: Json | null
+          status?: string
+          updated_at?: string
+          used_fallback?: boolean
+          user_id?: string
+          user_prompt?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -137,6 +212,7 @@ export type Database = {
       projects: {
         Row: {
           back_material: string | null
+          cliente_id: string | null
           created_at: string
           depth: number | null
           doors: number | null
@@ -149,6 +225,7 @@ export type Database = {
           labor_rate: number | null
           modules: number | null
           name: string
+          nome: string | null
           profit_margin: number | null
           updated_at: string
           user_id: string
@@ -156,6 +233,7 @@ export type Database = {
         }
         Insert: {
           back_material?: string | null
+          cliente_id?: string | null
           created_at?: string
           depth?: number | null
           doors?: number | null
@@ -168,6 +246,7 @@ export type Database = {
           labor_rate?: number | null
           modules?: number | null
           name?: string
+          nome?: string | null
           profit_margin?: number | null
           updated_at?: string
           user_id: string
@@ -175,6 +254,7 @@ export type Database = {
         }
         Update: {
           back_material?: string | null
+          cliente_id?: string | null
           created_at?: string
           depth?: number | null
           doors?: number | null
@@ -187,12 +267,21 @@ export type Database = {
           labor_rate?: number | null
           modules?: number | null
           name?: string
+          nome?: string | null
           profit_margin?: number | null
           updated_at?: string
           user_id?: string
           width?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
