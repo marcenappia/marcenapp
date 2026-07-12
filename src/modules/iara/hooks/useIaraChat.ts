@@ -16,7 +16,7 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   
   const commandHistory = useMarcenappOS(state => state.commandHistory);
-  const enqueueCommand = useStudioStore(state => state.enqueueCommand);
+
   const recognitionRef = useRef<any>(null);
 
   // Monitora mudanças de status na fila de comandos para notificar o usuário
