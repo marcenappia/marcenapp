@@ -138,7 +138,7 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
 
       // Consolida resposta com resultado de cada tool call
       const linhas = run.results.map(({ tool, result }) => {
-        if (!result.ok) return `❌ ${tool}: ${result.error}`;
+        if (result.ok === false) return `❌ ${tool}: ${result.error}`;
         switch (tool) {
           case 'createCliente':
             return `✅ Cliente **${result.data.nome}** cadastrado.`;
