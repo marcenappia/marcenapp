@@ -107,66 +107,68 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
     } else if (lastContext) {
       currentBaseRaw = lastContext.baseRaw;
       currentMaskRaw = lastContext.maskRaw;
-    } else {
-      setIsTyping(false);
-      await saveMessage({ sender: 'iara', text: 'Por favor, anexe uma imagem do ambiente para iniciar a materialização.' });
-      return;
     }
 
     await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
 
     try {
-      const decision = await iaraService.interpretCommand(promptText);
-      
-      if (decision.type === 'RENDER_REQUEST' && decision.command) {
-        const budget = iaraService.calculateSmartBudget(promptText, { L: factors.L, A: factors.A }, decorStyle);
-        
-        // Hash estável e determinístico para idempotência
-        const hashPayload = `${promptText}-${decorStyle}-${factors.L}-${factors.A}-${currentBaseRaw?.substring(0, 500)}`;
-        let hash = 0;
-        for (let i = 0; i < hashPayload.length; i++) {
-          const char = hashPayload.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & hash; // Convert to 32bit integer
-        }
-        const idempotencyKey = `iara-${Math.abs(hash).toString(36)}`;
+      const run = await runOrchestrator(
+        promptText,
+        {
+          userId: user.id,
+          decorStyle,
+          lastImageBase: currentBaseRaw ?? undefined,
+          lastImageMask: currentMaskRaw ?? undefined,
+        },
+        {
+          decorStyle,
+          currentProject: { largura: factors.L, altura: factors.A },
+        },
+      );
 
-        // ENVIA PARA A FILA DO ESTÚDIO VIA COMMAND BUS (Contrato Tipado)
-        enqueueCommand({
-          prompt: `MARCENAPP 4.0: Crie um móvel de estilo ${decorStyle}. REFINAMENTO: ${promptText}.`,
-          idempotencyKey,
-          images: [
-            { mimeType: 'image/jpeg', data: currentBaseRaw! },
-            { mimeType: 'image/png', data: currentMaskRaw! },
-          ],
-          decor: decorStyle,
-          metadata: {
-            origin: 'iara',
-            originalPrompt: promptText,
-            targetModule: 'studio'
-          }
-        });
-        
-        await saveMessage({ 
-          sender: 'iara', 
-          text: `Comando orquestrado para o Estúdio! (Orçamento: R$ ${budget}). Vou te notificar assim que a materialização for concluída.` 
-        });
-      } else if (decision.type === 'BUDGET_REQUEST' && decision.command) {
-        const budget = iaraService.calculateSmartBudget(promptText, { L: factors.L, A: factors.A }, decorStyle);
-        await saveMessage({ 
-          sender: 'iara', 
-          text: `Cálculo financeiro orquestrado via Estela. O valor estimado para este projeto é de R$ ${budget}.` 
+      // Sem plano → conversa/pedido de esclarecimento
+      if (run.plan.length === 0) {
+        await saveMessage({
+          sender: 'iara',
+          text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.',
         });
         setIsTyping(false);
-      } else {
-        await saveMessage({ sender: 'iara', text: 'Analisando sua solicitação técnica...' });
-        setIsTyping(false);
+        return;
       }
+
+      // Consolida resposta com resultado de cada tool call
+      const linhas = run.results.map(({ tool, result }) => {
+        if (!result.ok) return `❌ ${tool}: ${result.error}`;
+        switch (tool) {
+          case 'createCliente':
+            return `✅ Cliente **${result.data.nome}** cadastrado.`;
+          case 'createProjeto':
+            return `✅ Projeto **${result.data.nome}** criado (${result.data.width}×${result.data.height}×${result.data.depth}m).`;
+          case 'gerarRender':
+            return `🎨 Render enfileirado no Estúdio (ref: ${result.data.studioCommandId}). Aviso quando ficar pronto.`;
+          case 'calcularOrcamento':
+            return `💰 Orçamento estimado: **R$ ${result.data.total.toLocaleString('pt-BR')}** (materiais R$ ${result.data.materiais.toLocaleString('pt-BR')} + mão de obra R$ ${result.data.maoDeObra.toLocaleString('pt-BR')}).`;
+          case 'gerarContrato':
+            return `📄 Contrato preparado para **${result.data.cliente}**${result.data.valor ? ` (R$ ${result.data.valor.toLocaleString('pt-BR')})` : ''}. ${result.data.clausulasGeradas} cláusula(s) via IA.`;
+          default:
+            return `✅ ${tool} executado.`;
+        }
+      });
+
+      const footer = run.usedFallback ? '\n\n_(interpretação por fallback keyword)_' : '';
+      const header = run.summary ? `${run.summary}\n\n` : '';
+      await saveMessage({
+        sender: 'iara',
+        text: `${header}${linhas.join('\n')}${footer}`,
+      });
+      setIsTyping(false);
     } catch (e: any) {
       await saveMessage({ sender: 'iara', text: `Erro na orquestração: ${e?.message || 'Tente novamente.'}` });
       setIsTyping(false);
     }
   };
+
+
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
