@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
@@ -10,7 +10,11 @@ import { useAuth } from '@/hooks/useAuth';
  */
 export const StudioWorker = () => {
   const { user } = useAuth();
-  const commandQueue = useMarcenappOS(state => state.commandHistory.filter(cmd => cmd.target === 'studio'));
+  const commandHistory = useMarcenappOS(state => state.commandHistory);
+  const commandQueue = useMemo(
+    () => commandHistory.filter(cmd => cmd.target === 'studio'),
+    [commandHistory]
+  );
   const isRendering = useStudioStore(state => state.isRendering);
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
@@ -27,6 +31,7 @@ export const StudioWorker = () => {
       processCommand(nextCommand);
     }
   }, [commandQueue, isRendering]);
+
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
     if (!user) return;
