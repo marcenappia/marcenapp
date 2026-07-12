@@ -2,9 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
-import { iaraService } from '../services/iaraService';
-import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
+import { runOrchestrator } from '@/core/orchestrator';
 
 export const useIaraChat = (factors: { L: number, A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void) => {
   const { user } = useAuth();
