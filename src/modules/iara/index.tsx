@@ -3,6 +3,7 @@ import { X, Maximize2 } from 'lucide-react';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput } from './components/ChatInput';
 import AuthDialog from '../../components/marcenaria/AuthDialog';
+import { useIaraChat } from './hooks/useIaraChat';
 
 const LogoHex = ({ size = 40, className = "" }: { size?: number; className?: string }) => (
   <div className={`relative flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
