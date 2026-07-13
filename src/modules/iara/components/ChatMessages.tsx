@@ -94,6 +94,18 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
         </div>
       )}
 
+      {messages.length === 0 && activeCommands.length === 0 && !isTyping && (
+        <div className="flex flex-col items-center justify-center text-center py-10 px-4 opacity-80">
+          <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mb-3">
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          </div>
+          <p className="text-sm font-bold text-foreground mb-1">Converse com a IARA</p>
+          <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+            Descreva seu projeto no campo abaixo — dimensões, estilo, materiais. A descrição fica sincronizada com o Estúdio.
+          </p>
+        </div>
+      )}
+
       {messages.map((msg) => {
         const isUser = msg.sender === 'user';
         return (
