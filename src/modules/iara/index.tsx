@@ -112,7 +112,7 @@ const IaraModule = ({ syncProject, embedded }: IaraModuleProps = {}) => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)] bg-background relative overflow-hidden rounded-xl border border-border">
+    <div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
       <header className="px-4 py-3 bg-card border-b border-border flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <LogoHex size={36} />
