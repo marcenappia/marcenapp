@@ -25,10 +25,12 @@ const LogoHex = ({ size = 40, className = "" }: { size?: number; className?: str
 interface IaraModuleProps {
   syncProject?: { width?: number; height?: number; depth?: number } | null;
   onProjectChange?: (p: { width: number; height: number; depth: number }) => void;
+  syncDescription?: string;
+  onDescriptionChange?: (text: string) => void;
   embedded?: boolean;
 }
 
-const IaraModule = ({ syncProject, onProjectChange, embedded }: IaraModuleProps = {}) => {
+const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescriptionChange, embedded }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [factors, setFactors] = useState({
     L: syncProject?.width ?? 2.4,
@@ -80,6 +82,13 @@ const IaraModule = ({ syncProject, onProjectChange, embedded }: IaraModuleProps 
       }));
     },
   });
+
+  // ↕ Descrição do Projeto ↔ chatInput (bidirecional)
+  useEffect(() => {
+    if (syncDescription === undefined) return;
+    if (syncDescription !== chatInput) setChatInput(syncDescription);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncDescription]);
 
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -156,13 +165,20 @@ const IaraModule = ({ syncProject, onProjectChange, embedded }: IaraModuleProps 
 
       <ChatMessages messages={messages} isTyping={isTyping} onImageZoom={setActiveImageZoom} messagesEndRef={messagesEndRef} />
       
-      <ChatInput 
-        chatInput={chatInput} 
-        setChatInput={setChatInput} 
-        onSend={handleSend} 
-        onImageSelect={handleImageSelect} 
-        toggleRecording={toggleRecording} 
-        isListening={isListening} 
+      <ChatInput
+        chatInput={chatInput}
+        setChatInput={(v) => {
+          setChatInput(v);
+          onDescriptionChange?.(typeof v === 'function' ? (v as any)(chatInput) : v);
+        }}
+        onSend={() => {
+          const sent = chatInput.trim();
+          if (sent) onDescriptionChange?.(sent);
+          handleSend();
+        }}
+        onImageSelect={handleImageSelect}
+        toggleRecording={toggleRecording}
+        isListening={isListening}
         pendingUpload={pendingUpload}
         setPendingUpload={setPendingUpload}
       />
