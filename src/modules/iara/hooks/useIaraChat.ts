@@ -5,7 +5,12 @@ import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runOrchestrator } from '@/core/orchestrator';
 
-export const useIaraChat = (factors: { L: number, A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void) => {
+export const useIaraChat = (
+  factors: { L: number, A: number },
+  decorStyle: string,
+  setShowAuthDialog: (val: boolean) => void,
+  hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void },
+) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
