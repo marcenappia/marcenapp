@@ -83,6 +83,13 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     },
   });
 
+  // ↕ Descrição do Projeto ↔ chatInput (bidirecional)
+  useEffect(() => {
+    if (syncDescription === undefined) return;
+    if (syncDescription !== chatInput) setChatInput(syncDescription);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncDescription]);
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
