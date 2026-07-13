@@ -7,9 +7,8 @@ import logo from '@/assets/marcenapp-logo.jpeg';
 
 // Modular components
 import Onboarding from '../components/marcenaria/Onboarding';
-import IaraModule from '@/modules/iara';
 import Dashboard from '@/modules/projetos';
-import { Studio } from '@/modules/ambientes';
+import { StudioHub } from '@/modules/ambientes/StudioHub';
 import { Elevator } from '@/modules/ambientes/components/Elevator';
 import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
 import OrcamentoModule from '@/modules/orcamentos';
@@ -42,7 +41,9 @@ const Index = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeModule = searchParams.get('module') || 'chat';
+  const rawModule = searchParams.get('module') || 'studio';
+  // 'chat' foi absorvido pelo Estúdio como aba interna
+  const activeModule = rawModule === 'chat' ? 'studio' : rawModule;
   
   const setActiveModule = (id: string) => {
     setSearchParams({ module: id }, { replace: true });
@@ -69,11 +70,10 @@ const Index = () => {
 
   const renderModule = () => {
     switch (activeModule) {
-      case 'chat': return <IaraModule />;
       case 'dashboard': return <Dashboard projectData={budgetProject} partsData={parts} navigateTo={setActiveModule} />;
       case 'clientes': return <ClientesModule />;
       case 'diario': return <DiarioModule />;
-      case 'studio': return <Studio setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} />;
+      case 'studio': return <StudioHub setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} />;
       case 'elevator': return <Elevator setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'orcamento': return <OrcamentoModule project={budgetProject} setProject={(p: any) => setBudgetProject(p)} />;
       case 'corte': return <CorteModule parts={parts} setParts={setParts} project={budgetProject} />;
