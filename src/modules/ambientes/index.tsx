@@ -9,9 +9,10 @@ interface StudioProps {
   navigateTo: (id: string) => void;
   gallery: string[];
   setGallery: React.Dispatch<React.SetStateAction<string[]>>;
+  descriptionSlot?: React.ReactNode;
 }
 
-export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery }: StudioProps) => {
+export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, descriptionSlot }: StudioProps) => {
   const {
     prompt, setPrompt, sketchImage, setSketchImage, envImage, setEnvImage,
     generatedImage, setGeneratedImage, loading, analyzing, selectedDecor, setSelectedDecor,
@@ -80,40 +81,44 @@ export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery }: St
             </Card>
           </div>
 
-          <Card className="p-4 bg-slate-800 border-slate-700 text-white">
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-xs font-bold text-slate-400 uppercase">
-                {isRefining ? "Comando de Edição" : "Descrição do Projeto"}
-              </label>
-            </div>
-            <textarea
-              value={prompt}
-              onChange={e => setPrompt(e.target.value)}
-              placeholder={isRecording ? "Ouvindo..." : (isRefining ? "Ex: Trocar gavetas por prateleiras..." : "Ex: Cozinha estilo industrial...")}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm h-24 outline-none focus:border-indigo-500 resize-none text-white placeholder:text-slate-500"
-            />
-            <div className="flex gap-2 mt-3 overflow-x-auto pb-2 scrollbar-thin">
-              {styles.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => setSelectedStyle(s)}
-                  className={`px-2 py-1 rounded text-xs whitespace-nowrap border transition-colors ${selectedStyle.id === s.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-600 text-slate-300 hover:bg-slate-700'}`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <DecorationPanel selectedDecor={selectedDecor} onSelect={setSelectedDecor} />
-            <Button
-              onClick={generate}
-              disabled={loading}
-              className={`w-full mt-4 border-none ${isRefining ? 'bg-gradient-to-r from-amber-600 to-orange-600' : 'bg-gradient-to-r from-indigo-500 to-purple-600'}`}
-            >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : (isRefining ? <RefreshCcw size={18} /> : <Wand2 size={18} />)}
-              {loading ? "Processando..." : (isRefining ? "Aplicar Alteração" : "Criar Imagem")}
-            </Button>
-            {error && <p className="text-xs text-red-400 mt-2 bg-red-950/50 p-2 rounded">{error}</p>}
-          </Card>
+          {descriptionSlot ? (
+            <div className="h-[520px] lg:h-[600px]">{descriptionSlot}</div>
+          ) : (
+            <Card className="p-4 bg-slate-800 border-slate-700 text-white">
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">
+                  {isRefining ? "Comando de Edição" : "Descrição do Projeto"}
+                </label>
+              </div>
+              <textarea
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                placeholder={isRecording ? "Ouvindo..." : (isRefining ? "Ex: Trocar gavetas por prateleiras..." : "Ex: Cozinha estilo industrial...")}
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm h-24 outline-none focus:border-indigo-500 resize-none text-white placeholder:text-slate-500"
+              />
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-2 scrollbar-thin">
+                {styles.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedStyle(s)}
+                    className={`px-2 py-1 rounded text-xs whitespace-nowrap border transition-colors ${selectedStyle.id === s.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-600 text-slate-300 hover:bg-slate-700'}`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <DecorationPanel selectedDecor={selectedDecor} onSelect={setSelectedDecor} />
+              <Button
+                onClick={generate}
+                disabled={loading}
+                className={`w-full mt-4 border-none ${isRefining ? 'bg-gradient-to-r from-amber-600 to-orange-600' : 'bg-gradient-to-r from-indigo-500 to-purple-600'}`}
+              >
+                {loading ? <Loader2 className="animate-spin" size={18} /> : (isRefining ? <RefreshCcw size={18} /> : <Wand2 size={18} />)}
+                {loading ? "Processando..." : (isRefining ? "Aplicar Alteração" : "Criar Imagem")}
+              </Button>
+              {error && <p className="text-xs text-red-400 mt-2 bg-red-950/50 p-2 rounded">{error}</p>}
+            </Card>
+          )}
 
           {gallery.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
