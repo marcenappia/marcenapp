@@ -158,13 +158,20 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
 
       <ChatMessages messages={messages} isTyping={isTyping} onImageZoom={setActiveImageZoom} messagesEndRef={messagesEndRef} />
       
-      <ChatInput 
-        chatInput={chatInput} 
-        setChatInput={setChatInput} 
-        onSend={handleSend} 
-        onImageSelect={handleImageSelect} 
-        toggleRecording={toggleRecording} 
-        isListening={isListening} 
+      <ChatInput
+        chatInput={chatInput}
+        setChatInput={(v) => {
+          setChatInput(v);
+          onDescriptionChange?.(typeof v === 'function' ? (v as any)(chatInput) : v);
+        }}
+        onSend={() => {
+          const sent = chatInput.trim();
+          if (sent) onDescriptionChange?.(sent);
+          handleSend();
+        }}
+        onImageSelect={handleImageSelect}
+        toggleRecording={toggleRecording}
+        isListening={isListening}
         pendingUpload={pendingUpload}
         setPendingUpload={setPendingUpload}
       />
