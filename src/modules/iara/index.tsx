@@ -25,10 +25,12 @@ const LogoHex = ({ size = 40, className = "" }: { size?: number; className?: str
 interface IaraModuleProps {
   syncProject?: { width?: number; height?: number; depth?: number } | null;
   onProjectChange?: (p: { width: number; height: number; depth: number }) => void;
+  syncDescription?: string;
+  onDescriptionChange?: (text: string) => void;
   embedded?: boolean;
 }
 
-const IaraModule = ({ syncProject, onProjectChange, embedded }: IaraModuleProps = {}) => {
+const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescriptionChange, embedded }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [factors, setFactors] = useState({
     L: syncProject?.width ?? 2.4,
