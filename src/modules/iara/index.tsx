@@ -24,10 +24,11 @@ const LogoHex = ({ size = 40, className = "" }: { size?: number; className?: str
 
 interface IaraModuleProps {
   syncProject?: { width?: number; height?: number; depth?: number } | null;
+  onProjectChange?: (p: { width: number; height: number; depth: number }) => void;
   embedded?: boolean;
 }
 
-const IaraModule = ({ syncProject, embedded }: IaraModuleProps = {}) => {
+const IaraModule = ({ syncProject, onProjectChange, embedded }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [factors, setFactors] = useState({
     L: syncProject?.width ?? 2.4,
@@ -39,23 +40,47 @@ const IaraModule = ({ syncProject, embedded }: IaraModuleProps = {}) => {
   const [isEngineeringOpen, setIsEngineeringOpen] = useState(false);
   const [activeImageZoom, setActiveImageZoom] = useState<{ url: string; budget?: string | null } | null>(null);
 
-  // Mantém factors em sincronia quando o projeto do Estúdio muda
+  // ↓ Estúdio → IARA: quando o projeto do Estúdio muda, ajusta factors
   useEffect(() => {
     if (!syncProject) return;
-    setFactors(prev => ({
-      ...prev,
-      L: syncProject.width ?? prev.L,
-      A: syncProject.height ?? prev.A,
-      P: syncProject.depth ?? prev.P,
-    }));
+    setFactors(prev => {
+      const next = {
+        ...prev,
+        L: syncProject.width ?? prev.L,
+        A: syncProject.height ?? prev.A,
+        P: syncProject.depth ?? prev.P,
+      };
+      if (next.L === prev.L && next.A === prev.A && next.P === prev.P) return prev;
+      return next;
+    });
   }, [syncProject?.width, syncProject?.height, syncProject?.depth]);
 
+  // ↑ IARA → Estúdio: quando sliders/tool alteram factors, propaga ao Estúdio
+  useEffect(() => {
+    if (!onProjectChange) return;
+    const sameAsStudio =
+      syncProject?.width === factors.L &&
+      syncProject?.height === factors.A &&
+      syncProject?.depth === factors.P;
+    if (sameAsStudio) return;
+    onProjectChange({ width: factors.L, height: factors.A, depth: factors.P });
+  }, [factors.L, factors.A, factors.P]);
 
   const {
     messages, chatInput, setChatInput, isTyping, isListening,
     handleSend, handleImageSelect, toggleRecording,
     maskingImage, setMaskingImage, pendingUpload, setPendingUpload
-  } = useIaraChat(factors, decorStyle, setShowAuthDialog);
+  } = useIaraChat(factors, decorStyle, setShowAuthDialog, {
+    onProjectCreated: (p) => {
+      setFactors(prev => ({
+        ...prev,
+        L: p.width ?? prev.L,
+        A: p.height ?? prev.A,
+        P: p.depth ?? prev.P,
+      }));
+    },
+  });
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
