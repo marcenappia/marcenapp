@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sliders, X, Maximize2 } from 'lucide-react';
-import { useIaraChat } from './hooks/useIaraChat';
-import { ThreeScene } from './components/ThreeScene';
+import { X, Maximize2 } from 'lucide-react';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput } from './components/ChatInput';
 import AuthDialog from '../../components/marcenaria/AuthDialog';
+import { useIaraChat } from './hooks/useIaraChat';
 
 const LogoHex = ({ size = 40, className = "" }: { size?: number; className?: string }) => (
   <div className={`relative flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
@@ -39,7 +38,7 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     E: 0.018, X: 0, Y: 0,
   });
   const [decorStyle, setDecorStyle] = useState("Limpo");
-  const [isEngineeringOpen, setIsEngineeringOpen] = useState(false);
+  
   const [activeImageZoom, setActiveImageZoom] = useState<{ url: string; budget?: string | null } | null>(null);
 
   // ↓ Estúdio → IARA: quando o projeto do Estúdio muda, ajusta factors
@@ -158,9 +157,6 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
             </div>
           </div>
         </div>
-        <button onClick={() => setIsEngineeringOpen(!isEngineeringOpen)} className={`p-2 rounded-full transition-all ${isEngineeringOpen ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-          <Sliders size={18} />
-        </button>
       </header>
 
       <ChatMessages messages={messages} isTyping={isTyping} onImageZoom={setActiveImageZoom} messagesEndRef={messagesEndRef} />
@@ -183,36 +179,6 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
         setPendingUpload={setPendingUpload}
       />
 
-      {/* Camada de Parametrização delegada ao Estúdio/Operacional no futuro, IARA mantém apenas interface de comando */}
-      {isEngineeringOpen && (
-        <aside className="absolute right-0 top-16 bottom-0 w-80 bg-card/95 backdrop-blur-md border-l border-border p-6 shadow-2xl z-20 animate-in slide-in-from-right duration-300">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">Comandos do Estúdio</h3>
-            <button onClick={() => setIsEngineeringOpen(false)} className="p-1.5 hover:bg-muted rounded-lg transition-colors"><X size={16}/></button>
-          </div>
-          <div className="p-4 bg-muted rounded-xl mb-4 text-[10px] font-bold text-muted-foreground uppercase">
-            A IARA está orquestrando os parâmetros que serão enviados para o Estúdio.
-          </div>
-          <ThreeScene factors={factors} />
-          <div className="space-y-6 mt-8">
-            {Object.keys(factors).map(key => (
-              <div key={key}>
-                <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground mb-1">
-                  <span>{key === 'L' ? 'Largura' : key === 'A' ? 'Altura' : key === 'P' ? 'Profundidade' : key === 'E' ? 'Espessura' : key}</span>
-                  <span className="text-primary">{factors[key as keyof typeof factors]}m</span>
-                </div>
-                <input type="range" min={key==='E'?0.01:0.1} max={5} step={0.01} value={factors[key as keyof typeof factors]} onChange={e => setFactors({...factors, [key]: Number(e.target.value)})} className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-primary" />
-              </div>
-            ))}
-            <div>
-              <label className="text-[10px] font-bold uppercase text-muted-foreground mb-1 block">Estilo de Humanização</label>
-              <select value={decorStyle} onChange={e => setDecorStyle(e.target.value)} className="w-full bg-muted border border-border rounded-xl p-2.5 text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none">
-                {['Limpo', 'Cozy', 'Luxo', 'Escritório', 'Minimalista'].map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-        </aside>
-      )}
 
       {maskingImage && (
         <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
