@@ -5,7 +5,12 @@ import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runOrchestrator } from '@/core/orchestrator';
 
-export const useIaraChat = (factors: { L: number, A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void) => {
+export const useIaraChat = (
+  factors: { L: number, A: number },
+  decorStyle: string,
+  setShowAuthDialog: (val: boolean) => void,
+  hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void },
+) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -143,6 +148,13 @@ export const useIaraChat = (factors: { L: number, A: number }, decorStyle: strin
           case 'createCliente':
             return `✅ Cliente **${result.data.nome}** cadastrado.`;
           case 'createProjeto':
+            if (result.data?.width && result.data?.height && result.data?.depth) {
+              hooks?.onProjectCreated?.({
+                width: Number(result.data.width),
+                height: Number(result.data.height),
+                depth: Number(result.data.depth),
+              });
+            }
             return `✅ Projeto **${result.data.nome}** criado (${result.data.width}×${result.data.height}×${result.data.depth}m).`;
           case 'gerarRender':
             return `🎨 Render enfileirado no Estúdio (ref: ${result.data.studioCommandId}). Aviso quando ficar pronto.`;
