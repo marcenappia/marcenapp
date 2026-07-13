@@ -22,12 +22,34 @@ const LogoHex = ({ size = 40, className = "" }: { size?: number; className?: str
   </div>
 );
 
-const IaraModule = () => {
+interface IaraModuleProps {
+  syncProject?: { width?: number; height?: number; depth?: number } | null;
+  embedded?: boolean;
+}
+
+const IaraModule = ({ syncProject, embedded }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
-  const [factors, setFactors] = useState({ L: 2.4, A: 2.6, P: 0.6, E: 0.018, X: 0, Y: 0 });
+  const [factors, setFactors] = useState({
+    L: syncProject?.width ?? 2.4,
+    A: syncProject?.height ?? 2.6,
+    P: syncProject?.depth ?? 0.6,
+    E: 0.018, X: 0, Y: 0,
+  });
   const [decorStyle, setDecorStyle] = useState("Limpo");
   const [isEngineeringOpen, setIsEngineeringOpen] = useState(false);
   const [activeImageZoom, setActiveImageZoom] = useState<{ url: string; budget?: string | null } | null>(null);
+
+  // Mantém factors em sincronia quando o projeto do Estúdio muda
+  useEffect(() => {
+    if (!syncProject) return;
+    setFactors(prev => ({
+      ...prev,
+      L: syncProject.width ?? prev.L,
+      A: syncProject.height ?? prev.A,
+      P: syncProject.depth ?? prev.P,
+    }));
+  }, [syncProject?.width, syncProject?.height, syncProject?.depth]);
+
 
   const {
     messages, chatInput, setChatInput, isTyping, isListening,
@@ -90,7 +112,7 @@ const IaraModule = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)] bg-background relative overflow-hidden rounded-xl border border-border">
+    <div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
       <header className="px-4 py-3 bg-card border-b border-border flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <LogoHex size={36} />
