@@ -21,6 +21,13 @@ export const StudioHub = (props: StudioHubProps) => {
     depth: budgetProject?.depth,
   };
 
+  const handleIaraProjectChange = (p: { width: number; height: number; depth: number }) => {
+    props.setBudgetProject((prev: any) => {
+      if (prev?.width === p.width && prev?.height === p.height && prev?.depth === p.depth) return prev;
+      return { ...prev, width: p.width, height: p.height, depth: p.depth };
+    });
+  };
+
   return (
     <div className="relative">
       {/* Toolbar do Estúdio */}
@@ -58,7 +65,7 @@ export const StudioHub = (props: StudioHubProps) => {
             className="hidden lg:block h-[calc(100vh-10rem)] sticky top-4"
             aria-label="Assistente IARA"
           >
-            <IaraModule embedded syncProject={syncProject} />
+            <IaraModule embedded syncProject={syncProject} onProjectChange={handleIaraProjectChange} />
           </aside>
         )}
       </div>
@@ -73,7 +80,7 @@ export const StudioHub = (props: StudioHubProps) => {
             className="absolute right-0 top-0 bottom-0 w-full sm:w-[420px] bg-background border-l border-border shadow-2xl animate-in slide-in-from-right"
             onClick={e => e.stopPropagation()}
           >
-            <IaraModule embedded syncProject={syncProject} />
+            <IaraModule embedded syncProject={syncProject} onProjectChange={handleIaraProjectChange} />
           </div>
         </div>
       )}
