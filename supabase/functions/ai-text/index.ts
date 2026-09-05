@@ -1,38 +1,69 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { buildCorsHeaders, guardRequest, jsonResponse, readJsonBody } from "../_shared/guard.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const MAX_BODY_BYTES = 20 * 1024 * 1024; // 20MB (imagens base64 para análise)
+const MAX_PROMPT_CHARS = 12000;
+const MAX_IMAGES = 6;
+const MAX_IMAGE_BASE64 = 15 * 1024 * 1024;
+
+const BodySchema = z.object({
+  prompt: z.string().trim().min(1, "prompt is required").max(MAX_PROMPT_CHARS),
+  images: z
+    .array(
+      z.object({
+        mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp|gif)$/i),
+        data: z.string().min(1).max(MAX_IMAGE_BASE64),
+      }),
+    )
+    .max(MAX_IMAGES)
+    .optional(),
+  jsonMode: z.boolean().optional().default(false),
+});
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const cors = buildCorsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method !== "POST") return jsonResponse(cors, { error: "Method not allowed" }, 405);
+
+  // Autenticação + rate limit por usuário (30 chamadas/min).
+  const guard = await guardRequest(req, cors, { fn: "ai-text", limit: 30, windowSeconds: 60 });
+  if (!guard.ok) return guard.response;
 
   try {
     const GEMINI_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-    if (!GEMINI_KEY) throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
+    if (!GEMINI_KEY) {
+      console.error("ai-text: GOOGLE_GEMINI_API_KEY não configurada");
+      return jsonResponse(cors, { error: "Serviço de IA não configurado." }, 500);
+    }
 
-    const { prompt, images, jsonMode } = await req.json();
+    const read = await readJsonBody(req, MAX_BODY_BYTES);
+    if (!read.ok) {
+      return read.reason === "too_large"
+        ? jsonResponse(cors, { error: "Corpo da requisição muito grande.", code: "payload_too_large" }, 413)
+        : jsonResponse(cors, { error: "JSON inválido.", code: "invalid_json" }, 400);
+    }
 
-    const parts: any[] = [{ text: prompt }];
-    if (images && images.length > 0) {
-      for (const img of images) {
-        parts.push({
-          inline_data: { mime_type: img.mimeType, data: img.data }
-        });
-      }
+    const parsed = BodySchema.safeParse(read.body);
+    if (!parsed.success) {
+      return jsonResponse(
+        cors,
+        { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors },
+        400,
+      );
+    }
+    const { prompt, images, jsonMode } = parsed.data;
+
+    const parts: Array<Record<string, unknown>> = [{ text: prompt }];
+    for (const img of images ?? []) {
+      parts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
     }
 
     const model = "gemini-2.0-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
 
-    const body: any = {
-      contents: [{ role: "user", parts }],
-    };
-
-    if (jsonMode) {
-      body.generationConfig = { responseMimeType: "application/json" };
-    }
+    const body: Record<string, unknown> = { contents: [{ role: "user", parts }] };
+    if (jsonMode) body.generationConfig = { responseMimeType: "application/json" };
 
     const response = await fetch(url, {
       method: "POST",
@@ -42,28 +73,19 @@ serve(async (req) => {
 
     if (!response.ok) {
       const status = response.status;
-      const errBody = await response.text();
-      console.error("Gemini API error:", status, errBody);
+      console.error("Gemini API error:", status, await response.text());
       if (status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Tente novamente em alguns segundos." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse(cors, { error: "Limite do provedor de IA atingido. Tente novamente em alguns segundos.", code: "rate_limited" }, 429, { "Retry-After": "10" });
       }
-      return new Response(JSON.stringify({ error: `Gemini error: ${status}` }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse(cors, { error: "O serviço de IA está indisponível no momento.", code: "upstream_error" }, 502);
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
-    return new Response(JSON.stringify({ text }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(cors, { text, model });
   } catch (e) {
     console.error("ai-text error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(cors, { error: "Erro interno ao processar texto.", code: "internal_error" }, 500);
   }
 });
