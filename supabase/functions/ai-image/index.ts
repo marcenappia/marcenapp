@@ -1,10 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { buildCorsHeaders, guardRequest } from "../_shared/guard.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+// CORS por requisição (origens permitidas apenas). Definido no início de cada request.
+let corsHeaders: Record<string, string> = {};
 
 // Limits
 const MAX_BODY_BYTES = 20 * 1024 * 1024; // 20MB total request body
@@ -60,7 +59,13 @@ function badRequest(body: ErrorBody) {
 }
 
 serve(async (req) => {
+  corsHeaders = buildCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return errorResponse(405, { message: "Method not allowed", code: "method_not_allowed" });
+
+  // 0. Autenticação + rate limit por usuário (10 imagens/min).
+  const guard = await guardRequest(req, corsHeaders, { fn: "ai-image", limit: 10, windowSeconds: 60 });
+  if (!guard.ok) return guard.response;
 
   try {
     const GEMINI_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
@@ -267,7 +272,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("ai-image error:", e);
     return errorResponse(500, {
-      message: e instanceof Error ? e.message : "Unknown error",
+      message: "Erro interno ao gerar imagem.",
       code: "internal_error",
     });
   }
