@@ -1,0 +1,240 @@
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { callAIText, requireAuth } from '@/services/ai';
+import { studioService } from '@/modules/ambientes/services/studioService';
+import { useStudioStore } from '@/store/useStudioStore';
+import { AnaliseIara, EtapaId, carregarProgresso, salvarProgresso } from '../types';
+
+interface Foto {
+  dataUrl: string;
+  base64: string;
+  mime: string;
+}
+
+interface Opcoes {
+  projectId: string | null;
+  setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
+}
+
+/** Lógica da jornada "Novo Projeto" — reaproveita IARA (ai-text) e Estúdio (ai-image). */
+export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoes) => {
+  const { user } = useAuth();
+  const setGeneratedImage = useStudioStore((s) => s.setGeneratedImage);
+
+  const [projectId, setProjectId] = useState<string | null>(inicialId);
+  const [etapa, setEtapa] = useState<EtapaId>(1);
+  const [nome, setNome] = useState('');
+  const [clienteNome, setClienteNome] = useState('');
+  const [foto, setFoto] = useState<Foto | null>(null);
+  const [pedido, setPedido] = useState('');
+  const [analise, setAnalise] = useState<AnaliseIara | null>(null);
+  const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [imagem, setImagem] = useState<string | null>(null);
+  const [ajuste, setAjuste] = useState('');
+  const [loading, setLoading] = useState<null | 'salvando' | 'analisando' | 'gerando' | 'ajustando'>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const pendente = useRef<(() => void) | null>(null);
+
+  // Retomar obra existente
+  useEffect(() => {
+    if (!inicialId) return;
+    const p = carregarProgresso(inicialId);
+    if (!p) return;
+    setNome(p.nome ?? '');
+    setClienteNome(p.clienteNome ?? '');
+    setPedido(p.pedido ?? '');
+    setAnalise(p.analise ?? null);
+    setRespostas(p.respostas ?? {});
+    // A foto não é persistida (peso); se faltou, volta para a etapa da foto
+    const alvo = p.etapa > 2 ? 2 : p.etapa;
+    setEtapa(alvo as EtapaId);
+  }, [inicialId]);
+
+  const persistir = (patch: Parameters<typeof salvarProgresso>[1]) => {
+    if (projectId) salvarProgresso(projectId, patch);
+  };
+
+  const comAuth = async (acao: () => void) => {
+    const ok = await requireAuth();
+    if (ok) return acao();
+    pendente.current = acao;
+    setShowAuth(true);
+  };
+
+  const onAuthSuccess = () => {
+    setShowAuth(false);
+    const a = pendente.current;
+    pendente.current = null;
+    a?.();
+  };
+
+  // Etapa 1 → cria/atualiza projeto e cliente
+  const salvarNome = () =>
+    comAuth(async () => {
+      if (!user || !nome.trim()) return;
+      setLoading('salvando');
+      setErro(null);
+      try {
+        let clienteId: string | null = null;
+        if (clienteNome.trim()) {
+          const { data: existente } = await supabase
+            .from('clientes').select('id').eq('user_id', user.id).ilike('nome', clienteNome.trim()).limit(1);
+          if (existente?.[0]) clienteId = existente[0].id;
+          else {
+            const { data: novo } = await supabase
+              .from('clientes').insert({ user_id: user.id, nome: clienteNome.trim() }).select('id').single();
+            clienteId = novo?.id ?? null;
+          }
+        }
+        let id = projectId;
+        if (id) {
+          await supabase.from('projects').update({ nome: nome.trim(), name: nome.trim(), cliente_id: clienteId }).eq('id', id);
+        } else {
+          const { data, error } = await supabase
+            .from('projects')
+            .insert({ user_id: user.id, nome: nome.trim(), name: nome.trim(), cliente_id: clienteId })
+            .select('id').single();
+          if (error) throw error;
+          id = data.id;
+          setProjectId(id);
+        }
+        if (id) salvarProgresso(id, { etapa: 2, nome: nome.trim(), clienteNome: clienteNome.trim() });
+        setEtapa(2);
+      } catch (e: any) {
+        setErro(e?.message || 'Não deu para salvar a obra. Tente de novo.');
+      } finally {
+        setLoading(null);
+      }
+    });
+
+  const escolherFoto = (file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      setFoto({ dataUrl, base64: dataUrl.split(',')[1], mime: file.type || 'image/jpeg' });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const confirmarFoto = () => {
+    if (!foto) return;
+    persistir({ etapa: 3 });
+    setEtapa(3);
+  };
+
+  // Etapa 3 → IARA analisa a cena e pergunta só o que falta
+  const analisar = () =>
+    comAuth(async () => {
+      if (!foto || !pedido.trim()) return;
+      setLoading('analisando');
+      setErro(null);
+      try {
+        const prompt = `Você é a IARA, assistente de um marceneiro brasileiro. Veja a foto do ambiente e o pedido do cliente.
+Pedido do cliente: "${pedido.trim()}"
+Responda SOMENTE JSON válido neste formato:
+{"resumo":"1 frase simples do que será feito","ambiente":"cozinha|quarto|sala|banheiro|escritório|outro",
+"medidas":{"width":número ou null,"height":número ou null,"depth":número ou null},
+"perguntas":[{"id":"chave_curta","pergunta":"pergunta curta em português simples","dica":"ex.: em metros"}]}
+Regras: medidas em metros, só preencha se der para estimar pela foto com segurança; senão use null.
+Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (medidas que não dá para ver, tipo de porta, cor/acabamento, se tem eletrodoméstico embutido). Se nada faltar, "perguntas": [].`;
+        const texto = await callAIText(prompt, [{ mimeType: foto.mime, data: foto.base64 }], true);
+        const limpo = texto.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const json = JSON.parse(limpo) as AnaliseIara;
+        const resultado: AnaliseIara = {
+          resumo: json.resumo || pedido.trim(),
+          ambiente: json.ambiente,
+          medidas: json.medidas || {},
+          perguntas: Array.isArray(json.perguntas) ? json.perguntas.slice(0, 4) : [],
+        };
+        setAnalise(resultado);
+        persistir({ etapa: 4, pedido: pedido.trim(), analise: resultado });
+        setEtapa(4);
+      } catch (e: any) {
+        setErro(e?.message || 'A IARA não conseguiu analisar agora. Tente de novo.');
+      } finally {
+        setLoading(null);
+      }
+    });
+
+  const aplicarMedidas = () => {
+    const m = analise?.medidas;
+    const num = (v: unknown, chave: string) => {
+      const r = parseFloat(String(respostas[chave] ?? '').replace(',', '.'));
+      return Number.isFinite(r) && r > 0 ? r : typeof v === 'number' && v > 0 ? v : undefined;
+    };
+    const w = num(m?.width, 'largura'); const h = num(m?.height, 'altura'); const d = num(m?.depth, 'profundidade');
+    setBudgetProject((prev: any) => ({
+      ...prev,
+      id: projectId ?? prev?.id,
+      width: w ?? prev.width,
+      height: h ?? prev.height,
+      depth: d ?? prev.depth,
+    }));
+  };
+
+  // Etapa 4 → Estúdio gera a apresentação
+  const gerarApresentacao = () =>
+    comAuth(async () => {
+      if (!foto) return;
+      setLoading('gerando');
+      setErro(null);
+      try {
+        const extras = Object.entries(respostas)
+          .filter(([, v]) => v.trim())
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('; ');
+        const prompt = `Insira móveis planejados de marcenaria neste ambiente real, mantendo paredes, piso, janelas e iluminação da foto. Pedido do cliente: ${pedido}. ${analise?.resumo ?? ''}. Detalhes: ${extras || 'nenhum'}.`;
+        const img = await studioService.generateVisual(prompt, [{ mimeType: foto.mime, data: foto.base64 }], 'photorealistic, 8k, architectural photography', 'modern Brazilian carpentry, MDF cabinetry');
+        if (!img) throw new Error('Não saiu imagem. Tente de novo.');
+        setImagem(img);
+        setGeneratedImage(img);
+        aplicarMedidas();
+        if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt });
+        persistir({ etapa: 5, respostas });
+        setEtapa(5);
+      } catch (e: any) {
+        setErro(e?.message || 'Não deu para gerar a apresentação. Tente de novo.');
+      } finally {
+        setLoading(null);
+      }
+    });
+
+  const ajustarApresentacao = () =>
+    comAuth(async () => {
+      if (!imagem || !ajuste.trim()) return;
+      setLoading('ajustando');
+      setErro(null);
+      try {
+        const img = await studioService.refineVisual(imagem, ajuste.trim());
+        if (!img) throw new Error('Não saiu imagem. Tente de novo.');
+        setImagem(img);
+        setGeneratedImage(img);
+        setAjuste('');
+        if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt: ajuste.trim() });
+      } catch (e: any) {
+        setErro(e?.message || 'Não deu para ajustar. Tente de novo.');
+      } finally {
+        setLoading(null);
+      }
+    });
+
+  const registrarAprovacao = () => {
+    persistir({ etapa: 7, aprovado: true });
+    setEtapa(7);
+  };
+
+  const voltar = () => setEtapa((e) => (e > 1 ? ((e - 1) as EtapaId) : e));
+
+  return {
+    projectId, etapa, setEtapa, voltar,
+    nome, setNome, clienteNome, setClienteNome, salvarNome,
+    foto, escolherFoto, limparFoto: () => setFoto(null), confirmarFoto,
+    pedido, setPedido, analisar,
+    analise, respostas, setRespostas, gerarApresentacao,
+    imagem, ajuste, setAjuste, ajustarApresentacao, registrarAprovacao,
+    loading, erro, limparErro: () => setErro(null),
+    showAuth, setShowAuth, onAuthSuccess,
+  };
+};
