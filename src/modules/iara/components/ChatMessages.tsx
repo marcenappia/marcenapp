@@ -6,6 +6,7 @@ import { useMarcenappOS } from '@/store/useMarcenappOS';
 export interface ChatMessage {
   id: string;
   user_id: string;
+  project_id?: string | null;
   sender: string;
   text: string | null;
   image_url: string | null;
@@ -14,17 +15,28 @@ export interface ChatMessage {
   metadata?: {
     commandId?: string;
     resultUrl?: string;
-  };
+  } | null;
 }
+
+const SUGGESTIONS = [
+  'Guarda-roupa 2,40×2,60m com 6 portas e 4 gavetas',
+  'Cozinha planejada minimalista com ilha central',
+  'Calcule o orçamento deste projeto',
+  'Gere um render em estilo industrial',
+];
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
   isTyping: boolean;
   onImageZoom: (data: { url: string; budget?: string | null }) => void;
   messagesEndRef: React.RefObject<HTMLDivElement>;
+  error?: string | null;
+  onRetry?: () => void;
+  onDismissError?: () => void;
+  onSuggestion?: (text: string) => void;
 }
 
-export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }: ChatMessagesProps) => {
+export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef, error, onRetry, onDismissError, onSuggestion }: ChatMessagesProps) => {
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const cancelCommand = useStudioStore(state => state.cancelCommand);
   const enqueueCommand = useStudioStore(state => state.enqueueCommand);
