@@ -1,132 +1,139 @@
-# Roadmap IARA OS — Marcenapp
+# AUDITORIA TÉCNICA COMPLETA — MARCENAPP OS
 
-Transformar a IARA de chat em **orquestrador do sistema operacional** da marcenaria.
-Cada versão é incremental e reutiliza as camadas anteriores.
+Data: 05/09/2026. Escopo: repositório completo + banco (somente leitura). Nenhum arquivo alterado.
+Legenda: **[não comprovado]** = não verificável pelo código/banco; não presumir que funciona.
 
----
+## RESUMO EXECUTIVO
 
-## ✅ IARA OS v1 — Function Calling (em execução)
+O Marcenapp tem uma casca de produto acima da média (SEO, acessibilidade do menu, onboarding, arquitetura modular, Command Bus, orquestrador com function calling do Gemini) sobre um núcleo de negócio ainda demonstrativo. Orçamento, plano de corte, clientes, diário de obra e contratos não estão em nível comercial: fórmulas triplicadas e sem profundidade, corte sem veio/kerf real/exportação, Clientes e Diário estáticos, contrato sem PDF nem persistência.
 
-Substituir `interpretCommand` baseado em `includes()` por LLM (Gemini) que escolhe ferramentas.
+Na IA, o fluxo IARA → orquestrador → tools → Estúdio existe e está encadeado, mas: as 3 Edge Functions aceitam qualquer chamada com a chave pública, sem exigir login nem rate limit (qualquer pessoa consome a cota Gemini); há três caminhos paralelos de render; medidas estimadas por IA caem em valores fixos silenciosos que alimentam o orçamento. A suíte de testes não roda de forma confiável (estouro de memória).
 
-### Entregas
-- `supabase/functions/ai-orchestrator/index.ts` — Edge Function com `functionDeclarations` do Gemini.
-- `src/core/toolRegistry.ts` — Registro único de ferramentas com contratos Zod.
-- `src/core/orchestrator.ts` — Executor client-side + fallback keyword.
-- Tabelas: `clientes`, `orchestrator_runs`, `projects.cliente_id`, `projects.nome`.
-- IARA chat migrado para `runOrchestrator()`.
+## NOTA GERAL: 4,5 / 10
 
-### Ferramentas v1 (contratos estáveis)
-| Nome | Entrada | Saída | Alvo |
+Infraestrutura, UX e arquitetura pontuariam 7; a falha de segurança/custo nas funções de IA e o núcleo de negócio demonstrativo puxam para baixo. Não é protótipo descartável, mas não é um sistema vendável ainda.
+
+## PONTOS FORTES
+
+- RLS ativo nas 8 tabelas, todas as policies `auth.uid() = user_id`; nenhum segredo (service_role/Gemini) no cliente.
+- `ai-image` com validação Zod rigorosa e testes Deno próprios.
+- Orquestrador real via Gemini Function Calling, 5 tools tipadas, log em `orchestrator_runs`.
+- Fila do Estúdio com status, cancelamento, migração de versão e integração com o chat.
+- Acessibilidade do menu, onboarding com spotlight/reduced motion, SEO completo, `ThreeScene` com cleanup correto, zero `console.log`.
+- Chat por projeto, retry e debounce (entregues hoje).
+
+## TOP 10 PROBLEMAS
+
+| # | Sev | Problema | Evidência |
 |---|---|---|---|
-| `createCliente` | `{nome, email?, telefone?}` | `{id, nome}` | tabela `clientes` |
-| `createProjeto` | `{nome, clienteNome?, width?, height?, depth?, tipo?}` | `{id, nome, width, height, depth}` | tabela `projects` |
-| `gerarRender` | `{prompt, estilo?}` | `{studioCommandId, status}` | Command Bus → Estúdio |
-| `calcularOrcamento` | `{observacoes?}` | `{total, materiais, maoDeObra}` | fórmula local |
-| `gerarContrato` | `{clienteNome, valor?, prazoDias?, clausulasExtras?}` | `{cliente, valor, clausulasGeradas}` | tabela `custom_clauses` + Contrato |
+| 1 | P0 | Funções `ai-image`/`ai-text`/`ai-orchestrator` não validam usuário; cliente envia anon key como Bearer; sem rate limit | `src/services/ai.ts:12-14`, `src/core/orchestrator.ts:34-39`; nenhuma função chama `auth.getUser`; `config.toml` sem `[functions.*]` |
+| 2 | P0 | Orçamento ignora profundidade; fatores mágicos 2.5/1.2/1.15/+200/+10%; sem tabela de preços editável | `useOrcamento.ts:16-29` |
+| 3 | P0 | Três cálculos de orçamento divergentes mantidos por cópia manual | `useOrcamento.ts`, `toolRegistry.ts:158-174`, `iaraService.ts:71-78` |
+| 4 | P0 | Clientes e Diário de Obra são telas estáticas sem estado/banco/handlers | `Clientes.tsx:15,20-24,35`, `Diario.tsx:15,21-29` |
+| 5 | P0 | Plano de corte sem veio, kerf incompleto, sem sobras, sem exportação; import ignora fundo/prateleiras/gavetas | `patio/index.tsx:30-55,68-78,178-196` |
+| 6 | P1 | `gerarContrato` só grava cláusulas avulsas; chat diz "Contrato preparado" | `toolRegistry.ts:189-228` |
+| 7 | P1 | Medidas por IA sem validação; fallback fixo 2.0×2.5×0.6 alimenta orçamento silenciosamente | `iaraService.ts:83-93`, `useStudio.ts:138-146`, `Elevator.tsx:76-77` |
+| 8 | P1 | Vitest estoura memória (OOM); zero testes de orçamento/corte/toolRegistry | execução `bunx vitest run` |
+| 9 | P1 | Imagens base64 no Postgres e localStorage; sem Storage | 15 linhas com média ~94 KB em `chat_messages.image_url`; `useStudioStore.ts:145-151` |
+| 10 | P1 | Três caminhos de render; idempotência da fila nunca ativada por `gerarRender` | `useStudio.ts:96-124`, `Elevator.tsx:53-69`, `useStudioStore.ts:54-64` vs `toolRegistry.ts:119-127` |
 
-### Critério de aceite
-Prompt: *"Crie um projeto para o cliente João, gere uma imagem da cozinha planejada, calcule o orçamento e prepare um contrato."*
-→ IA produz plano de 4-5 tool calls → executor roda em sequência → resposta consolidada no chat.
+## POR SEVERIDADE
 
-### Fallback
-Se `ai-orchestrator` falhar tecnicamente (rede, quota, JSON inválido), o executor usa keyword matching (comportamento antigo). Zero downtime na migração.
+**P0**: funções de IA sem auth/rate limit; orçamento sem profundidade, fatores mágicos, preços hardcoded em 2 lugares, 3 implementações; Clientes sem CRUD; Diário mock; corte sem veio/sobras/export e kerf não considerado no encaixe.
 
----
+**P1**: `gerarContrato` mock; contrato sem PDF (`window.print`) e sem persistência; análise de imagem sem validação; Vitest OOM e E2E **[não comprovado]**; base64 em banco/localStorage; render por 3 caminhos; fallback keyword só render/orçamento (`orchestrator.ts:107-125`) e `iaraService.interpretCommand/calculateSmartBudget` código morto; CORS `*`; `ai-orchestrator` devolve erro bruto do Gemini (`index.ts:164-173`); `ai-text` sem Zod; TS com strict desligado e 32 `: any`; fita de borda e perdas ausentes; RBAC (`user_roles`/`has_role`) não usado em nenhuma policy/tela.
 
-## 🔜 IARA OS v2 — Planner Multi-Step (próximo)
+**P2**: policies com role `{public}` (seguro hoje, frágil); `orchestrator_runs` com PII sem expurgo; Onboarding aponta para `nav-chat`/rota `chat` inexistente (`Onboarding.tsx:43-44`); 3 padrões de estilo (tokens / Tailwind cru / hex inline em `orcamentos/index.tsx:74-93`); `alert()` no Contrato (`Contrato.tsx:53`); bottom nav mobile corta em 5 itens; `ThreeScene` recria cena a cada mudança de `factors` **[impacto não medido]**; modelo Gemini em 3 arquivos; sem backoff em 429.
 
-Reutiliza o toolRegistry do v1. Adiciona controle de execução.
+**P3**: código morto `App.css` e provável `NavLink.tsx`; `package.json` com nome do template; fallback genérico de `VITE_SUPPORT_WHATSAPP_LINK`; reset de senha com rate limit só no cliente (Redirect URLs **[não comprovado]**).
 
-### Escopo
-- **Plano estruturado**: `{ steps: [{id, tool, args, dependsOn?, status}] }`.
-- **Estados por etapa**: `pending | running | completed | failed | skipped`.
-- **Dependências**: `gerarContrato` só roda se `calcularOrcamento` completou; `gerarRender` só após `createProjeto`.
-- **Progresso no chat**: cada step vira uma mensagem com badge de status atualizada via subscribe.
-- **Retomada após falha**: usuário clica "tentar de novo esta etapa" sem refazer as anteriores.
-- **Cancelamento**: interromper plano em execução.
-- **Persistência**: tabela `orchestrator_plans` (id, run_id, steps jsonb, current_step).
+## TABELA DE FUNCIONALIDADES
 
-### Novo contrato
-```ts
-interface PlanStep {
-  id: string;
-  tool: string;
-  args: Record<string, any>;
-  dependsOn?: string[];
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
-  result?: ToolResult;
-  attempts: number;
-}
-```
+| Funcionalidade | Status | Evidência |
+|---|---|---|
+| Login/cadastro/reset | Implementada | `Auth.tsx`, `useAuth.tsx`, trigger `handle_new_user` |
+| Perfil + onboarding sincronizado | Implementada | `profiles.onboarding_*`, `Onboarding.tsx` |
+| Chat IARA (por projeto, retry, sugestões) | Implementada | `useIaraChat.ts` |
+| Orquestrador function calling | Implementada | `ai-orchestrator/index.ts` |
+| Tools createCliente/createProjeto | Implementada | `toolRegistry.ts:33-99` |
+| Tool gerarRender → Estúdio | Parcial (sem idempotência efetiva) | `toolRegistry.ts:101-138` |
+| Tool calcularOrcamento | Parcial (duplicada, demonstrativa) | `toolRegistry.ts:140-187` |
+| Tool gerarContrato | Mock/incompleta | `toolRegistry.ts:189-228` |
+| Geração de imagem | Implementada | `ai-image/index.ts` |
+| Análise de imagem → medidas | Parcial (fallback fixo) | `iaraService.ts:83-93` |
+| Galeria | Parcial (base64 no banco) | `gallery_images` |
+| Estúdio 3D | Implementada | `ThreeScene.tsx` |
+| Elevador de planta | Parcial (render direto) | `Elevator.tsx` |
+| Orçamento | Parcial/demonstrativa | `useOrcamento.ts` |
+| Tabela de preços editável | Ausente | — |
+| Plano de corte | Parcial (shelf simples) | `patio/index.tsx:32-55` |
+| Export corte (PDF/DXF/CNC) | Ausente | — |
+| Ferragens / Logística | Ausente | — |
+| Clientes CRUD | Mock | `Clientes.tsx` |
+| Diário de Obra | Mock | `Diario.tsx` |
+| Contrato — cláusulas IA | Implementada **[não comprovado em runtime]** | `Contrato.tsx:32-53` |
+| Contrato — PDF/persistência | Ausente/parcial | `Contrato.tsx:12,182,198` |
+| RBAC | Ausente na prática | só `types.ts` |
+| Rate limit IA | Ausente | — |
+| Testes unitários | Parcial (OOM) | `src/test/*` |
+| Testes E2E | Parcial **[não comprovado]** | `tests/e2e/` |
 
-### Critério de aceite
-Prompt complexo dispara 6+ etapas. Se etapa 3 falhar, etapas 4+ ficam `skipped`. Usuário retoma da etapa 3 sem perder as anteriores.
+## AUDITORIA IARA / IA
 
----
+Fluxo real: `useIaraChat.sendPrompt` → `runOrchestrator` → `ai-orchestrator` (gemini-2.0-flash) → `executeToolCall` (Zod) → inserts diretos / `gerarRender` na fila → `StudioWorker` → `studioService.generateVisual` → `ai-image` (gemini-2.5-flash-image) → `completeCommand` + `gallery_images` → chat observa `commandHistory`. Encadeamento estático comprovado; execução ponta a ponta com Gemini real **[não comprovado nesta auditoria]**.
 
-## 🔜 IARA OS v3 — Memória Cognitiva
+Problemas: fallback keyword residual e pobre; código morto em `iaraService`; `gerarContrato` mock; `calcularOrcamento` cópia manual; 3 caminhos de render; idempotência inativa (retry duplica gasto); `ai-text` sem validação; sem backoff 429; análise de imagem sem escala de referência, sem faixa de plausibilidade e com fallback silencioso.
 
-Reutiliza toolRegistry + planner. Personaliza decisões sem alterar contratos.
+## AUDITORIA SEGURANÇA / BACKEND
 
-### Tabela `iara_memory`
-```sql
-CREATE TABLE public.iara_memory (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  categoria TEXT NOT NULL,  -- 'material' | 'fornecedor' | 'margem' | 'acabamento' | 'estilo' | 'regra_comercial' | 'preferencia'
-  chave TEXT NOT NULL,       -- 'mdf_padrao', 'fornecedor_ferragens', 'margem_min'
-  valor JSONB NOT NULL,
-  peso NUMERIC DEFAULT 1.0,  -- reforço/decaimento por uso
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (user_id, categoria, chave)
-);
-```
+- RLS correto em todas as tabelas; `user_roles` restrita; `has_role` com EXECUTE revogado de anon; sem SQL injection; só anon key no cliente.
+- P0: funções de IA aceitam a anon key como JWT válido, sem checagem de usuário, sem rate limit, CORS `*`.
+- `toolRegistry` insere `user_id` vindo do cliente; protegido apenas pelo `WITH CHECK` da RLS.
+- `chat_messages.metadata` só passou a existir hoje — inserts de renders concluídos falhavam antes.
+- `orchestrator_runs` acumula PII sem retenção. `verify_jwt` efetivo em produção **[não comprovado]**.
 
-### Fluxo
-1. Antes de chamar `ai-orchestrator`, buscar top-N memórias relevantes por categoria.
-2. Injetar como bloco `PREFERÊNCIAS DO USUÁRIO` no `systemInstruction`.
-3. Após execução bem-sucedida, `saveMemory()` extrai novos padrões (ex: usuário sempre pediu MDF 18 branco → salva `material.mdf_padrao`).
-4. Decaimento: memórias não usadas há 90 dias perdem peso.
+## AUDITORIA ORÇAMENTO / PRODUÇÃO
 
-### Categorias iniciais
-- `material.mdf_padrao`, `material.tampo_padrao`
-- `fornecedor.ferragens`, `fornecedor.mdf`
-- `comercial.margem_min`, `comercial.prazo_padrao`
-- `estilo.decor_default`, `estilo.paleta_favorita`
-- `regra.parede_torta_sempre`, `regra.pipes_sempre`
+Orçamento demonstrativo: área frontal × fatores sem justificativa; profundidade ignorada; mão de obra como % do material; +10% oculto; +200 fixo; ferragens genéricas; sem fita de borda; chapas do orçamento não batem com o plano de corte.
+Produção: corte shelf next-fit sem rotação/veio/sobras/export; import gera só lateral/base/porta; ferragens e logística inexistentes; contrato imprime via navegador e não persiste; Clientes e Diário são vitrines.
 
-### Critério de aceite
-Após 5 projetos consecutivos usando MDF 18 branco, novo pedido de "cozinha" pré-preenche esse material sem o usuário mencionar.
+## PLANO DE AÇÃO EM FASES
 
----
+**Fase 0 — Bloqueadores (1 semana)**
+1. Nas 3 funções: validar JWT do usuário (`auth.getUser`), recusar anon; cliente passa a enviar o token da sessão.
+2. Rate limit por usuário (tabela de contagem acessível só por service_role) antes de chamar o Gemini.
+3. CORS restrito ao domínio publicado; Zod + cap de body em `ai-text`; não repassar corpo bruto do Gemini.
+4. Corrigir suíte Vitest (OOM: pool/threads, isolar testes de Three.js) até rodar verde em CI.
 
-## 🧰 Sprints paralelas (do plano anterior)
+**Fase 1 — Núcleo de negócio (2–3 semanas)**
+5. Motor de orçamento único (`src/core/pricing`) usado por hook e tool; remover `calculateSmartBudget`.
+6. Tabela `price_lists` persistida e editável (chapas, ferragens, fita de borda, mão de obra por hora/m²).
+7. Gerador de lista de peças real (laterais, base/topo, fundo, prateleiras, gavetas) com profundidade e espessura; orçamento consome as chapas do plano de corte.
+8. Plano de corte: kerf no encaixe, rotação por veio, registro de sobras, export PDF.
+9. CRUD de Clientes ligado à tabela `clientes`; contrato persistido em `contracts` + PDF.
 
-Ainda pendentes, atacáveis em paralelo ao IARA OS quando fizer sentido:
+**Fase 2 — IA confiável (1–2 semanas)**
+10. Todo render passa pela fila com `idempotencyKey` determinística (Studio e Elevator inclusos).
+11. Medidas por IA: faixa de plausibilidade, rótulo "estimado — confira", sem fallback silencioso.
+12. Remover fallback keyword e código morto; centralizar nome dos modelos; backoff em 429.
+13. Bucket de Storage para imagens; parar de gravar base64 em `chat_messages`/`gallery_images`/localStorage.
 
-### 🔴 Fundação
-1. **Núcleo central de estado** (`src/core/useCore.ts` unificando auth + bus + permissões).
-2. **RLS + permissões por módulo** (roles `owner/editor/viewer`, `requirePermission()` antes de mutações, rate limit nas Edge Functions).
-3. **Testes automatizados** (Vitest para services/registry, Playwright E2E para fluxo IARA→Estúdio→Portal→Estela).
+**Fase 3 — Qualidade contínua**
+14. `strictNullChecks`/`noImplicitAny` ligados; eliminar `any`.
+15. Testes de orçamento, corte, toolRegistry e das 3 funções.
+16. Padronizar estilo em tokens; trocar `alert()` por toast; corrigir step `chat` do onboarding; revisar bottom nav.
+17. Diário de Obra real; decidir RBAC (implementar ou remover).
 
-### 🟡 Consistência
-4. **Segregação de responsabilidades** (IARA só interpreta, Estúdio só renderiza, Portal só apresenta, Estela só calcula).
-5. **Persistência do Command Bus** em `command_history` (sync device A ↔ device B).
+## ARQUIVOS QUE PRECISAM DE ATENÇÃO
 
-### 🟢 Polimento
-6. **Performance** (React.lazy nos módulos pesados, seletores Zustand com shallow, compressão de imagens).
-7. **SEO por rota** (react-helmet-async, sitemap dinâmico).
-8. **Observabilidade** (log estruturado nas Edge Functions, `/admin/health` gated por role).
+`supabase/functions/ai-text|ai-orchestrator|ai-image/index.ts` · `src/services/ai.ts` · `src/core/orchestrator.ts` · `src/core/toolRegistry.ts` · `src/modules/orcamentos/hooks/useOrcamento.ts` · `src/modules/iara/services/iaraService.ts` · `src/modules/patio/index.tsx` · `src/modules/projetos/components/Clientes.tsx|Diario.tsx|Contrato.tsx` · `src/modules/ambientes/hooks/useStudio.ts`, `components/Elevator.tsx`, `StudioWorker.tsx` · `src/store/useStudioStore.ts` · `src/components/marcenaria/Onboarding.tsx` · `tsconfig.json`, `vitest.config.ts`.
 
----
+## INCONSISTÊNCIAS E DUPLICAÇÕES
 
-## Ordem sugerida
+3 fórmulas de orçamento e 2 dicionários de preços · 2 fallbacks por keyword · 3 caminhos de render · 2 stores com histórico de comandos sobrepostos · 3 padrões de estilo · modelo Gemini em 3 arquivos · código morto (`App.css`, `NavLink.tsx`, `interpretCommand/calculateSmartBudget`) · onboarding referencia módulo `chat` removido.
 
-```text
-Agora:       IARA OS v1 (Function Calling)     ← em execução
-Próximo:     IARA OS v2 (Planner) + Sprint 🔴 #3 (testes cobrindo v1)
-Depois:      IARA OS v3 (Memória) + Sprint 🔴 #2 (RLS/roles)
-Paralelo:    Sprints 🟡 e 🟢 conforme dor surgir
-```
+## CONCLUSÃO: NÃO PRONTO PARA PRODUÇÃO
+
+(1) Qualquer pessoa pode gastar a chave Gemini sem login — risco financeiro imediato ao publicar. (2) O orçamento, função central de venda, é demonstrativo e pode entregar preços errados. (3) Clientes, Diário, ferragens, logística, PDF de contrato e exportação de corte não existem funcionalmente. (4) Os testes não executam de forma confiável. Com a Fase 0 concluída o app serve para beta fechado de demonstração; uso comercial exige a Fase 1.
+
+Aprovar este plano significa iniciar a Fase 0 (bloqueadores). Nada será alterado até a aprovação.
