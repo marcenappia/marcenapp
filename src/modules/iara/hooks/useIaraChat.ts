@@ -65,62 +65,69 @@ export const useIaraChat = (
   }, [commandHistory]);
 
   useEffect(() => {
-    if (!user) return;
-    supabase
+    if (!user) { setMessages([]); return; }
+    let cancelled = false;
+    setMessages([]);
+    setError(null);
+
+    let query = supabase
       .from('chat_messages')
       .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => {
-        if (data) setMessages(data as ChatMessage[]);
-      });
+      .eq('user_id', user.id);
+    query = projectId ? query.eq('project_id', projectId) : query.is('project_id', null);
+    query.order('created_at', { ascending: true }).then(({ data, error: loadError }) => {
+      if (cancelled) return;
+      if (loadError) { setError('Não foi possível carregar o histórico. Verifique sua conexão.'); return; }
+      if (data) setMessages(data as ChatMessage[]);
+    });
 
     const channel = supabase
-      .channel('chat_messages_realtime')
+      .channel(`chat_messages_${projectId ?? 'none'}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'chat_messages',
         filter: `user_id=eq.${user.id}`,
       }, (payload) => {
-        setMessages(prev => [...prev, payload.new as ChatMessage]);
+        const msg = payload.new as ChatMessage;
+        if ((msg.project_id ?? null) !== (projectId ?? null)) return;
+        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [user]);
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [user, projectId]);
 
   const saveMessage = async (msg: Partial<ChatMessage>) => {
     if (!user) return;
-    await supabase.from('chat_messages').insert({ user_id: user.id, ...msg });
+    const { error: insertError } = await supabase
+      .from('chat_messages')
+      .insert({ user_id: user.id, project_id: projectId, ...msg });
+    if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
   };
 
-  const handleSend = async () => {
-    if (!chatInput.trim() && !pendingUpload) return;
-    if (!user) { setShowAuthDialog(true); return; }
-
-    const promptText = chatInput.trim();
-    setChatInput("");
+  const sendPrompt = async (promptText: string, upload: typeof pendingUpload) => {
+    if (!user) return;
     setIsTyping(true);
+    setError(null);
 
     let currentBaseRaw: string | null = null;
     let currentMaskRaw: string | null = null;
     let previewImg: string | null = null;
 
-    if (pendingUpload) {
-      currentBaseRaw = pendingUpload.baseRaw;
-      currentMaskRaw = pendingUpload.maskRaw;
-      previewImg = pendingUpload.base64;
+    if (upload) {
+      currentBaseRaw = upload.baseRaw;
+      currentMaskRaw = upload.maskRaw;
+      previewImg = upload.base64;
       setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw });
-      setPendingUpload(null);
     } else if (lastContext) {
       currentBaseRaw = lastContext.baseRaw;
       currentMaskRaw = lastContext.maskRaw;
     }
 
-    await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
-
     try {
+      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
+
       const run = await runOrchestrator(
         promptText,
         {
@@ -141,7 +148,7 @@ export const useIaraChat = (
           sender: 'iara',
           text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.',
         });
-        setIsTyping(false);
+        lastFailedRef.current = null;
         return;
       }
 
@@ -177,12 +184,34 @@ export const useIaraChat = (
         sender: 'iara',
         text: `${header}${linhas.join('\n')}${footer}`,
       });
-      setIsTyping(false);
+      lastFailedRef.current = null;
     } catch (e: any) {
-      await saveMessage({ sender: 'iara', text: `Erro na orquestração: ${e?.message || 'Tente novamente.'}` });
+      // Guarda o envio para permitir "Tentar novamente" sem redigitar
+      lastFailedRef.current = { text: promptText, upload };
+      setError(e?.message || 'Falha ao falar com a IARA. Tente novamente.');
+    } finally {
       setIsTyping(false);
     }
   };
+
+  const handleSend = async () => {
+    if (!chatInput.trim() && !pendingUpload) return;
+    if (!user) { setShowAuthDialog(true); return; }
+
+    const promptText = chatInput.trim();
+    const upload = pendingUpload;
+    setChatInput("");
+    setPendingUpload(null);
+    await sendPrompt(promptText, upload);
+  };
+
+  const retryLast = async () => {
+    const failed = lastFailedRef.current;
+    if (!failed) { setError(null); return; }
+    await sendPrompt(failed.text, failed.upload);
+  };
+
+  const dismissError = () => setError(null);
 
 
 
