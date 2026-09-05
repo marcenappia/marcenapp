@@ -20,6 +20,8 @@ export type Database = {
           created_at: string
           id: string
           image_url: string | null
+          metadata: Json | null
+          project_id: string | null
           sender: string
           text: string | null
           user_id: string
@@ -29,6 +31,8 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          metadata?: Json | null
+          project_id?: string | null
           sender?: string
           text?: string | null
           user_id: string
@@ -38,11 +42,21 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          metadata?: Json | null
+          project_id?: string | null
           sender?: string
           text?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clientes: {
         Row: {
