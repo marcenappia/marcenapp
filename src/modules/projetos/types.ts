@@ -1,4 +1,6 @@
 export interface ProjectData {
+  /** ID do projeto persistido (definido após carregar/salvar no backend) */
+  id?: string;
   width: number;
   height: number;
   depth: number;

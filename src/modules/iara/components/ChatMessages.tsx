@@ -6,6 +6,7 @@ import { useMarcenappOS } from '@/store/useMarcenappOS';
 export interface ChatMessage {
   id: string;
   user_id: string;
+  project_id?: string | null;
   sender: string;
   text: string | null;
   image_url: string | null;
@@ -14,17 +15,28 @@ export interface ChatMessage {
   metadata?: {
     commandId?: string;
     resultUrl?: string;
-  };
+  } | null;
 }
+
+const SUGGESTIONS = [
+  'Guarda-roupa 2,40×2,60m com 6 portas e 4 gavetas',
+  'Cozinha planejada minimalista com ilha central',
+  'Calcule o orçamento deste projeto',
+  'Gere um render em estilo industrial',
+];
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
   isTyping: boolean;
   onImageZoom: (data: { url: string; budget?: string | null }) => void;
   messagesEndRef: React.RefObject<HTMLDivElement>;
+  error?: string | null;
+  onRetry?: () => void;
+  onDismissError?: () => void;
+  onSuggestion?: (text: string) => void;
 }
 
-export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }: ChatMessagesProps) => {
+export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef, error, onRetry, onDismissError, onSuggestion }: ChatMessagesProps) => {
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const cancelCommand = useStudioStore(state => state.cancelCommand);
   const enqueueCommand = useStudioStore(state => state.enqueueCommand);
@@ -103,6 +115,20 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
           <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
             Descreva seu projeto no campo abaixo — dimensões, estilo, materiais. A descrição fica sincronizada com o Estúdio.
           </p>
+          {onSuggestion && (
+            <div className="flex flex-wrap justify-center gap-2 mt-4 max-w-sm">
+              {SUGGESTIONS.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => onSuggestion(s)}
+                  className="px-3 py-1.5 rounded-full border border-border bg-card text-[11px] text-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -136,6 +162,31 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef }
           </div>
         );
       })}
+
+      {error && !isTyping && (
+        <div role="alert" className="flex items-start gap-3 bg-destructive/10 border border-destructive/30 rounded-xl p-3 animate-in fade-in">
+          <AlertCircle size={16} className="text-destructive shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-destructive">Não consegui responder</p>
+            <p className="text-[11px] text-muted-foreground break-words">{error}</p>
+            <div className="flex gap-2 mt-2">
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-[10px] font-black uppercase tracking-wider hover:opacity-90 transition-opacity"
+                >
+                  <RefreshCcw size={12} aria-hidden="true" /> Tentar novamente
+                </button>
+              )}
+              {onDismissError && (
+                <button onClick={onDismissError} className="px-3 py-1.5 text-[10px] font-bold uppercase text-muted-foreground hover:text-foreground transition-colors">
+                  Fechar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isTyping && (
         <div className="flex items-start">

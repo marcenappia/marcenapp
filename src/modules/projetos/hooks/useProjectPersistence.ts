@@ -22,6 +22,7 @@ export const useProjectPersistence = (
         if (data && data.length > 0) {
           const p = data[0];
           setBudgetProject({
+            id: p.id,
             width: Number(p.width) || 2.4,
             height: Number(p.height) || 2.6,
             depth: Number(p.depth) || 0.6,
@@ -43,12 +44,16 @@ export const useProjectPersistence = (
     if (!user) return;
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(async () => {
-      const { data: existing } = await supabase
-        .from('projects')
-        .select('id')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-        .limit(1);
+      let targetId = budgetProject.id;
+      if (!targetId) {
+        const { data: existing } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        targetId = existing?.[0]?.id;
+      }
 
       const projectRow = {
         user_id: user.id,
@@ -66,10 +71,12 @@ export const useProjectPersistence = (
         labor_rate: budgetProject.laborRate,
       };
 
-      if (existing && existing.length > 0) {
-        await supabase.from('projects').update(projectRow).eq('id', existing[0].id);
+      if (targetId) {
+        await supabase.from('projects').update(projectRow).eq('id', targetId);
+        if (!budgetProject.id) setBudgetProject(prev => ({ ...prev, id: targetId }));
       } else {
-        await supabase.from('projects').insert(projectRow);
+        const { data: inserted } = await supabase.from('projects').insert(projectRow).select('id').single();
+        if (inserted?.id) setBudgetProject(prev => ({ ...prev, id: inserted.id }));
       }
     }, 2000);
 

@@ -27,9 +27,11 @@ interface IaraModuleProps {
   syncDescription?: string;
   onDescriptionChange?: (text: string) => void;
   embedded?: boolean;
+  /** Projeto ativo — isola o histórico do chat por projeto */
+  projectId?: string | null;
 }
 
-const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescriptionChange, embedded }: IaraModuleProps = {}) => {
+const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescriptionChange, embedded, projectId = null }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [factors, setFactors] = useState({
     L: syncProject?.width ?? 2.4,
@@ -70,7 +72,8 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
   const {
     messages, chatInput, setChatInput, isTyping, isListening,
     handleSend, handleImageSelect, toggleRecording,
-    maskingImage, setMaskingImage, pendingUpload, setPendingUpload
+    maskingImage, setMaskingImage, pendingUpload, setPendingUpload,
+    error, retryLast, dismissError,
   } = useIaraChat(factors, decorStyle, setShowAuthDialog, {
     onProjectCreated: (p) => {
       setFactors(prev => ({
@@ -80,11 +83,25 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
         P: p.depth ?? prev.P,
       }));
     },
-  });
+  }, projectId);
 
-  // ↕ Descrição do Projeto ↔ chatInput (bidirecional)
+  // ↕ Descrição do Projeto ↔ chatInput (bidirecional, com debounce)
+  const lastPushedRef = useRef<string | null>(null);
+  const pushTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const pushDescription = (text: string, immediate = false) => {
+    if (!onDescriptionChange) return;
+    if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
+    const doPush = () => { lastPushedRef.current = text; onDescriptionChange(text); };
+    if (immediate) doPush();
+    else pushTimerRef.current = setTimeout(doPush, 300);
+  };
+  useEffect(() => () => { if (pushTimerRef.current) clearTimeout(pushTimerRef.current); }, []);
+
   useEffect(() => {
     if (syncDescription === undefined) return;
+    // Ignora o eco do que a própria IARA acabou de enviar (evita sobrescrever digitação)
+    if (syncDescription === lastPushedRef.current) return;
     if (syncDescription !== chatInput) setChatInput(syncDescription);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncDescription]);
@@ -159,17 +176,26 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
         </div>
       </header>
 
-      <ChatMessages messages={messages} isTyping={isTyping} onImageZoom={setActiveImageZoom} messagesEndRef={messagesEndRef} />
+      <ChatMessages
+        messages={messages}
+        isTyping={isTyping}
+        onImageZoom={setActiveImageZoom}
+        messagesEndRef={messagesEndRef}
+        error={error}
+        onRetry={retryLast}
+        onDismissError={dismissError}
+        onSuggestion={(text) => { setChatInput(text); pushDescription(text, true); }}
+      />
       
       <ChatInput
         chatInput={chatInput}
         setChatInput={(v) => {
           setChatInput(v);
-          onDescriptionChange?.(typeof v === 'function' ? (v as any)(chatInput) : v);
+          pushDescription(typeof v === 'function' ? (v as any)(chatInput) : v);
         }}
         onSend={() => {
           const sent = chatInput.trim();
-          if (sent) onDescriptionChange?.(sent);
+          if (sent) pushDescription(sent, true);
           handleSend();
         }}
         onImageSelect={handleImageSelect}
