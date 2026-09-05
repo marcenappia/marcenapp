@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Studio } from './index';
 import IaraModule from '@/modules/iara';
+import { useDebouncedValue } from '@/hooks/useDebounce';
 
 interface StudioHubProps {
   setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
@@ -13,6 +14,9 @@ interface StudioHubProps {
 export const StudioHub = (props: StudioHubProps) => {
   const { budgetProject, ...studioProps } = props;
   const [description, setDescription] = useState('');
+  // Textarea responde na hora; a IARA recebe o texto com debounce (evita sync a cada tecla)
+  const debouncedDescription = useDebouncedValue(description, 300);
+  const projectId: string | null = budgetProject?.id ?? null;
 
   const syncProject = {
     width: budgetProject?.width,
