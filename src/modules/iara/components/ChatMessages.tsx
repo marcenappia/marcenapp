@@ -149,6 +149,31 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef, 
         );
       })}
 
+      {error && !isTyping && (
+        <div role="alert" className="flex items-start gap-3 bg-destructive/10 border border-destructive/30 rounded-xl p-3 animate-in fade-in">
+          <AlertCircle size={16} className="text-destructive shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-destructive">Não consegui responder</p>
+            <p className="text-[11px] text-muted-foreground break-words">{error}</p>
+            <div className="flex gap-2 mt-2">
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-[10px] font-black uppercase tracking-wider hover:opacity-90 transition-opacity"
+                >
+                  <RefreshCcw size={12} aria-hidden="true" /> Tentar novamente
+                </button>
+              )}
+              {onDismissError && (
+                <button onClick={onDismissError} className="px-3 py-1.5 text-[10px] font-bold uppercase text-muted-foreground hover:text-foreground transition-colors">
+                  Fechar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {isTyping && (
         <div className="flex items-start">
           <div className="bg-card border border-border rounded-2xl rounded-tl-sm p-4 shadow-md flex items-center gap-2">
