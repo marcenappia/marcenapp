@@ -10,6 +10,8 @@ export const useIaraChat = (
   decorStyle: string,
   setShowAuthDialog: (val: boolean) => void,
   hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void },
+  /** Projeto ativo — histórico é isolado por projeto (null = sem projeto salvo) */
+  projectId: string | null = null,
 ) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -19,6 +21,8 @@ export const useIaraChat = (
   const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement } | null>(null);
   const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload } | null>(null);
   
   const commandHistory = useMarcenappOS(state => state.commandHistory);
 
