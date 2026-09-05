@@ -30,13 +30,30 @@ describe('IARA-Studio Architecture', () => {
     vi.clearAllMocks();
     useStudioStore.getState().clearQueue();
     useStudioStore.setState({ isRendering: false });
+    useMarcenappOS.getState().clearHistory();
   });
 
-  it('StudioWorker executes commands from the queue', async () => {
+  const dispatchRender = (images?: { mimeType: string; data: string }[]) => {
+    const studioId = useStudioStore.getState().enqueueCommand({
+      prompt: 'Test',
+      images,
+      metadata: { origin: 'iara', originalPrompt: 'Test', targetModule: 'studio' },
+    });
+    const osId = useMarcenappOS.getState().dispatchCommand({
+      source: 'iara',
+      target: 'studio',
+      action: 'GENERATE_VISUAL',
+      payload: { prompt: 'Test', studioCommandId: studioId },
+    });
+    return { studioId, osId };
+  };
+
+  it('StudioWorker executes commands from the queue and syncs both stores', async () => {
     (studioService.generateVisual as any).mockResolvedValue('url1');
 
+    let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
     renderAct(() => {
-      useStudioStore.getState().enqueueCommand({ prompt: 'Test' });
+      ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }]);
     });
 
     render(<StudioWorker />);
@@ -45,8 +62,29 @@ describe('IARA-Studio Architecture', () => {
       await new Promise(r => setTimeout(r, 100));
     });
 
-    const queue = useStudioStore.getState().commandQueue;
-    expect(queue[0].status).toBe('completed');
-    expect(studioService.generateVisual).toHaveBeenCalled();
+    const studioCmd = useStudioStore.getState().commandQueue.find(c => c.id === ids.studioId);
+    const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
+    expect(studioCmd?.status).toBe('completed');
+    expect(osCmd?.status).toBe('completed');
+    expect(osCmd?.result?.resultUrl).toBe('url1');
+    expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
+    expect((studioService.generateVisual as any).mock.calls[0][1]).toEqual([{ mimeType: 'image/png', data: 'abc' }]);
+  });
+
+  it('IARA command without visual context fails without calling the render service', async () => {
+    let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
+    renderAct(() => {
+      ids = dispatchRender(undefined);
+    });
+
+    render(<StudioWorker />);
+
+    await renderAct(async () => {
+      await new Promise(r => setTimeout(r, 50));
+    });
+
+    const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
+    expect(osCmd?.status).toBe('failed');
+    expect(studioService.generateVisual).not.toHaveBeenCalled();
   });
 });
