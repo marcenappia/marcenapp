@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useStudioStore } from '@/store/useStudioStore';
-import { useMarcenappOS } from '@/store/useMarcenappOS';
+import { useStudioStore, RenderCommand } from '@/store/useStudioStore';
+import { useMarcenappOS, OSCommand } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
- * Componente "Headless" que processa comandos do estúdio em segundo plano seguindo uma fila
+ * Componente "Headless" que processa comandos do estúdio em segundo plano seguindo uma fila.
+ * Fonte de verdade da fila: núcleo OS (useMarcenappOS). Os dados de render (prompt, imagens)
+ * vivem em useStudioStore, referenciados por payload.studioCommandId.
  */
 export const StudioWorker = () => {
   const { user } = useAuth();
   const commandHistory = useMarcenappOS(state => state.commandHistory);
+  const updateOSStatus = useMarcenappOS(state => state.updateCommandStatus);
   const commandQueue = useMemo(
     () => commandHistory.filter(cmd => cmd.target === 'studio'),
     [commandHistory]
@@ -35,34 +38,49 @@ export const StudioWorker = () => {
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
     if (!user) return;
-    try {
-      await supabase.from('gallery_images').insert({
-        user_id: user.id,
-        image_url: imageUrl,
-        prompt: promptText,
-      });
-    } catch (err) {
-      console.error("Erro ao salvar na galeria:", err);
-    }
+    const { error } = await supabase.from('gallery_images').insert({
+      user_id: user.id,
+      image_url: imageUrl,
+      prompt: promptText,
+    });
+    if (error) console.error("Erro ao salvar na galeria:", error.message);
   };
 
-  const processCommand = async (osCommand: any) => {
-    const command = osCommand.payload;
-    
+  /** Resolve os dados de render: comando do Estúdio (por studioCommandId) ou o próprio payload. */
+  const resolveRenderCommand = (osCommand: OSCommand): Partial<RenderCommand> & { studioId?: string } => {
+    const payload = osCommand.payload ?? {};
+    const studioId: string | undefined = payload.studioCommandId;
+    if (studioId) {
+      const studioCmd = useStudioStore.getState().commandQueue.find(c => c.id === studioId);
+      if (studioCmd) return { ...studioCmd, studioId };
+    }
+    return { ...payload, studioId };
+  };
+
+  const processCommand = async (osCommand: OSCommand) => {
     // Verifica se o comando foi cancelado antes de iniciar
     if (osCommand.status === 'cancelled') {
       currentlyProcessing.current = null;
       return;
     }
 
+    const command = resolveRenderCommand(osCommand);
+    const studioId = command.studioId ?? osCommand.id;
+
+    const fail = (message: string) => {
+      failCommand(studioId, message);
+      updateOSStatus(osCommand.id, 'failed', undefined, message);
+    };
+
     // Validação de Contrato/Schema
     if (!command.prompt || (!command.images?.length && command.metadata?.origin === 'iara')) {
-      failCommand(osCommand.id, "Comando inválido: Faltam parâmetros obrigatórios ou contexto visual.");
+      fail("Comando inválido: Faltam parâmetros obrigatórios ou contexto visual.");
       return;
     }
 
     currentlyProcessing.current = osCommand.id;
-    startProcessing(osCommand.id);
+    startProcessing(studioId);
+    updateOSStatus(osCommand.id, 'processing');
     
     try {
       const result = await studioService.generateVisual(
@@ -75,18 +93,20 @@ export const StudioWorker = () => {
       // Verifica se foi cancelado DURANTE o processamento
       const checkCancel = useMarcenappOS.getState().commandHistory.find(c => c.id === osCommand.id);
       if (checkCancel?.status === 'cancelled') {
+        useStudioStore.setState({ isRendering: false });
         return;
       }
 
       if (result) {
-        await completeCommand(osCommand.id, result);
+        completeCommand(studioId, result);
+        updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
         await saveToGallery(result, command.prompt);
       } else {
         throw new Error("O serviço de IA não retornou uma imagem válida.");
       }
     } catch (error: any) {
       console.error("StudioWorker Error:", error);
-      failCommand(osCommand.id, error?.message || "Erro desconhecido na geração.");
+      fail(error?.message || "Erro desconhecido na geração.");
     } finally {
       currentlyProcessing.current = null;
     }

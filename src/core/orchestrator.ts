@@ -3,9 +3,7 @@
 // Fallback: se orchestrator falhar tecnicamente, cai no interpretador antigo (iaraService).
 import { supabase } from '@/integrations/supabase/client';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+import { callAIFunction } from '@/services/ai';
 
 export interface ToolCall {
   tool: string;
@@ -31,16 +29,10 @@ export async function planWithLLM(
   userPrompt: string,
   context?: Record<string, any>,
 ): Promise<OrchestratorPlan> {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-    },
-    body: JSON.stringify({ userPrompt, context }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Orchestrator error ${res.status}`);
+  const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string }>(
+    'ai-orchestrator',
+    { userPrompt, context },
+  );
   return { plan: data.plan ?? [], summary: data.summary ?? '', model: data.model };
 }
 

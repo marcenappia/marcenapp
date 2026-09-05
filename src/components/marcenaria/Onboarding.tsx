@@ -103,16 +103,24 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const isUpdating = useRef(false);
 
+  // Valores primitivos do perfil — evita re-executar o efeito quando só a identidade do objeto muda
+  const userId = user?.id ?? null;
+  const profileStep = profile?.onboarding_step ?? null;
+  const profileReduceMotion = profile?.reduce_motion ?? null;
+  const profileCompletedKey = profile ? JSON.stringify(profile.onboarding_completed ?? []) : null;
+  const hasProfile = !!profile;
+
   // Sync state from profile or localStorage
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('marcenapp_onboarding_seen');
     
-    if (user && profile) {
-      setReduceMotion(profile.reduce_motion ?? false);
-      setCompletedSteps(profile.onboarding_completed ?? []);
-      setCurrentStep(profile.onboarding_step ?? 0);
+    if (userId && hasProfile) {
+      const completed: string[] = profileCompletedKey ? JSON.parse(profileCompletedKey) : [];
+      setReduceMotion(profileReduceMotion ?? false);
+      setCompletedSteps(completed);
+      setCurrentStep(profileStep ?? 0);
       
-      const allDone = profile.onboarding_completed?.length >= steps.length - 2; // Subtract welcome/checklist
+      const allDone = completed.length >= steps.length - 2; // Subtract welcome/checklist
       if (!allDone && hasSeenOnboarding !== 'true') {
         setIsOpen(true);
       }
@@ -128,7 +136,7 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
         if (savedStep) setCurrentStep(parseInt(savedStep));
       }
     }
-  }, [user, profile]);
+  }, [userId, hasProfile, profileStep, profileReduceMotion, profileCompletedKey]);
 
   const updateProfilePreferences = async (updates: any) => {
     if (!user || isUpdating.current) return;
@@ -181,7 +189,7 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
       if (user) {
         updateProfilePreferences({ onboarding_completed: newCompleted, onboarding_step: currentStep });
       }
-    } else if (user && profile?.onboarding_step !== currentStep) {
+    } else if (user && profileStep !== currentStep) {
       updateProfilePreferences({ onboarding_step: currentStep });
     }
 
@@ -200,7 +208,8 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
       clearTimeout(timeoutId);
       window.removeEventListener('resize', updateHighlight);
     };
-  }, [currentStep, isOpen, activeModule, onNavigate, updateHighlight, user, profile]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, isOpen, activeModule, onNavigate, updateHighlight, userId, profileStep]);
 
   const toggleReduceMotion = () => {
     const newVal = !reduceMotion;

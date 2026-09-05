@@ -44,7 +44,7 @@ describe('Menu Accessibility', () => {
 
   it('nav buttons should have focus indicators', () => {
     render(<BrowserRouter><Index /></BrowserRouter>);
-    const chatBtn = screen.getByLabelText(/IARA Chat/i);
+    const chatBtn = screen.getAllByLabelText(/Estúdio \+ IARA/i)[0];
     expect(chatBtn).toHaveClass('focus-visible:ring-2');
   });
 

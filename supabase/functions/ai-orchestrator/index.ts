@@ -3,12 +3,9 @@
 // Não executa nada. Apenas decide.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { buildCorsHeaders, guardRequest, readJsonBody } from "../_shared/guard.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2MB — o orquestrador recebe apenas texto/contexto
 
 const BodySchema = z.object({
   userPrompt: z.string().min(1).max(4000),
@@ -119,19 +116,36 @@ Regras:
 - Se a intenção for pura conversa/dúvida, responda em texto sem chamar ferramentas.`;
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Autenticação + rate limit por usuário (20 planos/min).
+  const guard = await guardRequest(req, corsHeaders, { fn: "ai-orchestrator", limit: 20, windowSeconds: 60 });
+  if (!guard.ok) return guard.response;
 
   try {
     const GEMINI_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     if (!GEMINI_KEY) {
-      return new Response(JSON.stringify({ error: "GOOGLE_GEMINI_API_KEY not configured" }), {
+      console.error("ai-orchestrator: GOOGLE_GEMINI_API_KEY não configurada");
+      return new Response(JSON.stringify({ error: "Serviço de IA não configurado." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const raw = await req.json();
-    const parsed = BodySchema.safeParse(raw);
+    const read = await readJsonBody(req, MAX_BODY_BYTES);
+    if (!read.ok) {
+      return new Response(
+        JSON.stringify({ error: read.reason === "too_large" ? "Corpo da requisição muito grande." : "JSON inválido." }),
+        { status: read.reason === "too_large" ? 413 : 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const parsed = BodySchema.safeParse(read.body);
     if (!parsed.success) {
       return new Response(
         JSON.stringify({ error: "Validation failed", fields: parsed.error.flatten().fieldErrors }),
@@ -162,13 +176,18 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      console.error("Gemini orchestrator error:", response.status, errText);
+      console.error("Gemini orchestrator error:", response.status, await response.text());
+      const limited = response.status === 429;
       return new Response(
-        JSON.stringify({ error: `Gemini error ${response.status}`, details: errText }),
+        JSON.stringify({
+          error: limited
+            ? "Limite do provedor de IA atingido. Tente novamente em alguns segundos."
+            : "O serviço de IA está indisponível no momento.",
+          code: limited ? "rate_limited" : "upstream_error",
+        }),
         {
-          status: response.status === 429 ? 429 : 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: limited ? 429 : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json", ...(limited ? { "Retry-After": "10" } : {}) },
         },
       );
     }
@@ -194,7 +213,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("ai-orchestrator error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: "Erro interno no orquestrador.", code: "internal_error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
