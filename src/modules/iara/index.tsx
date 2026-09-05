@@ -27,9 +27,11 @@ interface IaraModuleProps {
   syncDescription?: string;
   onDescriptionChange?: (text: string) => void;
   embedded?: boolean;
+  /** Projeto ativo — isola o histórico do chat por projeto */
+  projectId?: string | null;
 }
 
-const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescriptionChange, embedded }: IaraModuleProps = {}) => {
+const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescriptionChange, embedded, projectId = null }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [factors, setFactors] = useState({
     L: syncProject?.width ?? 2.4,
