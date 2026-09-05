@@ -208,7 +208,8 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
       clearTimeout(timeoutId);
       window.removeEventListener('resize', updateHighlight);
     };
-  }, [currentStep, isOpen, activeModule, onNavigate, updateHighlight, user, profile]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, isOpen, activeModule, onNavigate, updateHighlight, userId, profileStep]);
 
   const toggleReduceMotion = () => {
     const newVal = !reduceMotion;
