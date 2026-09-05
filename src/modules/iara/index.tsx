@@ -176,17 +176,26 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
         </div>
       </header>
 
-      <ChatMessages messages={messages} isTyping={isTyping} onImageZoom={setActiveImageZoom} messagesEndRef={messagesEndRef} />
+      <ChatMessages
+        messages={messages}
+        isTyping={isTyping}
+        onImageZoom={setActiveImageZoom}
+        messagesEndRef={messagesEndRef}
+        error={error}
+        onRetry={retryLast}
+        onDismissError={dismissError}
+        onSuggestion={(text) => { setChatInput(text); pushDescription(text, true); }}
+      />
       
       <ChatInput
         chatInput={chatInput}
         setChatInput={(v) => {
           setChatInput(v);
-          onDescriptionChange?.(typeof v === 'function' ? (v as any)(chatInput) : v);
+          pushDescription(typeof v === 'function' ? (v as any)(chatInput) : v);
         }}
         onSend={() => {
           const sent = chatInput.trim();
-          if (sent) onDescriptionChange?.(sent);
+          if (sent) pushDescription(sent, true);
           handleSend();
         }}
         onImageSelect={handleImageSelect}
