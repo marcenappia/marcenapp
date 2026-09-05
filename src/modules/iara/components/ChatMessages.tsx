@@ -115,6 +115,20 @@ export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef, 
           <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
             Descreva seu projeto no campo abaixo — dimensões, estilo, materiais. A descrição fica sincronizada com o Estúdio.
           </p>
+          {onSuggestion && (
+            <div className="flex flex-wrap justify-center gap-2 mt-4 max-w-sm">
+              {SUGGESTIONS.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => onSuggestion(s)}
+                  className="px-3 py-1.5 rounded-full border border-border bg-card text-[11px] text-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
