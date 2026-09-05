@@ -67,9 +67,10 @@ export const StudioHub = (props: StudioHubProps) => {
         descriptionSlot={
           <IaraModule
             embedded
+            projectId={projectId}
             syncProject={syncProject}
             onProjectChange={handleIaraProjectChange}
-            syncDescription={description}
+            syncDescription={debouncedDescription}
             onDescriptionChange={setDescription}
           />
         }
