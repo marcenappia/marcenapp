@@ -1,6 +1,7 @@
 import { render, act as renderAct } from '@testing-library/react';
 import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
 import { useStudioStore } from '@/store/useStudioStore';
+import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '@/modules/ambientes/services/studioService';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
