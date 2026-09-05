@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_rate_limits: {
+        Row: {
+          count: number
+          fn: string
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          fn: string
+          user_id: string
+          window_start: string
+        }
+        Update: {
+          count?: number
+          fn?: string
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           budget: string | null
@@ -323,6 +344,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_ai_rate_limit: {
+        Args: {
+          _fn: string
+          _limit: number
+          _user_id: string
+          _window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          retry_after_seconds: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
