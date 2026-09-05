@@ -189,7 +189,7 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
       if (user) {
         updateProfilePreferences({ onboarding_completed: newCompleted, onboarding_step: currentStep });
       }
-    } else if (user && profile?.onboarding_step !== currentStep) {
+    } else if (user && profileStep !== currentStep) {
       updateProfilePreferences({ onboarding_step: currentStep });
     }
 
