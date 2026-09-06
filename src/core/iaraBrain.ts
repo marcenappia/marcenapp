@@ -12,6 +12,7 @@ export interface IaraBrainContext {
   height?: number;
   depth?: number;
   hasImage?: boolean;
+  measurementEvidence?: 'confirmed' | 'estimated' | 'unknown';
 }
 
 export interface IaraBrainAssessment {
@@ -58,8 +59,6 @@ export function assessIaraRequest(prompt: string, context: IaraBrainContext = {}
     return { allow: true, critical: false, status: 'CONFIRMADO' };
   }
 
-  // Para decisões irreversíveis, todas as três dimensões principais precisam
-  // existir no contexto. A foto nunca substitui a medição conferida.
   if (irreversible) {
     const missing: string[] = [];
     if (!hasDimension(context.width)) missing.push('largura');
@@ -75,18 +74,16 @@ export function assessIaraRequest(prompt: string, context: IaraBrainContext = {}
         question: `Antes de continuar, preciso confirmar ${missing.join(', ')}. Qual é a medida conferida pelo marceneiro?`,
       };
     }
-  }
 
-  // Imagem é evidência visual, não medição. Se o pedido crítico depende dela,
-  // o cérebro mantém a classificação conservadora.
-  if (context.hasImage && irreversible) {
-    return {
-      allow: false,
-      critical: true,
-      status: 'PRECISA_CONFERIR',
-      reason: 'A foto ajuda na análise, mas não comprova medidas para uma ação irreversível.',
-      question: 'As medidas principais estão conferidas? Preciso delas antes de liberar corte, compra ou produção.',
-    };
+    if (context.measurementEvidence !== 'confirmed') {
+      return {
+        allow: false,
+        critical: true,
+        status: context.measurementEvidence === 'estimated' ? 'ESTIMADO' : 'PRECISA_CONFERIR',
+        reason: 'As medidas existem no projeto, mas a memória da IARA ainda não registra as três como conferidas.',
+        question: 'As medidas de largura, altura e profundidade estão conferidas? Se sim, confirme-as antes de liberar a etapa.',
+      };
+    }
   }
 
   return {
