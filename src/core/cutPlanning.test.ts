@@ -8,8 +8,8 @@ const part = (id: number, name: string, w: number, h: number, qtd: number, grain
 describe('cut planning', () => {
   it('separates materials and thicknesses into different sheets', () => {
     const sheets = planCutting([
-      part(1, 'Lateral', 600, 2400, 2, 'vertical'),
-      { ...part(2, 'Fundo', 600, 2400, 1, 'vertical'), thickness: 6 },
+      part(1, 'Lateral', 600, 1700, 2, 'vertical'),
+      { ...part(2, 'Fundo', 600, 1700, 1, 'vertical'), thickness: 6 },
     ]);
     expect(sheets).toHaveLength(2);
     expect(new Set(sheets.map(s => s.thickness))).toEqual(new Set([15, 6]));
