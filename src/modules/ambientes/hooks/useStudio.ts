@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { requireAuth, DecorOption } from '@/components/marcenaria/shared';
 import { useStudioStore, ImageData } from '@/store/useStudioStore';
-import { studioService } from '../services/studioService';
+import { studioService, StudioGenerationMode } from '../services/studioService';
 import { iaraService } from '@/modules/iara/services/iaraService';
 import { analyzeEnvironment, confirmEnvironmentWithIara } from '../services/environmentAnalysis';
 import { validateEnvironmentGeometry } from '../services/environmentGeometry';
@@ -12,9 +12,10 @@ import type { EnvironmentAnalysis } from '../types';
 
 interface StudioStyle { id: string; label: string; prompt: string; }
 const styles: StudioStyle[] = [
-  { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
+  { id: 'environment', label: 'Projeto no ambiente', prompt: 'clean contemporary custom cabinetry, architectural visualization, clear joinery composition' },
   { id: 'minimalist', label: 'Minimalista', prompt: 'minimalist interior design, soft lighting, clean lines' },
-  { id: 'industrial', label: 'Industrial', prompt: 'industrial chic, exposed brick, concrete, dramatic lighting' }
+  { id: 'industrial', label: 'Industrial', prompt: 'industrial chic, exposed brick, concrete, dramatic lighting' },
+  { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
 ];
 
 export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<any>>, navigateTo: (route: string) => void, gallery: string[], setGallery: React.Dispatch<React.SetStateAction<string[]>>, projectId?: string | null) => {
@@ -94,7 +95,7 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
   };
 
   const generate = async () => {
-    if (!prompt && !sketchImage && !envImage) { setError("Adicione um prompt, rascunho ou foto do ambiente."); return; }
+    if (!prompt && !sketchImage && !envImage) { setError("Adicione um pedido, rascunho ou foto do ambiente."); return; }
     if (envImage && !environmentAnalysis) { setError("Analise a foto do ambiente antes de criar o projeto."); return; }
     if (envImage && environmentAnalysis && !environmentAnalysis.confirmedByIara) { setError("Confira o mapa do ambiente com a IARA antes de criar o projeto."); return; }
     if (envImage && environmentAnalysis) {
@@ -113,13 +114,14 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
       if (sketchBase64 && sketchMime) imgs.push({ mimeType: sketchMime, data: sketchBase64 });
       if (envBase64 && envMime) imgs.push({ mimeType: envMime, data: envBase64 });
       const environmentContext = environmentAnalysis ? `\nMAPA TÉCNICO DO AMBIENTE (fonte de restrições; NÃO invente medidas):\n${JSON.stringify(environmentAnalysis)}\nREGRAS: respeite paredes, cantos, janelas, portas, tomadas, interruptores e obstáculos detectados. Use a geometria confirmada como referência principal. Nunca ocupe uma abertura ou ponto elétrico sem instrução explícita. Medidas estimadas não são medidas de fabricação; mantenha folgas e peça confirmação quando necessário.` : '';
-      const generationPrompt = `${prompt || 'Projetar aproveitando o ambiente fotografado.'}${environmentContext}`;
+      const generationPrompt = `${prompt || 'Projetar a marcenaria aproveitando o ambiente fotografado.'}${environmentContext}`;
+      const generationMode: StudioGenerationMode = envImage ? 'environment-project' : 'render';
       let newImage: string | null = null;
       if (isRefining && generatedImage) newImage = await studioService.refineVisual(generatedImage, generationPrompt);
-      else newImage = await studioService.generateVisual(generationPrompt, imgs, selectedStyle.prompt, selectedDecor.prompt);
+      else newImage = await studioService.generateVisual(generationPrompt, imgs, selectedStyle.prompt, selectedDecor.prompt, generationMode);
       if (newImage) {
         setGeneratedImage(newImage); setGallery((prev: string[]) => [newImage!, ...prev]); setShowModal(true); await saveToGallery(newImage, generationPrompt);
-        if (projectId) registrarEventoSistema(projectId, 'projeto-gerado-estudio', 'Projeto visual gerado no Estúdio com contexto técnico do ambiente e restrições confirmadas.', 'estudio');
+        if (projectId) registrarEventoSistema(projectId, 'projeto-gerado-estudio', envImage ? 'Projeto de marcenaria materializado no ambiente real a partir da foto e do mapa confirmado pela IARA.' : 'Projeto visual gerado no Estúdio.', 'estudio');
       } else throw new Error("Falha na geração. Tente novamente.");
     } catch (e: any) { setError(e?.message || "Erro de conexão."); }
     finally { setLoading(false); }
