@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import MarceneiroPublico from "./pages/MarceneiroPublico";
+import PerfilMarcenaria from "./modules/perfil/PerfilMarcenaria";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +22,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/marceneiro/:slug" element={<MarceneiroPublico />} />
+            <Route path="/perfil" element={<PerfilMarcenaria />} />
             <Route path="/" element={<Index />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
