@@ -5,17 +5,7 @@ import { ChatInput } from './components/ChatInput';
 import { IaraReadinessPanel } from './components/IaraReadinessPanel';
 import AuthDialog from '../../components/marcenaria/AuthDialog';
 import { useIaraChat } from './hooks/useIaraChat';
-
-const LogoHex = ({ size = 40, className = "" }: { size?: number; className?: string }) => (
-  <div className={`relative flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
-    <svg viewBox="0 0 100 100" className="w-full h-full relative z-10 drop-shadow-[0_0_10px_rgba(14,165,233,0.5)]">
-      <defs><linearGradient id="chatLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="hsl(var(--primary))" /><stop offset="100%" stopColor="hsl(234, 88%, 48%)" /></linearGradient></defs>
-      <path d="M50 5 L90 27.5 L90 72.5 L50 95 L10 72.5 L10 27.5 Z" fill="hsl(var(--sidebar-bg))" stroke="url(#chatLogoGrad)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="50" y="66" textAnchor="middle" fontSize="46" fontWeight="900" fill="white" style={{ fontFamily: 'system-ui', fontStyle: 'italic', letterSpacing: '-2px' }}>M</text>
-      <circle cx="50" cy="34" r="6" fill="hsl(var(--primary))" />
-    </svg>
-  </div>
-);
+import logo from '@/assets/marcenapp-logo.svg';
 
 interface IaraModuleProps {
   syncProject?: { width?: number; height?: number; depth?: number } | null;
@@ -95,9 +85,9 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     <div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
       <header className="px-4 py-3 bg-card border-b border-border flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <LogoHex size={36} />
+          <img src={logo} alt="MARCENAPP" className="h-9 w-9 rounded-xl shadow-sm" />
           <div>
-            <h2 className="text-sm font-black text-foreground leading-none uppercase italic tracking-tight">IARA — Assistente técnica</h2>
+            <h2 className="text-sm font-black text-foreground leading-none uppercase tracking-tight">IARA — Assistente técnica</h2>
             <div className="flex items-center gap-2 mt-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /><span className="text-[9px] text-green-600 uppercase font-bold tracking-widest">Online</span><span className={`text-[9px] font-bold ${memoryClass}`}>{memoryLabel}</span>{memoryConflictCount > 0 && <span className="text-[9px] font-bold text-red-600">• {memoryConflictCount} conflito(s)</span>}</div>
           </div>
         </div>
