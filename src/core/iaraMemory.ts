@@ -133,6 +133,23 @@ export function getConfirmedMeasurements(memory: IaraMemory) {
   };
 }
 
+export function resolveIaraConflict(memory: IaraMemory, conflictId: string, choice: 'confirmed' | 'new', now = new Date().toISOString()): IaraMemory {
+  const conflict = memory.conflicts.find(item => item.id === conflictId && !item.resolved);
+  if (!conflict) return memory;
+  const selectedValue = choice === 'confirmed' ? conflict.confirmedValue : conflict.newValue;
+  const fact = memory.facts.find(item => item.key === conflict.key);
+  const nextFacts = fact
+    ? [{ ...fact, value: selectedValue, status: 'CONFIRMADO' as const, source: 'usuario' as const, updatedAt: now, confirmedAt: now }, ...memory.facts.filter(item => item.key !== conflict.key)].slice(0, 100)
+    : memory.facts;
+  return {
+    ...memory,
+    updatedAt: now,
+    facts: nextFacts,
+    conflicts: memory.conflicts.map(item => item.id === conflictId ? { ...item, resolved: true } : item),
+    lastEvent: { type: 'conflito-resolvido', text: `${conflict.label} confirmado pelo usuário.`, at: now },
+  };
+}
+
 export function rememberEvent(memory: IaraMemory, type: string, text: string, now = new Date().toISOString()): IaraMemory {
   return { ...memory, updatedAt: now, lastEvent: { type, text, at: now } };
 }
