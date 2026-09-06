@@ -11,13 +11,14 @@ export interface PricingProject {
   handleType: string;
   laborRate: number;
   profitMargin: number;
+  discountPercent?: number;
 }
 
 export interface CutPart { name: string; w: number; h: number; qtd: number; mat: 'white' | 'wood'; thickness: number; }
 export interface PriceList { sheet: number; sheetArea: number; edgePerMeter: number; slide: number; hinge: number; externalHandle: number; backSheet: number; installationRate: number; wasteRate: number; overheadRate: number; }
 export type PriceCatalog = Record<string, PriceList>;
 export interface CutSavings { internal: number; external: number; back: number; total: number; }
-export interface BudgetResult { parts: CutPart[]; internalSheets: number; externalSheets: number; backSheets: number; materialCost: number; edgeCost: number; hardwareCost: number; laborCost: number; installationCost: number; overheadCost: number; profit: number; subtotal: number; total: number; wasteRate: number; sheetSavings: number; }
+export interface BudgetResult { parts: CutPart[]; internalSheets: number; externalSheets: number; backSheets: number; materialCost: number; edgeCost: number; hardwareCost: number; laborCost: number; installationCost: number; overheadCost: number; profit: number; subtotal: number; grossTotal: number; discount: number; total: number; wasteRate: number; sheetSavings: number; }
 
 const SHEET_AREA = 2.73 * 1.83;
 export const DEFAULT_PRICES: PriceCatalog = {
@@ -79,5 +80,9 @@ export function calculateBudget(project: PricingProject, catalog: PriceCatalog =
   const overheadCost = baseCost * safePrice(externalPrices.overheadRate, 0.05);
   const subtotal = baseCost + laborCost + installationCost + overheadCost;
   const profit = subtotal * Math.max(0, safePrice(project.profitMargin)) / 100;
-  return { parts, internalSheets, externalSheets, backSheets, materialCost, edgeCost, hardwareCost, laborCost, installationCost, overheadCost, profit, subtotal, total: subtotal + profit, wasteRate, sheetSavings: appliedSavings };
+  const grossTotal = subtotal + profit;
+  const discountPercent = Math.min(100, safePrice(project.discountPercent));
+  const discount = grossTotal * discountPercent / 100;
+  const total = Math.max(0, grossTotal - discount);
+  return { parts, internalSheets, externalSheets, backSheets, materialCost, edgeCost, hardwareCost, laborCost, installationCost, overheadCost, profit, subtotal, grossTotal, discount, total, wasteRate, sheetSavings: appliedSavings };
 }
