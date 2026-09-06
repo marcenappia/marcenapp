@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Palette, Printer, Calculator, Sliders } from 'lucide-react';
+import { Package, Palette, Printer, Calculator, Sliders, Ruler, Factory } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
 import { useOrcamento } from './hooks/useOrcamento';
 
@@ -9,18 +9,20 @@ interface Props {
   setParts?: (parts: any[]) => void;
 }
 
-const OrcamentoModule = ({ project, setProject }: Props) => {
+const OrcamentoModule = ({ project, setProject, setParts }: Props) => {
   const [showModal, setShowModal] = useState(false);
   const { calc, formatBRL } = useOrcamento(project);
+
+  const sendToProduction = () => {
+    setParts?.(calc.parts.map((part, index) => ({ ...part, id: Date.now() + index })));
+  };
 
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in pb-20 md:pb-0">
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-              <Package size={20} className="text-indigo-500" /> Estela — Inteligência Financeira
-            </h3>
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Package size={20} className="text-indigo-500" /> Estela — Orçamento da Marcenaria</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <InputGroup label="Largura (m)" value={project.width} onChange={v => setProject({ ...project, width: Number(v) })} suffix="m" />
               <InputGroup label="Altura (m)" value={project.height} onChange={v => setProject({ ...project, height: Number(v) })} suffix="m" />
@@ -33,59 +35,53 @@ const OrcamentoModule = ({ project, setProject }: Props) => {
           </Card>
 
           <Card className="p-6">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-              <Palette size={20} className="text-pink-500" /> Acabamentos
-            </h3>
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Palette size={20} className="text-pink-500" /> Acabamentos</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <SelectGroup
-                label="Material Externo"
-                value={project.externalMaterial}
-                onChange={v => setProject({ ...project, externalMaterial: v })}
-                options={[{ value: 'mdf18_white', label: 'MDF Branco 18mm' }, { value: 'mdf18_wood', label: 'MDF Madeirado 18mm' }]}
-              />
-              <SelectGroup
-                label="Puxadores"
-                value={project.handleType}
-                onChange={v => setProject({ ...project, handleType: v })}
-                options={[{ value: 'external', label: 'Externo' }, { value: 'cava', label: 'Cava / Fecho Toque' }]}
-              />
+              <SelectGroup label="Material Externo" value={project.externalMaterial} onChange={v => setProject({ ...project, externalMaterial: v })} options={[{ value: 'mdf18_white', label: 'MDF Branco 18mm' }, { value: 'mdf18_wood', label: 'MDF Madeirado 18mm' }]} />
+              <SelectGroup label="Puxadores" value={project.handleType} onChange={v => setProject({ ...project, handleType: v })} options={[{ value: 'external', label: 'Externo' }, { value: 'cava', label: 'Cava / Fecho Toque' }]} />
             </div>
           </Card>
 
           <Card className="p-6">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-              <Sliders size={20} className="text-emerald-500" /> Margens
-            </h3>
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Sliders size={20} className="text-emerald-500" /> Custos e margem</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputGroup label="Mão de Obra (%)" value={project.laborRate} onChange={v => setProject({ ...project, laborRate: Number(v) })} suffix="%" />
               <InputGroup label="Margem de Lucro (%)" value={project.profitMargin} onChange={v => setProject({ ...project, profitMargin: Number(v) })} suffix="%" />
             </div>
           </Card>
+
+          <Card className="p-6">
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Ruler size={20} className="text-blue-500" /> O que será produzido</h3>
+            <div className="space-y-2">
+              {calc.parts.map((part, index) => (
+                <div key={`${part.name}-${index}`} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm">
+                  <div><strong className="text-slate-700">{part.name}</strong><div className="text-xs text-slate-500">{part.w} × {part.h} mm • {part.thickness} mm • {part.mat === 'wood' ? 'Madeirado' : 'Branco'}</div></div>
+                  <span className="rounded-md bg-white px-2 py-1 font-bold text-slate-700 border">{part.qtd} un.</span>
+                </div>
+              ))}
+            </div>
+          </Card>
         </div>
 
         <div className="lg:col-span-1">
-          <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-700 sticky top-20" style={{backgroundColor: '#0f172a', color: '#f8fafc'}}>
+          <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-700 sticky top-20" style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>
             <div className="p-6">
-              <span style={{color: '#a5b4fc', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em'}}>Valor Final</span>
-              <div style={{fontSize: '2.2rem', fontWeight: 700, marginBottom: '1rem', marginTop: '0.5rem', color: '#fff'}}>{formatBRL(calc.total)}</div>
-              <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#cbd5e1'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #334155', paddingBottom: '0.5rem'}}>
-                  <span>Materiais</span><span style={{color: '#fff', fontWeight: 600}}>{formatBRL(calc.mat)}</span>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #334155', paddingBottom: '0.5rem'}}>
-                  <span>Mão de Obra</span><span style={{color: '#fff', fontWeight: 600}}>{formatBRL(calc.labor)}</span>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem'}}>
-                  <span style={{color: '#34d399'}}>Lucro</span><span style={{color: '#34d399', fontWeight: 700}}>{formatBRL(calc.profit)}</span>
-                </div>
-                <div style={{paddingTop: '0.75rem', borderTop: '1px solid #334155', fontSize: '0.75rem', color: '#64748b'}}>
-                  <p>Chapas internas: {calc.sheetsInt} un.</p>
-                  <p>Chapas externas: {calc.sheetsExt} un.</p>
-                </div>
+              <span style={{ color: '#a5b4fc', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Preço de venda</span>
+              <div style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '1rem', marginTop: '0.5rem', color: '#fff' }}>{formatBRL(calc.total)}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#cbd5e1' }}>
+                <div className="flex justify-between border-b border-slate-700 pb-2"><span>Chapas e materiais</span><span className="font-semibold text-white">{formatBRL(calc.materialCost)}</span></div>
+                <div className="flex justify-between border-b border-slate-700 pb-2"><span>Fita de borda</span><span className="font-semibold text-white">{formatBRL(calc.edgeCost)}</span></div>
+                <div className="flex justify-between border-b border-slate-700 pb-2"><span>Ferragens</span><span className="font-semibold text-white">{formatBRL(calc.hardwareCost)}</span></div>
+                <div className="flex justify-between border-b border-slate-700 pb-2"><span>Mão de obra</span><span className="font-semibold text-white">{formatBRL(calc.laborCost)}</span></div>
+                <div className="flex justify-between border-b border-slate-700 pb-2"><span>Instalação</span><span className="font-semibold text-white">{formatBRL(calc.installationCost)}</span></div>
+                <div className="flex justify-between border-b border-slate-700 pb-2"><span>Custos indiretos</span><span className="font-semibold text-white">{formatBRL(calc.overheadCost)}</span></div>
+                <div className="flex justify-between pt-1"><span className="text-emerald-300">Lucro</span><span className="font-bold text-emerald-300">{formatBRL(calc.profit)}</span></div>
+                <div className="pt-2 text-xs text-slate-400"><p>Chapas internas: {calc.internalSheets} un.</p><p>Chapas externas: {calc.externalSheets} un.</p><p>Fundos: {calc.backSheets} un.</p><p>Margem de perda considerada: {(calc.wasteRate * 100).toFixed(0)}%</p></div>
               </div>
-              <button onClick={() => setShowModal(true)} style={{width:'100%', marginTop:'1.5rem', padding:'0.6rem', background:'#4f46e5', color:'#fff', borderRadius:'0.75rem', fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'0.5rem', border:'none'}}>
-                <Printer size={16}/> Gerar Resumo
-              </button>
+              <div className="mt-6 grid grid-cols-1 gap-2">
+                <button onClick={sendToProduction} className="w-full rounded-xl border border-indigo-400/40 bg-indigo-500/20 px-3 py-2.5 font-semibold text-indigo-100 flex items-center justify-center gap-2"><Factory size={16} /> Gerar produção</button>
+                <button onClick={() => setShowModal(true)} className="w-full rounded-xl bg-indigo-600 px-3 py-2.5 font-semibold text-white flex items-center justify-center gap-2"><Printer size={16} /> Ver resumo</button>
+              </div>
             </div>
           </div>
         </div>
@@ -93,27 +89,9 @@ const OrcamentoModule = ({ project, setProject }: Props) => {
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Resumo do Orçamento" maxWidth="max-w-md">
         <div className="bg-white p-6 rounded text-slate-800 space-y-4">
-          <div className="text-center border-b pb-4">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <Calculator size={20} className="text-indigo-600" />
-              <h2 className="text-xl font-bold">Orçamento</h2>
-            </div>
-            <p className="text-slate-400 text-sm">#Ref-{Date.now().toString().slice(-4)}</p>
-          </div>
-          <div className="space-y-2 text-sm">
-            <p><strong>Dimensões:</strong> {project.width}x{project.height}x{project.depth}m</p>
-            <p><strong>Estrutura:</strong> {project.doors} Portas, {project.drawers} Gavetas</p>
-            <p><strong>Material externo:</strong> {project.externalMaterial === 'mdf18_white' ? 'MDF Branco' : 'MDF Madeirado'}</p>
-            <div className="border-t border-dashed pt-3 mt-3 space-y-1">
-              <p className="flex justify-between"><span>Materiais:</span><span>{formatBRL(calc.mat)}</span></p>
-              <p className="flex justify-between"><span>Mão de Obra:</span><span>{formatBRL(calc.labor)}</span></p>
-              <p className="flex justify-between text-emerald-600"><span>Lucro:</span><span>{formatBRL(calc.profit)}</span></p>
-              <p className="flex justify-between text-lg font-bold mt-2 border-t pt-2"><span>Total:</span><span>{formatBRL(calc.total)}</span></p>
-            </div>
-          </div>
-          <button onClick={() => window.print()} className="w-full mt-2 py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
-            <Printer size={16} /> Imprimir
-          </button>
+          <div className="text-center border-b pb-4"><div className="flex items-center justify-center gap-2 mb-1"><Calculator size={20} className="text-indigo-600" /><h2 className="text-xl font-bold">Orçamento</h2></div><p className="text-slate-400 text-sm">Projeto de marcenaria</p></div>
+          <div className="space-y-2 text-sm"><p><strong>Dimensões:</strong> {project.width} × {project.height} × {project.depth} m</p><p><strong>Estrutura:</strong> {project.doors} portas, {project.drawers} gavetas</p><div className="border-t border-dashed pt-3 mt-3 space-y-1"><p className="flex justify-between"><span>Materiais</span><span>{formatBRL(calc.materialCost)}</span></p><p className="flex justify-between"><span>Fita de borda</span><span>{formatBRL(calc.edgeCost)}</span></p><p className="flex justify-between"><span>Ferragens</span><span>{formatBRL(calc.hardwareCost)}</span></p><p className="flex justify-between"><span>Mão de obra</span><span>{formatBRL(calc.laborCost)}</span></p><p className="flex justify-between"><span>Instalação</span><span>{formatBRL(calc.installationCost)}</span></p><p className="flex justify-between text-emerald-600"><span>Lucro</span><span>{formatBRL(calc.profit)}</span></p><p className="flex justify-between text-lg font-bold mt-2 border-t pt-2"><span>Total</span><span>{formatBRL(calc.total)}</span></p></div></div>
+          <button onClick={() => window.print()} className="w-full mt-2 py-2.5 bg-indigo-600 text-white rounded-xl font-medium flex items-center justify-center gap-2"><Printer size={16} /> Imprimir</button>
         </div>
       </Modal>
     </>
