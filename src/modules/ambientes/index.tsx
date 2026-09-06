@@ -21,7 +21,7 @@ export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, desc
     selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction,
     generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime,
     environmentAnalysis, analyzingEnvironment, confirmingEnvironment, environmentError,
-    analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis,
+    analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis, updateEnvironmentAnalysis,
   } = useStudio(setBudgetProject, navigateTo, gallery, setGallery);
 
   const processFile = (file: File, type: 'sketch' | 'env') => {
@@ -60,7 +60,7 @@ export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, desc
             </Card>
           </div>
 
-          {envImage && <EnvironmentAnalysisPanel analysis={environmentAnalysis} analyzing={analyzingEnvironment} confirming={confirmingEnvironment} onAnalyze={analyzeEnvironmentImage} onConfirm={confirmEnvironment} />}
+          {envImage && <EnvironmentAnalysisPanel analysis={environmentAnalysis} analyzing={analyzingEnvironment} confirming={confirmingEnvironment} onAnalyze={analyzeEnvironmentImage} onConfirm={confirmEnvironment} onChange={updateEnvironmentAnalysis} />}
           {environmentError && <p className="text-xs text-red-600 bg-red-50 border border-red-100 p-2 rounded-lg">{environmentError}</p>}
 
           {descriptionSlot ? <div className="h-[520px] lg:h-[600px]">{descriptionSlot}</div> : <Card className="p-4 bg-slate-800 border-slate-700 text-white">
@@ -79,19 +79,19 @@ export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, desc
         </div>
 
         <div className="lg:col-span-8"><div className="bg-slate-900 rounded-xl border border-slate-800 h-[400px] lg:h-[600px] flex items-center justify-center overflow-hidden relative group">
-          {generatedImage ? <><img src={generatedImage} className="w-full h-full object-contain cursor-zoom-in" onClick={() => setShowModal(true)} alt="Generated" /><div className="absolute bottom-4 right-4 flex gap-2"><Button onClick={() => setShowModal(true)} variant="primary" className="text-xs font-bold shadow-xl" icon={Maximize2}>Expandir</Button></div></> : <div className="text-center px-6"><Wand2 className="text-slate-600 mx-auto mb-3" size={40} /><span className="text-slate-500 text-sm">A visualização aparecerá aqui</span></div>}
+          {generatedImage ? <><img src={generatedImage} className="w-full h-full object-contain cursor-zoom-in" onClick={() => setShowModal(true)} alt="Generated" /><div className="absolute bottom-4 right-4 flex gap-2"><Button onClick={() => setShowModal(true)} variant="primary" className="text-xs font-bold shadow-xl" icon={Maximize2}>Expandir</Button></div></> : <div className="text-center px-6"><Wand2 className="text-slate-600 mx-auto mb-3" size={40}/><span className="text-slate-500 text-sm">A visualização aparecerá aqui</span></div>}
         </div></div>
       </div>
 
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={<span className="flex items-center gap-2"><Sparkles className="text-indigo-400" size={18} /> Resultado</span>} footer={<div className="flex w-full flex-wrap gap-2 justify-end">
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={<span className="flex items-center gap-2"><Sparkles className="text-indigo-400" size={18}/> Resultado</span>} footer={<div className="flex w-full flex-wrap gap-2 justify-end">
         <Button onClick={() => { if (!generatedImage) return; setSketchImage(generatedImage); setSketchBase64(generatedImage.split(',')[1]); setSketchMime('image/png'); setIsRefining(true); setPrompt(""); setShowModal(false); }} variant="magic" icon={RefreshCcw}>Refinar Imagem</Button>
         <Button onClick={handleDownload} variant="secondary" icon={Download}>Baixar</Button>
-        <Button onClick={analyzeForBudget} variant="primary" className="bg-emerald-600 hover:bg-emerald-700" icon={DollarSign}>{analyzing ? <Loader2 className="animate-spin" size={18} /> : "Orçamento"}</Button>
+        <Button onClick={analyzeForBudget} variant="primary" className="bg-emerald-600 hover:bg-emerald-700" icon={DollarSign}>{analyzing ? <Loader2 className="animate-spin" size={18}/> : "Orçamento"}</Button>
       </div>}>
-        <div className="flex items-center justify-center h-full min-h-[50vh]"><img src={generatedImage || ''} className="max-w-full max-h-[70vh] rounded shadow-2xl" alt="Preview" /></div>
+        <div className="flex items-center justify-center h-full min-h-[50vh]"><img src={generatedImage || ''} className="max-w-full max-h-[70vh] rounded shadow-2xl" alt="Preview"/></div>
       </Modal>
 
-      <AuthDialog isOpen={showAuthDialog} onClose={() => { setShowAuthDialog(false); setPendingAction(null); }} onSuccess={() => { if (pendingAction) pendingAction(); setPendingAction(null); }} />
+      <AuthDialog isOpen={showAuthDialog} onClose={() => { setShowAuthDialog(false); setPendingAction(null); }} onSuccess={() => { if (pendingAction) pendingAction(); setPendingAction(null); }}/>
     </>
   );
 };
