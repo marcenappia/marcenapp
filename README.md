@@ -1,6 +1,6 @@
 # marcena 
 
-queero que faca extament como esta faca alguns reefinos ja coloca o api e faz tudo funcionar lembra que um app profissional AIzaSyDXpH9QbeiMYTfU3CZIeoAr3nQE3REz-s4
+Aplicativo profissional para gestão de marcenarias com recursos de IA.
 
 This project was built with [Lovable](https://lovable.dev).
 
