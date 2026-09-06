@@ -18,9 +18,9 @@ export const NovoProjeto = ({ projectId, setBudgetProject, navigateTo }: Props) 
   const renderEtapa = () => {
     switch (j.etapa) {
       case 1:
-        return <EtapaNome nome={j.nome} setNome={j.setNome} clienteNome={j.clienteNome} setClienteNome={j.setClienteNome} onNext={j.salvarNome} loading={j.loading === 'salvando'} />;
+        return <EtapaNome nome={j.nome} setNome={j.setNome} clienteNome={j.clienteNome} setClienteNome={j.setClienteNome} onNext={j.salvarNome} loading={j.loading === 'salvando'} precisaLogin={!j.logado} />;
       case 2:
-        return <EtapaFoto foto={j.foto?.dataUrl ?? null} onFile={j.escolherFoto} onClear={j.limparFoto} onNext={j.confirmarFoto} />;
+        return <EtapaFoto foto={j.foto?.dataUrl ?? null} onFile={j.escolherFoto} onClear={j.limparFoto} onNext={j.confirmarFoto} loading={j.loading === 'salvando'} />;
       case 3:
         return <EtapaPedido pedido={j.pedido} setPedido={j.setPedido} onNext={j.analisar} loading={j.loading === 'analisando'} />;
       case 4:
@@ -29,7 +29,7 @@ export const NovoProjeto = ({ projectId, setBudgetProject, navigateTo }: Props) 
         ) : null;
       case 5:
       case 6:
-        return <EtapaApresentacao imagem={j.imagem} ajuste={j.ajuste} setAjuste={j.setAjuste} onAjustar={j.ajustarApresentacao} onAprovar={j.registrarAprovacao} loading={j.loading === 'ajustando'} nome={j.nome} />;
+        return <EtapaApresentacao imagem={j.imagem} ajuste={j.ajuste} setAjuste={j.setAjuste} onAjustar={j.ajustarApresentacao} onAprovar={j.registrarAprovacao} loading={j.loading === 'ajustando'} aprovando={j.loading === 'salvando'} nome={j.nome} />;
       default:
         return <EtapaOrcamento onOrcamento={() => navigateTo('orcamento')} onInicio={() => navigateTo('dashboard')} />;
     }
@@ -57,7 +57,12 @@ export const NovoProjeto = ({ projectId, setBudgetProject, navigateTo }: Props) 
             <button type="button" onClick={j.limparErro} aria-label="Fechar aviso" className="text-red-400 hover:text-red-600"><X size={18} /></button>
           </div>
         )}
-        {renderEtapa()}
+        {j.retomando ? (
+          <div className="space-y-3" role="status" aria-live="polite">
+            <p className="text-slate-500 font-semibold">Buscando sua obra…</p>
+            <div className="h-24 rounded-2xl bg-slate-100 animate-pulse" />
+          </div>
+        ) : renderEtapa()}
       </div>
 
       <AuthDialog isOpen={j.showAuth} onClose={() => j.setShowAuth(false)} onSuccess={j.onAuthSuccess} />
