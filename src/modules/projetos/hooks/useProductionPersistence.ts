@@ -4,8 +4,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { CutPlanningPart } from '@/core/cutPlanning';
 import type { Json } from '@/integrations/supabase/types';
 
+type ProductionSnapshot = {
+  updatedAt: string;
+  parts: CutPlanningPart[];
+  status?: 'liberada' | 'em_producao' | 'concluida';
+  source?: string;
+  approvedTotal?: number;
+  approvedAt?: string;
+  generatedAt?: string;
+};
+
 type ProductionJourney = {
-  production?: { updatedAt: string; parts: CutPlanningPart[] };
+  production?: ProductionSnapshot;
   [key: string]: unknown;
 };
 
@@ -64,9 +74,15 @@ export const useProductionPersistence = (
       if (!data) return;
 
       const jornada = (data.jornada ?? {}) as ProductionJourney;
+      const previous = jornada.production;
+      const nextProduction: ProductionSnapshot = {
+        ...previous,
+        updatedAt: new Date().toISOString(),
+        parts,
+      };
       const nextJornada: ProductionJourney = {
         ...jornada,
-        production: { updatedAt: new Date().toISOString(), parts },
+        production: nextProduction,
       };
       await supabase
         .from('projects')
