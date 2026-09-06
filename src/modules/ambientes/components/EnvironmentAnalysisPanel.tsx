@@ -1,7 +1,8 @@
-import { CheckCircle2, CircleAlert, Ruler, ScanSearch, ShieldCheck, TriangleAlert, Pencil, RotateCcw } from 'lucide-react';
+import { CircleAlert, Ruler, ScanSearch, ShieldCheck, TriangleAlert, Pencil, RotateCcw } from 'lucide-react';
 import { Button, Card } from '@/components/marcenaria/shared';
 import type { EnvironmentAnalysis, EnvironmentElement, EnvironmentElementType, MeasurementStatus } from '../types';
 import { EnvironmentMapView } from './EnvironmentMapView';
+import { EnvironmentGeometryPanel } from './EnvironmentGeometryPanel';
 
 const statusLabel: Record<MeasurementStatus, string> = { confirmed: 'confirmada', estimated: 'estimada', unknown: 'não medida' };
 const statusClass: Record<MeasurementStatus, string> = {
@@ -25,6 +26,7 @@ export function EnvironmentAnalysisPanel({ analysis, analyzing, confirming, onAn
   return <Card className="p-4 border-slate-200 bg-white shadow-sm">
     <div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Ruler size={18} className="text-indigo-600"/><h3 className="font-bold text-slate-900">Mapa técnico do ambiente</h3></div><p className="text-xs text-slate-500 mt-1">{analysis.roomType} · {analysis.perspective.description}</p></div>{confirmed ? <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700"><ShieldCheck size={15}/> Conferido pela IARA</span> : <span className="inline-flex items-center gap-1 text-[11px] text-amber-700"><Pencil size={13}/> Revisão necessária</span>}</div>
     <EnvironmentMapView analysis={analysis}/>
+    <EnvironmentGeometryPanel analysis={analysis} onChange={onChange}/>
     <div className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3"><div className="flex items-center gap-2"><Ruler size={15} className="text-indigo-600"/><strong className="text-xs text-slate-800">Conferência técnica</strong></div><p className="text-[11px] text-slate-600 mt-1">Corrija medida, posição ou tipo quando necessário. Qualquer alteração reabre a conferência da IARA.</p></div>
     <div className="space-y-2 mt-3">{analysis.elements.map(item => <div key={item.id} className="rounded-lg border border-slate-200 p-3"><div className="grid grid-cols-2 gap-2">
       <label className="text-[10px] text-slate-500">Elemento<select value={item.type} onChange={e => onChange(updateElement(analysis, item.id, { type: e.target.value as EnvironmentElementType }))} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800">{typeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
