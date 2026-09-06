@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Package, Palette, Printer, Calculator, Sliders, Ruler, Factory, Settings2, RotateCcw } from 'lucide-react';
+import { Package, Palette, Printer, Calculator, Sliders, Ruler, Factory, Settings2, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
 import { useOrcamento } from './hooks/useOrcamento';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Props { project: any; setProject: (p: any) => void; setParts?: (parts: any[]) => void; navigateTo?: (id: string) => void; }
 
@@ -16,10 +18,40 @@ const BACK_MATERIALS = [{ value: 'mdf6_white', label: 'MDF Branco 6mm' }];
 const OrcamentoModule = ({ project, setProject, setParts, navigateTo }: Props) => {
   const [showModal, setShowModal] = useState(false);
   const [showPrices, setShowPrices] = useState(false);
+  const [aprovado, setAprovado] = useState(project?.jornada?.statusAprovacao === 'aprovado' || project?.jornada?.orcamentoAprovado === true);
+  const [aprovando, setAprovando] = useState(false);
+  const { user } = useAuth();
   const { calc, prices, updatePrice, resetPrices, formatBRL } = useOrcamento(project);
   const externalPrices = prices[project.externalMaterial] ?? prices.mdf18_white;
 
+  const aprovarOrcamento = async () => {
+    if (!project?.id || !user || calc.total <= 0) return;
+    setAprovando(true);
+    try {
+      const { data } = await supabase.from('projects').select('jornada').eq('id', project.id).eq('user_id', user.id).maybeSingle();
+      if (!data) throw new Error('Obra não encontrada.');
+      const jornada = (data.jornada ?? {}) as Record<string, unknown>;
+      const nextJornada = {
+        ...jornada,
+        etapa: 8,
+        statusAprovacao: 'aprovado',
+        orcamentoAprovado: true,
+        valorAprovado: calc.total,
+        orcamentoAprovadoEm: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('projects').update({ jornada: nextJornada as any }).eq('id', project.id).eq('user_id', user.id);
+      if (error) throw error;
+      setProject({ ...project, jornada: nextJornada });
+      setAprovado(true);
+    } catch (e: any) {
+      window.alert(e?.message || 'Não foi possível registrar a aprovação do orçamento.');
+    } finally {
+      setAprovando(false);
+    }
+  };
+
   const sendToProduction = () => {
+    if (!aprovado) return;
     setParts?.(calc.parts.map((part, index) => ({ ...part, id: Date.now() + index })));
     navigateTo?.('corte');
   };
@@ -43,7 +75,7 @@ const OrcamentoModule = ({ project, setProject, setParts, navigateTo }: Props) =
           <Card className="p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Ruler size={20} className="text-blue-500" /> O que será produzido</h3><div className="space-y-2">{calc.parts.map((part, index) => <div key={`${part.name}-${index}`} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm"><div><strong className="text-slate-700">{part.name}</strong><div className="text-xs text-slate-500">{part.w} × {part.h} mm • {part.thickness} mm • {part.mat === 'wood' ? 'Madeirado' : 'Branco'}</div></div><span className="rounded-md bg-white px-2 py-1 font-bold text-slate-700 border">{part.qtd} un.</span></div>)}</div></Card>
         </div>
 
-        <div className="lg:col-span-1"><div className="rounded-2xl overflow-hidden shadow-sm border border-slate-700 sticky top-20" style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}><div className="p-6"><span style={{ color: '#a5b4fc', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Preço de venda</span><div style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '0.25rem', marginTop: '0.5rem', color: '#fff' }}>{formatBRL(calc.total)}</div>{calc.discount > 0 && <div className="text-xs text-slate-400 mb-4">De {formatBRL(calc.grossTotal)} • desconto de {formatBRL(calc.discount)}</div>}<div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#cbd5e1' }}><div className="flex justify-between border-b border-slate-700 pb-2"><span>Chapas e materiais</span><span className="font-semibold text-white">{formatBRL(calc.materialCost)}</span></div>{calc.sheetSavings > 0 && <div className="flex justify-between border-b border-slate-700 pb-2"><span className="text-emerald-300">Economia de sobras</span><span className="font-semibold text-emerald-300">− {formatBRL(calc.sheetSavings)}</span></div>}<div className="flex justify-between border-b border-slate-700 pb-2"><span>Fita de borda</span><span className="font-semibold text-white">{formatBRL(calc.edgeCost)}</span></div><div className="flex justify-between border-b border-slate-700 pb-2"><span>Ferragens</span><span className="font-semibold text-white">{formatBRL(calc.hardwareCost)}</span></div><div className="flex justify-between border-b border-slate-700 pb-2"><span>Mão de obra</span><span className="font-semibold text-white">{formatBRL(calc.laborCost)}</span></div><div className="flex justify-between border-b border-slate-700 pb-2"><span>Instalação</span><span className="font-semibold text-white">{formatBRL(calc.installationCost)}</span></div><div className="flex justify-between border-b border-slate-700 pb-2"><span>Custos indiretos</span><span className="font-semibold text-white">{formatBRL(calc.overheadCost)}</span></div><div className="flex justify-between pt-1"><span className="text-emerald-300">Lucro</span><span className="font-bold text-emerald-300">{formatBRL(calc.profit)}</span></div>{calc.discount > 0 && <div className="flex justify-between pt-1 text-amber-300"><span>Desconto</span><span className="font-semibold">− {formatBRL(calc.discount)}</span></div>}<div className="pt-2 text-xs text-slate-400"><p>Chapas internas: {calc.internalSheets} un.</p><p>Chapas externas: {calc.externalSheets} un.</p><p>Fundos: {calc.backSheets} un.</p><p>Perda considerada: {(calc.wasteRate * 100).toFixed(0)}%</p></div></div><div className="mt-6 grid grid-cols-1 gap-2"><button onClick={sendToProduction} className="w-full rounded-xl border border-indigo-400/40 bg-indigo-500/20 px-3 py-2.5 font-semibold text-indigo-100 flex items-center justify-center gap-2"><Factory size={16} /> Gerar produção</button><button onClick={() => setShowModal(true)} className="w-full rounded-xl bg-indigo-600 px-3 py-2.5 font-semibold text-white flex items-center justify-center gap-2"><Printer size={16} /> Ver resumo</button></div></div></div></div>
+        <div className="lg:col-span-1"><div className="rounded-2xl overflow-hidden shadow-sm border border-slate-700 sticky top-20" style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}><div className="p-6"><span style={{ color: '#a5b4fc', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Preço de venda</span><div style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '0.25rem', marginTop: '0.5rem', color: '#fff' }}>{formatBRL(calc.total)}</div>{calc.discount > 0 && <div className="text-xs text-slate-400 mb-4">De {formatBRL(calc.grossTotal)} • desconto de {formatBRL(calc.discount)}</div>}<div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#cbd5e1' }}><div className="flex justify-between border-b border-slate-700 pb-2"><span>Chapas e materiais</span><span className="font-semibold text-white">{formatBRL(calc.materialCost)}</span></div>{calc.sheetSavings > 0 && <div className="flex justify-between border-b border-slate-700 pb-2"><span className="text-emerald-300">Economia de sobras</span><span className="font-semibold text-emerald-300">− {formatBRL(calc.sheetSavings)}</span></div>}<div className="flex justify-between border-b border-slate-700 pb-2"><span>Fita de borda</span><span className="font-semibold text-white">{formatBRL(calc.edgeCost)}</span></div><div className="flex justify-between border-b border-slate-700 pb-2"><span>Ferragens</span><span className="font-semibold text-white">{formatBRL(calc.hardwareCost)}</span></div><div className="flex justify-between border-b border-slate-700 pb-2"><span>Mão de obra</span><span className="font-semibold text-white">{formatBRL(calc.laborCost)}</span></div><div className="flex justify-between border-b border-slate-700 pb-2"><span>Instalação</span><span className="font-semibold text-white">{formatBRL(calc.installationCost)}</span></div><div className="flex justify-between border-b border-slate-700 pb-2"><span>Custos indiretos</span><span className="font-semibold text-white">{formatBRL(calc.overheadCost)}</span></div><div className="flex justify-between pt-1"><span className="text-emerald-300">Lucro</span><span className="font-bold text-emerald-300">{formatBRL(calc.profit)}</span></div>{calc.discount > 0 && <div className="flex justify-between pt-1 text-amber-300"><span>Desconto</span><span className="font-semibold">− {formatBRL(calc.discount)}</span></div>}<div className="pt-2 text-xs text-slate-400"><p>Chapas internas: {calc.internalSheets} un.</p><p>Chapas externas: {calc.externalSheets} un.</p><p>Fundos: {calc.backSheets} un.</p><p>Perda considerada: {(calc.wasteRate * 100).toFixed(0)}%</p></div></div><div className="mt-6 grid grid-cols-1 gap-2"><button onClick={aprovarOrcamento} disabled={aprovado || aprovando} className="w-full rounded-xl border border-emerald-400/40 bg-emerald-500/20 px-3 py-2.5 font-semibold text-emerald-100 flex items-center justify-center gap-2 disabled:opacity-60"><CheckCircle2 size={16} /> {aprovado ? 'Orçamento aprovado' : aprovando ? 'Registrando aprovação…' : 'Cliente aprovou o orçamento'}</button><button onClick={sendToProduction} disabled={!aprovado} className="w-full rounded-xl border border-indigo-400/40 bg-indigo-500/20 px-3 py-2.5 font-semibold text-indigo-100 flex items-center justify-center gap-2 disabled:opacity-40"><Factory size={16} /> {aprovado ? 'Gerar produção' : 'Aprove o orçamento para produzir'}</button><button onClick={() => setShowModal(true)} className="w-full rounded-xl bg-indigo-600 px-3 py-2.5 font-semibold text-white flex items-center justify-center gap-2"><Printer size={16} /> Ver resumo</button></div></div></div></div>
       </div>
 
       <Modal isOpen={showPrices} onClose={() => setShowPrices(false)} title="Tabela de preços" maxWidth="max-w-2xl" footer={<><button onClick={resetPrices} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600"><RotateCcw size={15} /> Restaurar padrão</button><Button onClick={() => setShowPrices(false)}>Concluir</Button></>}>
