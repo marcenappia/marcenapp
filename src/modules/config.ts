@@ -24,8 +24,8 @@ export const modules: ModuleConfig[] = [
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: Users, category: 'portal' },
   { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
 
-  // CAMADA 2 — ESTÚDIO + IARA (Materialização & Cognição unificadas)
-  { id: 'studio', label: 'Estúdio + IARA', mobileLabel: 'Studio', icon: Wand2, category: 'studio' },
+  // CAMADA 2 — ESTÚDIO (Materialização)
+  { id: 'studio', label: 'Estúdio', mobileLabel: 'Studio', icon: Wand2, category: 'studio' },
   { id: 'elevator', label: 'Elevador Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine, category: 'studio' },
 
   // FINANCEIRO — ESTELA
@@ -39,7 +39,7 @@ export const modules: ModuleConfig[] = [
 export const CATEGORY_LABELS: Record<ModuleCategory, string> = {
   intelligence: 'IARA — Cognição',
   portal: 'Portal — Operacional',
-  studio: 'Estúdio + IARA — Materialização',
+  studio: 'Estúdio — Materialização',
   finance: 'Estela — Financeiro',
   production: 'Produção — Logística'
 };
