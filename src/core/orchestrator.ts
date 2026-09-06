@@ -4,6 +4,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
 import { callAIFunction } from '@/services/ai';
+import { IARA_IDENTITY } from './iaraExpert';
 
 export interface ToolCall {
   tool: string;
@@ -29,9 +30,21 @@ export async function planWithLLM(
   userPrompt: string,
   context?: Record<string, any>,
 ): Promise<OrchestratorPlan> {
+  const safetyContext = {
+    ...context,
+    iaraIdentity: IARA_IDENTITY,
+    executionPolicy: {
+      language: 'pt-BR',
+      neverInventCriticalData: true,
+      requireExplicitConfirmationForProjectCreation: true,
+      visualEstimatesAreNotProductionMeasurements: true,
+      classifyCriticalData: ['CONFIRMADO', 'ESTIMADO', 'PRECISA_CONFERIR'],
+      proposeBeforeChangingProjectFromDiaryOrConversation: true,
+    },
+  };
   const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string }>(
     'ai-orchestrator',
-    { userPrompt, context },
+    { userPrompt, context: safetyContext },
   );
   return { plan: data.plan ?? [], summary: data.summary ?? '', model: data.model };
 }
