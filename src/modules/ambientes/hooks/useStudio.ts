@@ -7,6 +7,7 @@ import { studioService } from '../services/studioService';
 import { iaraService } from '@/modules/iara/services/iaraService';
 import { analyzeEnvironment, confirmEnvironmentWithIara } from '../services/environmentAnalysis';
 import { validateEnvironmentGeometry } from '../services/environmentGeometry';
+import { registrarEventoSistema } from '@/modules/projetos/services/diarioStorage';
 import type { EnvironmentAnalysis } from '../types';
 
 interface StudioStyle { id: string; label: string; prompt: string; }
@@ -16,7 +17,7 @@ const styles: StudioStyle[] = [
   { id: 'industrial', label: 'Industrial', prompt: 'industrial chic, exposed brick, concrete, dramatic lighting' }
 ];
 
-export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<any>>, navigateTo: (route: string) => void, gallery: string[], setGallery: React.Dispatch<React.SetStateAction<string[]>>) => {
+export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<any>>, navigateTo: (route: string) => void, gallery: string[], setGallery: React.Dispatch<React.SetStateAction<string[]>>, projectId?: string | null) => {
   const { user } = useAuth();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
@@ -82,6 +83,7 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
       const result = await confirmEnvironmentWithIara(envBase64, environmentAnalysis, envMime || 'image/jpeg');
       setEnvironmentAnalysis(result.analysis);
       if (result.questions.length > 0) setEnvironmentError(`A IARA pede conferência: ${result.questions.join(' ')}`);
+      else if (projectId) registrarEventoSistema(projectId, 'ambiente-confirmado-iara', 'Ambiente real analisado e confirmado pela IARA. Mapa espacial liberado para o projeto.', 'iara');
     } catch (e: any) { setEnvironmentError(e?.message || 'Não foi possível concluir a conferência.'); }
     finally { setConfirmingEnvironment(false); }
   };
@@ -115,8 +117,10 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
       let newImage: string | null = null;
       if (isRefining && generatedImage) newImage = await studioService.refineVisual(generatedImage, generationPrompt);
       else newImage = await studioService.generateVisual(generationPrompt, imgs, selectedStyle.prompt, selectedDecor.prompt);
-      if (newImage) { setGeneratedImage(newImage); setGallery((prev: string[]) => [newImage!, ...prev]); setShowModal(true); await saveToGallery(newImage, generationPrompt); }
-      else throw new Error("Falha na geração. Tente novamente.");
+      if (newImage) {
+        setGeneratedImage(newImage); setGallery((prev: string[]) => [newImage!, ...prev]); setShowModal(true); await saveToGallery(newImage, generationPrompt);
+        if (projectId) registrarEventoSistema(projectId, 'projeto-gerado-estudio', 'Projeto visual gerado no Estúdio com contexto técnico do ambiente e restrições confirmadas.', 'estudio');
+      } else throw new Error("Falha na geração. Tente novamente.");
     } catch (e: any) { setError(e?.message || "Erro de conexão."); }
     finally { setLoading(false); }
   };
@@ -130,6 +134,7 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
       const imageBase64 = generatedImage.split(',')[1];
       const est = await iaraService.analyzeImage(imageBase64);
       setBudgetProject((prev: any) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
+      if (projectId) registrarEventoSistema(projectId, 'estimativa-enviada-orcamento', 'IARA preparou a estimativa visual para o orçamento.', 'iara');
       setShowModal(false); navigateTo('orcamento');
     } catch { alert("Não foi possível analisar. Redirecionando..."); navigateTo('orcamento'); }
     finally { setAnalyzing(false); }
