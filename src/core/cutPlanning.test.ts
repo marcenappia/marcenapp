@@ -15,24 +15,23 @@ describe('cut planning', () => {
     expect(new Set(sheets.map(s => s.thickness))).toEqual(new Set([15, 6]));
   });
 
-  it('rotates a part when allowed and grain is not restricted', () => {
+  it('rotates a part when needed and allowed', () => {
     const sheets = planCutting([part(1, 'Prateleira', 1700, 900, 1, 'none')], {
-      sheetWidth: 1800,
-      sheetHeight: 1000,
-      kerf: 3,
-      allowRotation: true,
-    });
-    expect(sheets).toHaveLength(1);
-    expect(sheets[0].items[0].rotated).toBe(false);
-  });
-
-  it('does not rotate a part with a defined grain direction', () => {
-    const sheets = planCutting([part(1, 'Porta', 1700, 900, 1, 'vertical')], {
       sheetWidth: 1000,
       sheetHeight: 1800,
       kerf: 3,
       allowRotation: true,
     });
-    expect(sheets).toHaveLength(0);
+    expect(sheets).toHaveLength(1);
+    expect(sheets[0].items[0].rotated).toBe(true);
+  });
+
+  it('rejects a part when the required grain direction cannot fit', () => {
+    expect(() => planCutting([part(1, 'Porta', 1700, 900, 1, 'vertical')], {
+      sheetWidth: 1000,
+      sheetHeight: 1800,
+      kerf: 3,
+      allowRotation: true,
+    })).toThrow(/maior que a chapa/);
   });
 });
