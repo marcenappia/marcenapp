@@ -15,12 +15,7 @@ const styles: StudioStyle[] = [
   { id: 'industrial', label: 'Industrial', prompt: 'industrial chic, exposed brick, concrete, dramatic lighting' }
 ];
 
-export const useStudio = (
-  setBudgetProject: React.Dispatch<React.SetStateAction<any>>,
-  navigateTo: (route: string) => void,
-  gallery: string[],
-  setGallery: React.Dispatch<React.SetStateAction<string[]>>
-) => {
+export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<any>>, navigateTo: (route: string) => void, gallery: string[], setGallery: React.Dispatch<React.SetStateAction<string[]>>) => {
   const { user } = useAuth();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
@@ -65,17 +60,16 @@ export const useStudio = (
     await supabase.from('gallery_images').insert({ user_id: user.id, image_url: imageUrl, prompt: promptText });
   };
 
+  const resetEnvironmentAnalysis = () => { setEnvironmentAnalysis(null); setEnvironmentError(null); };
+
   const analyzeEnvironmentImage = async () => {
     if (!envBase64) { setEnvironmentError('Adicione uma foto real do ambiente primeiro.'); return; }
     const authed = await requireAuth();
     if (!authed) { setPendingAction(() => () => analyzeEnvironmentImage()); setShowAuthDialog(true); return; }
     setAnalyzingEnvironment(true); setEnvironmentError(null);
-    try {
-      const result = await analyzeEnvironment(envBase64, envMime || 'image/jpeg');
-      setEnvironmentAnalysis(result);
-    } catch (e: any) {
-      setEnvironmentError(e?.message || 'Não foi possível analisar o ambiente.');
-    } finally { setAnalyzingEnvironment(false); }
+    try { setEnvironmentAnalysis(await analyzeEnvironment(envBase64, envMime || 'image/jpeg')); }
+    catch (e: any) { setEnvironmentError(e?.message || 'Não foi possível analisar o ambiente.'); }
+    finally { setAnalyzingEnvironment(false); }
   };
 
   const confirmEnvironment = async () => {
@@ -86,9 +80,8 @@ export const useStudio = (
     try {
       const result = await confirmEnvironmentWithIara(envBase64, environmentAnalysis, envMime || 'image/jpeg');
       setEnvironmentAnalysis(result.analysis);
-    } catch (e: any) {
-      setEnvironmentError(e?.message || 'Não foi possível concluir a conferência.');
-    } finally { setConfirmingEnvironment(false); }
+    } catch (e: any) { setEnvironmentError(e?.message || 'Não foi possível concluir a conferência.'); }
+    finally { setConfirmingEnvironment(false); }
   };
 
   const generate = async () => {
@@ -101,17 +94,13 @@ export const useStudio = (
       const imgs: ImageData[] = [];
       if (sketchBase64 && sketchMime) imgs.push({ mimeType: sketchMime, data: sketchBase64 });
       if (envBase64 && envMime) imgs.push({ mimeType: envMime, data: envBase64 });
-      const environmentContext = environmentAnalysis ? `
-MAPA TÉCNICO DO AMBIENTE (fonte de restrições; NÃO invente medidas):
-${JSON.stringify(environmentAnalysis)}
-REGRAS: respeite paredes, cantos, janelas, portas, tomadas, interruptores e obstáculos detectados. Nunca ocupe uma abertura ou ponto elétrico sem instrução explícita. Medidas estimadas não são medidas de fabricação; mantenha folgas e peça confirmação quando necessário.` : '';
+      const environmentContext = environmentAnalysis ? `\nMAPA TÉCNICO DO AMBIENTE (fonte de restrições; NÃO invente medidas):\n${JSON.stringify(environmentAnalysis)}\nREGRAS: respeite paredes, cantos, janelas, portas, tomadas, interruptores e obstáculos detectados. Nunca ocupe uma abertura ou ponto elétrico sem instrução explícita. Medidas estimadas não são medidas de fabricação; mantenha folgas e peça confirmação quando necessário.` : '';
       const generationPrompt = `${prompt || 'Projetar aproveitando o ambiente fotografado.'}${environmentContext}`;
       let newImage: string | null = null;
       if (isRefining && generatedImage) newImage = await studioService.refineVisual(generatedImage, generationPrompt);
       else newImage = await studioService.generateVisual(generationPrompt, imgs, selectedStyle.prompt, selectedDecor.prompt);
-      if (newImage) {
-        setGeneratedImage(newImage); setGallery((prev: string[]) => [newImage!, ...prev]); setShowModal(true); await saveToGallery(newImage, generationPrompt);
-      } else throw new Error("Falha na geração. Tente novamente.");
+      if (newImage) { setGeneratedImage(newImage); setGallery((prev: string[]) => [newImage!, ...prev]); setShowModal(true); await saveToGallery(newImage, generationPrompt); }
+      else throw new Error("Falha na geração. Tente novamente.");
     } catch (e: any) { setError(e?.message || "Erro de conexão."); }
     finally { setLoading(false); }
   };
@@ -137,6 +126,6 @@ REGRAS: respeite paredes, cantos, janelas, portas, tomadas, interruptores e obst
     selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction,
     generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime,
     environmentAnalysis, analyzingEnvironment, confirmingEnvironment, environmentError,
-    analyzeEnvironmentImage, confirmEnvironment,
+    analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis,
   };
 };
