@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Maximize2 } from 'lucide-react';
+import { X, Maximize2, ShieldCheck } from 'lucide-react';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput } from './components/ChatInput';
 import AuthDialog from '../../components/marcenaria/AuthDialog';
@@ -43,7 +43,6 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
   
   const [activeImageZoom, setActiveImageZoom] = useState<{ url: string; budget?: string | null } | null>(null);
 
-  // ↓ Estúdio → IARA: quando o projeto do Estúdio muda, ajusta factors
   useEffect(() => {
     if (!syncProject) return;
     setFactors(prev => {
@@ -58,7 +57,6 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     });
   }, [syncProject?.width, syncProject?.height, syncProject?.depth]);
 
-  // ↑ IARA → Estúdio: quando sliders/tool alteram factors, propaga ao Estúdio
   useEffect(() => {
     if (!onProjectChange) return;
     const sameAsStudio =
@@ -85,7 +83,6 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     },
   }, projectId);
 
-  // ↕ Descrição do Projeto ↔ chatInput (bidirecional, com debounce)
   const lastPushedRef = useRef<string | null>(null);
   const pushTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -100,12 +97,9 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
 
   useEffect(() => {
     if (syncDescription === undefined) return;
-    // Ignora o eco do que a própria IARA acabou de enviar (evita sobrescrever digitação)
     if (syncDescription === lastPushedRef.current) return;
     if (syncDescription !== chatInput) setChatInput(syncDescription);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncDescription]);
-
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -151,7 +145,7 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     ctx.drawImage(maskingImage.img, (1080 - dw)/2, (1920 - dh)/2, dw, dh);
     const baseB64 = canvas.toDataURL("image/jpeg", 0.7);
     const baseRaw = baseB64.split(",")[1];
-    ctx.clearRect(0,0,1080,1920); ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, 1080, 1920);
+    ctx.clearRect(0,0,1080,1920); ctx.fillStyle = "#000000"; ctx.fillRect(0,0,1080,1920);
     ctx.drawImage(canvasRef.current, 0, 0);
     const idata = ctx.getImageData(0,0,1080,1920); const d = idata.data;
     for(let i=0; i<d.length; i+=4) { if(d[i+3]>10) { d[i]=d[i+1]=d[i+2]=255; d[i+3]=255; } else { d[i]=d[i+1]=d[i+2]=0; d[i+3]=255; } }
@@ -174,7 +168,16 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
             </div>
           </div>
         </div>
+        <div className="hidden sm:flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+          <ShieldCheck size={13} className="text-primary" />
+          <span>Especialista multidisciplinar · conferência antes de decisões críticas</span>
+        </div>
       </header>
+
+      <div className="px-4 py-2 bg-muted/30 border-b border-border flex items-center gap-2 text-[10px] text-muted-foreground">
+        <ShieldCheck size={14} className="shrink-0 text-primary" />
+        <span><strong className="text-foreground">Modo técnico seguro:</strong> medidas estimadas não viram produção automaticamente. A IARA pede confirmação quando uma informação crítica não está comprovada.</span>
+      </div>
 
       <ChatMessages
         messages={messages}
@@ -204,7 +207,6 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
         pendingUpload={pendingUpload}
         setPendingUpload={setPendingUpload}
       />
-
 
       {maskingImage && (
         <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
