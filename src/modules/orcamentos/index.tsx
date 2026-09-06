@@ -32,23 +32,14 @@ const OrcamentoModule = ({ project, setProject, setParts, navigateTo }: Props) =
       const { data } = await supabase.from('projects').select('jornada').eq('id', project.id).eq('user_id', user.id).maybeSingle();
       if (!data) throw new Error('Obra não encontrada.');
       const jornada = (data.jornada ?? {}) as Record<string, unknown>;
-      const nextJornada = {
-        ...jornada,
-        etapa: 7,
-        statusAprovacao: 'aprovado',
-        orcamentoAprovado: true,
-        valorAprovado: calc.total,
-        orcamentoAprovadoEm: new Date().toISOString(),
-      };
+      const nextJornada = { ...jornada, etapa: 7, statusAprovacao: 'aprovado', orcamentoAprovado: true, valorAprovado: calc.total, orcamentoAprovadoEm: new Date().toISOString() };
       const { error } = await supabase.from('projects').update({ jornada: nextJornada as any }).eq('id', project.id).eq('user_id', user.id);
       if (error) throw error;
       setProject({ ...project, jornada: nextJornada });
       setAprovado(true);
     } catch (e: any) {
       window.alert(e?.message || 'Não foi possível registrar a aprovação do orçamento.');
-    } finally {
-      setAprovando(false);
-    }
+    } finally { setAprovando(false); }
   };
 
   const sendToProduction = async () => {
@@ -60,26 +51,16 @@ const OrcamentoModule = ({ project, setProject, setParts, navigateTo }: Props) =
       const jornada = (data.jornada ?? {}) as Record<string, unknown>;
       const generatedAt = new Date().toISOString();
       const productionParts = calc.parts.map((part, index) => ({ ...part, id: Date.now() + index }));
-      const production = {
-        status: 'liberada',
-        updatedAt: generatedAt,
-        generatedAt,
-        source: 'orcamento-aprovado',
-        approvedTotal: calc.total,
-        approvedAt: jornada.orcamentoAprovadoEm ?? generatedAt,
-        parts: productionParts,
-      };
+      const production = { status: 'liberada', updatedAt: generatedAt, generatedAt, source: 'orcamento-aprovado', approvedTotal: calc.total, approvedAt: jornada.orcamentoAprovadoEm ?? generatedAt, parts: productionParts };
       const nextJornada = { ...jornada, etapa: 8, production };
       const { error } = await supabase.from('projects').update({ jornada: nextJornada as any }).eq('id', project.id).eq('user_id', user.id);
       if (error) throw error;
       setParts?.(productionParts);
       setProject({ ...project, jornada: nextJornada });
-      navigateTo?.('corte');
+      navigateTo?.('producao');
     } catch (e: any) {
       window.alert(e?.message || 'Não foi possível liberar a produção.');
-    } finally {
-      setGerandoProducao(false);
-    }
+    } finally { setGerandoProducao(false); }
   };
 
   const updateNumber = (field: string, value: unknown) => setProject({ ...project, [field]: Number(value) });
@@ -88,11 +69,7 @@ const OrcamentoModule = ({ project, setProject, setParts, navigateTo }: Props) =
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in pb-20 md:pb-0">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="p-6">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Package size={20} className="text-indigo-500" /> Estela — Orçamento da Marcenaria</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><InputGroup label="Largura (m)" value={project.width} onChange={v => updateNumber('width', v)} suffix="m" /><InputGroup label="Altura (m)" value={project.height} onChange={v => updateNumber('height', v)} suffix="m" /><InputGroup label="Prof. (m)" value={project.depth} onChange={v => updateNumber('depth', v)} suffix="m" /></div>
-            <div className="grid grid-cols-2 gap-4 mt-4"><InputGroup label="Gavetas" value={project.drawers} onChange={v => updateNumber('drawers', v)} /><InputGroup label="Portas" value={project.doors} onChange={v => updateNumber('doors', v)} /></div>
-          </Card>
+          <Card className="p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Package size={20} className="text-indigo-500" /> Estela — Orçamento da Marcenaria</h3><div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><InputGroup label="Largura (m)" value={project.width} onChange={v => updateNumber('width', v)} suffix="m" /><InputGroup label="Altura (m)" value={project.height} onChange={v => updateNumber('height', v)} suffix="m" /><InputGroup label="Prof. (m)" value={project.depth} onChange={v => updateNumber('depth', v)} suffix="m" /></div><div className="grid grid-cols-2 gap-4 mt-4"><InputGroup label="Gavetas" value={project.drawers} onChange={v => updateNumber('drawers', v)} /><InputGroup label="Portas" value={project.doors} onChange={v => updateNumber('doors', v)} /></div></Card>
           <Card className="p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Palette size={20} className="text-pink-500" /> Materiais e acabamentos</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><SelectGroup label="Material interno" value={project.internalMaterial} onChange={v => setProject({ ...project, internalMaterial: v })} options={MATERIALS.filter(m => m.value !== 'mdf18_wood')} /><SelectGroup label="Material externo" value={project.externalMaterial} onChange={v => setProject({ ...project, externalMaterial: v })} options={MATERIALS} /><SelectGroup label="Fundo" value={project.backMaterial || 'mdf6_white'} onChange={v => setProject({ ...project, backMaterial: v })} options={BACK_MATERIALS} /><SelectGroup label="Puxadores" value={project.handleType} onChange={v => setProject({ ...project, handleType: v })} options={[{ value: 'external', label: 'Externo' }, { value: 'cava', label: 'Cava / Fecho Toque' }]} /></div></Card>
           <Card className="p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Sliders size={20} className="text-emerald-500" /> Custos e margem</h3><div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><InputGroup label="Mão de obra (%)" value={project.laborRate} onChange={v => updateNumber('laborRate', v)} suffix="%" /><InputGroup label="Margem de lucro (%)" value={project.profitMargin} onChange={v => updateNumber('profitMargin', v)} suffix="%" /><InputGroup label="Desconto (%)" value={project.discountPercent ?? 0} onChange={v => updateNumber('discountPercent', v)} suffix="%" /></div><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => setShowPrices(true)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"><Settings2 size={16} /> Tabela de preços</button><span className="text-xs text-slate-400 self-center">Os valores ficam salvos neste aparelho.</span></div></Card>
           <Card className="p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Ruler size={20} className="text-blue-500" /> O que será produzido</h3><div className="space-y-2">{calc.parts.map((part, index) => <div key={`${part.name}-${index}`} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm"><div><strong className="text-slate-700">{part.name}</strong><div className="text-xs text-slate-500">{part.w} × {part.h} mm • {part.thickness} mm • {part.mat === 'wood' ? 'Madeirado' : 'Branco'}</div></div><span className="rounded-md bg-white px-2 py-1 font-bold text-slate-700 border">{part.qtd} un.</span></div>)}</div></Card>
