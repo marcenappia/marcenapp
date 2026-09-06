@@ -17,6 +17,7 @@ import ClientesModule from '@/modules/projetos/components/Clientes';
 import DiarioModule from '@/modules/projetos/components/Diario';
 import { modules, CATEGORY_LABELS, ModuleCategory, MOBILE_NAV_IDS } from '@/modules/config';
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
+import { useProductionPersistence } from '@/modules/projetos/hooks/useProductionPersistence';
 import { ProjectData } from '@/modules/projetos/types';
 
 const defaultProject: ProjectData = { width: 2.40, height: 2.60, depth: 0.60, modules: 3, drawers: 4, doors: 6, internalMaterial: 'mdf15_white', externalMaterial: 'mdf18_white', backMaterial: 'mdf6_white', handleType: 'external', profitMargin: 35, laborRate: 100 };
@@ -35,6 +36,7 @@ const Index = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   useEffect(() => { const moduleData = modules.find(m => m.id === activeModule); if (moduleData) document.title = `${moduleData.label} | Marcenapp`; }, [activeModule]);
   useProjectPersistence(budgetProject, setBudgetProject);
+  useProductionPersistence(budgetProject.id, parts, setParts);
   const activeModuleData = modules.find(m => m.id === activeModule) ?? modules[0];
   const ActiveIcon = activeModuleData.icon;
   const renderModule = () => {
