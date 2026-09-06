@@ -44,7 +44,7 @@ const Index = () => {
       case 'dashboard': return <Home navigateTo={setActiveModule} />;
       case 'novo': return <NovoProjeto key={projetoParam ?? 'novo'} projectId={projetoParam} setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'clientes': return <ClientesModule />;
-      case 'diario': return <DiarioModule />;
+      case 'diario': return <DiarioModule project={budgetProject} navigateTo={setActiveModule} />;
       case 'studio': return <StudioHub setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} budgetProject={budgetProject} />;
       case 'elevator': return <Elevator setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'orcamento': return <OrcamentoModule project={budgetProject} setProject={setBudgetProject} setParts={setParts} navigateTo={setActiveModule} />;
