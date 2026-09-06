@@ -101,8 +101,8 @@ function placeInSheet(
   sheet.items.push({ ...part, uid, w: best.w, h: best.h, x: rect.x, y: rect.y, rotated: best.rotated });
   sheet.usedArea += area(part.w, part.h);
 
-  const right: FreeRect = { x: rect.x + best.w + options.kerf, y: rect.y, w: rect.w - best.w - options.kerf, h: best.h };
-  const bottom: FreeRect = { x: rect.x, y: rect.y + best.h + options.kerf, w: rect.w, h: rect.h - best.h - options.kerf };
+  const right: FreeRect = { x: rect.x + best.w + options.kerf, y: rect.y, w: rect.w - best.w - options.kerf, h: rect.h };
+  const bottom: FreeRect = { x: rect.x, y: rect.y + best.h + options.kerf, w: best.w, h: rect.h - best.h - options.kerf };
   const rest: FreeRect[] = [];
   if (right.w > 0 && right.h > 0) rest.push(right);
   if (bottom.w > 0 && bottom.h > 0) rest.push(bottom);

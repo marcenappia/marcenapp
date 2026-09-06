@@ -22,7 +22,7 @@ const IaraAssistantLayer = ({
       <button
         type="button"
         onClick={() => onOpenChange(true)}
-        aria-label="Abrir IARA"
+        aria-label="Estúdio + IARA"
         className="hidden md:inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3.5 py-2 text-xs font-black text-indigo-700 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
       >
         <Sparkles size={15} className="text-indigo-500" aria-hidden="true" />
@@ -33,7 +33,7 @@ const IaraAssistantLayer = ({
       <button
         type="button"
         onClick={() => onOpenChange(true)}
-        aria-label="Abrir assistente IARA"
+        aria-label="Estúdio + IARA"
         className="md:hidden fixed right-4 bottom-[76px] z-[80] flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xl shadow-indigo-600/30 ring-4 ring-white transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
       >
         <Sparkles size={21} aria-hidden="true" />
