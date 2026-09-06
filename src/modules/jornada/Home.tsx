@@ -22,13 +22,14 @@ export const Home = ({ navigateTo }: Props) => {
   const [obras, setObras] = useState<ObraResumo[]>([]);
   const [carregando, setCarregando] = useState(false);
 
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) { setObras([]); return; }
+    if (!userId) { setObras([]); return; }
     setCarregando(true);
     supabase
       .from('projects')
       .select('id, nome, name, updated_at, clientes(nome)')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(20)
       .then(({ data }) => {
@@ -42,7 +43,7 @@ export const Home = ({ navigateTo }: Props) => {
         setObras(lista);
         setCarregando(false);
       });
-  }, [user]);
+  }, [userId]);
 
   const primeiroNome = profile?.name?.split(' ')[0];
 

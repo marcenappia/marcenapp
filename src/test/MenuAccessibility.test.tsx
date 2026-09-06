@@ -33,7 +33,7 @@ vi.mock('@/hooks/useAuth', () => ({
 vi.mock('@/modules/ambientes/components/StudioWorker', () => ({ StudioWorker: () => null }));
 vi.mock('@/assets/marcenapp-logo.jpeg', () => ({ default: '' }));
 vi.mock('@/modules/iara', () => ({ default: () => <div data-testid="chat">Chat</div> }));
-vi.mock('@/modules/projetos', () => ({ default: () => <div data-testid="dash">Dash</div> }));
+vi.mock('@/modules/jornada/Home', () => ({ default: () => <div data-testid="home">Home</div> }));
 
 describe('Menu Accessibility', () => {
   beforeEach(() => {
@@ -48,9 +48,10 @@ describe('Menu Accessibility', () => {
     expect(chatBtn).toHaveClass('focus-visible:ring-2');
   });
 
-  it('mobile nav labels should be correct', () => {
+  it('home (jornada) is the default module and mobile nav has Novo Projeto', () => {
     window.innerWidth = 400;
     render(<BrowserRouter><Index /></BrowserRouter>);
-    expect(screen.getByText('Chat')).toBeInTheDocument();
+    expect(screen.getByTestId('home')).toBeInTheDocument();
+    expect(screen.getByLabelText('Novo Projeto')).toBeInTheDocument();
   });
 });
