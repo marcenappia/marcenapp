@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { CutPlanningPart } from '@/core/cutPlanning';
+import type { Json } from '@/integrations/supabase/types';
 
 type ProductionJourney = {
   production?: { updatedAt: string; parts: CutPlanningPart[] };
@@ -69,7 +70,7 @@ export const useProductionPersistence = (
       };
       await supabase
         .from('projects')
-        .update({ jornada: nextJornada })
+        .update({ jornada: nextJornada as unknown as Json })
         .eq('id', projectId)
         .eq('user_id', user.id);
     }, 700);
