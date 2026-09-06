@@ -41,7 +41,7 @@ export const Titulo = ({ children, sub }: { children: React.ReactNode; sub?: str
 // ---------- Etapa 1 ----------
 export const EtapaNome = (p: {
   nome: string; setNome: (v: string) => void; clienteNome: string; setClienteNome: (v: string) => void;
-  onNext: () => void; loading: boolean;
+  onNext: () => void; loading: boolean; precisaLogin?: boolean;
 }) => (
   <div className="space-y-4">
     <Titulo sub="Só o básico para começar. O resto a IARA ajuda.">Como vai se chamar essa obra?</Titulo>
@@ -53,12 +53,17 @@ export const EtapaNome = (p: {
       <span className="text-sm font-bold text-slate-700 mb-1.5 block">Cliente <span className="font-normal text-slate-400">(opcional)</span></span>
       <input className={inputCls} value={p.clienteNome} onChange={(e) => p.setClienteNome(e.target.value)} placeholder="Ex.: Maria Silva" />
     </label>
+    {p.precisaLogin && (
+      <p className="text-sm text-slate-500 rounded-xl bg-slate-50 border border-slate-200 p-3">
+        Para guardar esta obra e continuar depois em outro aparelho, vamos pedir seu acesso ao salvar.
+      </p>
+    )}
     <BotaoPrincipal onClick={p.onNext} disabled={!p.nome.trim()} loading={p.loading}>Começar a obra</BotaoPrincipal>
   </div>
 );
 
 // ---------- Etapa 2 ----------
-export const EtapaFoto = (p: { foto: string | null; onFile: (f: File) => void; onClear: () => void; onNext: () => void }) => (
+export const EtapaFoto = (p: { foto: string | null; onFile: (f: File) => void; onClear: () => void; onNext: () => void; loading?: boolean }) => (
   <div className="space-y-4">
     <Titulo sub="Pode ser do celular mesmo. Mostre a parede ou o canto onde vai o móvel.">Tire uma foto do ambiente</Titulo>
     {p.foto ? (
@@ -67,7 +72,7 @@ export const EtapaFoto = (p: { foto: string | null; onFile: (f: File) => void; o
         <button type="button" onClick={p.onClear} className="w-full min-h-[52px] rounded-2xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 flex items-center justify-center gap-2">
           <RefreshCcw size={18} /> Trocar foto
         </button>
-        <BotaoPrincipal onClick={p.onNext}>Usar esta foto</BotaoPrincipal>
+        <BotaoPrincipal onClick={p.onNext} loading={p.loading}>{p.loading ? 'Guardando a foto…' : 'Usar esta foto'}</BotaoPrincipal>
       </div>
     ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -154,7 +159,7 @@ export const EtapaAnalise = (p: {
 // ---------- Etapa 5 ----------
 export const EtapaApresentacao = (p: {
   imagem: string | null; ajuste: string; setAjuste: (v: string) => void; onAjustar: () => void;
-  onAprovar: () => void; loading: boolean; nome: string;
+  onAprovar: () => void; loading: boolean; aprovando?: boolean; nome: string;
 }) => {
   const baixar = () => {
     if (!p.imagem) return;
@@ -185,7 +190,7 @@ export const EtapaApresentacao = (p: {
           {p.loading ? 'Ajustando…' : 'Ajustar apresentação'}
         </BotaoPrincipal>
       </div>
-      <BotaoPrincipal onClick={p.onAprovar} variante="ok" icon={ThumbsUp}>Cliente aprovou — ir para o orçamento</BotaoPrincipal>
+      <BotaoPrincipal onClick={p.onAprovar} variante="ok" icon={ThumbsUp} loading={p.aprovando}>{p.aprovando ? 'Registrando aprovação…' : 'Cliente aprovou — ir para o orçamento'}</BotaoPrincipal>
     </div>
   );
 };

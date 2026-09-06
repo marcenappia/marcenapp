@@ -5,6 +5,9 @@ import { callAIText, requireAuth } from '@/services/ai';
 import { studioService } from '@/modules/ambientes/services/studioService';
 import { useStudioStore } from '@/store/useStudioStore';
 import { AnaliseIara, EtapaId, carregarProgresso, salvarProgresso } from '../types';
+import {
+  baixarComoDataUrl, dataUrlParaBlob, carregarObra, enviarApresentacao, enviarFotoAmbiente, salvarJornada, JornadaSalva, StatusObra,
+} from '../services/obraService';
 
 interface Foto {
   dataUrl: string;
@@ -35,25 +38,53 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
   const [loading, setLoading] = useState<null | 'salvando' | 'analisando' | 'gerando' | 'ajustando'>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [retomando, setRetomando] = useState(!!inicialId);
+  const [status, setStatus] = useState<StatusObra>('rascunho');
   const pendente = useRef<(() => void) | null>(null);
 
-  // Retomar obra existente
+  // Retomar obra existente: primeiro do banco (qualquer aparelho), depois do cache local
   useEffect(() => {
-    if (!inicialId) return;
-    const p = carregarProgresso(inicialId);
-    if (!p) return;
-    setNome(p.nome ?? '');
-    setClienteNome(p.clienteNome ?? '');
-    setPedido(p.pedido ?? '');
-    setAnalise(p.analise ?? null);
-    setRespostas(p.respostas ?? {});
-    // A foto não é persistida (peso); se faltou, volta para a etapa da foto
-    const alvo = p.etapa > 2 ? 2 : p.etapa;
-    setEtapa(alvo as EtapaId);
-  }, [inicialId]);
+    if (!inicialId) { setRetomando(false); return; }
+    let ativo = true;
+    (async () => {
+      const remoto = user ? await carregarObra(inicialId).catch(() => null) : null;
+      const p = remoto ?? carregarProgresso(inicialId);
+      if (!ativo) return;
+      if (!p) { setRetomando(false); return; }
+      setNome(p.nome ?? '');
+      setClienteNome(p.clienteNome ?? '');
+      setPedido(p.pedido ?? '');
+      setAnalise(p.analise ?? null);
+      setRespostas(p.respostas ?? {});
+      if (remoto) setStatus(remoto.status);
 
-  const persistir = (patch: Parameters<typeof salvarProgresso>[1]) => {
-    if (projectId) salvarProgresso(projectId, patch);
+      let temFoto = false;
+      if (remoto?.fotoPath) {
+        const dataUrl = await baixarComoDataUrl(remoto.fotoPath);
+        if (dataUrl && ativo) {
+          const mime = /data:(.*?);/.exec(dataUrl)?.[1] ?? 'image/jpeg';
+          setFoto({ dataUrl, base64: dataUrl.split(',')[1], mime });
+          temFoto = true;
+        }
+      }
+      if (remoto?.imagemPath) {
+        const img = await baixarComoDataUrl(remoto.imagemPath);
+        if (img && ativo) { setImagem(img); setGeneratedImage(img); }
+      }
+      if (!ativo) return;
+      // Sem foto salva não dá para seguir além da etapa 2 (IARA precisa da cena)
+      const alvo = !temFoto && p.etapa > 2 && p.etapa < 7 ? 2 : p.etapa;
+      setEtapa(alvo as EtapaId);
+      setRetomando(false);
+    })();
+    return () => { ativo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inicialId, user?.id]);
+
+  /** Salva no banco (quando há obra criada) e no cache local. Falha silenciosa: não trava o fluxo. */
+  const persistir = (patch: JornadaSalva, extra?: { status?: StatusObra; aprovado?: boolean }) => {
+    if (!projectId) return;
+    salvarJornada(projectId, patch, extra).catch(() => salvarProgresso(projectId, { ...patch, aprovado: extra?.aprovado }));
   };
 
   const comAuth = async (acao: () => void) => {
@@ -100,7 +131,10 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
           id = data.id;
           setProjectId(id);
         }
-        if (id) salvarProgresso(id, { etapa: 2, nome: nome.trim(), clienteNome: clienteNome.trim() });
+        if (id) {
+          salvarProgresso(id, { etapa: 2, nome: nome.trim(), clienteNome: clienteNome.trim() });
+          await salvarJornada(id, { etapa: Math.max(etapa, 2) as EtapaId }).catch(() => undefined);
+        }
         setEtapa(2);
       } catch (e: any) {
         setErro(e?.message || 'Não deu para salvar a obra. Tente de novo.');
@@ -118,11 +152,25 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
     reader.readAsDataURL(file);
   };
 
-  const confirmarFoto = () => {
-    if (!foto) return;
-    persistir({ etapa: 3 });
-    setEtapa(3);
-  };
+  // Etapa 2 → guarda a foto no armazenamento para retomar em outro aparelho
+  const confirmarFoto = () =>
+    comAuth(async () => {
+      if (!foto) return;
+      setLoading('salvando');
+      setErro(null);
+      try {
+        if (user && projectId) {
+          const { blob, mime } = dataUrlParaBlob(foto.dataUrl);
+          await enviarFotoAmbiente(user.id, projectId, blob, mime);
+        }
+        persistir({ etapa: 3 });
+        setEtapa(3);
+      } catch (e: any) {
+        setErro(e?.message || 'Não deu para guardar a foto. Tente de novo.');
+      } finally {
+        setLoading(null);
+      }
+    });
 
   // Etapa 3 → IARA analisa a cena e pergunta só o que falta
   const analisar = () =>
@@ -192,6 +240,7 @@ Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (
         setGeneratedImage(img);
         aplicarMedidas();
         if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt });
+        if (user && projectId) await enviarApresentacao(user.id, projectId, img).catch(() => undefined);
         persistir({ etapa: 5, respostas });
         setEtapa(5);
       } catch (e: any) {
@@ -213,6 +262,7 @@ Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (
         setGeneratedImage(img);
         setAjuste('');
         if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt: ajuste.trim() });
+        if (user && projectId) await enviarApresentacao(user.id, projectId, img).catch(() => undefined);
       } catch (e: any) {
         setErro(e?.message || 'Não deu para ajustar. Tente de novo.');
       } finally {
@@ -220,10 +270,22 @@ Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (
       }
     });
 
-  const registrarAprovacao = () => {
-    persistir({ etapa: 7, aprovado: true });
-    setEtapa(7);
-  };
+  // Etapa 6 → aprovação do cliente fica registrada no banco (status + data)
+  const registrarAprovacao = () =>
+    comAuth(async () => {
+      if (!projectId) return;
+      setLoading('salvando');
+      setErro(null);
+      try {
+        await salvarJornada(projectId, { etapa: 7 }, { status: 'aprovado', aprovado: true });
+        setStatus('aprovado');
+        setEtapa(7);
+      } catch (e: any) {
+        setErro(e?.message || 'Não deu para registrar a aprovação. Tente de novo.');
+      } finally {
+        setLoading(null);
+      }
+    });
 
   const voltar = () => setEtapa((e) => (e > 1 ? ((e - 1) as EtapaId) : e));
 
@@ -234,7 +296,7 @@ Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (
     pedido, setPedido, analisar,
     analise, respostas, setRespostas, gerarApresentacao,
     imagem, ajuste, setAjuste, ajustarApresentacao, registrarAprovacao,
-    loading, erro, limparErro: () => setErro(null),
+    loading, erro, limparErro: () => setErro(null), retomando, status, logado: !!user,
     showAuth, setShowAuth, onAuthSuccess,
   };
 };

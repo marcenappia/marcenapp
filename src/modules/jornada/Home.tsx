@@ -12,6 +12,15 @@ interface ObraResumo {
   etapa: EtapaId;
 }
 
+/** Etapa vem do banco (funciona em qualquer aparelho); cache local só como reserva. */
+const etapaDaObra = (p: { id: string; status?: string | null; jornada?: unknown }): EtapaId => {
+  const aprovado = p.status === 'aprovado' || p.status === 'em_producao' || p.status === 'concluido';
+  const remota = (p.jornada && typeof p.jornada === 'object' ? (p.jornada as { etapa?: number }).etapa : undefined);
+  const local = carregarProgresso(p.id)?.etapa;
+  const etapa = remota ?? local ?? 1;
+  return (aprovado ? Math.max(etapa, 7) : etapa) as EtapaId;
+};
+
 interface Props {
   navigateTo: (id: string, params?: Record<string, string>) => void;
 }
@@ -28,7 +37,7 @@ export const Home = ({ navigateTo }: Props) => {
     setCarregando(true);
     supabase
       .from('projects')
-      .select('id, nome, name, updated_at, clientes(nome)')
+      .select('id, nome, name, updated_at, status, jornada, clientes(nome)')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(20)
@@ -38,7 +47,7 @@ export const Home = ({ navigateTo }: Props) => {
           nome: p.nome || p.name || 'Obra sem nome',
           cliente: p.clientes?.nome ?? null,
           atualizadoEm: p.updated_at,
-          etapa: (carregarProgresso(p.id)?.etapa ?? 1) as EtapaId,
+          etapa: etapaDaObra(p),
         }));
         setObras(lista);
         setCarregando(false);

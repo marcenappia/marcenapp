@@ -246,6 +246,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          aprovado_em: string | null
           back_material: string | null
           cliente_id: string | null
           created_at: string
@@ -253,20 +254,25 @@ export type Database = {
           doors: number | null
           drawers: number | null
           external_material: string | null
+          foto_ambiente_path: string | null
           handle_type: string | null
           height: number | null
           id: string
+          imagem_apresentacao_path: string | null
           internal_material: string | null
+          jornada: Json
           labor_rate: number | null
           modules: number | null
           name: string
           nome: string | null
           profit_margin: number | null
+          status: string
           updated_at: string
           user_id: string
           width: number | null
         }
         Insert: {
+          aprovado_em?: string | null
           back_material?: string | null
           cliente_id?: string | null
           created_at?: string
@@ -274,20 +280,25 @@ export type Database = {
           doors?: number | null
           drawers?: number | null
           external_material?: string | null
+          foto_ambiente_path?: string | null
           handle_type?: string | null
           height?: number | null
           id?: string
+          imagem_apresentacao_path?: string | null
           internal_material?: string | null
+          jornada?: Json
           labor_rate?: number | null
           modules?: number | null
           name?: string
           nome?: string | null
           profit_margin?: number | null
+          status?: string
           updated_at?: string
           user_id: string
           width?: number | null
         }
         Update: {
+          aprovado_em?: string | null
           back_material?: string | null
           cliente_id?: string | null
           created_at?: string
@@ -295,15 +306,19 @@ export type Database = {
           doors?: number | null
           drawers?: number | null
           external_material?: string | null
+          foto_ambiente_path?: string | null
           handle_type?: string | null
           height?: number | null
           id?: string
+          imagem_apresentacao_path?: string | null
           internal_material?: string | null
+          jornada?: Json
           labor_rate?: number | null
           modules?: number | null
           name?: string
           nome?: string | null
           profit_margin?: number | null
+          status?: string
           updated_at?: string
           user_id?: string
           width?: number | null
