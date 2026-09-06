@@ -18,15 +18,38 @@ export interface PlannedItem extends CutPlanningPart {
   rotated: boolean;
 }
 
+export interface CutStockSheet {
+  id: string;
+  material: 'white' | 'wood';
+  thickness: number;
+  width: number;
+  height: number;
+  source: 'sheet' | 'remnant';
+}
+
+export interface CutRemnant {
+  id: string;
+  material: 'white' | 'wood';
+  thickness: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  area: number;
+}
+
 export interface CutSheet {
   material: 'white' | 'wood';
   thickness: number;
   width: number;
   height: number;
+  source: 'sheet' | 'remnant';
+  stockId: string;
   items: PlannedItem[];
   usedArea: number;
   utilization: number;
   remnantArea: number;
+  remnants: CutRemnant[];
 }
 
 export interface CutPlanOptions {
@@ -34,6 +57,7 @@ export interface CutPlanOptions {
   sheetHeight?: number;
   kerf?: number;
   allowRotation?: boolean;
+  stockSheets?: CutStockSheet[];
 }
 
 interface FreeRect { x: number; y: number; w: number; h: number }
@@ -96,11 +120,12 @@ function expandParts(parts: CutPlanningPart[]) {
 }
 
 export function planCutting(parts: CutPlanningPart[], options: CutPlanOptions = {}): CutSheet[] {
-  const config: Required<CutPlanOptions> = {
+  const config: Required<Omit<CutPlanOptions, 'stockSheets'>> & { stockSheets: CutStockSheet[] } = {
     sheetWidth: options.sheetWidth ?? DEFAULT_SHEET_W,
     sheetHeight: options.sheetHeight ?? DEFAULT_SHEET_H,
     kerf: options.kerf ?? DEFAULT_KERF,
     allowRotation: options.allowRotation ?? true,
+    stockSheets: options.stockSheets ?? [],
   };
 
   const groups = new Map<string, CutPlanningPart[]>();
@@ -113,23 +138,59 @@ export function planCutting(parts: CutPlanningPart[], options: CutPlanOptions = 
 
   const sheets: CutSheet[] = [];
   groups.forEach(group => {
+    const key = `${group[0].mat}:${group[0].thickness}`;
     group.sort((a, b) => area(b.w, b.h) - area(a.w, a.h));
+    const stock = config.stockSheets
+      .filter(s => `${s.material}:${s.thickness}` === key)
+      .sort((a, b) => area(b.width, b.height) - area(a.width, a.height));
+    let stockIndex = 0;
     let current: CutSheet | null = null;
     let free: FreeRect[] = [];
     let sequence = 0;
 
+    const finalizeCurrent = () => {
+      if (!current) return;
+      const sheetArea = area(current.width, current.height);
+      current.utilization = current.usedArea / sheetArea;
+      current.remnants = free
+        .filter(rect => rect.w >= 150 && rect.h >= 150)
+        .map((rect, index) => ({
+          id: `${current!.stockId}-rem-${index}`,
+          material: current!.material,
+          thickness: current!.thickness,
+          x: rect.x,
+          y: rect.y,
+          width: Math.floor(rect.w),
+          height: Math.floor(rect.h),
+          area: Math.floor(rect.w) * Math.floor(rect.h),
+        }));
+      current.remnantArea = current.remnants.reduce((sum, rem) => sum + rem.area, 0);
+    };
+
     const newSheet = () => {
-      current = {
+      finalizeCurrent();
+      const source = stock[stockIndex++] ?? {
+        id: `sheet-${group[0].mat}-${group[0].thickness}-${sheets.length + 1}`,
         material: group[0].mat,
         thickness: group[0].thickness,
         width: config.sheetWidth,
         height: config.sheetHeight,
+        source: 'sheet' as const,
+      };
+      current = {
+        material: source.material,
+        thickness: source.thickness,
+        width: source.width,
+        height: source.height,
+        source: source.source,
+        stockId: source.id,
         items: [],
         usedArea: 0,
         utilization: 0,
-        remnantArea: area(config.sheetWidth, config.sheetHeight),
+        remnantArea: area(source.width, source.height),
+        remnants: [],
       };
-      free = [{ x: 0, y: 0, w: config.sheetWidth, h: config.sheetHeight }];
+      free = [{ x: 0, y: 0, w: source.width, h: source.height }];
       sheets.push(current);
     };
 
@@ -142,12 +203,7 @@ export function planCutting(parts: CutPlanningPart[], options: CutPlanOptions = 
         }
       }
     });
-
-    sheets.filter(s => s.material === group[0].mat && s.thickness === group[0].thickness).forEach(sheet => {
-      const sheetArea = area(sheet.width, sheet.height);
-      sheet.utilization = sheet.usedArea / sheetArea;
-      sheet.remnantArea = Math.max(0, sheetArea - sheet.usedArea);
-    });
+    finalizeCurrent();
   });
 
   return sheets;
