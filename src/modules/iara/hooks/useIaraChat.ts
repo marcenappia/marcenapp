@@ -6,6 +6,8 @@ import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runOrchestrator } from '@/core/orchestrator';
 import { assessIaraRequest } from '@/core/iaraBrain';
 import { createIaraMemory, getConfirmedMeasurements, getMeasurementEvidence, IaraMemory, normalizeIaraMemory, rememberEvent, rememberMeasurements } from '@/core/iaraMemory';
+import { syncIaraOperationalMemory } from '@/core/iaraOperationalMemory';
+import { carregarDiario } from '@/modules/projetos/services/diarioStorage';
 
 export const useIaraChat = (
   factors: { L: number, A: number, P?: number },
@@ -60,8 +62,22 @@ export const useIaraChat = (
       if (data) setMessages(data as ChatMessage[]);
     });
     if (projectId) {
-      supabase.from('projects').select('jornada').eq('id', projectId).eq('user_id', user.id).maybeSingle().then(({ data }) => {
-        if (!cancelled) setMemory(normalizeIaraMemory((data?.jornada as any)?.iaraMemory));
+      supabase.from('projects').select('jornada,internal_material,external_material,back_material').eq('id', projectId).eq('user_id', user.id).maybeSingle().then(({ data }) => {
+        if (cancelled || !data) return;
+        const rawMemory = normalizeIaraMemory((data.jornada as any)?.iaraMemory);
+        const project = {
+          jornada: data.jornada,
+          internalMaterial: (data as any).internal_material,
+          externalMaterial: (data as any).external_material,
+          backMaterial: (data as any).back_material,
+        };
+        const diary = carregarDiario(projectId);
+        const synced = syncIaraOperationalMemory(rawMemory, project, diary);
+        setMemory(synced);
+        if (synced.updatedAt !== rawMemory.updatedAt || synced.lastEvent?.type !== rawMemory.lastEvent?.type) {
+          const jornada = (data.jornada ?? {}) as Record<string, unknown>;
+          supabase.from('projects').update({ jornada: { ...jornada, iaraMemory: synced } as any }).eq('id', projectId).eq('user_id', user.id);
+        }
       });
     }
     const channel = supabase.channel(`chat_messages_${projectId ?? 'none'}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
