@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { FileDown, Plus, RefreshCcw, Trash2 } from 'lucide-react';
+import { FileDown, Plus, RefreshCcw, Trash2, ShoppingCart } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
 import { planCutting, CutPlanningPart, GrainDirection } from '@/core/cutPlanning';
+import { buildHardwareList } from '@/core/hardware';
 
 interface Part extends CutPlanningPart {}
 
@@ -24,8 +25,11 @@ const getGrain = (part: Part): GrainDirection => {
 const CorteModule = ({ parts, setParts, project }: Props) => {
   const [filter, setFilter] = useState<'all' | 'white' | 'wood'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showHardware, setShowHardware] = useState(false);
   const [newPart, setNewPart] = useState<Omit<Part, 'id'>>({ name: '', w: 0, h: 0, qtd: 1, mat: 'white', thickness: 15, grain: 'none' });
 
+  const hardware = useMemo(() => buildHardwareList(project), [project]);
+  const totalHardware = useMemo(() => hardware.reduce((sum, item) => sum + item.quantity, 0), [hardware]);
   const normalizedParts = useMemo(() => parts.map(part => ({ ...part, thickness: part.thickness || 15, grain: getGrain(part) })), [parts]);
   const visibleParts = useMemo(() => filter === 'all' ? normalizedParts : normalizedParts.filter(part => part.mat === filter), [normalizedParts, filter]);
   const sheets = useMemo(() => {
@@ -70,7 +74,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
           <Card className="p-4 h-[650px] overflow-hidden flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <div><h3 className="font-bold text-slate-700">Produção e corte</h3><p className="text-[11px] text-slate-400">Chapa 2730 × 1830 mm • kerf {KERF} mm</p></div>
-              <div className="flex gap-1"><button onClick={importFromBudget} className="p-1.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200" title="Importar projeto"><RefreshCcw size={16} /></button><button onClick={() => setShowAddModal(true)} className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700" title="Adicionar peça"><Plus size={16} /></button></div>
+              <div className="flex gap-1"><button onClick={importFromBudget} className="p-1.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200" title="Importar projeto"><RefreshCcw size={16} /></button><button onClick={() => setShowHardware(true)} className="p-1.5 bg-amber-100 text-amber-700 rounded hover:bg-amber-200" title="Lista de ferragens"><ShoppingCart size={16} /></button><button onClick={() => setShowAddModal(true)} className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700" title="Adicionar peça"><Plus size={16} /></button></div>
             </div>
             <div className="flex gap-1 mb-3">{(['all', 'white', 'wood'] as const).map(f => <button key={f} onClick={() => setFilter(f)} className={`px-2.5 py-1 text-xs rounded font-medium ${filter === f ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}>{f === 'all' ? 'Tudo' : f === 'white' ? 'Branco' : 'Madeirado'}</button>)}</div>
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
@@ -85,6 +89,13 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
           {sheets.length > 0 && <Card className="p-4"><div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"><div><strong className="text-slate-700">Ficha de produção</strong><p className="text-xs text-slate-500">Use imprimir para salvar como PDF ou entregar à produção.</p></div><Button onClick={() => window.print()}><FileDown size={16} /> Imprimir / PDF</Button></div></Card>}
         </div>
       </div>
+
+      <Modal isOpen={showHardware} onClose={() => setShowHardware(false)} title="Lista de compra — Ferragens" maxWidth="max-w-lg" footer={<Button onClick={() => window.print()}>Imprimir / PDF</Button>}>
+        <div className="space-y-2">
+          {hardware.length === 0 ? <p className="text-sm text-slate-500">Nenhuma ferragem automática para este projeto.</p> : hardware.map(item => <div key={item.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50"><div><div className="font-bold text-slate-700">{item.name}</div><div className="text-xs text-slate-500">{item.note}</div></div><div className="text-right shrink-0"><div className="text-lg font-black text-slate-800">{item.quantity}</div><div className="text-[10px] uppercase text-slate-400">{item.unit}</div></div></div>)}
+          {hardware.length > 0 && <div className="pt-3 text-xs text-slate-400">Total de itens/unidades contabilizados: {totalHardware}. Quantidades são uma base inicial e devem ser revisadas conforme ferragem e peso.</div>}
+        </div>
+      </Modal>
 
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Nova Peça" maxWidth="max-w-sm" footer={<Button onClick={addPart}>Adicionar</Button>}>
         <div className="space-y-4"><InputGroup label="Nome" type="text" value={newPart.name} onChange={v => setNewPart({ ...newPart, name: String(v) })} placeholder="Ex: Lateral, Base, Porta..." /><div className="grid grid-cols-2 gap-3"><InputGroup label="Largura (mm)" value={newPart.w} onChange={v => setNewPart({ ...newPart, w: Number(v) })} /><InputGroup label="Altura (mm)" value={newPart.h} onChange={v => setNewPart({ ...newPart, h: Number(v) })} /></div><div className="grid grid-cols-2 gap-3"><InputGroup label="Qtd" value={newPart.qtd} onChange={v => setNewPart({ ...newPart, qtd: Number(v) })} /><SelectGroup label="Material" value={newPart.mat} onChange={v => setNewPart({ ...newPart, mat: v as 'white' | 'wood' })} options={[{ value: 'white', label: 'Branco' }, { value: 'wood', label: 'Madeirado' }]} /></div><div className="grid grid-cols-2 gap-3"><InputGroup label="Espessura (mm)" value={newPart.thickness} onChange={v => setNewPart({ ...newPart, thickness: Number(v) })} /><SelectGroup label="Veio" value={newPart.grain} onChange={v => setNewPart({ ...newPart, grain: v as GrainDirection })} options={[{ value: 'none', label: 'Livre / pode girar' }, { value: 'vertical', label: 'Vertical' }, { value: 'horizontal', label: 'Horizontal' }]} /></div></div>
