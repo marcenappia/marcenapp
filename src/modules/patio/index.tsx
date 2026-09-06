@@ -20,6 +20,9 @@ const SHEET_W = 2730;
 const SHEET_H = 1830;
 const KERF = 3;
 const REMNANT_STORAGE = 'marcenapp-remnants-v1';
+const SAVINGS_KEY_PREFIX = 'marcenapp-cut-savings-v1:';
+
+const projectKey = (project: any) => String(project?.id ?? project?.name ?? project?.jornada?.id ?? 'current');
 
 const getGrain = (part: Part): GrainDirection => {
   if (part.grain) return part.grain;
@@ -89,6 +92,15 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
   const reserveUsedRemnants = () => {
     if (usedRemnantIds.length === 0) return;
     const used = new Set(usedRemnantIds);
+    const savings = { internal: 0, external: 0, back: 0, total: 0 };
+    sheets
+      .filter(sheet => sheet.source === 'remnant' && used.has(sheet.stockId))
+      .forEach(sheet => {
+        savings.total += 1;
+        if (sheet.thickness === 6) savings.back += 1;
+        else if (sheet.material === 'wood' || sheet.thickness === 18) savings.external += 1;
+        else savings.internal += 1;
+      });
     const generated = sheets
       .filter(sheet => sheet.source === 'remnant' && used.has(sheet.stockId))
       .flatMap(sheet => sheet.remnants)
@@ -99,6 +111,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
       }));
     const remaining = remnants.filter(rem => !used.has(rem.id));
     persistRemnants([...generated, ...remaining]);
+    window.localStorage.setItem(`${SAVINGS_KEY_PREFIX}${projectKey(project)}`, JSON.stringify(savings));
   };
 
   const importFromBudget = () => {
