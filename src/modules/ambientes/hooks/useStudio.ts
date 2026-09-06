@@ -11,6 +11,7 @@ import { registrarEventoSistema } from '@/modules/projetos/services/diarioStorag
 import type { EnvironmentAnalysis } from '../types';
 
 interface StudioStyle { id: string; label: string; prompt: string; }
+interface PlannedDimensions { width?: number; height?: number; depth?: number; }
 const styles: StudioStyle[] = [
   { id: 'environment', label: 'Projeto no ambiente', prompt: 'clean contemporary custom cabinetry, architectural visualization, clear joinery composition' },
   { id: 'minimalist', label: 'Minimalista', prompt: 'minimalist interior design, soft lighting, clean lines' },
@@ -18,7 +19,15 @@ const styles: StudioStyle[] = [
   { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
 ];
 
-export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<any>>, navigateTo: (route: string) => void, gallery: string[], setGallery: React.Dispatch<React.SetStateAction<string[]>>, projectId?: string | null) => {
+export const useStudio = (
+  setBudgetProject: React.Dispatch<React.SetStateAction<any>>,
+  navigateTo: (route: string) => void,
+  gallery: string[],
+  setGallery: React.Dispatch<React.SetStateAction<string[]>>,
+  projectId?: string | null,
+  generationMode: StudioGenerationMode = 'render',
+  plannedDimensions: PlannedDimensions = {},
+) => {
   const { user } = useAuth();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
@@ -95,14 +104,21 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
   };
 
   const generate = async () => {
-    if (!prompt && !sketchImage && !envImage) { setError("Adicione um pedido, rascunho ou foto do ambiente."); return; }
-    if (envImage && !environmentAnalysis) { setError("Analise a foto do ambiente antes de criar o projeto."); return; }
-    if (envImage && environmentAnalysis && !environmentAnalysis.confirmedByIara) { setError("Confira o mapa do ambiente com a IARA antes de criar o projeto."); return; }
-    if (envImage && environmentAnalysis) {
+    if (!prompt && !sketchImage && !envImage) { setError("Adicione o pedido do cliente, um rascunho ou uma foto do ambiente."); return; }
+    if (generationMode === 'environment-project' && envImage && !environmentAnalysis) { setError("Analise a foto do ambiente antes de criar o projeto."); return; }
+    if (generationMode === 'environment-project' && envImage && environmentAnalysis && !environmentAnalysis.confirmedByIara) { setError("Confira o mapa do ambiente com a IARA antes de criar o projeto."); return; }
+    if (generationMode === 'environment-project' && envImage && environmentAnalysis) {
       if (!environmentAnalysis.geometry) { setError("Registre as medidas-chave do ambiente antes de criar o projeto."); return; }
       const geometryCheck = validateEnvironmentGeometry(environmentAnalysis, environmentAnalysis.geometry);
       if (!geometryCheck.valid || geometryCheck.criticalMissing.length > 0) {
         setError(`A geometria ainda precisa de conferência: ${[...geometryCheck.errors, ...geometryCheck.criticalMissing.map(item => `falta ${item}`)].join(' ')}`);
+        return;
+      }
+    }
+    if (generationMode === 'planned-environment') {
+      const hasAnyDimension = plannedDimensions.width || plannedDimensions.height || plannedDimensions.depth;
+      if (hasAnyDimension && (!plannedDimensions.width || !plannedDimensions.height || !plannedDimensions.depth)) {
+        setError('Se informar medidas do ambiente planejado, preencha largura, altura e profundidade.');
         return;
       }
     }
@@ -113,15 +129,17 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
       const imgs: ImageData[] = [];
       if (sketchBase64 && sketchMime) imgs.push({ mimeType: sketchMime, data: sketchBase64 });
       if (envBase64 && envMime) imgs.push({ mimeType: envMime, data: envBase64 });
+      const plannedContext = generationMode === 'planned-environment'
+        ? `\nAMBIENTE AINDA NÃO PRONTO: este é um projeto para execução futura. ${plannedDimensions.width ? `MEDIDAS DE REFERÊNCIA INFORMADAS: largura ${plannedDimensions.width} m, altura ${plannedDimensions.height} m, profundidade ${plannedDimensions.depth} m.` : 'Não há medidas confirmadas nesta etapa; trate como CONCEITO VISUAL.'} Não apresente medidas inventadas como medidas de fabricação.\n`
+        : '';
       const environmentContext = environmentAnalysis ? `\nMAPA TÉCNICO DO AMBIENTE (fonte de restrições; NÃO invente medidas):\n${JSON.stringify(environmentAnalysis)}\nREGRAS: respeite paredes, cantos, janelas, portas, tomadas, interruptores e obstáculos detectados. Use a geometria confirmada como referência principal. Nunca ocupe uma abertura ou ponto elétrico sem instrução explícita. Medidas estimadas não são medidas de fabricação; mantenha folgas e peça confirmação quando necessário.` : '';
-      const generationPrompt = `${prompt || 'Projetar a marcenaria aproveitando o ambiente fotografado.'}${environmentContext}`;
-      const generationMode: StudioGenerationMode = envImage ? 'environment-project' : 'render';
+      const generationPrompt = `${prompt || 'Projetar a marcenaria conforme o material de referência enviado.'}${plannedContext}${environmentContext}`;
       let newImage: string | null = null;
       if (isRefining && generatedImage) newImage = await studioService.refineVisual(generatedImage, generationPrompt);
       else newImage = await studioService.generateVisual(generationPrompt, imgs, selectedStyle.prompt, selectedDecor.prompt, generationMode);
       if (newImage) {
         setGeneratedImage(newImage); setGallery((prev: string[]) => [newImage!, ...prev]); setShowModal(true); await saveToGallery(newImage, generationPrompt);
-        if (projectId) registrarEventoSistema(projectId, 'projeto-gerado-estudio', envImage ? 'Projeto de marcenaria materializado no ambiente real a partir da foto e do mapa confirmado pela IARA.' : 'Projeto visual gerado no Estúdio.', 'estudio');
+        if (projectId) registrarEventoSistema(projectId, 'projeto-gerado-estudio', generationMode === 'planned-environment' ? 'Projeto conceitual preparado no Estúdio para ambiente futuro; aguardando conferência do ambiente real para produção.' : envImage ? 'Projeto de marcenaria materializado no ambiente real a partir da foto e do mapa confirmado pela IARA.' : 'Projeto visual gerado no Estúdio.', 'estudio');
       } else throw new Error("Falha na geração. Tente novamente.");
     } catch (e: any) { setError(e?.message || "Erro de conexão."); }
     finally { setLoading(false); }
@@ -135,8 +153,8 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
     try {
       const imageBase64 = generatedImage.split(',')[1];
       const est = await iaraService.analyzeImage(imageBase64);
-      setBudgetProject((prev: any) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
-      if (projectId) registrarEventoSistema(projectId, 'estimativa-enviada-orcamento', 'IARA preparou a estimativa visual para o orçamento.', 'iara');
+      setBudgetProject((prev: any) => ({ ...prev, width: est.width || prev?.width, height: est.height || prev?.height, depth: est.depth || prev?.depth, drawers: est.drawers || 2, doors: est.doors || 2 }));
+      if (projectId) registrarEventoSistema(projectId, 'estimativa-enviada-orcamento', generationMode === 'planned-environment' ? 'IARA preparou uma estimativa visual para o orçamento; medidas de fabricação ainda precisam ser confirmadas.' : 'IARA preparou a estimativa visual para o orçamento.', 'iara');
       setShowModal(false); navigateTo('orcamento');
     } catch { alert("Não foi possível analisar. Redirecionando..."); navigateTo('orcamento'); }
     finally { setAnalyzing(false); }
