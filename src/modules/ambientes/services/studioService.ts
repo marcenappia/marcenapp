@@ -1,7 +1,7 @@
 import { callAIImage } from '@/services/ai';
 import { ImageData } from '@/store/useStudioStore';
 
-export type StudioGenerationMode = 'render' | 'environment-project';
+export type StudioGenerationMode = 'render' | 'environment-project' | 'planned-environment';
 
 export const studioService = {
   /** Geração visual do Estúdio. */
@@ -25,6 +25,18 @@ export const studioService = {
         Decor direction: ${decorPrompt || 'minimal, functional, carpentry-focused'}.
         USER REQUEST: ${prompt}.
         OUTPUT: one clear perspective visualization of the proposed cabinetry installed in the photographed environment.`
+      : mode === 'planned-environment'
+      ? `ACT AS A PROFESSIONAL CUSTOM-CABINETRY 3D CONCEPT DESIGNER.
+        PRIMARY TASK: create a proposed cabinetry project for an environment that is NOT YET READY, based on the client's description and any supplied sketch, floor plan, construction photo or reference image.
+        There may be no finished room to photograph. Do NOT invent an existing finished environment and do NOT claim that the visualization is dimensionally accurate.
+        Treat explicit dimensions supplied by the user as design constraints. If dimensions are absent, create a coherent CONCEPT ONLY and make no manufacturing claims.
+        If a sketch or plan is supplied, use it as the spatial reference and preserve its openings, walls and proportions as far as the visual model allows.
+        The result should help the carpenter SELL the project before the environment is finished: show the intended cabinetry, composition, finishes, doors, drawers, niches and overall client-facing appearance.
+        This is a conceptual visualization for presentation and refinement. Exact production dimensions must later be confirmed in the real environment before budget finalization, production or cutting.
+        Design direction: ${stylePrompt || 'clean contemporary custom cabinetry'}.
+        Decor direction: ${decorPrompt || 'minimal, functional, carpentry-focused'}.
+        USER REQUEST: ${prompt}.
+        OUTPUT: one clear client-facing architectural visualization of the planned cabinetry.`
       : `ACT AS AN EXPERT ARCHITECTURAL VISUALIZER.
         Style: ${stylePrompt || 'Photorealistic'}.
         Decor: ${decorPrompt || 'Modern'}.
