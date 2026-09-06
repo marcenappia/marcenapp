@@ -6,6 +6,7 @@ import { useStudioStore, ImageData } from '@/store/useStudioStore';
 import { studioService } from '../services/studioService';
 import { iaraService } from '@/modules/iara/services/iaraService';
 import { analyzeEnvironment, confirmEnvironmentWithIara } from '../services/environmentAnalysis';
+import { validateEnvironmentGeometry } from '../services/environmentGeometry';
 import type { EnvironmentAnalysis } from '../types';
 
 interface StudioStyle { id: string; label: string; prompt: string; }
@@ -94,6 +95,14 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
     if (!prompt && !sketchImage && !envImage) { setError("Adicione um prompt, rascunho ou foto do ambiente."); return; }
     if (envImage && !environmentAnalysis) { setError("Analise a foto do ambiente antes de criar o projeto."); return; }
     if (envImage && environmentAnalysis && !environmentAnalysis.confirmedByIara) { setError("Confira o mapa do ambiente com a IARA antes de criar o projeto."); return; }
+    if (envImage && environmentAnalysis) {
+      if (!environmentAnalysis.geometry) { setError("Registre as medidas-chave do ambiente antes de criar o projeto."); return; }
+      const geometryCheck = validateEnvironmentGeometry(environmentAnalysis, environmentAnalysis.geometry);
+      if (!geometryCheck.valid || geometryCheck.criticalMissing.length > 0) {
+        setError(`A geometria ainda precisa de conferência: ${[...geometryCheck.errors, ...geometryCheck.criticalMissing.map(item => `falta ${item}`)].join(' ')}`);
+        return;
+      }
+    }
     const authed = await requireAuth();
     if (!authed) { setPendingAction(() => () => generate()); setShowAuthDialog(true); return; }
     setLoading(true); setError(null);
@@ -101,7 +110,7 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
       const imgs: ImageData[] = [];
       if (sketchBase64 && sketchMime) imgs.push({ mimeType: sketchMime, data: sketchBase64 });
       if (envBase64 && envMime) imgs.push({ mimeType: envMime, data: envBase64 });
-      const environmentContext = environmentAnalysis ? `\nMAPA TÉCNICO DO AMBIENTE (fonte de restrições; NÃO invente medidas):\n${JSON.stringify(environmentAnalysis)}\nREGRAS: respeite paredes, cantos, janelas, portas, tomadas, interruptores e obstáculos detectados. Nunca ocupe uma abertura ou ponto elétrico sem instrução explícita. Medidas estimadas não são medidas de fabricação; mantenha folgas e peça confirmação quando necessário.` : '';
+      const environmentContext = environmentAnalysis ? `\nMAPA TÉCNICO DO AMBIENTE (fonte de restrições; NÃO invente medidas):\n${JSON.stringify(environmentAnalysis)}\nREGRAS: respeite paredes, cantos, janelas, portas, tomadas, interruptores e obstáculos detectados. Use a geometria confirmada como referência principal. Nunca ocupe uma abertura ou ponto elétrico sem instrução explícita. Medidas estimadas não são medidas de fabricação; mantenha folgas e peça confirmação quando necessário.` : '';
       const generationPrompt = `${prompt || 'Projetar aproveitando o ambiente fotografado.'}${environmentContext}`;
       let newImage: string | null = null;
       if (isRefining && generatedImage) newImage = await studioService.refineVisual(generatedImage, generationPrompt);
