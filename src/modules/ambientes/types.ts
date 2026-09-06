@@ -25,6 +25,22 @@ export interface EnvironmentElement {
   notes?: string;
 }
 
+export interface EnvironmentGeometry {
+  roomWidthM: number | null;
+  roomHeightM: number | null;
+  roomDepthM: number | null;
+  ceilingHeightM: number | null;
+  wallWidthsM: Record<string, number>;
+  openings: Array<{
+    elementId: string;
+    wallElementId: string | null;
+    offsetFromWallStartM: number | null;
+    sillHeightM: number | null;
+  }>;
+  source: 'photo' | 'user' | 'mixed';
+  validatedAt?: string;
+}
+
 export interface EnvironmentAnalysis {
   version: '1.0';
   roomType: string;
@@ -37,6 +53,7 @@ export interface EnvironmentAnalysis {
   warnings: string[];
   analyzedAt: string;
   confirmedByIara: boolean;
+  geometry?: EnvironmentGeometry;
 }
 
 export interface EnvironmentConfirmation {
