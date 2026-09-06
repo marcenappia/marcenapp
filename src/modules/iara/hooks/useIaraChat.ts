@@ -5,6 +5,7 @@ import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runOrchestrator } from '@/core/orchestrator';
 import { assessIaraRequest } from '@/core/iaraBrain';
+import { assessIaraJourneyReadiness, type IaraJourneyReadiness, type IaraJourneyTarget } from '@/core/iaraJourneyReadiness';
 import { createIaraMemory, getConfirmedMeasurements, getMeasurementEvidence, IaraMemory, normalizeIaraMemory, rememberEvent, rememberMeasurements, resolveIaraConflict } from '@/core/iaraMemory';
 import { syncIaraOperationalMemory } from '@/core/iaraOperationalMemory';
 import { carregarDiario } from '@/modules/projetos/services/diarioStorage';
@@ -103,6 +104,16 @@ export const useIaraChat = (
     await supabase.from('projects').update({ jornada: { ...jornada, iaraMemory: next } as any }).eq('id', targetProjectId).eq('user_id', user.id);
   };
 
+  const targetFromPrompt = (prompt: string): IaraJourneyTarget | null => {
+    const lower = prompt.toLocaleLowerCase('pt-BR');
+    if (/(corte|cortar|seccionadora|cnc)/i.test(lower)) return 'corte';
+    if (/(produ[cç][aã]o|fabricar|fabric[aç][aã]o|liberar)/i.test(lower)) return 'producao';
+    if (/(or[cç]amento|pre[cç]o|valor|quanto custa|fechar)/i.test(lower)) return 'orcamento';
+    return null;
+  };
+
+  const readiness = (target: IaraJourneyTarget): IaraJourneyReadiness => assessIaraJourneyReadiness(target, memory);
+
   const sendPrompt = async (promptText: string, upload: typeof pendingUpload) => {
     if (!user) return;
     setIsTyping(true);
@@ -124,10 +135,24 @@ export const useIaraChat = (
         return;
       }
 
+      const target = targetFromPrompt(promptText);
+      if (target) {
+        const gate = readiness(target);
+        if (!gate.ready) {
+          await saveMessage({
+            sender: 'iara',
+            text: `🧭 **Ainda não é hora de ${target}.**\n\n${gate.blockers.map(blocker => `• ${blocker}`).join('\n')}\n\nQuando esses pontos estiverem conferidos, eu continuo sem refazer o trabalho.`,
+            metadata: { journeyReadiness: gate, blocked: true, projectId },
+          });
+          lastFailedRef.current = null;
+          return;
+        }
+      }
+
       const run = await runOrchestrator(
         promptText,
         { userId: user.id, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined },
-        { decorStyle, currentProject: { largura: confirmed.width ?? factors.L, altura: confirmed.height ?? factors.A, profundidade: confirmed.depth ?? factors.P }, iaraBrain: { evidenceStatus: brain.status, criticalRequest: brain.critical, imageIsEvidenceOnly: Boolean(currentBaseRaw) }, iaraMemory: { evidenceStatus: evidence, confirmedMeasurements: confirmed, conflicts: memory.conflicts.filter(c => !c.resolved).slice(0, 10) } },
+        { decorStyle, currentProject: { largura: confirmed.width ?? factors.L, altura: confirmed.height ?? factors.A, profundidade: confirmed.depth ?? factors.P }, iaraBrain: { evidenceStatus: brain.status, criticalRequest: brain.critical, imageIsEvidenceOnly: Boolean(currentBaseRaw) }, iaraMemory: { evidenceStatus: evidence, confirmedMeasurements: confirmed, conflicts: memory.conflicts.filter(c => !c.resolved).slice(0, 10) }, journeyReadiness: target ? readiness(target) : undefined },
       );
 
       if (run.plan.length === 0) {
@@ -158,7 +183,7 @@ export const useIaraChat = (
       if (nextMemory.updatedAt !== memory.updatedAt || nextMemory.lastEvent?.type !== memory.lastEvent?.type) await persistMemory(nextMemory);
       const footer = run.usedFallback ? '\n\n_(interpretação por fallback keyword)_' : '';
       const header = run.summary ? `${run.summary}\n\n` : '';
-      await saveMessage({ sender: 'iara', text: `${header}${linhas.join('\n')}${footer}`, metadata: { memoryEvidence: getMeasurementEvidence(nextMemory), memoryUpdatedAt: nextMemory.updatedAt } });
+      await saveMessage({ sender: 'iara', text: `${header}${linhas.join('\n')}${footer}`, metadata: { memoryEvidence: getMeasurementEvidence(nextMemory), memoryUpdatedAt: nextMemory.updatedAt, journeyReadiness: target ? readiness(target) : undefined } });
       lastFailedRef.current = null;
     } catch (e: any) {
       lastFailedRef.current = { text: promptText, upload };
@@ -199,5 +224,5 @@ export const useIaraChat = (
 
   const memoryEvidence = getMeasurementEvidence(memory);
   const memoryConflictCount = memory.conflicts.filter(c => !c.resolved).length;
-  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, memoryEvidence, memoryConflictCount, memory, resolveMemoryConflict };
+  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, memoryEvidence, memoryConflictCount, memory, resolveMemoryConflict, readiness };
 };
