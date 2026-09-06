@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { FileDown, Plus, RefreshCcw, Trash2, ShoppingCart, PackageOpen } from 'lucide-react';
+import { FileDown, Plus, RefreshCcw, Trash2, ShoppingCart, PackageOpen, CheckCircle2 } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
 import { planCutting, CutPlanningPart, GrainDirection, CutRemnant } from '@/core/cutPlanning';
 import { buildHardwareList } from '@/core/hardware';
@@ -49,25 +49,56 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
   const totalHardware = useMemo(() => hardware.reduce((sum, item) => sum + item.quantity, 0), [hardware]);
   const normalizedParts = useMemo(() => parts.map(part => ({ ...part, thickness: part.thickness || 15, grain: getGrain(part) })), [parts]);
   const visibleParts = useMemo(() => filter === 'all' ? normalizedParts : normalizedParts.filter(part => part.mat === filter), [normalizedParts, filter]);
+  const stockSheets = useMemo(() => remnants.map(rem => ({
+    id: rem.id,
+    material: rem.material,
+    thickness: rem.thickness,
+    width: rem.width,
+    height: rem.height,
+    source: 'remnant' as const,
+  })), [remnants]);
   const sheets = useMemo(() => {
     try {
-      return planCutting(visibleParts, { sheetWidth: SHEET_W, sheetHeight: SHEET_H, kerf: KERF, allowRotation: true });
+      return planCutting(visibleParts, {
+        sheetWidth: SHEET_W,
+        sheetHeight: SHEET_H,
+        kerf: KERF,
+        allowRotation: true,
+        stockSheets,
+      });
     } catch {
       return [];
     }
-  }, [visibleParts]);
+  }, [visibleParts, stockSheets]);
+  const usedRemnantIds = useMemo(() => sheets.filter(sheet => sheet.source === 'remnant').map(sheet => sheet.stockId), [sheets]);
+  const newSheetCount = useMemo(() => sheets.filter(sheet => sheet.source === 'sheet').length, [sheets]);
+  const reusedRemnantCount = usedRemnantIds.length;
 
-  const saveRemnant = (remnant: CutRemnant) => {
-    const saved: SavedRemnant = { ...remnant, id: `rem-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, savedAt: new Date().toISOString() };
-    const next = [saved, ...remnants];
+  const persistRemnants = (next: SavedRemnant[]) => {
     setRemnants(next);
     window.localStorage.setItem(REMNANT_STORAGE, JSON.stringify(next));
   };
 
-  const removeRemnant = (id: string) => {
-    const next = remnants.filter(item => item.id !== id);
-    setRemnants(next);
-    window.localStorage.setItem(REMNANT_STORAGE, JSON.stringify(next));
+  const saveRemnant = (remnant: CutRemnant) => {
+    const saved: SavedRemnant = { ...remnant, id: `rem-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, savedAt: new Date().toISOString() };
+    persistRemnants([saved, ...remnants]);
+  };
+
+  const removeRemnant = (id: string) => persistRemnants(remnants.filter(item => item.id !== id));
+
+  const reserveUsedRemnants = () => {
+    if (usedRemnantIds.length === 0) return;
+    const used = new Set(usedRemnantIds);
+    const generated = sheets
+      .filter(sheet => sheet.source === 'remnant' && used.has(sheet.stockId))
+      .flatMap(sheet => sheet.remnants)
+      .map(rem => ({
+        ...rem,
+        id: `rem-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        savedAt: new Date().toISOString(),
+      }));
+    const remaining = remnants.filter(rem => !used.has(rem.id));
+    persistRemnants([...generated, ...remaining]);
   };
 
   const importFromBudget = () => {
@@ -115,7 +146,8 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
         </div>
 
         <div className="lg:col-span-8 space-y-4 h-[650px] overflow-y-auto pr-2 scrollbar-thin">
-          {sheets.length === 0 ? <div className="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl gap-2"><div className="text-4xl">📐</div><p>Adicione peças compatíveis para gerar o plano de corte</p></div> : sheets.map((sheet, idx) => <Card key={`${sheet.material}-${sheet.thickness}-${idx}`} className="p-4"><div className="flex flex-wrap justify-between items-center gap-2 mb-3"><div><h4 className="font-bold text-slate-700">{sheet.source === 'remnant' ? 'Sobra em uso' : 'Chapa'} #{idx + 1}</h4><p className="text-xs text-slate-400">{sheet.material === 'white' ? 'MDF branco' : 'MDF madeirado'} • {sheet.thickness} mm • {sheet.width} × {sheet.height} mm</p></div><div className="flex items-center gap-2"><span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded">{(sheet.utilization * 100).toFixed(1)}% aproveitamento</span><span className="text-xs text-slate-500">{(sheet.remnantArea / 1_000_000).toFixed(2)} m² sobra útil</span></div></div><div className="bg-slate-200 relative rounded border-2 border-slate-400 overflow-hidden shadow-inner" style={{ aspectRatio: `${sheet.width}/${sheet.height}` }}>{sheet.items.map(item => <div key={item.uid} title={`${item.name}: ${item.w} × ${item.h} mm${item.rotated ? ' • girada' : ''}`} className={`absolute border border-black/10 flex flex-col items-center justify-center text-[9px] font-bold ${item.mat === 'white' ? 'bg-indigo-200 text-indigo-900' : 'bg-amber-200 text-amber-900'}`} style={{ left: `${(item.x / sheet.width) * 100}%`, top: `${(item.y / sheet.height) * 100}%`, width: `${(item.w / sheet.width) * 100}%`, height: `${(item.h / sheet.height) * 100}%` }}><span className="truncate px-1 max-w-full">{item.name}</span><span className="text-[8px] font-normal">{item.w}×{item.h}{item.rotated ? ' ↻' : ''}</span></div>)}</div>{sheet.remnants.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{sheet.remnants.map(rem => <div key={rem.id} className="flex items-center gap-2 bg-sky-50 border border-sky-100 rounded-lg px-2.5 py-1.5"><span className="text-xs font-semibold text-sky-800">Sobra {rem.width} × {rem.height} mm</span><button onClick={() => saveRemnant(rem)} className="text-[10px] font-bold text-sky-700 hover:underline">Guardar estoque</button></div>)}</div>}</Card>)}
+          {sheets.length > 0 && <Card className="p-3 border-sky-100 bg-sky-50"><div className="flex flex-col sm:flex-row justify-between gap-3 items-start sm:items-center"><div><div className="font-bold text-sky-900">Aproveitamento automático</div><p className="text-xs text-sky-700">{reusedRemnantCount} {reusedRemnantCount === 1 ? 'sobra reaproveitada' : 'sobras reaproveitadas'} • {newSheetCount} {newSheetCount === 1 ? 'chapa nova' : 'chapas novas'}</p></div>{reusedRemnantCount > 0 && <Button onClick={reserveUsedRemnants}><CheckCircle2 size={16} /> Reservar sobras usadas</Button>}</div></Card>}
+          {sheets.length === 0 ? <div className="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl gap-2"><div className="text-4xl">📐</div><p>Adicione peças compatíveis para gerar o plano de corte</p></div> : sheets.map((sheet, idx) => <Card key={`${sheet.material}-${sheet.thickness}-${sheet.stockId}`} className="p-4"><div className="flex flex-wrap justify-between items-center gap-2 mb-3"><div><h4 className="font-bold text-slate-700">{sheet.source === 'remnant' ? 'Sobra em uso' : 'Chapa'} #{idx + 1}</h4><p className="text-xs text-slate-400">{sheet.material === 'white' ? 'MDF branco' : 'MDF madeirado'} • {sheet.thickness} mm • {sheet.width} × {sheet.height} mm</p></div><div className="flex items-center gap-2"><span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded">{(sheet.utilization * 100).toFixed(1)}% aproveitamento</span><span className="text-xs text-slate-500">{(sheet.remnantArea / 1_000_000).toFixed(2)} m² sobra útil</span></div></div><div className="bg-slate-200 relative rounded border-2 border-slate-400 overflow-hidden shadow-inner" style={{ aspectRatio: `${sheet.width}/${sheet.height}` }}>{sheet.items.map(item => <div key={item.uid} title={`${item.name}: ${item.w} × ${item.h} mm${item.rotated ? ' • girada' : ''}`} className={`absolute border border-black/10 flex flex-col items-center justify-center text-[9px] font-bold ${item.mat === 'white' ? 'bg-indigo-200 text-indigo-900' : 'bg-amber-200 text-amber-900'}`} style={{ left: `${(item.x / sheet.width) * 100}%`, top: `${(item.y / sheet.height) * 100}%`, width: `${(item.w / sheet.width) * 100}%`, height: `${(item.h / sheet.height) * 100}%` }}><span className="truncate px-1 max-w-full">{item.name}</span><span className="text-[8px] font-normal">{item.w}×{item.h}{item.rotated ? ' ↻' : ''}</span></div>)}</div>{sheet.remnants.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{sheet.remnants.map(rem => <div key={rem.id} className="flex items-center gap-2 bg-sky-50 border border-sky-100 rounded-lg px-2.5 py-1.5"><span className="text-xs font-semibold text-sky-800">Sobra {rem.width} × {rem.height} mm</span><button onClick={() => saveRemnant(rem)} className="text-[10px] font-bold text-sky-700 hover:underline">Guardar estoque</button></div>)}</div>}</Card>)}
           {sheets.length > 0 && <Card className="p-4"><div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"><div><strong className="text-slate-700">Ficha de produção</strong><p className="text-xs text-slate-500">Use imprimir para salvar como PDF ou entregar à produção.</p></div><Button onClick={() => window.print()}><FileDown size={16} /> Imprimir / PDF</Button></div></Card>}
         </div>
       </div>
