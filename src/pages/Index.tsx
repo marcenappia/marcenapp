@@ -7,7 +7,8 @@ import logo from '@/assets/marcenapp-logo.jpeg';
 
 // Modular components
 import Onboarding from '../components/marcenaria/Onboarding';
-import Dashboard from '@/modules/projetos';
+import Home from '@/modules/jornada/Home';
+import NovoProjeto from '@/modules/jornada/NovoProjeto';
 import { StudioHub } from '@/modules/ambientes/StudioHub';
 import { Elevator } from '@/modules/ambientes/components/Elevator';
 import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
@@ -18,7 +19,7 @@ import ClientesModule from '@/modules/projetos/components/Clientes';
 import DiarioModule from '@/modules/projetos/components/Diario';
 
 // Hooks & Config
-import { modules, CATEGORY_LABELS, ModuleCategory } from '@/modules/config';
+import { modules, CATEGORY_LABELS, ModuleCategory, MOBILE_NAV_IDS } from '@/modules/config';
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
 import { ProjectData } from '@/modules/projetos/types';
 
@@ -41,12 +42,13 @@ const Index = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const rawModule = searchParams.get('module') || 'studio';
-  // 'chat' foi absorvido pelo Estúdio como aba interna
+  // A tela inicial é a jornada do marceneiro (Início); 'chat' foi absorvido pelo Estúdio
+  const rawModule = searchParams.get('module') || 'dashboard';
   const activeModule = rawModule === 'chat' ? 'studio' : rawModule;
+  const projetoParam = searchParams.get('projeto');
   
-  const setActiveModule = (id: string) => {
-    setSearchParams({ module: id }, { replace: true });
+  const setActiveModule = (id: string, params: Record<string, string> = {}) => {
+    setSearchParams({ module: id, ...params }, { replace: true });
   };
 
   const [budgetProject, setBudgetProject] = useState(defaultProject);
@@ -65,12 +67,13 @@ const Index = () => {
   // Persistence logic moved to hook
   useProjectPersistence(budgetProject, setBudgetProject);
 
-  const activeModuleData = modules.find(m => m.id === activeModule)!;
+  const activeModuleData = modules.find(m => m.id === activeModule) ?? modules[0];
   const ActiveIcon = activeModuleData.icon;
 
   const renderModule = () => {
     switch (activeModule) {
-      case 'dashboard': return <Dashboard projectData={budgetProject} partsData={parts} navigateTo={setActiveModule} />;
+      case 'dashboard': return <Home navigateTo={setActiveModule} />;
+      case 'novo': return <NovoProjeto key={projetoParam ?? 'novo'} projectId={projetoParam} setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'clientes': return <ClientesModule />;
       case 'diario': return <DiarioModule />;
       case 'studio': return <StudioHub setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} budgetProject={budgetProject} />;
@@ -121,15 +124,20 @@ const Index = () => {
     }
   };
 
-  // Agrupar módulos por categoria para a sidebar
+  // Agrupar módulos por categoria para a sidebar (itens ocultos ficam fora do menu)
   const groupedModules = useMemo(() => {
     const categories: Partial<Record<ModuleCategory, typeof modules>> = {};
-    modules.forEach(m => {
+    modules.filter(m => !m.hidden).forEach(m => {
       if (!categories[m.category]) categories[m.category] = [];
       categories[m.category]!.push(m);
     });
     return categories;
   }, []);
+
+  const mobileModules = useMemo(
+    () => MOBILE_NAV_IDS.map(id => modules.find(m => m.id === id)).filter(Boolean) as typeof modules,
+    []
+  );
 
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
@@ -280,7 +288,7 @@ const Index = () => {
 
         {/* Mobile Bottom Nav - Refatorado */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-1 py-1 z-50 flex justify-around items-center pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
-          {modules.filter(m => ['intelligence', 'portal', 'studio', 'finance'].includes(m.category)).slice(0, 5).map(m => (
+          {mobileModules.map(m => (
             <button
               key={m.id}
               id={`mobile-nav-${m.id}`}

@@ -149,7 +149,7 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
 
   test('should navigate using Enter and Space keys with URL and Title verification', async ({ page, isMobile }) => {
     const navModules = [
-      { id: 'dashboard', label: 'Visão Geral' },
+      { id: 'dashboard', label: 'Início' },
       { id: 'chat', label: 'IARA Chat' },
       { id: 'studio', label: 'Studio 3D' }
     ];
@@ -264,7 +264,7 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
   test('should synchronize state with browser history (back/forward) and refresh', async ({ page }) => {
     // Navigate to a few modules
     const modules = [
-      { id: 'dashboard', label: 'Visão Geral' },
+      { id: 'dashboard', label: 'Início' },
       { id: 'studio', label: 'Studio 3D' }
     ];
 
@@ -277,13 +277,13 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     // Go back
     await page.goBack();
     await expect(page).toHaveURL(/module=dashboard/);
-    await expect(page).toHaveTitle(/Visão Geral/i);
+    await expect(page).toHaveTitle(/Início/i);
     await expect(page.locator('#nav-dashboard')).toHaveAttribute('aria-current', 'page');
 
     // Refresh
     await page.reload();
     await expect(page).toHaveURL(/module=dashboard/);
-    await expect(page).toHaveTitle(/Visão Geral/i);
+    await expect(page).toHaveTitle(/Início/i);
     await expect(page.locator('#nav-dashboard')).toHaveAttribute('aria-current', 'page');
     
     // Go forward
