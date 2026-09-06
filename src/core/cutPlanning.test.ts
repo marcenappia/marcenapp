@@ -34,4 +34,31 @@ describe('cut planning', () => {
       allowRotation: true,
     })).toThrow(/maior que a chapa/);
   });
+
+  it('uses a compatible remnant before opening a new sheet', () => {
+    const sheets = planCutting([part(1, 'Prateleira', 500, 400, 1)], {
+      sheetWidth: 1000,
+      sheetHeight: 1000,
+      kerf: 3,
+      allowRotation: true,
+      stockSheets: [{ id: 'rem-1', material: 'white', thickness: 15, width: 600, height: 500, source: 'remnant' }],
+    });
+    expect(sheets).toHaveLength(1);
+    expect(sheets[0].source).toBe('remnant');
+    expect(sheets[0].stockId).toBe('rem-1');
+    expect(sheets[0].items).toHaveLength(1);
+  });
+
+  it('skips an incompatible remnant instead of creating an empty sheet', () => {
+    const sheets = planCutting([part(1, 'Porta', 900, 700, 1, 'vertical')], {
+      sheetWidth: 1000,
+      sheetHeight: 1000,
+      kerf: 3,
+      allowRotation: true,
+      stockSheets: [{ id: 'rem-1', material: 'white', thickness: 15, width: 600, height: 500, source: 'remnant' }],
+    });
+    expect(sheets).toHaveLength(1);
+    expect(sheets[0].source).toBe('sheet');
+    expect(sheets[0].items).toHaveLength(1);
+  });
 });
