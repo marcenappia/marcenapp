@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AudioLines, BookOpen, Camera, ChevronRight, CircleStop, FileText, Mic, Star, Trash2, Bot, ArrowRight } from 'lucide-react';
+import { AudioLines, BookOpen, Camera, ChevronRight, CircleStop, FileText, Mic, Star, Trash2, Bot } from 'lucide-react';
 import { Card, Button } from '@/components/marcenaria/shared';
-import { adicionarEntrada, carregarDiario, salvarDiario, sincronizarLinhaDoTempoProjeto, type DiarioEntrada } from '../services/diarioStorage';
+import { adicionarEntrada, salvarDiario, sincronizarLinhaDoTempoProjeto, type DiarioEntrada } from '../services/diarioStorage';
 import type { ProjectData } from '../types';
 
 const contextKey = 'marcenapp_studio_diary_context';
+const stageContextKey = (target: string) => `marcenapp_${target}_diary_context`;
 
 const resizePhoto = (file: File): Promise<string> => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -63,7 +64,9 @@ const DiarioModule = ({ project, navigateTo }: Props) => {
   const stopRecording = () => { mediaRecorder.current?.stop(); mediaRecorder.current = null; setRecording(false); };
 
   const sendTo = (entry: DiarioEntrada, target: string) => {
-    localStorage.setItem(contextKey, JSON.stringify({ projectId, texto: entry.texto, tipo: entry.tipo, createdAt: entry.createdAt }));
+    const payload = JSON.stringify({ projectId, texto: entry.texto, tipo: entry.tipo, createdAt: entry.createdAt });
+    if (target === 'studio') localStorage.setItem(contextKey, payload);
+    else localStorage.setItem(stageContextKey(target), payload);
     navigateTo?.(target, projectId === 'local' ? {} : { projeto: projectId });
   };
 
