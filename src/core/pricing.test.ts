@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCutList, calculateBudget } from './pricing';
+import { buildCutList, calculateBudget, DEFAULT_PRICES } from './pricing';
 
 const project = {
   width: 2.4,
@@ -25,7 +25,7 @@ describe('pricing engine', () => {
     expect(parts.find(p => p.name === 'Frente de gaveta')?.qtd).toBe(4);
   });
 
-  it('includes depth, waste, edge tape, hardware, labor, installation and profit', () => {
+  it('uses depth, waste, edge tape, hardware, labor, installation and profit', () => {
     const shallow = calculateBudget({ ...project, depth: 0.4 });
     const deep = calculateBudget({ ...project, depth: 0.8 });
     expect(deep.total).toBeGreaterThanOrEqual(shallow.total);
@@ -34,5 +34,18 @@ describe('pricing engine', () => {
     expect(deep.installationCost).toBeGreaterThan(0);
     expect(deep.profit).toBeGreaterThan(0);
     expect(deep.total).toBe(deep.subtotal + deep.profit);
+  });
+
+  it('respects editable prices and the selected back material', () => {
+    const catalog = structuredClone(DEFAULT_PRICES);
+    catalog.mdf15_white.sheet = 500;
+    catalog.mdf6_white.sheet = 200;
+    const result = calculateBudget(project, catalog);
+    expect(result.internalSheets).toBeGreaterThan(0);
+    expect(result.backSheets).toBeGreaterThan(0);
+    expect(result.materialCost).toBeGreaterThan(0);
+
+    const baseline = calculateBudget(project, DEFAULT_PRICES);
+    expect(result.materialCost).toBeGreaterThan(baseline.materialCost);
   });
 });

@@ -35,6 +35,8 @@ export interface PriceList {
   overheadRate: number;
 }
 
+export type PriceCatalog = Record<string, PriceList>;
+
 export interface BudgetResult {
   parts: CutPart[];
   internalSheets: number;
@@ -52,43 +54,43 @@ export interface BudgetResult {
   wasteRate: number;
 }
 
-export const DEFAULT_PRICES: Record<string, PriceList> = {
-  mdf15_white: { sheet: 260, sheetArea: 2.73 * 1.83, edgePerMeter: 2.2, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
-  mdf18_white: { sheet: 290, sheetArea: 2.73 * 1.83, edgePerMeter: 2.4, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
-  mdf18_wood: { sheet: 495, sheetArea: 2.73 * 1.83, edgePerMeter: 3.2, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
-  mdf6_white: { sheet: 120, sheetArea: 2.73 * 1.83, edgePerMeter: 1.8, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
+const SHEET_AREA = 2.73 * 1.83;
+
+export const DEFAULT_PRICES: PriceCatalog = {
+  mdf15_white: { sheet: 260, sheetArea: SHEET_AREA, edgePerMeter: 2.2, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
+  mdf18_white: { sheet: 290, sheetArea: SHEET_AREA, edgePerMeter: 2.4, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
+  mdf18_wood: { sheet: 495, sheetArea: SHEET_AREA, edgePerMeter: 3.2, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
+  mdf6_white: { sheet: 120, sheetArea: SHEET_AREA, edgePerMeter: 0, slide: 0, hinge: 0, externalHandle: 0, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
 };
 
-const mm = (meters: number) => Math.round(meters * 1000);
+const mm = (meters: number) => Math.round((Number(meters) || 0) * 1000);
+const positiveInt = (value: number) => Math.max(0, Math.round(Number(value) || 0));
+const safePrice = (value: number, fallback = 0) => Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : fallback;
 
 function sumArea(parts: CutPart[], predicate: (part: CutPart) => boolean): number {
   return parts.filter(predicate).reduce((sum, part) => sum + (part.w * part.h * part.qtd) / 1_000_000, 0);
 }
 
-function edgeMeters(parts: CutPart[]): number {
-  return parts.reduce((sum, part) => sum + ((part.w + part.h) * 2 * part.qtd) / 1000, 0);
-}
-
-function getPrice(material: string, fallback: PriceList): PriceList {
-  return DEFAULT_PRICES[material] ?? fallback;
+function edgeMeters(parts: CutPart[], predicate: (part: CutPart) => boolean): number {
+  return parts.filter(predicate).reduce((sum, part) => sum + ((part.w + part.h) * 2 * part.qtd) / 1000, 0);
 }
 
 export function buildCutList(project: PricingProject): CutPart[] {
   const W = mm(project.width);
   const H = mm(project.height);
   const D = mm(project.depth);
-  const modules = Math.max(1, Math.round(project.modules || 1));
+  const modules = Math.max(1, positiveInt(project.modules));
   const moduleW = Math.max(300, Math.floor((W - Math.max(0, modules - 1) * 18) / modules));
   const internalDepth = Math.max(250, D - 20);
-  const shelfCount = Math.max(0, modules * 2);
-  const drawerCount = Math.max(0, Math.round(project.drawers));
-  const doorCount = Math.max(0, Math.round(project.doors));
+  const shelfCount = modules * 2;
+  const drawerCount = positiveInt(project.drawers);
+  const doorCount = positiveInt(project.doors);
 
   const parts: CutPart[] = [
     { name: 'Lateral', w: internalDepth, h: H, qtd: modules * 2, mat: 'white', thickness: 15 },
     { name: 'Base', w: internalDepth, h: moduleW - 30, qtd: modules, mat: 'white', thickness: 15 },
     { name: 'Topo', w: internalDepth, h: moduleW - 30, qtd: modules, mat: 'white', thickness: 15 },
-    { name: 'Prateleira', w: internalDepth - 20, h: moduleW - 40, qtd: shelfCount, mat: 'white', thickness: 15 },
+    { name: 'Prateleira', w: Math.max(230, internalDepth - 20), h: Math.max(260, moduleW - 40), qtd: shelfCount, mat: 'white', thickness: 15 },
     { name: 'Fundo', w: moduleW, h: H, qtd: modules, mat: 'white', thickness: 6 },
   ];
 
@@ -99,37 +101,39 @@ export function buildCutList(project: PricingProject): CutPart[] {
 
   if (drawerCount > 0) {
     const drawerW = Math.max(250, moduleW - 50);
-    const drawerH = 120;
-    parts.push({ name: 'Frente de gaveta', w: drawerW, h: drawerH, qtd: drawerCount, mat: 'wood', thickness: 18 });
-    parts.push({ name: 'Caixa de gaveta', w: internalDepth - 80, h: drawerW - 80, qtd: drawerCount, mat: 'white', thickness: 15 });
+    parts.push({ name: 'Frente de gaveta', w: drawerW, h: 120, qtd: drawerCount, mat: 'wood', thickness: 18 });
+    parts.push({ name: 'Caixa de gaveta', w: Math.max(220, internalDepth - 80), h: Math.max(220, drawerW - 80), qtd: drawerCount, mat: 'white', thickness: 15 });
   }
 
   return parts;
 }
 
-export function calculateBudget(project: PricingProject, prices: PriceList = DEFAULT_PRICES[project.externalMaterial] ?? DEFAULT_PRICES.mdf18_white): BudgetResult {
+export function calculateBudget(project: PricingProject, catalog: PriceCatalog = DEFAULT_PRICES): BudgetResult {
   const parts = buildCutList(project);
-  const internalPrice = getPrice(project.internalMaterial, DEFAULT_PRICES.mdf15_white);
-  const externalPrice = getPrice(project.externalMaterial, prices);
-  const backPrice = getPrice(project.backMaterial, DEFAULT_PRICES.mdf6_white);
+  const internalPrices = catalog[project.internalMaterial] ?? DEFAULT_PRICES.mdf15_white;
+  const externalPrices = catalog[project.externalMaterial] ?? DEFAULT_PRICES.mdf18_white;
+  const backPrices = catalog[project.backMaterial] ?? DEFAULT_PRICES.mdf6_white;
+  const wasteRate = Math.min(1, safePrice(externalPrices.wasteRate, 0.12));
 
-  const internalArea = sumArea(parts, part => part.mat === 'white' && part.thickness === 15) * (1 + internalPrice.wasteRate);
-  const externalArea = sumArea(parts, part => part.mat === 'wood' || part.thickness === 18) * (1 + externalPrice.wasteRate);
-  const backArea = sumArea(parts, part => part.thickness === 6) * (1 + backPrice.wasteRate);
-  const internalSheets = Math.ceil(internalArea / internalPrice.sheetArea);
-  const externalSheets = Math.ceil(externalArea / externalPrice.sheetArea);
-  const backSheets = Math.ceil(backArea / backPrice.sheetArea);
+  const internalArea = sumArea(parts, part => part.mat === 'white' && part.thickness === 15) * (1 + wasteRate);
+  const externalArea = sumArea(parts, part => part.mat === 'wood' || part.thickness === 18) * (1 + wasteRate);
+  const backArea = sumArea(parts, part => part.thickness === 6) * (1 + wasteRate);
+  const internalSheets = internalArea > 0 ? Math.ceil(internalArea / safePrice(internalPrices.sheetArea, SHEET_AREA)) : 0;
+  const externalSheets = externalArea > 0 ? Math.ceil(externalArea / safePrice(externalPrices.sheetArea, SHEET_AREA)) : 0;
+  const backSheets = backArea > 0 ? Math.ceil(backArea / safePrice(backPrices.sheetArea, SHEET_AREA)) : 0;
 
-  const materialCost = internalSheets * internalPrice.sheet + externalSheets * externalPrice.sheet + backSheets * backPrice.sheet;
-  const edgeCost = edgeMeters(parts) * ((internalPrice.edgePerMeter + externalPrice.edgePerMeter) / 2);
-  const handleCount = project.handleType === 'external' ? Math.max(0, project.drawers + project.doors) : 0;
-  const hardwareCost = project.drawers * externalPrice.slide + project.doors * 2 * externalPrice.hinge + handleCount * externalPrice.externalHandle;
+  const materialCost = internalSheets * safePrice(internalPrices.sheet) + externalSheets * safePrice(externalPrices.sheet) + backSheets * safePrice(backPrices.sheet);
+  const whiteEdge = edgeMeters(parts, part => part.mat === 'white' && part.thickness !== 6) * safePrice(internalPrices.edgePerMeter);
+  const woodEdge = edgeMeters(parts, part => part.mat === 'wood') * safePrice(externalPrices.edgePerMeter);
+  const edgeCost = whiteEdge + woodEdge;
+  const handleCount = project.handleType === 'external' ? positiveInt(project.drawers) + positiveInt(project.doors) : 0;
+  const hardwareCost = positiveInt(project.drawers) * safePrice(externalPrices.slide) + positiveInt(project.doors) * 2 * safePrice(externalPrices.hinge) + handleCount * safePrice(externalPrices.externalHandle);
   const baseCost = materialCost + edgeCost + hardwareCost;
-  const laborCost = baseCost * Math.max(0, project.laborRate) / 100;
-  const installationCost = baseCost * Math.max(0, externalPrice.installationRate);
-  const overheadCost = baseCost * Math.max(0, externalPrice.overheadRate);
+  const laborCost = baseCost * Math.max(0, safePrice(project.laborRate)) / 100;
+  const installationCost = baseCost * safePrice(externalPrices.installationRate, 0.12);
+  const overheadCost = baseCost * safePrice(externalPrices.overheadRate, 0.05);
   const subtotal = baseCost + laborCost + installationCost + overheadCost;
-  const profit = subtotal * Math.max(0, project.profitMargin) / 100;
+  const profit = subtotal * Math.max(0, safePrice(project.profitMargin)) / 100;
 
   return {
     parts,
@@ -145,6 +149,6 @@ export function calculateBudget(project: PricingProject, prices: PriceList = DEF
     profit,
     subtotal,
     total: subtotal + profit,
-    wasteRate: Math.max(internalPrice.wasteRate, externalPrice.wasteRate, backPrice.wasteRate),
+    wasteRate,
   };
 }
