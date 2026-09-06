@@ -7,10 +7,16 @@
 - [x] Vitest sem OOM
 
 ## Jornada guiada (marceneiro-first) — etapa 1
-- [ ] Revisão objetiva UX/arquitetura da jornada atual (home, nav, projetos, Studio, onboarding)
-- [ ] Nova Home simples: "Novo Projeto" como ação principal + lista de projetos com progresso
-- [ ] Fluxo "Novo Projeto" guiado por etapas (nome/cliente → foto → pedido do cliente → IARA analisa → apresentação)
-- [ ] Reaproveitar IARA/Studio/Gemini existentes (sem recriar)
-- [ ] Verificação de tipos/build
+- [x] Revisão objetiva UX/arquitetura da jornada atual (home, nav, projetos, Studio, onboarding)
+- [x] Nova Home simples: "Novo Projeto" como ação principal + lista de projetos com progresso
+- [x] Fluxo "Novo Projeto" guiado por etapas (nome/cliente → foto → pedido do cliente → IARA analisa → apresentação)
+- [x] Reaproveitar IARA/Studio/Gemini existentes (sem recriar)
+- [x] Verificação de tipos/build
 
 Fases 1–3 técnicas: ver `.lovable/plan/auditoria-técnica-completa-marcenapp-os-2026-09-05.md`
+
+## Jornada — etapa 2 (próximo)
+- [ ] Persistir etapa/aprovação da obra no banco (hoje: localStorage)
+- [ ] Guardar foto do ambiente em Storage para retomar a obra
+- [ ] Produção: lista de peças + ferragens + plano de corte a partir da obra aprovada
+- [ ] Exportar/compartilhar PDF (apresentação, orçamento, contrato)

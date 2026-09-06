@@ -277,13 +277,13 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     // Go back
     await page.goBack();
     await expect(page).toHaveURL(/module=dashboard/);
-    await expect(page).toHaveTitle(/Visão Geral/i);
+    await expect(page).toHaveTitle(/Início/i);
     await expect(page.locator('#nav-dashboard')).toHaveAttribute('aria-current', 'page');
 
     // Refresh
     await page.reload();
     await expect(page).toHaveURL(/module=dashboard/);
-    await expect(page).toHaveTitle(/Visão Geral/i);
+    await expect(page).toHaveTitle(/Início/i);
     await expect(page.locator('#nav-dashboard')).toHaveAttribute('aria-current', 'page');
     
     // Go forward
