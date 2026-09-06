@@ -149,7 +149,7 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
 
   test('should navigate using Enter and Space keys with URL and Title verification', async ({ page, isMobile }) => {
     const navModules = [
-      { id: 'dashboard', label: 'Visão Geral' },
+      { id: 'dashboard', label: 'Início' },
       { id: 'chat', label: 'IARA Chat' },
       { id: 'studio', label: 'Studio 3D' }
     ];
@@ -264,7 +264,7 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
   test('should synchronize state with browser history (back/forward) and refresh', async ({ page }) => {
     // Navigate to a few modules
     const modules = [
-      { id: 'dashboard', label: 'Visão Geral' },
+      { id: 'dashboard', label: 'Início' },
       { id: 'studio', label: 'Studio 3D' }
     ];
 
