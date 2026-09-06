@@ -11,9 +11,10 @@ interface StudioProps {
   gallery: string[];
   setGallery: React.Dispatch<React.SetStateAction<string[]>>;
   descriptionSlot?: React.ReactNode;
+  projectId?: string | null;
 }
 
-export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, descriptionSlot }: StudioProps) => {
+export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, descriptionSlot, projectId }: StudioProps) => {
   const {
     prompt, setPrompt, sketchImage, setSketchImage, envImage, setEnvImage,
     generatedImage, setGeneratedImage, loading, analyzing, selectedDecor, setSelectedDecor,
@@ -22,7 +23,7 @@ export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, desc
     generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime,
     environmentAnalysis, analyzingEnvironment, confirmingEnvironment, environmentError,
     analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis, updateEnvironmentAnalysis,
-  } = useStudio(setBudgetProject, navigateTo, gallery, setGallery);
+  } = useStudio(setBudgetProject, navigateTo, gallery, setGallery, projectId);
 
   const processFile = (file: File, type: 'sketch' | 'env') => {
     if (!file) return;
