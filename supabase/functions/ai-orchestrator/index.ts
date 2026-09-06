@@ -29,7 +29,7 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: "createProjeto",
-    description: "Cria projeto de marcenaria somente quando nome e dimensões necessárias foram confirmados. Nunca use medidas padrão silenciosas.",
+    description: "Cria projeto de marcenaria somente quando nome e as três dimensões foram explicitamente confirmados pelo usuário. Nunca use medidas padrão silenciosas.",
     parameters: { type: "object", properties: {
       nome: { type: "string", description: "Nome do projeto" },
       clienteNome: { type: "string", description: "Cliente, se informado" },
@@ -37,7 +37,8 @@ const TOOL_DECLARATIONS = [
       height: { type: "number", description: "Altura confirmada em metros" },
       depth: { type: "number", description: "Profundidade confirmada em metros" },
       tipo: { type: "string", description: "Tipo do móvel" },
-    }, required: ["nome", "width", "height", "depth"] },
+      confirmado: { type: "boolean", description: "Deve ser true somente quando o usuário tiver confirmado explicitamente as dimensões para criação do projeto" },
+    }, required: ["nome", "width", "height", "depth", "confirmado"] },
   },
   {
     name: "gerarRender",
@@ -96,6 +97,7 @@ Uma nota do Diário, uma foto ou uma frase do cliente pode ser evidência de int
 
 FERRAMENTAS
 - Use ferramentas apenas quando os argumentos estiverem sustentados pelos dados disponíveis.
+- Para createProjeto, o argumento confirmado DEVE ser true somente após confirmação explícita do usuário das três dimensões. Se não houver essa confirmação, não chame a ferramenta.
 - Não encadeie ações destrutivas ou de alto impacto com base em suposição.
 - Ordem típica quando tudo estiver confirmado: cliente → projeto → visual → orçamento → contrato.
 - Se a solicitação for apenas uma dúvida, responda sem ferramentas.
