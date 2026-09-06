@@ -7,11 +7,31 @@ interface IaraReadinessPanelProps {
   onResolveConflict: (conflictId: string, choice: 'confirmed' | 'new') => void;
 }
 
+const isConfirmed = (memory: IaraMemory, key: string) => memory.facts.some(fact => fact.key === key && fact.status === 'CONFIRMADO');
+
 export const IaraReadinessPanel = ({ memory, onResolveConflict }: IaraReadinessPanelProps) => {
   const openConflicts = memory.conflicts.filter(conflict => !conflict.resolved);
-  const measurements = ['width', 'height', 'depth'].map(key => memory.facts.find(fact => fact.key === key));
-  const missing = measurements.filter(fact => !fact || fact.status !== 'CONFIRMADO').length;
-  const ready = openConflicts.length === 0 && missing === 0;
+  const measurements = ['width', 'height', 'depth'];
+  const missingMeasurements = measurements.filter(key => !isConfirmed(memory, key)).length;
+  const materials = ['material-interno', 'material-externo', 'material-fundo'];
+  const missingMaterials = materials.filter(key => !isConfirmed(memory, key)).length;
+  const budgetApproved = isConfirmed(memory, 'orcamento-aprovado');
+  const productionReleased = isConfirmed(memory, 'producao-status');
+
+  let nextStep = 'Conferir medidas';
+  if (missingMeasurements === 0 && missingMaterials > 0) nextStep = 'Definir materiais';
+  else if (missingMeasurements === 0 && missingMaterials === 0 && !budgetApproved) nextStep = 'Preparar orçamento';
+  else if (budgetApproved && !productionReleased) nextStep = 'Liberar produção';
+  else if (productionReleased) nextStep = 'Executar produção e corte';
+
+  const criticalReady = openConflicts.length === 0 && missingMeasurements === 0;
+
+  const items = [
+    { label: 'Medidas principais', done: missingMeasurements === 0 },
+    { label: 'Materiais', done: missingMaterials === 0 },
+    { label: 'Orçamento aprovado', done: budgetApproved },
+    { label: 'Produção liberada', done: productionReleased },
+  ];
 
   return (
     <section className="mx-4 my-3 rounded-xl border border-border bg-card/80 p-3 shadow-sm">
@@ -19,14 +39,23 @@ export const IaraReadinessPanel = ({ memory, onResolveConflict }: IaraReadinessP
         <ShieldCheck size={16} className="mt-0.5 shrink-0 text-primary" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] font-black uppercase tracking-wide text-foreground">Prontidão técnica</p>
-            <span className={`text-[9px] font-black uppercase ${ready ? 'text-emerald-600' : 'text-amber-600'}`}>
-              {ready ? 'Pronto para decisões críticas' : 'Conferência pendente'}
+            <p className="text-[11px] font-black uppercase tracking-wide text-foreground">Prontidão da jornada</p>
+            <span className={`text-[9px] font-black uppercase ${criticalReady ? 'text-emerald-600' : 'text-amber-600'}`}>
+              {criticalReady ? 'Base técnica conferida' : 'Conferência pendente'}
             </span>
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            {ready ? 'Medidas principais confirmadas e sem conflitos abertos.' : `${missing} medida(s) principal(is) ainda não confirmada(s)${openConflicts.length ? ` · ${openConflicts.length} conflito(s)` : ''}.`}
-          </p>
+          <p className="mt-1 text-[10px] text-muted-foreground">Próxima etapa: <strong className="text-foreground">{nextStep}</strong></p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {items.map(item => (
+              <div key={item.label} className="flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1.5 text-[9px] font-bold text-muted-foreground">
+                {item.done ? <CheckCircle2 size={12} className="text-emerald-600" /> : <CircleHelp size={12} className="text-amber-600" />}
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
+          {openConflicts.length > 0 && (
+            <p className="mt-2 text-[9px] font-bold text-red-600">{openConflicts.length} conflito(s) precisam ser resolvidos antes de uma decisão crítica.</p>
+          )}
         </div>
       </div>
 
