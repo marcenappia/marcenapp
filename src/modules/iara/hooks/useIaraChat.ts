@@ -5,7 +5,7 @@ import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runOrchestrator } from '@/core/orchestrator';
 import { assessIaraRequest } from '@/core/iaraBrain';
-import { createIaraMemory, getConfirmedMeasurements, getMeasurementEvidence, IaraMemory, normalizeIaraMemory, rememberEvent, rememberMeasurements } from '@/core/iaraMemory';
+import { createIaraMemory, getConfirmedMeasurements, getMeasurementEvidence, IaraMemory, normalizeIaraMemory, rememberEvent, rememberMeasurements, resolveIaraConflict } from '@/core/iaraMemory';
 import { syncIaraOperationalMemory } from '@/core/iaraOperationalMemory';
 import { carregarDiario } from '@/modules/projetos/services/diarioStorage';
 
@@ -177,6 +177,11 @@ export const useIaraChat = (
 
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload); };
   const dismissError = () => setError(null);
+  const resolveMemoryConflict = async (conflictId: string, choice: 'confirmed' | 'new') => {
+    const next = resolveIaraConflict(memory, conflictId, choice);
+    if (next === memory) return;
+    await persistMemory(next);
+  };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -194,5 +199,5 @@ export const useIaraChat = (
 
   const memoryEvidence = getMeasurementEvidence(memory);
   const memoryConflictCount = memory.conflicts.filter(c => !c.resolved).length;
-  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, memoryEvidence, memoryConflictCount };
+  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, memoryEvidence, memoryConflictCount, memory, resolveMemoryConflict };
 };
