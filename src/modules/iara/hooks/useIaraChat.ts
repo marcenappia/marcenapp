@@ -101,14 +101,7 @@ export const useIaraChat = (
       await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
       const evidence = getMeasurementEvidence(memory);
       const confirmed = getConfirmedMeasurements(memory);
-      const brain = assessIaraRequest(promptText, {
-        width: confirmed.width ?? factors.L,
-        height: confirmed.height ?? factors.A,
-        depth: confirmed.depth ?? factors.P,
-        hasImage: Boolean(currentBaseRaw),
-        measurementEvidence: evidence,
-      });
-
+      const brain = assessIaraRequest(promptText, { width: confirmed.width ?? factors.L, height: confirmed.height ?? factors.A, depth: confirmed.depth ?? factors.P, hasImage: Boolean(currentBaseRaw), measurementEvidence: evidence });
       if (!brain.allow) {
         await saveMessage({ sender: 'iara', text: `🛡️ **Conferência necessária**\n\n${brain.reason}\n\n${brain.question}`, metadata: { brain: true, status: brain.status, blocked: true, projectId, memoryEvidence: evidence } });
         lastFailedRef.current = null;
@@ -118,12 +111,7 @@ export const useIaraChat = (
       const run = await runOrchestrator(
         promptText,
         { userId: user.id, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined },
-        {
-          decorStyle,
-          currentProject: { largura: confirmed.width ?? factors.L, altura: confirmed.height ?? factors.A, profundidade: confirmed.depth ?? factors.P },
-          iaraBrain: { evidenceStatus: brain.status, criticalRequest: brain.critical, imageIsEvidenceOnly: Boolean(currentBaseRaw) },
-          iaraMemory: { evidenceStatus: evidence, confirmedMeasurements: confirmed, conflicts: memory.conflicts.filter(c => !c.resolved).slice(0, 10) },
-        },
+        { decorStyle, currentProject: { largura: confirmed.width ?? factors.L, altura: confirmed.height ?? factors.A, profundidade: confirmed.depth ?? factors.P }, iaraBrain: { evidenceStatus: brain.status, criticalRequest: brain.critical, imageIsEvidenceOnly: Boolean(currentBaseRaw) }, iaraMemory: { evidenceStatus: evidence, confirmedMeasurements: confirmed, conflicts: memory.conflicts.filter(c => !c.resolved).slice(0, 10) } },
       );
 
       if (run.plan.length === 0) {
@@ -151,7 +139,6 @@ export const useIaraChat = (
           default: return `✅ ${tool} executado.`;
         }
       });
-
       if (nextMemory.updatedAt !== memory.updatedAt || nextMemory.lastEvent?.type !== memory.lastEvent?.type) await persistMemory(nextMemory);
       const footer = run.usedFallback ? '\n\n_(interpretação por fallback keyword)_' : '';
       const header = run.summary ? `${run.summary}\n\n` : '';
@@ -189,5 +176,7 @@ export const useIaraChat = (
   }, []);
   const toggleRecording = () => { if (isListening) recognitionRef.current?.stop(); else recognitionRef.current?.start(); };
 
-  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError };
+  const memoryEvidence = getMeasurementEvidence(memory);
+  const memoryConflictCount = memory.conflicts.filter(c => !c.resolved).length;
+  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, memoryEvidence, memoryConflictCount };
 };
