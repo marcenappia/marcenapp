@@ -20,7 +20,6 @@ const isAllowedOrigin = (origin: string | null): boolean => {
   }
 };
 
-/** Cabeçalhos CORS que refletem apenas origens permitidas. */
 export const buildCorsHeaders = (req: Request): Record<string, string> => {
   const origin = req.headers.get("origin");
   const allowed = isAllowedOrigin(origin) ? origin! : "null";
@@ -45,11 +44,8 @@ export const jsonResponse = (
   });
 
 export interface GuardOptions {
-  /** Nome da função — chave do rate limit. */
   fn: string;
-  /** Máximo de chamadas por janela. */
   limit: number;
-  /** Janela em segundos. */
   windowSeconds: number;
 }
 
@@ -58,8 +54,9 @@ export type GuardResult =
   | { ok: false; response: Response };
 
 /**
- * Valida o JWT do usuário (Authorization: Bearer <access_token>) e aplica rate limit por usuário.
- * Retorna a resposta de erro pronta quando bloqueado.
+ * Valida o JWT do usuário e aplica rate limit por usuário.
+ * Falha no mecanismo de rate limit bloqueia a chamada (fail closed),
+ * evitando que uma falha de infraestrutura libere consumo ilimitado da IA.
  */
 export async function guardRequest(
   req: Request,
@@ -95,19 +92,26 @@ export async function guardRequest(
   });
 
   if (rlError) {
-    // Falha no contador não deve derrubar o serviço, mas fica registrada.
     console.error("guard: rate limit rpc error", rlError.message);
-    return { ok: true, userId };
-  }
-
-  const row = Array.isArray(rl) ? rl[0] : rl;
-  if (row && row.allowed === false) {
-    const retryAfter = Math.max(1, Number(row.retry_after_seconds ?? opts.windowSeconds));
     return {
       ok: false,
       response: jsonResponse(
         cors,
-        { error: `Limite de uso atingido. Tente novamente em ${retryAfter}s.`, retryAfterSeconds: retryAfter },
+        { error: "Não foi possível validar o limite de uso da IA. Tente novamente em instantes.", code: "rate_limit_unavailable" },
+        503,
+        { "Retry-After": "10" },
+      ),
+    };
+  }
+
+  const row = Array.isArray(rl) ? rl[0] : rl;
+  if (!row || row.allowed === false) {
+    const retryAfter = Math.max(1, Number(row?.retry_after_seconds ?? opts.windowSeconds));
+    return {
+      ok: false,
+      response: jsonResponse(
+        cors,
+        { error: row ? `Limite de uso atingido. Tente novamente em ${retryAfter}s.` : "Não foi possível validar o limite de uso da IA.", retryAfterSeconds: retryAfter },
         429,
         { "Retry-After": String(retryAfter) },
       ),
@@ -117,7 +121,6 @@ export async function guardRequest(
   return { ok: true, userId };
 }
 
-/** Lê o corpo JSON com limite de tamanho. Retorna null se inválido/grande demais. */
 export async function readJsonBody(req: Request, maxBytes: number): Promise<{ ok: true; body: unknown } | { ok: false; reason: "too_large" | "invalid_json" }> {
   const declared = Number(req.headers.get("content-length") ?? 0);
   if (declared > maxBytes) return { ok: false, reason: "too_large" };
