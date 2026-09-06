@@ -46,8 +46,8 @@ const createCliente: ToolDefinition = {
 
 const createProjeto: ToolDefinition = {
   name: 'createProjeto',
-  description: 'Cria projeto somente com dimensões reais/confirmadas; nunca aplica medidas padrão silenciosamente',
-  version: '1.1.0',
+  description: 'Cria projeto somente com dimensões reais/confirmadas; nunca aplica medidas padrão silenciosamente. Requer confirmação explícita do usuário.',
+  version: '1.2.0',
   inputSchema: z.object({
     nome: z.string().min(1),
     clienteNome: z.string().optional(),
@@ -55,6 +55,7 @@ const createProjeto: ToolDefinition = {
     height: z.number().positive(),
     depth: z.number().positive(),
     tipo: z.string().optional(),
+    confirmado: z.literal(true),
   }),
   async execute(args, ctx) {
     let clienteId: string | null = null;
