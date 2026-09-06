@@ -4,13 +4,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runOrchestrator } from '@/core/orchestrator';
+import { assessIaraRequest } from '@/core/iaraBrain';
 
 export const useIaraChat = (
-  factors: { L: number, A: number },
+  factors: { L: number, A: number, P?: number },
   decorStyle: string,
   setShowAuthDialog: (val: boolean) => void,
   hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void },
-  /** Projeto ativo — histórico é isolado por projeto (null = sem projeto salvo) */
   projectId: string | null = null,
 ) => {
   const { user } = useAuth();
@@ -23,44 +23,29 @@ export const useIaraChat = (
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload } | null>(null);
-  
   const commandHistory = useMarcenappOS(state => state.commandHistory);
-
   const recognitionRef = useRef<any>(null);
 
-  // Monitora mudanças de status na fila de comandos para notificar o usuário
   useEffect(() => {
     if (commandHistory.length === 0) return;
     const lastCommand = commandHistory[0];
-    
     const notifyChat = async () => {
-      // Evita loops infinitos ou notificações duplicadas
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
-
       if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
-        
-        // Validação rigorosa: Vincular resultado ao ID do comando no chat
         await saveMessage({
           sender: 'iara',
           text: `A materialização foi concluída com sucesso no Estúdio! (Ref: ${lastCommand.id})`,
-          image_url: lastCommand.result.resultUrl, 
-          metadata: {
-            commandId: lastCommand.id,
-            resultUrl: lastCommand.result.resultUrl
-          }
+          image_url: lastCommand.result.resultUrl,
+          metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl },
         });
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
-        await saveMessage({
-          sender: 'iara',
-          text: `Desculpe, o Estúdio encontrou um problema ao processar sua solicitação: ${lastCommand.error}.`,
-        });
+        await saveMessage({ sender: 'iara', text: `Desculpe, o Estúdio encontrou um problema ao processar sua solicitação: ${lastCommand.error}.` });
         setIsTyping(false);
       }
     };
-
     notifyChat();
   }, [commandHistory]);
 
@@ -69,40 +54,26 @@ export const useIaraChat = (
     let cancelled = false;
     setMessages([]);
     setError(null);
-
-    let query = supabase
-      .from('chat_messages')
-      .select('*')
-      .eq('user_id', user.id);
+    let query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
     query = projectId ? query.eq('project_id', projectId) : query.is('project_id', null);
     query.order('created_at', { ascending: true }).then(({ data, error: loadError }) => {
       if (cancelled) return;
       if (loadError) { setError('Não foi possível carregar o histórico. Verifique sua conexão.'); return; }
       if (data) setMessages(data as ChatMessage[]);
     });
-
-    const channel = supabase
-      .channel(`chat_messages_${projectId ?? 'none'}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages',
-        filter: `user_id=eq.${user.id}`,
-      }, (payload) => {
-        const msg = payload.new as ChatMessage;
-        if ((msg.project_id ?? null) !== (projectId ?? null)) return;
-        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
-      })
-      .subscribe();
-
+    const channel = supabase.channel(`chat_messages_${projectId ?? 'none'}`).on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}`,
+    }, (payload) => {
+      const msg = payload.new as ChatMessage;
+      if ((msg.project_id ?? null) !== (projectId ?? null)) return;
+      setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
+    }).subscribe();
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [user, projectId]);
 
   const saveMessage = async (msg: Partial<ChatMessage>) => {
     if (!user) return;
-    const { error: insertError } = await supabase
-      .from('chat_messages')
-      .insert({ user_id: user.id, project_id: projectId, ...msg });
+    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: user.id, project_id: projectId, ...msg });
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
   };
 
@@ -110,7 +81,6 @@ export const useIaraChat = (
     if (!user) return;
     setIsTyping(true);
     setError(null);
-
     let currentBaseRaw: string | null = null;
     let currentMaskRaw: string | null = null;
     let previewImg: string | null = null;
@@ -128,6 +98,28 @@ export const useIaraChat = (
     try {
       await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
 
+      const brain = assessIaraRequest(promptText, {
+        width: factors.L,
+        height: factors.A,
+        depth: factors.P,
+        hasImage: Boolean(currentBaseRaw),
+      });
+
+      if (!brain.allow) {
+        await saveMessage({
+          sender: 'iara',
+          text: `🛡️ **Conferência necessária**\n\n${brain.reason}\n\n${brain.question}`,
+          metadata: {
+            brain: true,
+            status: brain.status,
+            blocked: true,
+            projectId,
+          },
+        });
+        lastFailedRef.current = null;
+        return;
+      }
+
       const run = await runOrchestrator(
         promptText,
         {
@@ -138,21 +130,21 @@ export const useIaraChat = (
         },
         {
           decorStyle,
-          currentProject: { largura: factors.L, altura: factors.A },
+          currentProject: { largura: factors.L, altura: factors.A, profundidade: factors.P },
+          iaraBrain: {
+            evidenceStatus: brain.status,
+            criticalRequest: brain.critical,
+            imageIsEvidenceOnly: Boolean(currentBaseRaw),
+          },
         },
       );
 
-      // Sem plano → conversa/pedido de esclarecimento
       if (run.plan.length === 0) {
-        await saveMessage({
-          sender: 'iara',
-          text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.',
-        });
+        await saveMessage({ sender: 'iara', text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.' });
         lastFailedRef.current = null;
         return;
       }
 
-      // Consolida resposta com resultado de cada tool call
       const linhas = run.results.map(({ tool, result }) => {
         if (result.ok === false) return `❌ ${tool}: ${result.error}`;
         switch (tool) {
@@ -160,11 +152,7 @@ export const useIaraChat = (
             return `✅ Cliente **${result.data.nome}** cadastrado.`;
           case 'createProjeto':
             if (result.data?.width && result.data?.height && result.data?.depth) {
-              hooks?.onProjectCreated?.({
-                width: Number(result.data.width),
-                height: Number(result.data.height),
-                depth: Number(result.data.depth),
-              });
+              hooks?.onProjectCreated?.({ width: Number(result.data.width), height: Number(result.data.height), depth: Number(result.data.depth) });
             }
             return `✅ Projeto **${result.data.nome}** criado (${result.data.width}×${result.data.height}×${result.data.depth}m).`;
           case 'gerarRender':
@@ -180,13 +168,9 @@ export const useIaraChat = (
 
       const footer = run.usedFallback ? '\n\n_(interpretação por fallback keyword)_' : '';
       const header = run.summary ? `${run.summary}\n\n` : '';
-      await saveMessage({
-        sender: 'iara',
-        text: `${header}${linhas.join('\n')}${footer}`,
-      });
+      await saveMessage({ sender: 'iara', text: `${header}${linhas.join('\n')}${footer}` });
       lastFailedRef.current = null;
     } catch (e: any) {
-      // Guarda o envio para permitir "Tentar novamente" sem redigitar
       lastFailedRef.current = { text: promptText, upload };
       setError(e?.message || 'Falha ao falar com a IARA. Tente novamente.');
     } finally {
@@ -197,7 +181,6 @@ export const useIaraChat = (
   const handleSend = async () => {
     if (!chatInput.trim() && !pendingUpload) return;
     if (!user) { setShowAuthDialog(true); return; }
-
     const promptText = chatInput.trim();
     const upload = pendingUpload;
     setChatInput("");
@@ -212,8 +195,6 @@ export const useIaraChat = (
   };
 
   const dismissError = () => setError(null);
-
-
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -238,14 +219,12 @@ export const useIaraChat = (
   }, []);
 
   const toggleRecording = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-    } else {
-      recognitionRef.current?.start();
-    }
+    if (isListening) recognitionRef.current?.stop();
+    else recognitionRef.current?.start();
   };
 
   return {
-    messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError
+    messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording,
+    maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError,
   };
 };
