@@ -80,13 +80,20 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
     try {
       const result = await confirmEnvironmentWithIara(envBase64, environmentAnalysis, envMime || 'image/jpeg');
       setEnvironmentAnalysis(result.analysis);
+      if (result.questions.length > 0) setEnvironmentError(`A IARA pede conferência: ${result.questions.join(' ')}`);
     } catch (e: any) { setEnvironmentError(e?.message || 'Não foi possível concluir a conferência.'); }
     finally { setConfirmingEnvironment(false); }
+  };
+
+  const updateEnvironmentAnalysis = (next: EnvironmentAnalysis) => {
+    setEnvironmentAnalysis({ ...next, confirmedByIara: false });
+    setEnvironmentError(null);
   };
 
   const generate = async () => {
     if (!prompt && !sketchImage && !envImage) { setError("Adicione um prompt, rascunho ou foto do ambiente."); return; }
     if (envImage && !environmentAnalysis) { setError("Analise a foto do ambiente antes de criar o projeto."); return; }
+    if (envImage && environmentAnalysis && !environmentAnalysis.confirmedByIara) { setError("Confira o mapa do ambiente com a IARA antes de criar o projeto."); return; }
     const authed = await requireAuth();
     if (!authed) { setPendingAction(() => () => generate()); setShowAuthDialog(true); return; }
     setLoading(true); setError(null);
@@ -126,6 +133,6 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
     selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction,
     generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime,
     environmentAnalysis, analyzingEnvironment, confirmingEnvironment, environmentError,
-    analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis,
+    analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis, updateEnvironmentAnalysis,
   };
 };
