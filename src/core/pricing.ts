@@ -32,6 +32,7 @@ export interface PriceList {
   backSheet: number;
   installationRate: number;
   wasteRate: number;
+  overheadRate: number;
 }
 
 export interface BudgetResult {
@@ -52,9 +53,10 @@ export interface BudgetResult {
 }
 
 export const DEFAULT_PRICES: Record<string, PriceList> = {
-  mdf15_white: { sheet: 260, sheetArea: 2.73 * 1.83, edgePerMeter: 2.2, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12 },
-  mdf18_white: { sheet: 290, sheetArea: 2.73 * 1.83, edgePerMeter: 2.4, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12 },
-  mdf18_wood: { sheet: 495, sheetArea: 2.73 * 1.83, edgePerMeter: 3.2, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12 },
+  mdf15_white: { sheet: 260, sheetArea: 2.73 * 1.83, edgePerMeter: 2.2, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
+  mdf18_white: { sheet: 290, sheetArea: 2.73 * 1.83, edgePerMeter: 2.4, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
+  mdf18_wood: { sheet: 495, sheetArea: 2.73 * 1.83, edgePerMeter: 3.2, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
+  mdf6_white: { sheet: 120, sheetArea: 2.73 * 1.83, edgePerMeter: 1.8, slide: 28, hinge: 7.5, externalHandle: 15, backSheet: 120, installationRate: 0.12, wasteRate: 0.12, overheadRate: 0.05 },
 };
 
 const mm = (meters: number) => Math.round(meters * 1000);
@@ -65,6 +67,10 @@ function sumArea(parts: CutPart[], predicate: (part: CutPart) => boolean): numbe
 
 function edgeMeters(parts: CutPart[]): number {
   return parts.reduce((sum, part) => sum + ((part.w + part.h) * 2 * part.qtd) / 1000, 0);
+}
+
+function getPrice(material: string, fallback: PriceList): PriceList {
+  return DEFAULT_PRICES[material] ?? fallback;
 }
 
 export function buildCutList(project: PricingProject): CutPart[] {
@@ -103,23 +109,25 @@ export function buildCutList(project: PricingProject): CutPart[] {
 
 export function calculateBudget(project: PricingProject, prices: PriceList = DEFAULT_PRICES[project.externalMaterial] ?? DEFAULT_PRICES.mdf18_white): BudgetResult {
   const parts = buildCutList(project);
-  const internalArea = sumArea(parts, part => part.mat === 'white' && part.thickness === 15) * (1 + prices.wasteRate);
-  const externalArea = sumArea(parts, part => part.mat === 'wood' || part.thickness === 18) * (1 + prices.wasteRate);
-  const backArea = sumArea(parts, part => part.thickness === 6) * (1 + prices.wasteRate);
-  const internalSheets = Math.ceil(internalArea / prices.sheetArea);
-  const externalSheets = Math.ceil(externalArea / prices.sheetArea);
-  const backSheets = Math.ceil(backArea / prices.sheetArea);
+  const internalPrice = getPrice(project.internalMaterial, DEFAULT_PRICES.mdf15_white);
+  const externalPrice = getPrice(project.externalMaterial, prices);
+  const backPrice = getPrice(project.backMaterial, DEFAULT_PRICES.mdf6_white);
 
-  const internalPrice = DEFAULT_PRICES[project.internalMaterial]?.sheet ?? DEFAULT_PRICES.mdf15_white.sheet;
-  const externalPrice = DEFAULT_PRICES[project.externalMaterial]?.sheet ?? DEFAULT_PRICES.mdf18_white.sheet;
-  const materialCost = internalSheets * internalPrice + externalSheets * externalPrice + backSheets * prices.backSheet;
-  const edgeCost = edgeMeters(parts) * prices.edgePerMeter;
+  const internalArea = sumArea(parts, part => part.mat === 'white' && part.thickness === 15) * (1 + internalPrice.wasteRate);
+  const externalArea = sumArea(parts, part => part.mat === 'wood' || part.thickness === 18) * (1 + externalPrice.wasteRate);
+  const backArea = sumArea(parts, part => part.thickness === 6) * (1 + backPrice.wasteRate);
+  const internalSheets = Math.ceil(internalArea / internalPrice.sheetArea);
+  const externalSheets = Math.ceil(externalArea / externalPrice.sheetArea);
+  const backSheets = Math.ceil(backArea / backPrice.sheetArea);
+
+  const materialCost = internalSheets * internalPrice.sheet + externalSheets * externalPrice.sheet + backSheets * backPrice.sheet;
+  const edgeCost = edgeMeters(parts) * ((internalPrice.edgePerMeter + externalPrice.edgePerMeter) / 2);
   const handleCount = project.handleType === 'external' ? Math.max(0, project.drawers + project.doors) : 0;
-  const hardwareCost = project.drawers * prices.slide + project.doors * 2 * prices.hinge + handleCount * prices.externalHandle;
+  const hardwareCost = project.drawers * externalPrice.slide + project.doors * 2 * externalPrice.hinge + handleCount * externalPrice.externalHandle;
   const baseCost = materialCost + edgeCost + hardwareCost;
   const laborCost = baseCost * Math.max(0, project.laborRate) / 100;
-  const installationCost = baseCost * prices.installationRate;
-  const overheadCost = baseCost * 0.05;
+  const installationCost = baseCost * Math.max(0, externalPrice.installationRate);
+  const overheadCost = baseCost * Math.max(0, externalPrice.overheadRate);
   const subtotal = baseCost + laborCost + installationCost + overheadCost;
   const profit = subtotal * Math.max(0, project.profitMargin) / 100;
 
@@ -137,6 +145,6 @@ export function calculateBudget(project: PricingProject, prices: PriceList = DEF
     profit,
     subtotal,
     total: subtotal + profit,
-    wasteRate: prices.wasteRate,
+    wasteRate: Math.max(internalPrice.wasteRate, externalPrice.wasteRate, backPrice.wasteRate),
   };
 }
