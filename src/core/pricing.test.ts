@@ -33,7 +33,8 @@ describe('pricing engine', () => {
     expect(deep.hardwareCost).toBeGreaterThan(0);
     expect(deep.installationCost).toBeGreaterThan(0);
     expect(deep.profit).toBeGreaterThan(0);
-    expect(deep.total).toBe(deep.subtotal + deep.profit);
+    expect(deep.grossTotal).toBe(deep.subtotal + deep.profit);
+    expect(deep.total).toBe(deep.grossTotal);
   });
 
   it('respects editable prices and the selected back material', () => {
@@ -77,5 +78,26 @@ describe('pricing engine', () => {
 
     expect(excessive.sheetSavings).toBeLessThanOrEqual(baseline.materialCost);
     expect(excessive.materialCost).toBeGreaterThanOrEqual(0);
+  });
+
+  it('applies discount only after the complete sale price is calculated', () => {
+    const baseline = calculateBudget(project);
+    const discounted = calculateBudget({ ...project, discountPercent: 10 });
+
+    expect(discounted.grossTotal).toBe(baseline.grossTotal);
+    expect(discounted.discount).toBeCloseTo(baseline.grossTotal * 0.1);
+    expect(discounted.total).toBeCloseTo(baseline.grossTotal * 0.9);
+    expect(discounted.total).toBeLessThan(baseline.total);
+  });
+
+  it('clamps invalid discount percentages to the safe range', () => {
+    const baseline = calculateBudget(project);
+    const full = calculateBudget({ ...project, discountPercent: 150 });
+    const negative = calculateBudget({ ...project, discountPercent: -20 });
+
+    expect(full.discount).toBe(baseline.grossTotal);
+    expect(full.total).toBe(0);
+    expect(negative.discount).toBe(0);
+    expect(negative.total).toBe(baseline.grossTotal);
   });
 });
