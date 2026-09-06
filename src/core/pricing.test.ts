@@ -48,4 +48,34 @@ describe('pricing engine', () => {
     const baseline = calculateBudget(project, DEFAULT_PRICES);
     expect(result.materialCost).toBeGreaterThan(baseline.materialCost);
   });
+
+  it('applies reserved remnant savings to sheet cost and downstream totals', () => {
+    const baseline = calculateBudget(project, DEFAULT_PRICES);
+    const saved = calculateBudget(project, DEFAULT_PRICES, {
+      internal: 1,
+      external: 1,
+      back: 1,
+      total: 3,
+    });
+
+    expect(saved.sheetSavings).toBeGreaterThan(0);
+    expect(saved.materialCost).toBeLessThan(baseline.materialCost);
+    expect(saved.total).toBeLessThan(baseline.total);
+    expect(saved.laborCost).toBeLessThanOrEqual(baseline.laborCost);
+    expect(saved.installationCost).toBeLessThanOrEqual(baseline.installationCost);
+    expect(saved.profit).toBeLessThanOrEqual(baseline.profit);
+  });
+
+  it('caps savings at the number of calculated sheets', () => {
+    const baseline = calculateBudget(project, DEFAULT_PRICES);
+    const excessive = calculateBudget(project, DEFAULT_PRICES, {
+      internal: 999,
+      external: 999,
+      back: 999,
+      total: 2997,
+    });
+
+    expect(excessive.sheetSavings).toBeLessThanOrEqual(baseline.materialCost);
+    expect(excessive.materialCost).toBeGreaterThanOrEqual(0);
+  });
 });
