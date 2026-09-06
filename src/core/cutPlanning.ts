@@ -167,7 +167,7 @@ export function planCutting(parts: CutPlanningPart[], options: CutPlanOptions = 
       current.remnantArea = current.remnants.reduce((sum, rem) => sum + rem.area, 0);
     };
 
-    const newSheet = () => {
+    const createNextSheet = () => {
       finalizeCurrent();
       const source = stock[stockIndex++] ?? {
         id: `sheet-${group[0].mat}-${group[0].thickness}-${sheets.length + 1}`,
@@ -195,12 +195,25 @@ export function planCutting(parts: CutPlanningPart[], options: CutPlanOptions = 
     };
 
     group.forEach((part, index) => {
-      if (!current) newSheet();
-      if (!placeInSheet(current!, free, part, `${part.id}-${sequence++}-${index}`, config)) {
-        newSheet();
-        if (!placeInSheet(current!, free, part, `${part.id}-${sequence++}-${index}`, config)) {
-          throw new Error(`Peça ${part.name} (${part.w}×${part.h} mm) maior que a chapa disponível`);
+      if (!current) createNextSheet();
+      if (placeInSheet(current!, free, part, `${part.id}-${sequence++}-${index}`, config)) return;
+
+      // A remnant that cannot accept this part is skipped without leaving a
+      // misleading empty sheet in the plan. The next compatible stock item
+      // gets a chance before opening a new full sheet.
+      if (current!.items.length === 0 && current!.source === 'remnant') {
+        sheets.pop();
+        current = null;
+        free = [];
+        if (stockIndex < stock.length) {
+          createNextSheet();
+          if (placeInSheet(current!, free, part, `${part.id}-${sequence++}-${index}`, config)) return;
         }
+      }
+
+      createNextSheet();
+      if (!placeInSheet(current!, free, part, `${part.id}-${sequence++}-${index}`, config)) {
+        throw new Error(`Peça ${part.name} (${part.w}×${part.h} mm) maior que a chapa disponível`);
       }
     });
     finalizeCurrent();
