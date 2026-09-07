@@ -91,7 +91,7 @@ export const useIaraChat = (
 
   const saveMessage = async (msg: Partial<ChatMessage>) => {
     if (!user) return;
-    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: user.id, project_id: projectId, ...msg });
+    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: user.id, project_id: projectId, ...msg, metadata: (msg.metadata ?? null) as any });
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
   };
 
