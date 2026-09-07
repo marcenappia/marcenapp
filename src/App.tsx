@@ -11,6 +11,7 @@ import MarceneiroPublico from "./pages/MarceneiroPublico";
 import PerfilMarcenaria from "./modules/perfil/PerfilMarcenaria";
 import Planos from "./pages/Planos";
 import Conexoes from "./pages/Conexoes";
+import SeoPage from "./pages/SeoPage";
 import AIProviderAdmin from "./modules/admin/AIProviderAdmin";
 import AdminDashboard from "./modules/admin/AdminDashboard";
 import AdminAIUsage from "./modules/admin/AdminAIUsage";
@@ -20,6 +21,17 @@ import AdminGuard from "./modules/admin/AdminGuard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+const SEO_SLUGS = [
+  "marcena",
+  "marcenaria",
+  "moveis-planejados",
+  "projeto-3d-marcenaria",
+  "projeto-2d-marcenaria",
+  "orcamento-marcenaria",
+  "plano-de-corte",
+  "software-para-marceneiro",
+] as const;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -34,6 +46,7 @@ const App = () => (
             <Route path="/perfil" element={<PerfilMarcenaria />} />
             <Route path="/planos" element={<Planos />} />
             <Route path="/conexoes" element={<Conexoes />} />
+            {SEO_SLUGS.map((slug) => <Route key={slug} path={`/${slug}`} element={<SeoPage />} />)}
             <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
             <Route path="/admin/ia" element={<AdminGuard><AIProviderAdmin /></AdminGuard>} />
             <Route path="/admin/ia/uso" element={<AdminGuard><AdminAIUsage /></AdminGuard>} />
