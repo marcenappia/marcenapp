@@ -4,11 +4,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
-import Index from "./pages/Index";
+import Landing from "./pages/Landing";
+import AppShell from "./pages/AppShell";
 import Auth from "./pages/Auth";
 import MarceneiroPublico from "./pages/MarceneiroPublico";
 import PerfilMarcenaria from "./modules/perfil/PerfilMarcenaria";
 import Planos from "./pages/Planos";
+import Conexoes from "./pages/Conexoes";
 import AIProviderAdmin from "./modules/admin/AIProviderAdmin";
 import AdminDashboard from "./modules/admin/AdminDashboard";
 import AdminAIUsage from "./modules/admin/AdminAIUsage";
@@ -31,12 +33,14 @@ const App = () => (
             <Route path="/marceneiro/:slug" element={<MarceneiroPublico />} />
             <Route path="/perfil" element={<PerfilMarcenaria />} />
             <Route path="/planos" element={<Planos />} />
+            <Route path="/conexoes" element={<Conexoes />} />
             <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
             <Route path="/admin/ia" element={<AdminGuard><AIProviderAdmin /></AdminGuard>} />
             <Route path="/admin/ia/uso" element={<AdminGuard><AdminAIUsage /></AdminGuard>} />
             <Route path="/admin/usuarios" element={<AdminGuard><AdminUsers /></AdminGuard>} />
             <Route path="/admin/obras" element={<AdminGuard><AdminProjects /></AdminGuard>} />
-            <Route path="/" element={<Index />} />
+            <Route path="/app" element={<AppShell />} />
+            <Route path="/" element={<Landing />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
