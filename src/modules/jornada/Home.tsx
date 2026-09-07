@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Hammer, ChevronRight, Camera, MessageSquareText, Sparkles, Calculator } from 'lucide-react';
+import { Plus, Hammer, ChevronRight, Camera, MessageSquareText, Sparkles, Calculator, BookOpen } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { carregarProgresso, ETAPAS_OBRA, percentualObra, EtapaId } from './types';
@@ -10,6 +10,7 @@ interface ObraResumo {
   cliente?: string | null;
   atualizadoEm: string;
   etapa: EtapaId;
+  status?: string | null;
 }
 
 /** Etapa vem do banco (funciona em qualquer aparelho); cache local só como reserva. */
@@ -48,6 +49,7 @@ export const Home = ({ navigateTo }: Props) => {
           cliente: p.clientes?.nome ?? null,
           atualizadoEm: p.updated_at,
           etapa: etapaDaObra(p),
+          status: p.status ?? null,
         }));
         setObras(lista);
         setCarregando(false);
@@ -119,7 +121,7 @@ export const Home = ({ navigateTo }: Props) => {
               <li key={o.id}>
                 <button
                   type="button"
-                  onClick={() => navigateTo(concluida ? 'orcamento' : 'novo', { projeto: o.id })}
+                  onClick={() => navigateTo(concluida ? 'orcamento' : 'diario', { projeto: o.id })}
                   className="w-full text-left rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md p-4 transition-all active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -127,8 +129,8 @@ export const Home = ({ navigateTo }: Props) => {
                       <p className="font-extrabold text-slate-900 text-lg truncate">{o.nome}</p>
                       <p className="text-sm text-slate-500 truncate">{o.cliente ? `${o.cliente} · ` : ''}{concluida ? 'Aprovada — ver orçamento' : `Próximo passo: ${etapa}`}</p>
                     </div>
-                    <span className={`shrink-0 text-sm font-black px-3 py-1.5 rounded-full ${concluida ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                      {concluida ? <Calculator size={16} /> : 'Continuar'}
+                    <span className={`shrink-0 text-sm font-black px-3 py-1.5 rounded-full flex items-center gap-1.5 ${concluida ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                      {concluida ? <><Calculator size={16} /> Orçamento</> : <><BookOpen size={15} /> Diário</>}
                     </span>
                   </div>
                   <div className="mt-3 h-2 rounded-full bg-slate-100 overflow-hidden">
