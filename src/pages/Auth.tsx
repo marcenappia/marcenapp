@@ -32,8 +32,28 @@ const Auth = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [countdown, setCountdown] = useState(0);
+  const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
 
   const SUPPORT_LINK = import.meta.env.VITE_SUPPORT_WHATSAPP_LINK || "https://wa.me/5511999999999";
+
+  const handleOAuth = async (provider: OAuthProvider) => {
+    setError('');
+    setSuccess('');
+    setOauthLoading(provider);
+    try {
+      const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin });
+      if (result.error) {
+        setError(result.error.message || `Não foi possível entrar com ${provider === 'google' ? 'Google' : 'Apple'}.`);
+        setOauthLoading(null);
+        return;
+      }
+      if (result.redirected) return;
+      navigate('/');
+    } catch (err: any) {
+      setError(err?.message || 'Ocorreu um erro inesperado.');
+      setOauthLoading(null);
+    }
+  };
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
