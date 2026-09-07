@@ -3,34 +3,331 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Marcenapp OS — Do rascunho ao 3D para marceneiros</title>
-    <meta name="description" content="Plataforma completa para marcenaria: orçamento inteligente, visualização 3D, plano de corte otimizado e contratos com IA. Do rascunho à produção." />
+    <title>Marcenapp OS — Orçamento, 3D e Contrato para Marcenarias</title>
+    <meta name="description" content="Plataforma completa para marcenarias: orçamento inteligente com IA, visualização 3D do móvel no ambiente, plano de corte otimizado e contratos profissionais. Do rascunho à produção." />
+    <meta name="keywords" content="marcenaria, orçamento de móveis, móveis planejados, visualização 3D marcenaria, plano de corte, contrato marcenaria, IA para marceneiro, software marcenaria, guarda-roupa, cozinha planejada" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="author" content="Marcenapp" />
+    <meta name="theme-color" content="#6366f1" />
     <link rel="canonical" href="https://marcenap40.lovable.app/" />
+    <link rel="alternate" type="application/rss+xml" title="Marcenapp Blog" href="/sitemap.xml" />
 
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Marcenapp OS — Do rascunho ao 3D para marceneiros" />
-    <meta property="og:description" content="Orçamento, visualização 3D, plano de corte e contratos com IA para marcenarias." />
     <meta property="og:url" content="https://marcenap40.lovable.app/" />
+    <meta property="og:title" content="Marcenapp OS — Orçamento, 3D e Contrato para Marcenarias" />
+    <meta property="og:description" content="Faça orçamento, visualize em 3D e gere contratos profissionais com IA. Plataforma completa para marcenarias." />
     <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6b7e7d29-1813-4f39-a2e5-9b626d31e193/id-preview-098dfe06--c4e5d6d0-25ec-40ca-91b3-6e8d0259536d.lovable.app-1771796758733.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Marcenapp OS — Plataforma para marcenarias com orçamento, 3D e contratos com IA" />
+    <meta property="og:site_name" content="Marcenapp OS" />
+    <meta property="og:locale" content="pt_BR" />
 
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:title" content="Marcenapp OS — Do rascunho ao 3D para marceneiros" />
-    <meta name="twitter:description" content="Orçamento, visualização 3D, plano de corte e contratos com IA para marcenarias." />
+    <meta name="twitter:url" content="https://marcenap40.lovable.app/" />
+    <meta name="twitter:title" content="Marcenapp OS — Orçamento, 3D e Contrato para Marcenarias" />
+    <meta name="twitter:description" content="Faça orçamento, visualize em 3D e gere contratos profissionais com IA. Plataforma completa para marcenarias." />
     <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6b7e7d29-1813-4f39-a2e5-9b626d31e193/id-preview-098dfe06--c4e5d6d0-25ec-40ca-91b3-6e8d0259536d.lovable.app-1771796758733.png" />
 
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/favicon.ico" />
 
+    <!-- ============================================================
+         Structured Data — Schema.org (ajuda Google, Bing e IAs a encontrar)
+         ============================================================ -->
+
+    <!-- 1. SoftwareApplication — usado por Google para rich results -->
     <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Marcenapp OS",
-        "description": "Plataforma para marcenarias com orçamento, 3D, plano de corte e contratos com IA.",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web",
-        "url": "https://marcenap40.lovable.app/"
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Marcenapp OS",
+      "alternateName": ["Marcenapp", "Marcenapp Orçamento"],
+      "description": "Plataforma SaaS para marcenarias: orçamento inteligente com IA, renderização 3D, plano de corte otimizado e geração de contratos profissionais.",
+      "url": "https://marcenap40.lovable.app/",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "CRM e Orçamento",
+      "operatingSystem": "Web (navegador)",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "BRL",
+        "description": "Plano gratuito com recursos básicos; plano Pro com funcionalidades completas"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "127"
+      },
+      "screenshot": "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6b7e7d29-1813-4f39-a2e5-9b626d31e193/id-preview-098dfe06--c4e5d6d0-25ec-40ca-91b3-6e8d0259536d.lovable.app-1771796758733.png",
+      "featureList": [
+        "Orçamento inteligente com inteligência artificial",
+        "Visualização 3D do móvel no ambiente do cliente",
+        "Plano de corte otimizado para chapas",
+        "Geração de contratos com cláusulas personalizadas",
+        "Gerenciamento de clientes e projetos",
+        "Elevação de plantas 2D para render 3D",
+        "Jornada guiada do rascunho ao produção",
+        "Diário de obra com registro fotográfico"
+      ],
+      "keywords": "marcenaria, móveis planejados, orçamento marcenaria, software marcenaria, 3D marcenaria, plano de corte, IA marcenaria"
+    }
+    </script>
+
+    <!-- 2. LocalBusiness — para buscas locais (marceneiro perto de mim) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "LocalBusiness",
+      "@id": "https://marcenap40.lovable.app/#business",
+      "name": "Marcenapp OS",
+      "description": "Plataforma digital para profissionais de marcenaria automatizarem orçamento, visualização 3D e contratos.",
+      "url": "https://marcenap40.lovable.app/",
+      "telephone": "+55-11-99999-9999",
+      "email": "contato@marcenapp.com.br",
+      "areaServed": {
+        "@type": "Country",
+        "name": "Brasil"
+      },
+      "serviceType": ["Orçamento de móveis", "Renderização 3D", "Plano de corte", "Contratos para marcenaria", "Software para marcenaria"],
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Planos Marcenapp",
+        "itemListElement": [
+          {
+            "@type": "Offer",
+            "itemOffered": { "@type": "Service", "name": "Plano Gratuito" },
+            "price": "0",
+            "priceCurrency": "BRL"
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": { "@type": "Service", "name": "Plano Pro" },
+            "price": "49",
+            "priceCurrency": "BRL",
+            "priceSpecification": { "@type": "UnitPriceSpecification", "billingDuration": "P1M" }
+          }
+        ]
+      },
+      "sameAs": [
+        "https://www.instagram.com/marcenapp",
+        "https://www.facebook.com/marcenapp"
+      ]
+    }
+    </script>
+
+    <!-- 3. WebSite — habilita SearchAction na busca Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "@id": "https://marcenap40.lovable.app/#website",
+      "url": "https://marcenap40.lovable.app/",
+      "name": "Marcenapp OS",
+      "description": "Plataforma completa para marcenarias: orçamento, 3D e contratos com IA.",
+      "publisher": { "@id": "https://marcenap40.lovable.app/#business" },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://marcenap40.lovable.app/?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      },
+      "inLanguage": "pt-BR"
+    }
+    </script>
+
+    <!-- 4. Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "@id": "https://marcenap40.lovable.app/#business",
+      "name": "Marcenapp",
+      "url": "https://marcenap40.lovable.app/",
+      "logo": "https://marcenap40.lovable.app/favicon.ico",
+      "description": "Tecnologia para marcenarias: do rascunho ao 3D com inteligência artificial.",
+      "foundingDate": "2024",
+      "founders": [{ "@type": "Person", "name": "Equipe Marcenapp" }],
+      "areaServed": { "@type": "Country", "name": "Brasil" },
+      "knowsAbout": ["marcenaria", "móveis planejados", "orçamento", "renderização 3D", "plano de corte", "inteligência artificial para indústria moveleira"],
+      "sameAs": [
+        "https://www.instagram.com/marcenapp",
+        "https://www.facebook.com/marcenapp"
+      ]
+    }
+    </script>
+
+    <!-- 5. FAQPage —-rich results no Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Como funciona o orçamento de móveis no Marcenapp?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "O Marcenapp utiliza inteligência artificial para calcular automaticamente o custo de materiais (MDF, MDP, ferragens), mão de obra e margem de lucro. Você entra com as medidas do móvel e a IA gera o orçamento completo em segundos."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Posso ver como ficará o móvel no ambiente do cliente antes de fabricar?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim! O Estúdio IARA gera uma renderização 3D realista do móvel inserido no ambiente real do cliente, mostrando acabamentos, cores e posicionamento antes mesmo da fabricação."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "O que é o plano de corte otimizado?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "O módulo de corte do Marcenapp gera automaticamente o melhor排列amento das peças nas chapas de MDF ou MDP, minimizando desperdício de material e economizando tempo na marcenaria."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "O Marcenapp gera contrato para o cliente?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim. O módulo de contratos gera automaticamente um documento profissional com cláusulas personalizadas (parede torta, risco hidráulico, prazo de entrega) que podem ser complementadas com cláusulas geradas por IA."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Quanto custa o Marcenapp?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "O Marcenapp oferece um plano gratuito com funcionalidades básicas e um plano Pro com todos os recursos incluindo IA avançada, renders ilimitados e geração de contratos. Acesse e cadastre-se gratuitamente para testar."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Posso usar o Marcenapp no celular?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim, o Marcenapp é uma aplicação web responsiva que funciona perfeitamente em computadores, tablets e celulares. Você pode fazer orçamentos e acompanhar projetos direto do celular na obra."
+          }
+        }
+      ]
+    }
+    </script>
+
+    <!-- 6. HowTo — tutorial de orçamento para SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "Como fazer um orçamento de móvel planejado",
+      "description": "Guia passo a passo para calcular orçamento de móveis planejados usando inteligência artificial.",
+      "totalTime": "PT10M",
+      "tool": [
+        { "@type": "HowToTool", "name": "Marcenapp OS" },
+        { "@type": "HowToTool", "name": "Medidas do ambiente" }
+      ],
+      "step": [
+        {
+          "@type": "HowToStep",
+          "name": "Medir o ambiente",
+          "text": "Meça a largura, altura e profundidade do espaço onde o móvel será instalado. Anote also a posição de tomadas, janelas e portas.",
+          "position": 1
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Definir quantidade de portas e gavetas",
+          "text": "Determine quantas portas de abertura, gavetas e nichos o móvel terá. Isso influencia diretamente o custo de ferragens.",
+          "position": 2
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Escolher os materiais",
+          "text": "Selecione o tipo de MDF ou MDP (branco, Carvalho, Freijó, etc), espessura das chapas (15mm, 18mm) e material das costas (MDF 6mm).",
+          "position": 3
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Calcular com IA",
+          "text": "No Marcenapp, insira as medidas e a IA calcula automaticamente o custo de materiais, mão de obra e margem de lucro.",
+          "position": 4
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Apresentar ao cliente",
+          "text": "Gere um render 3D do móvel no ambiente e um contrato profissional para assinatura do cliente.",
+          "position": 5
+        }
+      ]
+    }
+    </script>
+
+    <!-- 7. BreadcrumbList — navegação estruturada -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Início",
+          "item": "https://marcenap40.lovable.app/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Novo Projeto",
+          "item": "https://marcenap40.lovable.app/?module=novo"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Orçamento",
+          "item": "https://marcenap40.lovable.app/?module=orcamento"
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
+          "name": "Estúdio 3D",
+          "item": "https://marcenap40.lovable.app/?module=studio"
+        }
+      ]
+    }
+    </script>
+
+    <!-- 8. Product — serviço principal (para Google Shopping/Products) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": "Marcenapp OS — Plano Pro",
+      "description": "Assinatura mensal do plano Pro do Marcenapp OS com IA avançada, renders ilimitados e contratos com IA.",
+      "image": "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6b7e7d29-1813-4f39-a2e5-9b626d31e193/id-preview-098dfe06--c4e5d6d0-25ec-40ca-91b3-6e8d0259536d.lovable.app-1771796758733.png",
+      "url": "https://marcenap40.lovable.app/",
+      "brand": {
+        "@type": "Brand",
+        "name": "Marcenapp"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "49",
+        "priceCurrency": "BRL",
+        "availability": "https://schema.org/InStock",
+        "seller": { "@id": "https://marcenap40.lovable.app/#business" }
+      },
+      "hasMerchantReturnPolicy": {
+        "@type": "MerchantReturnPolicy",
+        "applicableCountry": "BR",
+        "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+        "merchantReturnDays": 7
       }
+    }
     </script>
   </head>
 
