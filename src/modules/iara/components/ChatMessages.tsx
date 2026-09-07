@@ -12,10 +12,10 @@ export interface ChatMessage {
   image_url: string | null;
   budget: string | null;
   created_at: string;
-  metadata?: {
+  metadata?: ({
     commandId?: string;
     resultUrl?: string;
-  } | null;
+  } & Record<string, unknown>) | null;
 }
 
 const SUGGESTIONS = [
