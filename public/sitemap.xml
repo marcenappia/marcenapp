@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://marcenap40.lovable.app/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://marcenap40.lovable.app/marcena</loc><changefreq>weekly</changefreq><priority>0.95</priority></url>
-  <url><loc>https://marcenap40.lovable.app/marcenaria</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://marcenap40.lovable.app/moveis-planejados</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://marcenap40.lovable.app/projeto-3d-marcenaria</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://marcenap40.lovable.app/projeto-2d-marcenaria</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://marcenap40.lovable.app/orcamento-marcenaria</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://marcenap40.lovable.app/plano-de-corte</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
-  <url><loc>https://marcenap40.lovable.app/software-para-marceneiro</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://marcenap40.lovable.app/</loc><lastmod>2026-09-07</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://marcenap40.lovable.app/marcena</loc><lastmod>2026-09-07</lastmod><changefreq>weekly</changefreq><priority>0.95</priority></url>
+  <url><loc>https://marcenap40.lovable.app/marcenaria</loc><lastmod>2026-09-07</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://marcenap40.lovable.app/moveis-planejados</loc><lastmod>2026-09-07</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://marcenap40.lovable.app/projeto-3d-marcenaria</loc><lastmod>2026-09-07</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://marcenap40.lovable.app/projeto-2d-marcenaria</loc><lastmod>2026-09-07</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://marcenap40.lovable.app/orcamento-marcenaria</loc><lastmod>2026-09-07</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://marcenap40.lovable.app/plano-de-corte</loc><lastmod>2026-09-07</lastmod><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://marcenap40.lovable.app/software-para-marceneiro</loc><lastmod>2026-09-07</lastmod><changefreq>weekly</changefreq><priority>0.85</priority></url>
 </urlset>
