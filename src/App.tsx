@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import MarceneiroPublico from "./pages/MarceneiroPublico";
 import PerfilMarcenaria from "./modules/perfil/PerfilMarcenaria";
+import AIProviderAdmin from "./modules/admin/AIProviderAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/marceneiro/:slug" element={<MarceneiroPublico />} />
             <Route path="/perfil" element={<PerfilMarcenaria />} />
+            <Route path="/admin/ia" element={<AIProviderAdmin />} />
             <Route path="/" element={<Index />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
