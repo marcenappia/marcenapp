@@ -5,6 +5,7 @@ import AuthDialog from '@/components/marcenaria/AuthDialog';
 import { useStudio } from './hooks/useStudio';
 import { EnvironmentAnalysisPanel } from './components/EnvironmentAnalysisPanel';
 import { ProjectDocumentation2D } from './components/ProjectDocumentation2D';
+import { StudioStatusBar } from './components/StudioStatusBar';
 import { studioService, type StudioGenerationMode } from './services/studioService';
 
 interface StudioProps { setBudgetProject: React.Dispatch<React.SetStateAction<any>>; navigateTo: (id: string) => void; gallery: string[]; setGallery: React.Dispatch<React.SetStateAction<string[]>>; descriptionSlot?: React.ReactNode; projectId?: string | null; }
@@ -18,6 +19,7 @@ export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, desc
   const { prompt, setPrompt, sketchImage, setSketchImage, envImage, setEnvImage, generatedImage, setGeneratedImage, loading, analyzing, selectedDecor, setSelectedDecor, isRefining, setIsRefining, error, setError, showModal, setShowModal, isRecording, selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction, generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime, environmentAnalysis, analyzingEnvironment, confirmingEnvironment, environmentError, analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis, updateEnvironmentAnalysis } = useStudio(setBudgetProject, navigateTo, gallery, setGallery, projectId, generationMode, planned);
 
   const clearVisualResult = () => { setGeneratedImage(null); setGallery([]); setIsRefining(false); setShowModal(false); };
+  const hasDocumentation = Boolean(gallery.length > 0 || generatedImage);
 
   const processFile = (file: File, type: 'sketch' | 'env') => {
     if (!file) return;
@@ -54,6 +56,7 @@ export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, desc
   return <>
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in pb-20 md:pb-0">
       <div className="lg:col-span-4 space-y-4">
+        <StudioStatusBar hasEnvironment={Boolean(envImage || sketchImage)} environmentConfirmed={Boolean(environmentAnalysis?.confirmedByIara)} hasResult={Boolean(generatedImage)} hasDocumentation={hasDocumentation} />
         <Card className="p-3 border-slate-200 bg-white"><div className="flex items-center gap-2 mb-2"><House size={16} className="text-indigo-600"/><span className="text-xs font-black uppercase tracking-wider text-slate-700">Etapa do ambiente</span></div><div className="grid grid-cols-3 gap-2">
           <button onClick={() => selectMode('ready')} className={`rounded-lg border p-2 text-left ${projectMode === 'ready' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200'}`}><MapPin size={15} className="mb-1 text-indigo-600"/><div className="text-[10px] font-bold">Ambiente pronto</div><div className="text-[9px] text-slate-500">Tenho foto</div></button>
           <button onClick={() => selectMode('planned')} className={`rounded-lg border p-2 text-left ${projectMode === 'planned' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200'}`}><Construction size={15} className="mb-1 text-indigo-600"/><div className="text-[10px] font-bold">Em obra</div><div className="text-[9px] text-slate-500">Projeto futuro</div></button>
