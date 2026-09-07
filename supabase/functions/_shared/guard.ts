@@ -2,9 +2,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ALLOWED_ORIGIN_SUFFIXES = [".lovable.app", ".lovableproject.com", ".lovable.dev"];
-const EXTRA_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "")
-  .split(",")
-  .map((s) => s.trim())
+const EXTRA_ORIGINS = [
+  ...(Deno.env.get("ALLOWED_ORIGINS") ?? "").split(","),
+  Deno.env.get("APP_URL") ?? "",
+  Deno.env.get("PUBLIC_APP_URL") ?? "",
+]
+  .map((s) => s.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
 const isAllowedOrigin = (origin: string | null): boolean => {
@@ -13,8 +16,9 @@ const isAllowedOrigin = (origin: string | null): boolean => {
     const { hostname, protocol } = new URL(origin);
     if (hostname === "localhost" || hostname === "127.0.0.1") return true;
     if (protocol !== "https:") return false;
-    if (EXTRA_ORIGINS.includes(origin)) return true;
-    return ALLOWED_ORIGIN_SUFFIXES.some((s) => hostname.endsWith(s));
+    const normalized = origin.replace(/\/$/, "");
+    if (EXTRA_ORIGINS.includes(normalized)) return true;
+    return ALLOWED_ORIGIN_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
   } catch {
     return false;
   }
@@ -26,7 +30,7 @@ export const buildCorsHeaders = (req: Request): Record<string, string> => {
   return {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+      "authorization, x-client-info, apikey, content-type, x-retry-count, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, traceparent, tracestate, baggage",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin",
   };
@@ -77,13 +81,12 @@ export async function guardRequest(
   }
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-
   const { data: userData, error: userError } = await admin.auth.getUser(token);
   if (userError || !userData?.user) {
     return { ok: false, response: jsonResponse(cors, { error: "Sessão inválida ou expirada." }, 401) };
   }
-  const userId = userData.user.id;
 
+  const userId = userData.user.id;
   const { data: rl, error: rlError } = await admin.rpc("consume_ai_rate_limit", {
     _user_id: userId,
     _fn: opts.fn,

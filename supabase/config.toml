@@ -1,1 +1,11 @@
 project_id = "bawzbqwmijbvgopyylqt"
+
+# Todas as funções de IA são privadas: exigem JWT de usuário válido no gateway.
+[functions.ai-text]
+verify_jwt = true
+
+[functions.ai-orchestrator]
+verify_jwt = true
+
+[functions.ai-image]
+verify_jwt = true
