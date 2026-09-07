@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, User, LogIn, Sparkles, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -279,10 +280,20 @@ const Index = () => {
           </div>
         </header>
 
-        {/* Module Content */}
+        {/* Module Content — transiciona entre módulos */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 pb-24 md:pb-8 scroll-smooth">
           <div className="max-w-7xl mx-auto">
-            {renderModule()}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeModule}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {renderModule()}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
 
