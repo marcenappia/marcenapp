@@ -13,7 +13,8 @@ export interface ModuleConfig {
   hidden?: boolean;
 }
 
-export const MOBILE_NAV_IDS = ['dashboard', 'novo', 'studio', 'orcamento', 'producao', 'corte'];
+// Diário é uma etapa operacional de uso frequente no celular: mantê-lo visível na navegação móvel.
+export const MOBILE_NAV_IDS = ['dashboard', 'novo', 'diario', 'studio', 'orcamento', 'producao', 'corte'];
 
 export const modules: ModuleConfig[] = [
   { id: 'dashboard', label: 'Início', mobileLabel: 'Início', icon: Home, category: 'portal' },
