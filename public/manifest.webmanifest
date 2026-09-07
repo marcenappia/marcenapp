@@ -1,7 +1,7 @@
 {
-  "name": "MARCENAPP OS",
+  "name": "MARCENAPP — Marcenaria inteligente",
   "short_name": "MARCENAPP",
-  "description": "Sistema operacional da marcenaria: projeto, IA, orçamento, produção e plano de corte.",
+  "description": "Marcenaria inteligente: projeto 3D, projeto 2D, orçamento, produção e plano de corte.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
