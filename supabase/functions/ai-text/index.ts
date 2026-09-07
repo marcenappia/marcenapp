@@ -6,6 +6,8 @@ const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const MAX_PROMPT_CHARS = 12000;
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BASE64 = 15 * 1024 * 1024;
+const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const LOVABLE_MODEL = "google/gemini-3.7-flash";
 
 const BodySchema = z.object({
   prompt: z.string().trim().min(1, "prompt is required").max(MAX_PROMPT_CHARS),
@@ -39,16 +41,54 @@ serve(async (req) => {
     }
 
     const { prompt, images, jsonMode, provider } = parsed.data;
-    const selectedProvider = provider === "automatic" ? "gemini" : provider;
+    const selectedProvider = provider === "automatic" ? "lovable" : provider;
 
-    // Lovable não expõe um endpoint público de modelo para ser usado como
-    // provedor de runtime pelo MARCENAPP. Não simulamos uma integração.
     if (selectedProvider === "lovable") {
-      return jsonResponse(cors, {
-        error: "O provedor Lovable ainda não está disponível como runtime de IA do MARCENAPP.",
-        code: "provider_not_configured",
-        provider: "lovable",
-      }, 501);
+      const gatewayKey = Deno.env.get("LOVABLE_GATEWAY_KEY");
+      if (!gatewayKey) {
+        console.error("ai-text: LOVABLE_GATEWAY_KEY não configurada");
+        return jsonResponse(cors, { error: "Serviço de IA Lovable não configurado.", code: "provider_not_configured", provider: "lovable" }, 500);
+      }
+
+      const content: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
+      for (const img of images ?? []) {
+        content.push({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.data}` } });
+      }
+
+      const body: Record<string, unknown> = {
+        model: LOVABLE_MODEL,
+        messages: [{ role: "user", content }],
+        temperature: 0.2,
+      };
+      if (jsonMode) body.response_format = { type: "json_object" };
+
+      const response = await fetch(LOVABLE_GATEWAY_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${gatewayKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const status = response.status;
+        console.error("Lovable AI Gateway error:", status, await response.text());
+        if (status === 429) {
+          return jsonResponse(cors, { error: "Limite do provedor de IA atingido. Tente novamente em alguns segundos.", code: "rate_limited", provider: "lovable" }, 429, { "Retry-After": "10" });
+        }
+        if (status === 402) {
+          return jsonResponse(cors, { error: "Créditos do Lovable AI esgotados.", code: "credits_exhausted", provider: "lovable" }, 402);
+        }
+        return jsonResponse(cors, { error: "O serviço Lovable AI está indisponível no momento.", code: "upstream_error", provider: "lovable" }, 502);
+      }
+
+      const data = await response.json();
+      const message = data.choices?.[0]?.message?.content;
+      const text = Array.isArray(message)
+        ? message.map((part: { type?: string; text?: string }) => part?.text ?? "").join("")
+        : (message ?? "");
+      return jsonResponse(cors, { text, model: data.model ?? LOVABLE_MODEL, provider: "lovable" });
     }
 
     const GEMINI_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
@@ -62,9 +102,6 @@ serve(async (req) => {
       parts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
     }
 
-    // Gemini 2.0 Flash was shut down on June 1, 2026.
-    // Keep generateContent for a minimal production-safe migration to the
-    // currently supported stable Gemini 3.6 Flash model.
     const model = "gemini-3.6-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
     const body: Record<string, unknown> = { contents: [{ role: "user", parts }] };
@@ -87,7 +124,7 @@ serve(async (req) => {
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    return jsonResponse(cors, { text, model, provider: selectedProvider });
+    return jsonResponse(cors, { text, model, provider: "gemini" });
   } catch (e) {
     console.error("ai-text error:", e);
     return jsonResponse(cors, { error: "Erro interno ao processar texto.", code: "internal_error" }, 500);
