@@ -2,7 +2,9 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type AIProvider = 'automatic' | 'gemini' | 'lovable';
 
-const DEFAULT_PROVIDER: AIProvider = 'automatic';
+// MARCENAPP uses Lovable AI as the default runtime provider for now.
+// Gemini remains selectable for the future and is not removed from the backend.
+const DEFAULT_PROVIDER: AIProvider = 'lovable';
 
 export async function getAIProvider(): Promise<AIProvider> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -25,11 +27,11 @@ export async function setAIProvider(provider: AIProvider): Promise<void> {
 
 export async function resolveAIProvider(): Promise<'gemini' | 'lovable'> {
   const provider = await getAIProvider();
-  return provider === 'automatic' ? 'gemini' : provider;
+  return provider === 'automatic' ? 'lovable' : provider;
 }
 
 export function isLovableProviderConfigured(): boolean {
-  // A integração Lovable ainda depende de uma credencial/backend connector.
-  // Nunca inferimos uma credencial a partir do browser.
-  return Boolean(import.meta.env.VITE_LOVABLE_AI_CONFIGURED === 'true');
+  // The runtime secret lives only in the Edge Function environment.
+  // Never infer a provider credential from the browser.
+  return true;
 }
