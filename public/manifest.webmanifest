@@ -1,0 +1,15 @@
+{
+  "name": "MARCENAPP OS",
+  "short_name": "MARCENAPP",
+  "description": "Sistema operacional da marcenaria: projeto, IA, orçamento, produção e plano de corte.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "32x32", "type": "image/x-icon" },
+    { "src": "/pwa-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
