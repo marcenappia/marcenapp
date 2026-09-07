@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { callAIText } from '@/services/ai';
 import {
   DiarioRegistro, atualizarRegistro, carregarCabecalhoObra, criarRegistro, enviarFotoDiario,
-  listarRegistros, removerRegistro,
+  listarRegistros, removerRegistro, DiarioCabecalhoObra,
 } from './services/diarioObraService';
 
 interface Props {
@@ -14,9 +14,16 @@ interface Props {
 
 const btn = 'flex-1 min-h-[86px] rounded-2xl font-extrabold text-base flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.98] touch-manipulation focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200';
 
+const proximoPasso = (obra: DiarioCabecalhoObra) => {
+  if (obra.status === 'concluido') return { id: 'producao', label: 'Obra concluída — abrir produção' };
+  if (obra.etapa >= 8 || obra.status === 'em_producao') return { id: 'producao', label: 'Continuar na produção' };
+  if (obra.etapa >= 7 || obra.status === 'aprovado') return { id: 'orcamento', label: 'Continuar no orçamento' };
+  return { id: 'novo', label: obra.etapa <= 2 ? 'Continuar a jornada' : 'Continuar projeto' };
+};
+
 export const DiarioObra = ({ projectId, navigateTo }: Props) => {
   const { user } = useAuth();
-  const [obra, setObra] = useState<{ nome: string; cliente: string } | null>(null);
+  const [obra, setObra] = useState<DiarioCabecalhoObra | null>(null);
   const [registros, setRegistros] = useState<DiarioRegistro[]>([]);
   const [texto, setTexto] = useState('');
   const [escrevendo, setEscrevendo] = useState(false);
@@ -35,7 +42,10 @@ export const DiarioObra = ({ projectId, navigateTo }: Props) => {
     finally { setCarregando(false); }
   }, [projectId, user]);
 
-  useEffect(() => { if (projectId) carregarCabecalhoObra(projectId).then(setObra).catch(() => setObra(null)); }, [projectId]);
+  useEffect(() => {
+    if (!projectId) return;
+    carregarCabecalhoObra(projectId).then(setObra).catch(() => setObra(null));
+  }, [projectId]);
   useEffect(() => { recarregar(); }, [recarregar]);
 
   const registrar = async (tipo: 'foto' | 'nota' | 'voz', conteudo: string, fotoPath?: string) => {
@@ -133,14 +143,31 @@ ${lista}`;
 
   const pendencias = registros.filter((r) => r.categoria === 'pendencia' || (!r.pendencia_resolvida && /pendente|falta|conferir|verificar/i.test(r.texto)));
   const confirmados = registros.filter((r) => r.pendencia_resolvida || r.categoria === 'confirmado');
+  const proximo = obra ? proximoPasso(obra) : null;
 
   return (
     <div className="max-w-2xl mx-auto pb-24 space-y-5">
       <header>
         <h2 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight">Diário da obra</h2>
         <p className="text-slate-500 mt-0.5">{obra?.nome ?? 'Obra'}{obra?.cliente ? ` · ${obra.cliente}` : ''}</p>
-        <p className="text-xs text-slate-400 mt-1">Visita de {new Date().toLocaleDateString('pt-BR')}</p>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <p className="text-xs text-slate-400">Visita de {new Date().toLocaleDateString('pt-BR')}</p>
+          {obra && <span className="text-[10px] font-black uppercase tracking-wide rounded-full bg-indigo-50 text-indigo-700 px-2.5 py-1">Jornada · etapa {obra.etapa}</span>}
+        </div>
       </header>
+
+      {proximo && (
+        <div className="rounded-2xl border-2 border-indigo-100 bg-indigo-50/70 p-4 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Próximo passo da obra</p>
+            <p className="text-sm font-bold text-slate-800 mt-1">{proximo.label}</p>
+          </div>
+          <button type="button" onClick={() => navigateTo?.(proximo.id, { projeto: projectId })}
+            className="shrink-0 min-h-11 px-4 rounded-xl bg-indigo-600 text-white font-extrabold flex items-center gap-2">
+            Abrir <ArrowRight size={18} />
+          </button>
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button className={`${btn} bg-indigo-600 text-white shadow-lg shadow-indigo-600/25`} onClick={() => fotoInput.current?.click()}>
@@ -235,9 +262,10 @@ ${lista}`;
         ))}
       </section>
 
-      <button onClick={() => navigateTo?.('novo', { projeto: projectId })}
-        className="w-full min-h-[60px] rounded-2xl bg-slate-900 text-white font-extrabold flex items-center justify-center gap-2">
-        Continuar a obra <ArrowRight size={20} />
+      <button onClick={() => proximo && navigateTo?.(proximo.id, { projeto: projectId })}
+        disabled={!proximo}
+        className="w-full min-h-[60px] rounded-2xl bg-slate-900 text-white font-extrabold flex items-center justify-center gap-2 disabled:opacity-40">
+        {proximo?.label ?? 'Continuar a obra'} <ArrowRight size={20} />
       </button>
     </div>
   );
