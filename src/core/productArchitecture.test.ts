@@ -3,6 +3,9 @@ import {
   CAPABILITY_MATRIX,
   COMMERCIAL_PLANS,
   EXPERIENCE_PROFILES,
+  MARCENA_PRODUCT,
+  MARCENA_REVENUE_MODEL,
+  MARCENA_SCENE_UNITS,
   MARCENARIA_WORKFLOW,
   audienceHasCapability,
   getCommercialPlan,
@@ -55,6 +58,36 @@ describe('product architecture', () => {
     expect(getCommercialPlan('pro').monthlyPriceBRL).toBe(179);
     expect(getCommercialPlan('studio').monthlyPriceBRL).toBe(349);
     expect(getCommercialPlan('enterprise').monthlyPriceBRL).toBeNull();
+  });
+
+  it('defines MARCENA as the commercial product inside MARCENAPP', () => {
+    expect(MARCENA_PRODUCT.name).toBe('MARCENA');
+    expect(MARCENA_PRODUCT.parentProduct).toBe('MARCENAPP');
+    expect(MARCENA_PRODUCT.coreValue).toBe('venda e aprovação do projeto');
+    expect(MARCENA_PRODUCT.billingEnabled).toBe(false);
+    expect(MARCENA_PRODUCT.stages).toEqual([
+      'environment-photo',
+      'client-request',
+      'visual-scene',
+      'adjustments',
+      'approved-scene',
+      'documentation-2d',
+      'budget',
+      'production',
+    ]);
+  });
+
+  it('keeps MARCENA unit pricing as planning only', () => {
+    expect(MARCENA_SCENE_UNITS.map((unit) => unit.priceBRL)).toEqual([29.9, 79.9]);
+    expect(MARCENA_SCENE_UNITS[0].includes).toContain('1 cena do ambiente');
+    expect(MARCENA_SCENE_UNITS[1].includes).toContain('documentação 2D');
+    expect(MARCENA_REVENUE_MODEL).toEqual([
+      'subscription',
+      'scene-credits',
+      'professional-project',
+      'team',
+      'white-label',
+    ]);
   });
 
   it('defines a profile for every audience', () => {
