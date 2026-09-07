@@ -1,9 +1,6 @@
-// IARA OS v1 — Orchestrator via Gemini Function Calling
-// Recebe { userPrompt, context? } e retorna { plan: ToolCall[], summary }
-// Não executa nada. Apenas decide.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
-import { buildCorsHeaders, guardRequest, readJsonBody } from "../_shared/guard.ts";
+import { buildCorsHeaders, guardRequest, jsonResponse, readJsonBody } from "../_shared/guard.ts";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
@@ -109,24 +106,25 @@ Português brasileiro, direto e profissional. Quando houver incerteza, informe c
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  if (req.method !== "POST") return jsonResponse(corsHeaders, { error: "Method not allowed" }, 405);
 
   const guard = await guardRequest(req, corsHeaders, { fn: "ai-orchestrator", limit: 20, windowSeconds: 60 });
   if (!guard.ok) return guard.response;
 
   try {
     const GEMINI_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-    if (!GEMINI_KEY) return new Response(JSON.stringify({ error: "Serviço de IA não configurado." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!GEMINI_KEY) return jsonResponse(corsHeaders, { error: "Serviço de IA não configurado.", code: "provider_not_configured" }, 500);
 
     const read = await readJsonBody(req, MAX_BODY_BYTES);
-    if (!read.ok) return new Response(JSON.stringify({ error: read.reason === "too_large" ? "Corpo da requisição muito grande." : "JSON inválido." }), { status: read.reason === "too_large" ? 413 : 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!read.ok) return jsonResponse(corsHeaders, { error: read.reason === "too_large" ? "Corpo da requisição muito grande." : "JSON inválido." }, read.reason === "too_large" ? 413 : 400);
 
     const parsed = BodySchema.safeParse(read.body);
-    if (!parsed.success) return new Response(JSON.stringify({ error: "Validation failed", fields: parsed.error.flatten().fieldErrors }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!parsed.success) return jsonResponse(corsHeaders, { error: "Validation failed", fields: parsed.error.flatten().fieldErrors }, 400);
 
     const { userPrompt, context } = parsed.data;
     const contextBlock = context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(context, null, 2)}` : "";
-    const model = "gemini-2.0-flash";
+    // Gemini 2.0 Flash foi desativado em 01/06/2026; use uma versão 3.x estável.
+    const model = "gemini-3.6-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
     const body = {
       systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
@@ -138,21 +136,21 @@ serve(async (req) => {
     const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!response.ok) {
       const limited = response.status === 429;
-      return new Response(JSON.stringify({ error: limited ? "Limite do provedor de IA atingido. Tente novamente em alguns segundos." : "O serviço de IA está indisponível no momento.", code: limited ? "rate_limited" : "upstream_error" }), { status: limited ? 429 : 502, headers: { ...corsHeaders, "Content-Type": "application/json", ...(limited ? { "Retry-After": "10" } : {}) } });
+      return jsonResponse(corsHeaders, { error: limited ? "Limite do provedor de IA atingido. Tente novamente em alguns segundos." : "O serviço de IA está indisponível no momento.", code: limited ? "rate_limited" : "upstream_error" }, limited ? 429 : 502, limited ? { "Retry-After": "10" } : {});
     }
 
     const data = await response.json();
     const parts = data.candidates?.[0]?.content?.parts ?? [];
-    const plan: Array<{ tool: string; args: Record<string, any> }> = [];
+    const plan: Array<{ tool: string; args: Record<string, unknown> }> = [];
     let summary = "";
     for (const part of parts) {
       if (part.functionCall) plan.push({ tool: part.functionCall.name, args: part.functionCall.args ?? {} });
       else if (part.text) summary += part.text;
     }
 
-    return new Response(JSON.stringify({ plan, summary: summary.trim(), model }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse(corsHeaders, { plan, summary: summary.trim(), model });
   } catch (e) {
     console.error("ai-orchestrator error:", e);
-    return new Response(JSON.stringify({ error: "Erro interno no orquestrador.", code: "internal_error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse(corsHeaders, { error: "Erro interno no orquestrador.", code: "internal_error" }, 500);
   }
 });
