@@ -124,12 +124,28 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--sidebar-bg))] px-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <img src={logo} alt="MarcenApp" className="w-20 h-20 rounded-full mx-auto mb-4 border-4 border-[hsl(var(--sidebar-active))] shadow-lg shadow-[hsl(var(--sidebar-active)/0.3)]" />
+          <img src={logo} alt="MARCENAPP" width={88} height={88} className="w-22 h-22 mx-auto mb-4 object-contain drop-shadow-[0_8px_24px_hsl(var(--sidebar-active)/0.35)]" />
           <h1 className="text-2xl font-bold text-white tracking-tight">
             MARCENA<span className="text-[hsl(var(--sidebar-active))]">PP</span>
           </h1>
           <p className="text-[hsl(var(--sidebar-text))] text-sm mt-1">Marcenaria 4.0</p>
         </div>
+
+        {!isReset && (
+          <div className="space-y-3">
+            <button type="button" onClick={() => handleOAuth('google')} disabled={loading || oauthLoading !== null} aria-label="Continuar com Google" className="w-full py-3 rounded-xl bg-white text-slate-800 font-semibold hover:bg-slate-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-3">
+              {oauthLoading === 'google' ? <Loader2 className="animate-spin" size={18} /> : <GoogleIcon />}
+              Continuar com Google
+            </button>
+            <button type="button" onClick={() => handleOAuth('apple')} disabled={loading || oauthLoading !== null} aria-label="Continuar com Apple" className="w-full py-3 rounded-xl bg-black text-white font-semibold border border-white/20 hover:bg-neutral-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-3">
+              {oauthLoading === 'apple' ? <Loader2 className="animate-spin" size={18} /> : <AppleIcon />}
+              Continuar com Apple
+            </button>
+            <div className="flex items-center gap-3 text-[11px] uppercase tracking-widest text-[hsl(var(--sidebar-text))]">
+              <span className="h-px flex-1 bg-white/15" />ou com e-mail<span className="h-px flex-1 bg-white/15" />
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && !isReset && (
