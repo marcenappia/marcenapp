@@ -37,12 +37,7 @@ export default function AdminDashboard() {
         getAIProvider().catch(() => 'automatic' as AIProvider),
       ]);
       if (!active) return;
-      setMetrics({
-        users: users.error ? null : users.count ?? 0,
-        projects: projects.error ? null : projects.count ?? 0,
-        active: activeProjects.error ? null : activeProjects.count ?? 0,
-        approved: approvedProjects.error ? null : approvedProjects.count ?? 0,
-      });
+      setMetrics({ users: users.error ? null : users.count ?? 0, projects: projects.error ? null : projects.count ?? 0, active: activeProjects.error ? null : activeProjects.count ?? 0, approved: approvedProjects.error ? null : approvedProjects.count ?? 0 });
       setProvider(currentProvider);
       setLoading(false);
     };
@@ -62,12 +57,7 @@ export default function AdminDashboard() {
         </header>
 
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {loading ? <div className="col-span-2 lg:col-span-4 rounded-2xl border border-slate-200 bg-white p-6 flex items-center gap-2 text-sm text-slate-500"><Loader2 size={17} className="animate-spin" /> Carregando indicadores…</div> : <>
-            <MetricCard icon={Users} label="Usuários cadastrados" value={metrics.users} />
-            <MetricCard icon={FolderKanban} label="Total de obras" value={metrics.projects} />
-            <MetricCard icon={Activity} label="Obras em andamento" value={metrics.active} />
-            <MetricCard icon={CheckCircle2} label="Obras aprovadas" value={metrics.approved} />
-          </>}
+          {loading ? <div className="col-span-2 lg:col-span-4 rounded-2xl border border-slate-200 bg-white p-6 flex items-center gap-2 text-sm text-slate-500"><Loader2 size={17} className="animate-spin" /> Carregando indicadores…</div> : <><MetricCard icon={Users} label="Usuários cadastrados" value={metrics.users} /><MetricCard icon={FolderKanban} label="Total de obras" value={metrics.projects} /><MetricCard icon={Activity} label="Obras em andamento" value={metrics.active} /><MetricCard icon={CheckCircle2} label="Obras aprovadas" value={metrics.approved} /></>}
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
@@ -80,7 +70,7 @@ export default function AdminDashboard() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><ShieldCheck size={20} className="text-emerald-600" /><h2 className="font-black text-slate-900">Conta administrativa</h2></div><div className="mt-5 rounded-xl bg-slate-50 p-4"><p className="font-bold text-slate-900">{profile?.name || user?.email || 'Administrador'}</p><p className="mt-1 text-xs text-slate-500">{user?.email}</p><div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"><ShieldCheck size={13} /> Acesso Admin</div></div></div>
         </section>
 
-        <section><div className="flex items-center gap-2 mb-3"><ClipboardList size={19} className="text-indigo-600" /><h2 className="font-black text-slate-900">Operação</h2></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Shortcut to="/" icon={FolderKanban} title="Obras / Jornada" description="Acompanhar a jornada das obras" /><Shortcut to="/" icon={ClipboardList} title="Diário" description="Ir para os diários de obra" /><Shortcut to="/" icon={Activity} title="Orçamentos" description="Acompanhar a operação de orçamento" /><Shortcut to="/" icon={Factory} title="Produção" description="Acompanhar produção" /><Shortcut to="/" icon={ClipboardList} title="Corte" description="Planos de corte" /><Shortcut to="/perfil" icon={Users} title="Perfil" description="Configurações da marcenaria" /></div></section>
+        <section><div className="flex items-center gap-2 mb-3"><ClipboardList size={19} className="text-indigo-600" /><h2 className="font-black text-slate-900">Operação</h2></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Shortcut to="/admin/obras" icon={FolderKanban} title="Obras / Jornada" description="Acompanhar a jornada das obras" /><Shortcut to="/" icon={ClipboardList} title="Diário" description="Ir para os diários de obra" /><Shortcut to="/" icon={Activity} title="Orçamentos" description="Acompanhar a operação de orçamento" /><Shortcut to="/" icon={Factory} title="Produção" description="Acompanhar produção" /><Shortcut to="/" icon={ClipboardList} title="Corte" description="Planos de corte" /><Shortcut to="/admin/usuarios" icon={Users} title="Usuários" description="Gerenciar perfis cadastrados" /></div></section>
 
         <footer className="text-xs text-slate-400 flex items-center gap-2"><ShieldCheck size={13} /> Área administrativa protegida por autenticação e role admin.</footer>
       </div>
