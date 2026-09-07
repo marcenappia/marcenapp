@@ -10,6 +10,8 @@ import MarceneiroPublico from "./pages/MarceneiroPublico";
 import PerfilMarcenaria from "./modules/perfil/PerfilMarcenaria";
 import AIProviderAdmin from "./modules/admin/AIProviderAdmin";
 import AdminDashboard from "./modules/admin/AdminDashboard";
+import AdminUsers from "./modules/admin/AdminUsers";
+import AdminProjects from "./modules/admin/AdminProjects";
 import AdminGuard from "./modules/admin/AdminGuard";
 import NotFound from "./pages/NotFound";
 
@@ -28,6 +30,8 @@ const App = () => (
             <Route path="/perfil" element={<PerfilMarcenaria />} />
             <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
             <Route path="/admin/ia" element={<AdminGuard><AIProviderAdmin /></AdminGuard>} />
+            <Route path="/admin/usuarios" element={<AdminGuard><AdminUsers /></AdminGuard>} />
+            <Route path="/admin/obras" element={<AdminGuard><AdminProjects /></AdminGuard>} />
             <Route path="/" element={<Index />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
