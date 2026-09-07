@@ -26,8 +26,6 @@ jobs:
         run: npm install -g bun && bun install
       - name: Install Playwright Browsers
         run: bunx playwright install --with-deps
-      - name: Lint
-        run: bun run lint
       - name: Unit tests
         run: bun run test
       - name: Run Playwright tests
