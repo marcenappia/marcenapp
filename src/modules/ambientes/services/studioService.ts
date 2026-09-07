@@ -1,4 +1,4 @@
-import { callAIImage } from '@/services/ai';
+import { callAIImage, callAIText } from '@/services/ai';
 import { ImageData } from '@/store/useStudioStore';
 
 export type StudioGenerationMode = 'render' | 'environment-project' | 'planned-environment';
@@ -19,7 +19,11 @@ export const studioService = {
     return await callAIImage(finalPrompt, images);
   },
 
-  /** Eleva uma planta baixa para uma visualização espacial conceitual. */
+  /**
+   * Eleva uma planta baixa em duas etapas: primeiro interpreta a topologia,
+   * depois gera somente a casca arquitetônica. Isso evita que o modelo de
+   * imagem trate a planta como inspiração livre e invente outro ambiente.
+   */
   elevateFloorPlan: async (
     floorPlan: ImageData,
     projectRequest: string,
@@ -28,7 +32,37 @@ export const studioService = {
     const dimensionContext = dimensions?.width && dimensions?.height && dimensions?.depth
       ? `REFERENCE DIMENSIONS: width ${dimensions.width} m, height ${dimensions.height} m, depth ${dimensions.depth} m.`
       : 'NO COMPLETE CONFIRMED DIMENSIONS WERE PROVIDED. Treat proportions as reference only.';
-    const prompt = `ACT AS AN ARCHITECTURAL 3D MODELING ASSISTANT FOR CUSTOM CABINETRY. PRIMARY TASK: interpret the supplied FLOOR PLAN and create a clear client-facing perspective visualization of the SAME SPACE. Reconstruct the room volume from the plan as far as the drawing allows: raise perimeter walls, preserve room proportions, and interpret doors, windows and other clearly marked openings in their correct locations. Do not arbitrarily move walls, doors or windows. Do not add structural openings not represented. If a height or vertical detail cannot be known from the floor plan, use a neutral architectural assumption and keep it conceptual. The goal is to avoid manually rebuilding the apartment shell before designing cabinetry. The result must look like the intended apartment environment ready to receive custom cabinetry, not a generic room. ${dimensionContext} PROJECT REQUEST: ${projectRequest || 'Prepare the environment as a clean base for a custom cabinetry project.'} IMPORTANT: this is an ELEVATED VISUAL RECONSTRUCTION, not a technical BIM/CAD model. Never claim generated wall heights or dimensions are fabrication-grade. OUTPUT: one clean architectural perspective of the elevated environment, with walls, floor, ceiling, doors and windows represented according to the supplied plan.`;
+
+    const analysisPrompt = `You are a strict architectural floor-plan interpreter. Analyze the supplied floor plan image as the PRIMARY SOURCE OF TRUTH. Do not design furniture and do not imagine a different apartment. Return compact JSON only with: room_count, rooms (name, approximate shape, relative position), exterior_walls (ordered description of sides and proportions), interior_walls, doors (room/side, approximate position, swing if visible), windows (room/side, approximate position, width relative to wall), circulation, fixed_elements, and uncertainty. Preserve topology and relative proportions. If something is not visible, say unknown. ${dimensionContext}`;
+
+    let topology = '';
+    try {
+      topology = await callAIText(analysisPrompt, [floorPlan], true);
+    } catch {
+      topology = 'Floor-plan topology analysis unavailable. Use the supplied floor plan image itself as the only geometry authority.';
+    }
+
+    const prompt = `ACT AS A PROFESSIONAL ARCHITECTURAL 3D RECONSTRUCTION ASSISTANT. THIS IS NOT A FREEFORM DESIGN TASK.
+
+PRIMARY SOURCE OF TRUTH: the supplied FLOOR PLAN IMAGE. The generated perspective must depict the SAME FLOOR PLAN, not a similar room, not a generic apartment, and not a newly invented kitchen or furniture layout.
+
+STRICT RULES:
+1. First reconstruct the exact spatial topology visible in the floor plan: room count, adjacency, perimeter shape, walls, corridors and fixed elements.
+2. Keep doors and windows in the same walls and approximately the same relative positions shown in the plan. Do not mirror, rotate, simplify or relocate the plan.
+3. Preserve relative room proportions and circulation. Do not turn a floor plan into a single-room showroom.
+4. Do NOT add cabinetry, kitchen units, furniture, appliances, decoration or invented architecture. The output is ONLY the neutral architectural shell of the plan: floor, walls, ceiling, doors and windows/openings that are clearly represented.
+5. Do not invent missing rooms or openings. If a feature is uncertain, keep it neutral and explicitly preserve the visible plan topology rather than guessing.
+6. Camera perspective is secondary. Fidelity to the plan is primary. A simple cutaway/axonometric or neutral interior perspective is preferable to a beautiful but incorrect room.
+7. Never claim fabrication-grade dimensions. This is a visual reconstruction only.
+
+FLOOR-PLAN INTERPRETATION FROM A SEPARATE ANALYSIS PASS:
+${topology}
+
+${dimensionContext}
+PROJECT CONTEXT (does not override the plan): ${projectRequest || 'Prepare the same environment as a neutral base for a future custom cabinetry project.'}
+
+OUTPUT: one neutral architectural perspective/axonometric reconstruction of the SAME FLOOR PLAN, with no cabinetry or decorative redesign. The result will be used as the base environment for a later Studio design step.`;
+
     return await callAIImage(prompt, [floorPlan]);
   },
 
