@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import MarceneiroPublico from "./pages/MarceneiroPublico";
 import PerfilMarcenaria from "./modules/perfil/PerfilMarcenaria";
+import Planos from "./pages/Planos";
 import AIProviderAdmin from "./modules/admin/AIProviderAdmin";
 import AdminDashboard from "./modules/admin/AdminDashboard";
 import AdminAIUsage from "./modules/admin/AdminAIUsage";
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/marceneiro/:slug" element={<MarceneiroPublico />} />
             <Route path="/perfil" element={<PerfilMarcenaria />} />
+            <Route path="/planos" element={<Planos />} />
             <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
             <Route path="/admin/ia" element={<AdminGuard><AIProviderAdmin /></AdminGuard>} />
             <Route path="/admin/ia/uso" element={<AdminGuard><AdminAIUsage /></AdminGuard>} />
