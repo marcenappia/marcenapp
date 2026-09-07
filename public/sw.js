@@ -1,4 +1,4 @@
-const CACHE = 'marcenapp-shell-v2';
+const CACHE = 'marcenapp-shell-v3';
 const SHELL = ['/', '/manifest.webmanifest', '/pwa-icon.svg'];
 
 self.addEventListener('install', (event) => {
