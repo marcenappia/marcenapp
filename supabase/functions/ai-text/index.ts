@@ -62,7 +62,10 @@ serve(async (req) => {
       parts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
     }
 
-    const model = "gemini-2.0-flash";
+    // Gemini 2.0 Flash was shut down on June 1, 2026.
+    // Keep generateContent for a minimal production-safe migration to the
+    // currently supported stable Gemini 3.6 Flash model.
+    const model = "gemini-3.6-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
     const body: Record<string, unknown> = { contents: [{ role: "user", parts }] };
     if (jsonMode) body.generationConfig = { responseMimeType: "application/json" };
