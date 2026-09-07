@@ -44,9 +44,9 @@ serve(async (req) => {
     const selectedProvider = provider === "automatic" ? "lovable" : provider;
 
     if (selectedProvider === "lovable") {
-      const gatewayKey = Deno.env.get("LOVABLE_GATEWAY_KEY");
-      if (!gatewayKey) {
-        console.error("ai-text: LOVABLE_GATEWAY_KEY não configurada");
+      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+      if (!lovableApiKey) {
+        console.error("ai-text: LOVABLE_API_KEY não configurada");
         return jsonResponse(cors, { error: "Serviço de IA Lovable não configurado.", code: "provider_not_configured", provider: "lovable" }, 500);
       }
 
@@ -66,7 +66,8 @@ serve(async (req) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${gatewayKey}`,
+          "Authorization": `Bearer ${lovableApiKey}`,
+          "Lovable-API-Key": lovableApiKey,
         },
         body: JSON.stringify(body),
       });
