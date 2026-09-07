@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 
 const desktopModules = [
   'dashboard',
+  'novo',
   'clientes',
   'diario',
   'studio',

@@ -18,7 +18,7 @@ export const MOBILE_NAV_IDS = ['dashboard', 'novo', 'diario', 'studio', 'orcamen
 
 export const modules: ModuleConfig[] = [
   { id: 'dashboard', label: 'Início', mobileLabel: 'Início', icon: Home, category: 'portal' },
-  { id: 'novo', label: 'Novo projeto', mobileLabel: 'Novo', icon: Plus, category: 'portal', hidden: true },
+  { id: 'novo', label: 'Novo projeto', mobileLabel: 'Novo', icon: Plus, category: 'portal' },
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: Users, category: 'portal' },
   { id: 'diario', label: 'Diário de obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
   { id: 'studio', label: 'Estúdio', mobileLabel: 'Estúdio', icon: Wand2, category: 'studio' },
