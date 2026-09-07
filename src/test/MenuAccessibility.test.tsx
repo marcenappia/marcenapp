@@ -48,10 +48,10 @@ describe('Menu Accessibility', () => {
     expect(iaraBtn).toHaveClass('focus-visible:ring-2');
   });
 
-  it('home is the default module and mobile nav exposes Novo', () => {
+  it('home is the default module and exposes the primary create action', () => {
     window.innerWidth = 400;
     render(<BrowserRouter><Index /></BrowserRouter>);
     expect(screen.getByTestId('home')).toBeInTheDocument();
-    expect(screen.getByLabelText('Novo')).toBeInTheDocument();
+    expect(screen.getByLabelText('Novo projeto')).toBeInTheDocument();
   });
 });
