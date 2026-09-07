@@ -27,6 +27,13 @@ export interface DiarioRegistro {
   fotoUrl?: string | null;
 }
 
+export interface DiarioCabecalhoObra {
+  nome: string;
+  cliente: string;
+  etapa: number;
+  status: string | null;
+}
+
 const table = () => supabase.from('diario_entradas' as never) as any;
 
 export const listarRegistros = async (projectId: string): Promise<DiarioRegistro[]> => {
@@ -87,14 +94,24 @@ export const enviarFotoDiario = async (userId: string, projectId: string, file: 
   return path;
 };
 
-/** Cabeçalho da obra (nome + cliente) reaproveitando a tabela `projects`. */
-export const carregarCabecalhoObra = async (projectId: string) => {
+/** Cabeçalho + posição da jornada para o Diário saber qual é o próximo passo real da obra. */
+export const carregarCabecalhoObra = async (projectId: string): Promise<DiarioCabecalhoObra | null> => {
   const { data } = await supabase
     .from('projects')
-    .select('id, nome, name, clientes(nome)')
+    .select('id, nome, name, status, jornada, clientes(nome)')
     .eq('id', projectId)
     .maybeSingle();
   if (!data) return null;
   const cliente = (data as unknown as { clientes?: { nome?: string } | null }).clientes;
-  return { nome: data.nome || data.name || 'Obra sem nome', cliente: cliente?.nome ?? '' };
+  const jornada = data.jornada && typeof data.jornada === 'object'
+    ? (data.jornada as { etapa?: number })
+    : {};
+  const etapa = Number.isFinite(jornada.etapa) ? Number(jornada.etapa) : 1;
+  const status = (data as unknown as { status?: string | null }).status ?? null;
+  return {
+    nome: data.nome || data.name || 'Obra sem nome',
+    cliente: cliente?.nome ?? '',
+    etapa: status === 'aprovado' || status === 'em_producao' || status === 'concluido' ? Math.max(etapa, 7) : etapa,
+    status,
+  };
 };
