@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getAIProvider } from './aiProvider';
 
 /** Returns true if user is logged in, false otherwise */
 export const requireAuth = async (): Promise<boolean> => {
@@ -18,7 +19,8 @@ export class AIAuthError extends Error {
 
 /**
  * Cabeçalhos para as Edge Functions de IA: envia o JWT da sessão do usuário
- * (nunca a chave pública). Lança AIAuthError se não houver sessão.
+ * (nunca a chave privada do provedor). A escolha do provedor é lida da
+ * configuração do usuário e enviada como preferência operacional, nunca como segredo.
  */
 export const aiHeaders = async (): Promise<Record<string, string>> => {
   const { data: { session } } = await supabase.auth.getSession();
@@ -33,10 +35,15 @@ export const aiHeaders = async (): Promise<Record<string, string>> => {
 /** POST autenticado em uma Edge Function; converte erros em mensagens legíveis. */
 export const callAIFunction = async <T = any>(fn: string, body: unknown): Promise<T> => {
   const headers = await aiHeaders();
+  const provider = await getAIProvider();
+  const requestBody = {
+    ...(body && typeof body === 'object' ? body as Record<string, unknown> : { input: body }),
+    provider,
+  };
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
   });
   let data: any = null;
   try { data = await res.json(); } catch { /* corpo vazio */ }
