@@ -40,6 +40,6 @@ export function EnvironmentGeometryPanel({ analysis, onChange }: { analysis: Env
       {!hasAnyMeasurement && <p className="mt-1 text-[11px] text-slate-600">Comece pelo pé-direito e pela largura das paredes que receberão o móvel.</p>}
     </div>
 
-    <Button type="button" variant="secondary" className="mt-3 w-full" onClick={() => onChange({ ...analysis, geometry: { ...geometry, source: 'user', validatedAt: new Date().toISOString() }, confirmedByIara: false })} disabled={!validation.valid}>Registrar medidas para nova conferência da IARA</Button>
+    <Button variant="secondary" className="mt-3 w-full" onClick={() => onChange({ ...analysis, geometry: { ...geometry, source: 'user', validatedAt: new Date().toISOString() }, confirmedByIara: false })} disabled={!validation.valid}>Registrar medidas para nova conferência da IARA</Button>
   </Card>;
 }
