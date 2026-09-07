@@ -128,6 +128,88 @@ export const COMMERCIAL_PLANS: Record<CommercialPlanId, CommercialPlan> = {
   },
 };
 
+/**
+ * MARCENA is the commercial visualization/presentation product inside
+ * MARCENAPP. It is not a second application: it is the customer-facing
+ * value moment that helps the professional sell the furniture project.
+ */
+export type MarcenaProductStage =
+  | 'environment-photo'
+  | 'client-request'
+  | 'visual-scene'
+  | 'adjustments'
+  | 'approved-scene'
+  | 'documentation-2d'
+  | 'budget'
+  | 'production';
+
+export const MARCENA_PRODUCT = {
+  id: 'marcena',
+  name: 'MARCENA',
+  parentProduct: 'MARCENAPP',
+  positioning:
+    'Transforma o ambiente real do cliente em uma apresentação visual que ajuda o marceneiro a vender o projeto.',
+  coreValue: 'venda e aprovação do projeto',
+  stages: [
+    'environment-photo',
+    'client-request',
+    'visual-scene',
+    'adjustments',
+    'approved-scene',
+    'documentation-2d',
+    'budget',
+    'production',
+  ] as const satisfies readonly MarcenaProductStage[],
+  billingEnabled: false,
+} as const;
+
+export type MarcenaSceneUnit = {
+  id: 'essential' | 'professional';
+  label: string;
+  priceBRL: number;
+  includes: readonly string[];
+};
+
+/**
+ * Proposed unit economics for future usage/credit sales.
+ * These values are commercial planning only; they do not activate billing.
+ */
+export const MARCENA_SCENE_UNITS: readonly MarcenaSceneUnit[] = [
+  {
+    id: 'essential',
+    label: 'MARCENA Essencial',
+    priceBRL: 29.9,
+    includes: ['1 cena do ambiente', '1 apresentação visual', '1 rodada de ajuste'],
+  },
+  {
+    id: 'professional',
+    label: 'MARCENA Profissional',
+    priceBRL: 79.9,
+    includes: [
+      '1 projeto visual completo',
+      'alternativas de apresentação',
+      'ajustes profissionais',
+      'documentação 2D',
+    ],
+  },
+] as const;
+
+export type MarcenaRevenueModel =
+  | 'subscription'
+  | 'scene-credits'
+  | 'professional-project'
+  | 'team'
+  | 'white-label';
+
+/** Future revenue streams, intentionally disconnected from checkout today. */
+export const MARCENA_REVENUE_MODEL: readonly MarcenaRevenueModel[] = [
+  'subscription',
+  'scene-credits',
+  'professional-project',
+  'team',
+  'white-label',
+] as const;
+
 export type MarcenariaWorkflowStage =
   | 'environment'
   | 'request'
