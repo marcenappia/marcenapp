@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Epilogue:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+@import "@tailwindcss/forms";
 
 @layer base {
   :root {
@@ -51,7 +51,8 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', 'Epilogue', sans-serif;
   }
 }
 

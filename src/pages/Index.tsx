@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/marcenapp-logo.jpeg';
+import Footer from '@/components/ui/Footer';
 
 // Modular components
 import Onboarding from '../components/marcenaria/Onboarding';
@@ -297,7 +298,7 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Mobile Bottom Nav - Refatorado */}
+        {/* Mobile Bottom Nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-1 py-1 z-50 flex justify-around items-center pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
           {mobileModules.map(m => (
             <button
@@ -318,6 +319,9 @@ const Index = () => {
             </button>
           ))}
         </nav>
+
+        {/* Rodape desktop */}
+        <Footer />
       </main>
     </div>
   );
