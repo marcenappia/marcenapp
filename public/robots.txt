@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /perfil
+Disallow: /conexoes
+Disallow: /auth
 
 Sitemap: https://marcenap40.lovable.app/sitemap.xml
