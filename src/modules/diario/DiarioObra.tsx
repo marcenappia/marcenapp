@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Mic, Pencil, Loader2, Trash2, CheckCircle2, AlertTriangle, Sparkles, ArrowRight } from 'lucide-react';
+import { Camera, Mic, Pencil, Loader2, Trash2, CheckCircle2, AlertTriangle, Sparkles, ArrowRight, ListChecks } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { callAIText } from '@/services/ai';
 import {
@@ -24,6 +24,7 @@ export const DiarioObra = ({ projectId, navigateTo }: Props) => {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resumoIara, setResumoIara] = useState<string | null>(null);
+  const [faltandoIara, setFaltandoIara] = useState<string | null>(null);
   const fotoInput = useRef<HTMLInputElement>(null);
 
   const recarregar = useCallback(async () => {
@@ -98,6 +99,23 @@ ${lista}`;
     finally { setCarregando(false); }
   };
 
+  const perguntarOQueFalta = async () => {
+    if (registros.length === 0) return;
+    setCarregando(true); setErro(null); setFaltandoIara(null);
+    try {
+      const lista = registros.map((r, i) => `${i + 1}. [${r.tipo}] ${r.texto || '(somente foto)'}${r.pendencia_resolvida ? ' [RESOLVIDO]' : ''}`).join('\n');
+      const prompt = `Você é a IARA, assistente operacional de uma marcenaria. Analise o diário abaixo e diga objetivamente o que ainda falta para avançar esta obra.
+Considere como pendência qualquer pedido sem resposta, conferência necessária, medida não confirmada ou informação essencial ausente.
+Não invente medidas, materiais ou decisões. Se não houver pendência clara, diga que não encontrou pendências registradas.
+Responda em português, em no máximo 6 tópicos, começando por "O que falta:".
+
+Diário:
+${lista}`;
+      setFaltandoIara(await callAIText(prompt));
+    } catch (e: any) { setErro(e?.message || 'A IARA não conseguiu verificar as pendências agora.'); }
+    finally { setCarregando(false); }
+  };
+
   if (!projectId) return (
     <div className="max-w-xl mx-auto p-6 text-center space-y-4">
       <h2 className="text-2xl font-black text-slate-900">Diário da obra</h2>
@@ -121,6 +139,7 @@ ${lista}`;
       <header>
         <h2 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight">Diário da obra</h2>
         <p className="text-slate-500 mt-0.5">{obra?.nome ?? 'Obra'}{obra?.cliente ? ` · ${obra.cliente}` : ''}</p>
+        <p className="text-xs text-slate-400 mt-1">Visita de {new Date().toLocaleDateString('pt-BR')}</p>
       </header>
 
       <div className="flex gap-3">
@@ -149,16 +168,29 @@ ${lista}`;
 
       {erro && <p className="rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm p-3">{erro}</p>}
 
-      <button onClick={organizarComIara} disabled={carregando || registros.length === 0}
-        className="w-full min-h-[52px] rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-800 font-extrabold flex items-center justify-center gap-2 disabled:opacity-50">
-        {carregando ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />} IARA organizar o diário
-      </button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button onClick={organizarComIara} disabled={carregando || registros.length === 0}
+          className="min-h-[58px] rounded-2xl bg-amber-50 border-2 border-amber-200 text-amber-800 font-extrabold flex items-center justify-center gap-2 disabled:opacity-50">
+          {carregando ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />} IARA organizar
+        </button>
+        <button onClick={perguntarOQueFalta} disabled={carregando || registros.length === 0}
+          className="min-h-[58px] rounded-2xl bg-indigo-50 border-2 border-indigo-200 text-indigo-800 font-extrabold flex items-center justify-center gap-2 disabled:opacity-50">
+          {carregando ? <Loader2 size={20} className="animate-spin" /> : <ListChecks size={20} />} O que falta?
+        </button>
+      </div>
 
       {resumoIara && (
         <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/70 p-4">
           <p className="text-xs font-black uppercase tracking-wide text-amber-700 mb-2">Resumo da IARA</p>
           <p className="whitespace-pre-wrap text-sm text-slate-800">{resumoIara}</p>
           <p className="mt-3 text-xs text-amber-800">Medidas anotadas aqui ficam como <strong>PRECISA CONFERIR</strong> e não entram no orçamento, produção ou corte sem conferência.</p>
+        </div>
+      )}
+
+      {faltandoIara && (
+        <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/70 p-4">
+          <p className="text-xs font-black uppercase tracking-wide text-indigo-700 mb-2">IARA · Próximos passos</p>
+          <p className="whitespace-pre-wrap text-sm text-slate-800">{faltandoIara}</p>
         </div>
       )}
 
