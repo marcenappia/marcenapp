@@ -1,7 +1,5 @@
 import React from 'react';
-import { Maximize2, Loader2, AlertCircle, RefreshCcw, XCircle } from 'lucide-react';
-import { useStudioStore } from '@/store/useStudioStore';
-import { useMarcenappOS } from '@/store/useMarcenappOS';
+import { Maximize2, Loader2, AlertCircle, RefreshCcw } from 'lucide-react';
 
 export interface ChatMessage {
   id: string;
@@ -37,76 +35,9 @@ interface ChatMessagesProps {
 }
 
 export const ChatMessages = ({ messages, isTyping, onImageZoom, messagesEndRef, error, onRetry, onDismissError, onSuggestion }: ChatMessagesProps) => {
-  const commandHistory = useMarcenappOS(state => state.commandHistory);
-  const cancelCommand = useStudioStore(state => state.cancelCommand);
-  const enqueueCommand = useStudioStore(state => state.enqueueCommand);
-
-  const activeCommands = commandHistory.filter(cmd => 
-    cmd.source === 'iara' && (cmd.status === 'pending' || cmd.status === 'processing' || cmd.status === 'failed' || cmd.status === 'cancelled')
-  );
-
   return (
     <main className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin relative">
-      <div className="text-center pb-2">
-        <span className="px-3 py-1 bg-muted rounded-full text-[9px] font-bold uppercase text-muted-foreground tracking-widest">Sessão de Materialização</span>
-      </div>
-
-      {activeCommands.length > 0 && (
-        <div className="space-y-2 mb-4">
-          {activeCommands.map(cmd => (
-            <div key={cmd.id} className="bg-card border border-border rounded-xl p-3 shadow-sm animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  {cmd.status === 'processing' ? (
-                    <Loader2 size={14} className="animate-spin text-primary" />
-                  ) : cmd.status === 'failed' ? (
-                    <AlertCircle size={14} className="text-destructive" />
-                  ) : cmd.status === 'cancelled' ? (
-                    <XCircle size={14} className="text-muted-foreground" />
-                  ) : (
-                    <div className="w-3 h-3 rounded-full bg-muted-foreground animate-pulse" />
-                  )}
-                  <span className="text-[10px] font-bold uppercase tracking-wider">
-                    {cmd.status === 'processing' ? 'Estúdio Processando' : 
-                     cmd.status === 'failed' ? 'Falha no Estúdio' : 
-                     cmd.status === 'cancelled' ? 'Comando Cancelado' : 'Na Fila do Estúdio'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  {(cmd.status === 'failed' || cmd.status === 'cancelled') && (
-                    <button 
-                      onClick={() => {
-                        const { id, status, timestamp, result, ...cleanCmd } = cmd.payload;
-                        enqueueCommand(cleanCmd);
-                      }}
-                      className="p-1 hover:bg-muted rounded text-primary transition-colors"
-                      title="Tentar novamente"
-                    >
-                      <RefreshCcw size={14} />
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => {
-                      if (cmd.status === 'pending' || cmd.status === 'processing') {
-                        cancelCommand(cmd.id);
-                      } else {
-                        // Comandos em histórico do OS não são removidos via UI aqui para manter memória
-                      }
-                    }}
-                    className="p-1 hover:bg-muted rounded text-muted-foreground transition-colors"
-                    title={cmd.status === 'pending' || cmd.status === 'processing' ? "Cancelar" : "Remover"}
-                  >
-                    <XCircle size={14} />
-                  </button>
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground truncate italic">"{cmd.payload?.metadata?.originalPrompt || cmd.payload?.prompt}"</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {messages.length === 0 && activeCommands.length === 0 && !isTyping && (
+      {messages.length === 0 && !isTyping && (
         <div className="flex flex-col items-center justify-center text-center py-10 px-4 opacity-80">
           <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mb-3">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />

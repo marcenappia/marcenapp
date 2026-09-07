@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { useStudioStore, RenderCommand } from '@/store/useStudioStore';
-import { useMarcenappOS, OSCommand } from '@/store/useMarcenappOS';
+import { useEffect, useMemo } from 'react';
+import { useStudioStore } from '@/store/useStudioStore';
+import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,7 +24,7 @@ export const StudioWorker = () => {
   const failCommand = useStudioStore(state => state.failCommand);
   
   // Ref para evitar processamento duplo se o estado mudar rápido demais
-  const currentlyProcessing = useRef<string | null>(null);
+  const currentlyProcessing = { current: null as string | null };
 
   useEffect(() => {
     // Busca o primeiro comando pendente na fila
@@ -47,14 +47,14 @@ export const StudioWorker = () => {
   };
 
   /** Resolve os dados de render: comando do Estúdio (por studioCommandId) ou o próprio payload. */
-  const resolveRenderCommand = (osCommand: OSCommand): Partial<RenderCommand> & { studioId?: string } => {
+  const resolveRenderCommand = (osCommand: { payload?: any }) => {
     const payload = osCommand.payload ?? {};
     const studioId: string | undefined = payload.studioCommandId;
     if (studioId) {
       const studioCmd = useStudioStore.getState().commandQueue.find(c => c.id === studioId);
-      if (studioCmd) return { ...studioCmd, studioId };
+      if (studioCmd) return { ...studioCmd };
     }
-    return { ...payload, studioId };
+    return { ...payload };
   };
 
   const processCommand = async (osCommand: OSCommand) => {
@@ -65,10 +65,9 @@ export const StudioWorker = () => {
     }
 
     const command = resolveRenderCommand(osCommand);
-    const studioId = command.studioId ?? osCommand.id;
 
     const fail = (message: string) => {
-      failCommand(studioId, message);
+      failCommand(osCommand.id, message);
       updateOSStatus(osCommand.id, 'failed', undefined, message);
     };
 
@@ -84,21 +83,14 @@ export const StudioWorker = () => {
     
     try {
       const result = await studioService.generateVisual(
-        command.prompt, 
+        command.prompt,
         command.images,
         command.style,
         command.decor
       );
 
-      // Verifica se foi cancelado DURANTE o processamento
-      const checkCancel = useMarcenappOS.getState().commandHistory.find(c => c.id === osCommand.id);
-      if (checkCancel?.status === 'cancelled') {
-        useStudioStore.setState({ isRendering: false });
-        return;
-      }
-
       if (result) {
-        completeCommand(studioId, result);
+        completeCommand(osCommand.id, result);
         updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
         await saveToGallery(result, command.prompt);
       } else {

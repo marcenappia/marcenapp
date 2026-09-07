@@ -19,17 +19,6 @@ const NotFound = () => {
   return (
     <main className="flex min-h-screen items-center justify-center bg-muted px-4" role="main" aria-labelledby="not-found-title">
       <article className="text-center max-w-md w-full" aria-label="Página não encontrada">
-        {/* Structured data para a 404 */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "WebPage",
-          "name": "404 — Página Não Encontrada",
-          "description": "Página não encontrada no Marcenapp OS",
-          "url": window.location.href,
-          "isPartOf": { "@type": "WebSite", "@id": "https://marcenap40.lovable.app/#website" },
-          "about": { "@type": "SoftwareApplication", "name": "Marcenapp OS" }
-        })}} />
-
         {/* Número 404 grande */}
         <p className="text-9xl font-black text-slate-200 select-none" aria-hidden="true">404</p>
 
