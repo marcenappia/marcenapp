@@ -37,7 +37,7 @@ export default function AdminSkills() {
           <Link to="/admin" className="mb-3 inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={14} /> Voltar ao Admin</Link>
           <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-indigo-600"><Sparkles size={15} /> Governança de Skills</div>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Skills dos agentes</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500">Registro central para acompanhar skills próprios do MARCENAPP, skills oficiais, conflitos, prioridade e possíveis custos externos.</p>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">Registro central para acompanhar skills próprios do MARCENAPP, skills oficiais, conflitos, prioridade, escopo e possíveis custos externos.</p>
         </div>
       </header>
 
@@ -61,12 +61,13 @@ export default function AdminSkills() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2"><h2 className="font-black text-slate-900">{skill.name}</h2><Pill tone={skill.source === 'marcenapp' ? 'indigo' : 'slate'}>{skill.source === 'marcenapp' ? 'MARCENAPP' : 'Oficial'}</Pill><Pill tone={skill.status === 'active' ? 'green' : skill.status === 'conflict' ? 'red' : 'amber'}>{skill.status === 'active' ? <CheckCircle2 size={12} className="mr-1" /> : null}{statusLabel[skill.status]}</Pill></div>
-              <p className="mt-1 text-xs font-mono text-slate-400">{skill.slug} · prioridade {skill.priority}</p>
+              <p className="mt-1 text-xs font-mono text-slate-400">{skill.slug} · prioridade {skill.priority}{skill.upstream_slug ? ` · upstream: ${skill.upstream_slug}` : ''}</p>
             </div>
             <Pill tone={skill.cost_class === 'none' || skill.cost_class === 'local' ? 'green' : 'amber'}><CircleDollarSign size={12} className="mr-1" />{costLabel[skill.cost_class]}</Pill>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
             <div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Categoria</p><p className="mt-1 text-sm font-semibold text-slate-700">{skill.category}</p></div>
+            <div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Agentes</p><p className="mt-1 text-sm font-semibold text-slate-700">{skill.agent_scope.join(', ') || 'Não definido'}</p></div>
             <div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Conflitos</p><p className="mt-1 text-sm font-semibold text-slate-700">{skill.conflict_domains.join(', ') || 'Nenhum declarado'}</p></div>
             <div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Fornecedor</p><p className="mt-1 text-sm font-semibold text-slate-700">{skill.provider || 'MARCENAPP'}</p></div>
           </div>
