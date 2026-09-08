@@ -3,11 +3,11 @@ import { agents, getAgent } from './registry';
 import { runAgentPlan, runProjectJourney } from './orchestrator';
 
 describe('MARCENAPP agents', () => {
-  it('registra os 10 agentes da jornada', () => {
-    expect(agents).toHaveLength(10);
+  it('registra todos os agentes da jornada comercial', () => {
+    expect(agents).toHaveLength(13);
     expect(agents.map((a) => a.id)).toEqual([
-      'customer', 'project', 'measurement', 'materials', 'render',
-      'inventory', 'production', 'budget', 'documents', 'order',
+      'customer', 'project', 'measurement', 'materials', 'render', 'quality',
+      'presentation', 'approval', 'inventory', 'production', 'budget', 'documents', 'order',
     ]);
   });
 
@@ -28,6 +28,14 @@ describe('MARCENAPP agents', () => {
     expect(result.status).toBe('needs_input');
   });
 
+  it('bloqueia orçamento sem aprovação', async () => {
+    const result = await getAgent('budget').handle({
+      id: 'budget-2', type: 'budget.prepare',
+      input: { materials: [{ code: 'MDF-18', quantity: 2 }] }, correlationId: 'test-correlation',
+    });
+    expect(result.status).toBe('needs_input');
+  });
+
   it('executa a jornada completa com uma única correlação', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
@@ -35,9 +43,12 @@ describe('MARCENAPP agents', () => {
       parts: [{ code: 'P1', width: 500, height: 700 }],
       materials: [{ code: 'MDF-18', quantity: 2 }],
       projectId: 'project-1', documentType: 'budget',
+      scene: { type: 'kitchen' }, renderUrl: 'render.jpg',
+      presentationId: 'presentation-1', approved: true, approvalId: 'approval-1',
+      budgetId: 'budget-1',
     });
     expect(result.status).toBe('completed');
     expect(new Set(result.results.map((r) => r.correlationId)).size).toBe(1);
-    expect(result.results).toHaveLength(10);
+    expect(result.results).toHaveLength(13);
   });
 });
