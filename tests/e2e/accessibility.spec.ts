@@ -9,7 +9,7 @@ const mobileModules = ['dashboard', 'novo', 'diario', 'studio', 'orcamento'];
 
 test.describe('Navegação, acessibilidade e responsividade', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/app');
     const skip = page.getByRole('button', { name: /pular/i }).first();
     if (await skip.isVisible().catch(() => false)) await skip.click();
     await expect(page.locator('body')).toBeVisible();
@@ -31,7 +31,7 @@ test.describe('Navegação, acessibilidade e responsividade', () => {
     test.skip(!isMobile, 'Mobile only');
     for (const width of [320, 375, 430]) {
       await page.setViewportSize({ width, height: 800 });
-      const nav = page.locator('nav.md\\:hidden').last();
+      const nav = page.locator('#mobile-bottom-nav');
       await expect(nav).toBeVisible();
       const navBox = await nav.boundingBox();
       expect(navBox).not.toBeNull();
@@ -61,7 +61,7 @@ test.describe('Navegação, acessibilidade e responsividade', () => {
   });
 
   test('IARA permanece acessível pelo cabeçalho', async ({ page }) => {
-    const iaraButton = page.getByRole('button', { name: 'Estúdio + IARA' }).first();
+    const iaraButton = page.getByRole('button', { name: /Estúdio.*IARA/i }).first();
     await expect(iaraButton).toBeVisible();
     await iaraButton.click();
     await expect(page.getByRole('dialog', { name: /IARA — Assistente técnica/i })).toBeVisible();
