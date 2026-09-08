@@ -32,11 +32,7 @@ const Auth = () => {
   const [countdown, setCountdown] = useState(0);
   const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
 
-  const SUPPORT_LINK = import.meta.env.VITE_SUPPORT_WHATSAPP_LINK || "https://wa.me/5511999999999";
-
-  // O cadastro/login libera o aplicativo imediatamente. O teste de 7 dias
-  // acontece dentro do MARCENAPP; contratar o plano e informar pagamento é
-  // uma decisão posterior, não um bloqueio para entrar.
+  const SUPPORT_LINK = import.meta.env.VITE_SUPPORT_WHATSAPP_LINK || 'https://wa.me/5511999999999';
   const goAfterAuth = () => navigate('/app', { replace: true });
 
   const handleOAuth = async (provider: OAuthProvider) => {
@@ -90,7 +86,7 @@ const Auth = () => {
         if (error) setError(error.message);
         else goAfterAuth();
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -98,8 +94,18 @@ const Auth = () => {
             emailRedirectTo: `${window.location.origin}/auth${selectedPlan ? `?plan=${encodeURIComponent(selectedPlan)}` : ''}`,
           },
         });
-        if (error) setError(error.message);
-        else setSuccess('Cadastro criado. Confirme seu e-mail se solicitado; depois o MARCENAPP libera o aplicativo. Você começa com 7 dias de teste sem pagamento.');
+        if (error) {
+          setError(error.message);
+        } else if (data.session) {
+          // Quando a confirmação de e-mail está desativada no Supabase,
+          // a sessão nasce no cadastro e o usuário entra imediatamente.
+          goAfterAuth();
+        } else {
+          // Se o projeto exigir confirmação de e-mail, não fingimos que o app
+          // foi liberado: orientamos o usuário e mantemos o mesmo destino /auth.
+          setSuccess('Conta criada. Confirme seu e-mail para liberar o acesso e depois entre no MARCENAPP. O teste de 7 dias começa sem pagamento.');
+          setIsLogin(true);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ocorreu um erro inesperado.');
@@ -129,12 +135,10 @@ const Auth = () => {
           {!isLogin && !isReset && <input type="text" placeholder="Nome completo" value={name} onChange={e => setName(e.target.value)} required className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder:text-white/40 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))]" />}
           <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} required className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder:text-white/40 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))]" />
           {!isReset && <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder:text-white/40 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))]" />}
-
           {isLogin && !isReset && <div className="text-right"><button type="button" onClick={() => setIsReset(true)} className="text-xs text-[hsl(var(--sidebar-text))] hover:text-[hsl(var(--sidebar-active))]">Esqueceu a senha?</button></div>}
           {isReset && success && <div className="text-center"><button type="button" onClick={handleSubmit} disabled={loading || countdown > 0} className="text-xs font-medium text-[hsl(var(--sidebar-active))] hover:underline disabled:opacity-50">{loading ? 'Enviando...' : countdown > 0 ? `Tente novamente em ${countdown}s` : 'Não recebeu? Reenviar link de redefinição'}</button></div>}
           {error && <div className="space-y-2"><p className="rounded-lg bg-red-950/50 p-3 text-sm text-red-400">{error}</p>{isReset && <p className="text-center"><a href={SUPPORT_LINK} target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(var(--sidebar-text))] underline hover:text-white">Não resolveu? Fale com o suporte</a></p>}</div>}
           {success && <p className="rounded-lg bg-emerald-950/50 p-3 text-sm text-emerald-400">{success}</p>}
-
           <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--sidebar-active))] py-3 font-bold text-white transition-all hover:brightness-110 disabled:opacity-50">{loading && <Loader2 className="animate-spin" size={18} />}{isReset ? 'Enviar Recuperação' : isLogin ? 'Entrar no MARCENAPP' : 'Criar conta e testar grátis'}</button>
         </form>
 
