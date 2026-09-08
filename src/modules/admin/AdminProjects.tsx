@@ -7,7 +7,7 @@ type ProjectRow = { id: string; name: string; nome: string | null; status: strin
 
 const statusLabel = (status: string) => ({
   em_andamento: 'Em andamento', aprovado: 'Aprovado', concluido: 'Concluído', rascunho: 'Rascunho', aguardando_cliente: 'Aguardando cliente', producao: 'Produção', corte: 'Corte',
-}[status] ?? status.replaceAll('_', ' '));
+}[status] ?? status.split('_').join(' '));
 
 export default function AdminProjects() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
