@@ -61,7 +61,7 @@ test.describe('Navegação, acessibilidade e responsividade', () => {
   });
 
   test('IARA permanece acessível pelo cabeçalho', async ({ page }) => {
-    const iaraButton = page.getByRole('button', { name: /Estúdio.*IARA/i }).first();
+    const iaraButton = page.locator('button[aria-label="Estúdio + IARA"]:visible').first();
     await expect(iaraButton).toBeVisible();
     await iaraButton.click();
     await expect(page.getByRole('dialog', { name: /IARA — Assistente técnica/i })).toBeVisible();
