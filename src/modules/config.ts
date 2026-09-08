@@ -1,6 +1,7 @@
 import {
   Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, Users, BookOpen, Plus, Factory,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export type ModuleCategory = 'intelligence' | 'portal' | 'studio' | 'finance' | 'production';
 
@@ -8,7 +9,7 @@ export interface ModuleConfig {
   id: string;
   label: string;
   mobileLabel: string;
-  icon: any;
+  icon: LucideIcon;
   category: ModuleCategory;
   hidden?: boolean;
 }
