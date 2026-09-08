@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Studio } from './index';
-import { useDebouncedValue } from '@/hooks/useDebounce';
 import { sincronizarLinhaDoTempoProjeto, registrarEventoSistema } from '@/modules/projetos/services/diarioStorage';
 
 interface StudioHubProps {
@@ -17,7 +16,6 @@ export const StudioHub = (props: StudioHubProps) => {
   const { budgetProject, ...studioProps } = props;
   const [description, setDescription] = useState('');
   const [diaryContext, setDiaryContext] = useState<string | null>(null);
-  const debouncedDescription = useDebouncedValue(description, 300);
   const projectId: string | null = budgetProject?.id ?? null;
 
   useEffect(() => {
