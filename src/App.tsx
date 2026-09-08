@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Landing from "./pages/Landing";
 import AppShell from "./pages/AppShell";
 import Auth from "./pages/Auth";
+import Checkout from "./pages/Checkout";
 import MarceneiroPublico from "./pages/MarceneiroPublico";
 import PerfilMarcenaria from "./modules/perfil/PerfilMarcenaria";
 import Planos from "./pages/Planos";
@@ -61,6 +62,7 @@ const ProtectedApp = () => {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/checkout" element={<Checkout />} />
       <Route path="/perfil" element={<PerfilMarcenaria />} />
       <Route path="/planos" element={<Planos />} />
       <Route path="/conexoes" element={<Conexoes />} />
