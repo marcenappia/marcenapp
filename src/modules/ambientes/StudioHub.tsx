@@ -48,8 +48,8 @@ export const StudioHub = (props: StudioHubProps) => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Projeto em andamento</p>
-          <h3 className="mt-1 truncate text-base font-extrabold text-slate-900">Estúdio de marcenaria</h3>
-          <p className="mt-1 text-xs text-slate-500">Crie a apresentação visual, confira o ambiente e prepare a documentação do projeto.</p>
+          <h3 className="mt-1 truncate text-base font-extrabold text-slate-900">Estúdio</h3>
+          <p className="mt-1 text-xs text-slate-500">Organize o ambiente, crie a apresentação visual e prepare a documentação do projeto.</p>
         </div>
         <div className="shrink-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-right">
           <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Medidas atuais</p>
@@ -64,18 +64,8 @@ export const StudioHub = (props: StudioHubProps) => {
       </div>
     </section>
 
-    <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 px-4 py-3">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 rounded-lg bg-white px-2.5 py-1.5 text-sm font-black text-indigo-600 shadow-sm">✦</div>
-        <div>
-          <p className="text-xs font-black uppercase tracking-wider text-indigo-900">IARA disponível no cabeçalho</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-indigo-800">Use a IARA para revisar medidas, esclarecer dúvidas e apoiar decisões técnicas sem ocupar a área principal do Estúdio.</p>
-        </div>
-      </div>
-    </div>
-
     <Studio {...studioProps} projectId={projectId} />
-    <p className="px-1 text-[10px] text-slate-400">Resultados visuais são referências até serem conferidos. A IARA não transforma medidas estimadas em produção automaticamente.</p>
+    <p className="px-1 text-[10px] text-slate-400">As imagens são referências visuais. Confira medidas e detalhes técnicos antes de produzir.</p>
   </div>;
 };
 
