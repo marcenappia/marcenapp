@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620">
+ <rect width="900" height="620" rx="36" fill="#f7f0e5"/>
+ <g fill="none" stroke="#3b3027" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M170 390 L170 205 L690 205 L690 390"/>
+  <path d="M170 205 L430 110 L690 205"/>
+  <path d="M235 245 L625 245 L625 390 L235 390 Z"/>
+  <path d="M285 245 L285 390 M420 245 L420 390 M550 245 L550 390"/>
+  <path d="M245 305 L610 305"/>
+  <path d="M245 365 L610 365"/>
+  <path d="M100 445 L800 445"/>
+  <path d="M135 485 L765 485"/>
+  <path d="M150 165 L110 165 M110 165 L125 150 M110 165 L125 180"/>
+  <path d="M750 205 L790 205 M790 205 L775 190 M790 205 L775 220"/>
+ </g>
+ <g font-family="Arial, sans-serif" fill="#6b5544">
+  <text x="70" y="80" font-size="28" font-weight="700">RASCUNHO DO PROJETO</text>
+  <text x="70" y="115" font-size="18">medidas • módulos • proporções • revisão</text>
+  <text x="720" y="155" font-size="20">2,40 m</text>
+  <text x="735" y="410" font-size="20">0,60 m</text>
+ </g>
+</svg>
