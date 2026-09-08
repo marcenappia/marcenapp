@@ -3,21 +3,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { requireAuth, DecorOption } from '@/components/marcenaria/shared';
 import { useStudioStore, ImageData } from '@/store/useStudioStore';
-import { studioService } from '../services/studioService';
+import { studioService, StudioGenerationMode } from '../services/studioService';
 import { iaraService } from '@/modules/iara/services/iaraService';
 import type { ProjectData } from '@/modules/projetos/types';
 import { Box } from 'lucide-react';
 
-interface StudioStyle {
-  id: string;
-  label: string;
-  prompt: string;
-}
-
+interface StudioStyle { id: string; label: string; prompt: string; }
+interface PlannedDimensions { width?: number; height?: number; depth?: number; }
 const styles: StudioStyle[] = [
-  { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
+  { id: 'environment', label: 'Projeto no ambiente', prompt: 'clean contemporary custom cabinetry, architectural visualization, clear joinery composition' },
   { id: 'minimalist', label: 'Minimalista', prompt: 'minimalist interior design, soft lighting, clean lines' },
-  { id: 'industrial', label: 'Industrial', prompt: 'industrial chic, exposed brick, concrete, dramatic lighting' }
+  { id: 'industrial', label: 'Industrial', prompt: 'industrial chic, exposed brick, concrete, dramatic lighting' },
+  { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
 ];
 
 export const useStudio = (
@@ -36,7 +33,10 @@ export const useStudio = (
   const [envImage, setEnvImage] = useState<string | null>(null);
   const [envBase64, setEnvBase64] = useState<string | null>(null);
   const [envMime, setEnvMime] = useState<string | null>(null);
-  
+  const [environmentAnalysis, setEnvironmentAnalysis] = useState<EnvironmentAnalysis | null>(null);
+  const [analyzingEnvironment, setAnalyzingEnvironment] = useState(false);
+  const [confirmingEnvironment, setConfirmingEnvironment] = useState(false);
+  const [environmentError, setEnvironmentError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedDecor, setSelectedDecor] = useState<DecorOption>({ 
@@ -51,8 +51,6 @@ export const useStudio = (
   const [showModal, setShowModal] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<StudioStyle>(styles[0]);
-
-  // Studio Store integration
   const generatedImage = useStudioStore(state => state.generatedImage);
   const setGeneratedImage = useStudioStore(state => state.setGeneratedImage);
   const isRendering = useStudioStore(state => state.isRendering);
@@ -88,13 +86,12 @@ export const useStudio = (
   };
 
   const generate = async () => {
-    if (!prompt && !sketchImage) { setError("Adicione um prompt ou imagem."); return; }
-    const authed = await requireAuth();
-    if (!authed) {
-      setPendingAction(() => () => generate());
-      setShowAuthDialog(true);
-      return;
-    }
+    if (!prompt && !sketchImage && !envImage) { setError("Adicione o pedido do cliente, um rascunho ou uma foto do ambiente."); return; }
+    if (generationMode === 'environment-project' && envImage && !environmentAnalysis) { setError("Analise a foto do ambiente antes de criar o projeto."); return; }
+    if (generationMode === 'environment-project' && envImage && environmentAnalysis && !environmentAnalysis.confirmedByIara) { setError("Confira o mapa do ambiente com a IARA antes de criar o projeto."); return; }
+    if (generationMode === 'environment-project' && envImage && environmentAnalysis) { if (!environmentAnalysis.geometry) { setError("Registre as medidas-chave do ambiente antes de criar o projeto."); return; } const geometryCheck = validateEnvironmentGeometry(environmentAnalysis, environmentAnalysis.geometry); if (!geometryCheck.valid || geometryCheck.criticalMissing.length > 0) { setError(`A geometria ainda precisa de conferência: ${[...geometryCheck.errors, ...geometryCheck.criticalMissing.map(item => `falta ${item}`)].join(' ')}`); return; } }
+    if (generationMode === 'planned-environment') { const hasAnyDimension = plannedDimensions.width || plannedDimensions.height || plannedDimensions.depth; if (hasAnyDimension && (!plannedDimensions.width || !plannedDimensions.height || !plannedDimensions.depth)) { setError('Se informar medidas do ambiente planejado, preencha largura, altura e profundidade.'); return; } }
+    const authed = await requireAuth(); if (!authed) { setPendingAction(() => () => generate()); setShowAuthDialog(true); return; }
     setLoading(true); setError(null);
     try {
       const imgs: ImageData[] = [];
@@ -128,12 +125,8 @@ export const useStudio = (
 
   const analyzeForBudget = async () => {
     if (!generatedImage) return;
-    const authed = await requireAuth();
-    if (!authed) {
-      setPendingAction(() => () => analyzeForBudget());
-      setShowAuthDialog(true);
-      return;
-    }
+    if (generationMode === 'planned-environment' && (!plannedDimensions.width || !plannedDimensions.height || !plannedDimensions.depth)) { setError('Antes do orçamento, confirme largura, altura e profundidade do ambiente. O conceito pode ser vendido agora, mas não deve virar medida de fabricação.'); return; }
+    const authed = await requireAuth(); if (!authed) { setPendingAction(() => () => analyzeForBudget()); setShowAuthDialog(true); return; }
     setAnalyzing(true);
     try {
       const imageBase64 = generatedImage.split(',')[1];
@@ -147,16 +140,8 @@ export const useStudio = (
         doors: est.doors || 2 
       }));
       setShowModal(false); navigateTo('orcamento');
-    } catch {
-      alert("Não foi possível analisar. Redirecionando..."); navigateTo('orcamento');
-    } finally { setAnalyzing(false); }
+    } catch { alert("Não foi possível analisar. Redirecionando..."); navigateTo('orcamento'); } finally { setAnalyzing(false); }
   };
 
-  return {
-    prompt, setPrompt, sketchImage, setSketchImage, envImage, setEnvImage,
-    generatedImage, setGeneratedImage, loading, analyzing, selectedDecor, setSelectedDecor,
-    isRefining, setIsRefining, error, setError, showModal, setShowModal, isRecording, setIsRecording,
-    selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction,
-    generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime
-  };
+  return { prompt, setPrompt, sketchImage, setSketchImage, envImage, setEnvImage, generatedImage, setGeneratedImage, loading, analyzing, selectedDecor, setSelectedDecor, isRefining, setIsRefining, error, setError, showModal, setShowModal, isRecording, setIsRecording, selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction, generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime, environmentAnalysis, analyzingEnvironment, confirmingEnvironment, environmentError, analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis, updateEnvironmentAnalysis };
 };

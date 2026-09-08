@@ -1,6 +1,6 @@
 // IARA OS v1 — Tool Registry (client-side executors)
 // Contratos estáveis. Toda ferramenta expõe: nome, descrição, schema Zod, executor.
-// A IA (ai-orchestrator) escolhe QUAL ferramenta chamar; este registry EXECUTA.
+// A IA escolhe a ferramenta; este registry valida e executa.
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useStudioStore } from '@/store/useStudioStore';
@@ -32,24 +32,17 @@ export interface ExecutionContext {
 
 const createCliente: ToolDefinition<{ nome: string; email?: string; telefone?: string }> = {
   name: 'createCliente',
-  description: 'Cria um novo cliente',
-  version: '1.0.0',
+  description: 'Cria um novo cliente sem inventar dados pessoais',
+  version: '1.1.0',
   inputSchema: z.object({
     nome: z.string().min(1),
     email: z.string().email().optional().or(z.literal('')),
     telefone: z.string().optional(),
   }),
   async execute(args, ctx) {
-    const { data, error } = await supabase
-      .from('clientes')
-      .insert({
-        user_id: ctx.userId,
-        nome: args.nome,
-        email: args.email || null,
-        telefone: args.telefone || null,
-      })
-      .select('id, nome')
-      .single();
+    const { data, error } = await supabase.from('clientes').insert({
+      user_id: ctx.userId, nome: args.nome, email: args.email || null, telefone: args.telefone || null,
+    }).select('id, nome').single();
     if (error) return { ok: false, error: error.message };
     return { ok: true, data };
   },
@@ -57,42 +50,25 @@ const createCliente: ToolDefinition<{ nome: string; email?: string; telefone?: s
 
 const createProjeto: ToolDefinition<{ nome: string; clienteNome?: string; width?: number; height?: number; depth?: number; tipo?: string }> = {
   name: 'createProjeto',
-  description: 'Cria ou atualiza projeto de marcenaria',
-  version: '1.0.0',
+  description: 'Cria projeto somente com dimensões reais/confirmadas; nunca aplica medidas padrão silenciosamente. Requer confirmação explícita do usuário.',
+  version: '1.2.0',
   inputSchema: z.object({
     nome: z.string().min(1),
     clienteNome: z.string().optional(),
-    width: z.number().positive().optional(),
-    height: z.number().positive().optional(),
-    depth: z.number().positive().optional(),
+    width: z.number().positive(),
+    height: z.number().positive(),
+    depth: z.number().positive(),
     tipo: z.string().optional(),
+    confirmado: z.literal(true),
   }),
   async execute(args, ctx) {
-    // Resolve cliente (opcional) por nome
     let clienteId: string | null = null;
     if (args.clienteNome) {
-      const { data: cli } = await supabase
-        .from('clientes')
-        .select('id')
-        .eq('user_id', ctx.userId)
-        .ilike('nome', args.clienteNome)
-        .maybeSingle();
+      const { data: cli } = await supabase.from('clientes').select('id').eq('user_id', ctx.userId).ilike('nome', args.clienteNome).maybeSingle();
       clienteId = cli?.id ?? null;
     }
-
-    const row = {
-      user_id: ctx.userId,
-      nome: args.nome,
-      cliente_id: clienteId,
-      width: args.width ?? 3.0,
-      height: args.height ?? 2.6,
-      depth: args.depth ?? 0.6,
-    };
-    const { data, error } = await supabase
-      .from('projects')
-      .insert(row)
-      .select('id, nome, width, height, depth')
-      .single();
+    const row = { user_id: ctx.userId, nome: args.nome, cliente_id: clienteId, width: args.width, height: args.height, depth: args.depth };
+    const { data, error } = await supabase.from('projects').insert(row).select('id, nome, width, height, depth').single();
     if (error) return { ok: false, error: error.message };
     return { ok: true, data };
   },
@@ -100,66 +76,32 @@ const createProjeto: ToolDefinition<{ nome: string; clienteNome?: string; width?
 
 const gerarRender: ToolDefinition<{ prompt: string; estilo?: string }> = {
   name: 'gerarRender',
-  description: 'Enfileira render no Estúdio via Command Bus',
-  version: '1.0.0',
-  inputSchema: z.object({
-    prompt: z.string().min(1),
-    estilo: z.string().optional(),
-  }),
+  description: 'Enfileira render no Estúdio sem transformar estimativas visuais em medidas de fabricação',
+  version: '1.1.0',
+  inputSchema: z.object({ prompt: z.string().min(1), estilo: z.string().optional() }),
   async execute(args, ctx) {
     const estilo = args.estilo || ctx.decorStyle || 'Limpo';
-
-    if (!ctx.lastImageBase || !ctx.lastImageMask) {
-      return {
-        ok: false,
-        error: 'Nenhuma imagem base foi anexada. Envie uma foto do ambiente com máscara antes de renderizar.',
-      };
-    }
-
+    if (!ctx.lastImageBase || !ctx.lastImageMask) return { ok: false, error: 'Nenhuma imagem base foi anexada. Envie uma foto do ambiente com máscara antes de renderizar.' };
     const id = useStudioStore.getState().enqueueCommand({
       prompt: `MARCENAPP IARA OS: móvel estilo ${estilo}. ${args.prompt}`,
-      images: [
-        { mimeType: 'image/jpeg', data: ctx.lastImageBase },
-        { mimeType: 'image/png', data: ctx.lastImageMask },
-      ],
+      images: [{ mimeType: 'image/jpeg', data: ctx.lastImageBase }, { mimeType: 'image/png', data: ctx.lastImageMask }],
       decor: estilo,
       metadata: { origin: 'iara', originalPrompt: args.prompt, targetModule: 'studio' },
     });
-
-    useMarcenappOS.getState().dispatchCommand({
-      source: 'iara',
-      target: 'studio',
-      action: 'GENERATE_VISUAL',
-      payload: { prompt: args.prompt, estilo, studioCommandId: id },
-    });
-
+    useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: args.prompt, estilo, studioCommandId: id } });
     return { ok: true, data: { studioCommandId: id, status: 'queued' } };
   },
 };
 
 const calcularOrcamento: ToolDefinition<{ observacoes?: string }> = {
   name: 'calcularOrcamento',
-  description: 'Calcula orçamento estimado do projeto atual',
-  version: '1.0.0',
-  inputSchema: z.object({
-    observacoes: z.string().optional(),
-  }),
+  description: 'Calcula orçamento estimado do projeto atual; não substitui conferência do orçamento profissional',
+  version: '1.1.0',
+  inputSchema: z.object({ observacoes: z.string().optional() }),
   async execute(_args, ctx) {
-    // Pega último projeto do usuário
-    const { data: proj, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('user_id', ctx.userId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: proj, error } = await supabase.from('projects').select('*').eq('user_id', ctx.userId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
     if (error || !proj) return { ok: false, error: 'Nenhum projeto encontrado. Crie um projeto primeiro.' };
-
-    // Fórmula equivalente à do useOrcamento
-    const prices: Record<string, { price: number; area: number }> = {
-      mdf15_white: { price: 260, area: 5.08 },
-      mdf18_white: { price: 290, area: 5.08 },
-    };
+    const prices: Record<string, { price: number; area: number }> = { mdf15_white: { price: 260, area: 5.08 }, mdf18_white: { price: 290, area: 5.08 } };
     const intMat = prices[proj.internal_material ?? 'mdf15_white'] || prices.mdf15_white;
     const extMat = prices[proj.external_material ?? 'mdf18_white'] || prices.mdf18_white;
     const frontalArea = Number(proj.height) * Number(proj.width);
@@ -172,101 +114,42 @@ const calcularOrcamento: ToolDefinition<{ observacoes?: string }> = {
     const labor = totalMat * (Number(proj.labor_rate ?? 100) / 100);
     const subtotal = totalMat + labor + totalMat * 0.10;
     const total = subtotal * (1 + Number(proj.profit_margin ?? 35) / 100);
-
-    return {
-      ok: true,
-      data: {
-        projetoId: proj.id,
-        nome: proj.nome,
-        total: Number(total.toFixed(2)),
-        materiais: Number(totalMat.toFixed(2)),
-        maoDeObra: Number(labor.toFixed(2)),
-      },
-    };
+    return { ok: true, data: { projetoId: proj.id, nome: proj.nome, total: Number(total.toFixed(2)), materiais: Number(totalMat.toFixed(2)), maoDeObra: Number(labor.toFixed(2)) } };
   },
 };
 
 const gerarContrato: ToolDefinition<{ clienteNome: string; valor?: number; prazoDias?: number; clausulasExtras?: string[] }> = {
   name: 'gerarContrato',
-  description: 'Gera contrato + cláusulas customizadas via IA',
-  version: '1.0.0',
-  inputSchema: z.object({
-    clienteNome: z.string().min(1),
-    valor: z.number().optional(),
-    prazoDias: z.number().optional(),
-    clausulasExtras: z.array(z.string()).optional(),
-  }),
+  description: 'Prepara documentação contratual; revisão jurídica profissional pode ser necessária',
+  version: '1.1.0',
+  inputSchema: z.object({ clienteNome: z.string().min(1), valor: z.number().optional(), prazoDias: z.number().optional(), clausulasExtras: z.array(z.string()).optional() }),
   async execute(args, ctx) {
     const clausulas: string[] = [];
     for (const desc of args.clausulasExtras ?? []) {
       try {
-        const text = await callAIText(
-          `Atue como Advogado especialista em contratos de marcenaria. Escreva uma cláusula curta e objetiva sobre: "${desc}". Português formal.`,
-        );
+        const text = await callAIText(`Atue como assistente técnico de contratos de marcenaria, não como advogado. Escreva uma cláusula curta e objetiva sobre: "${desc}". Português formal. Se houver implicação jurídica relevante, indique que precisa de revisão profissional.`);
         if (text) {
           clausulas.push(text);
-          await supabase.from('custom_clauses').insert({
-            user_id: ctx.userId,
-            clause_text: text,
-            prompt: desc,
-          });
+          await supabase.from('custom_clauses').insert({ user_id: ctx.userId, clause_text: text, prompt: desc });
         }
       } catch (e) {
         console.warn('Falha ao gerar cláusula:', desc, e);
       }
     }
-    return {
-      ok: true,
-      data: {
-        cliente: args.clienteNome,
-        valor: args.valor ?? null,
-        prazoDias: args.prazoDias ?? 45,
-        clausulasGeradas: clausulas.length,
-      },
-    };
+    return { ok: true, data: { cliente: args.clienteNome, valor: args.valor ?? null, prazoDias: args.prazoDias ?? 45, clausulasGeradas: clausulas.length } };
   },
 };
 
-// ============================================================
-// Registry
-// ============================================================
+const TOOLS: Record<string, ToolDefinition> = { createCliente, createProjeto, gerarRender, calcularOrcamento, gerarContrato };
 
-const TOOLS: Record<string, ToolDefinition> = {
-  createCliente,
-  createProjeto,
-  gerarRender,
-  calcularOrcamento,
-  gerarContrato,
-};
+export function getTool(name: string): ToolDefinition | undefined { return TOOLS[name]; }
+export function listTools(): ToolDefinition[] { return Object.values(TOOLS); }
 
-export function getTool(name: string): ToolDefinition | undefined {
-  return TOOLS[name];
-}
-
-export function listTools(): ToolDefinition[] {
-  return Object.values(TOOLS);
-}
-
-// Executor que a IARA usa para rodar o plano vindo do orchestrator
-export async function executeToolCall(
-  name: string,
-  args: unknown,
-  ctx: ExecutionContext,
-): Promise<ToolResult> {
+export async function executeToolCall(name: string, args: unknown, ctx: ExecutionContext): Promise<ToolResult> {
   const tool = getTool(name);
   if (!tool) return { ok: false, error: `Ferramenta desconhecida: ${name}` };
-
   const parsed = tool.inputSchema.safeParse(args);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: `Argumentos inválidos para ${name}: ${JSON.stringify(parsed.error.flatten().fieldErrors)}`,
-    };
-  }
-
-  try {
-    return await tool.execute(parsed.data, ctx);
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };
-  }
+  if (!parsed.success) return { ok: false, error: `Dados insuficientes ou inválidos para ${name}. A IARA deve pedir confirmação antes de executar.` };
+  try { return await tool.execute(parsed.data, ctx); }
+  catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Erro desconhecido' }; }
 }

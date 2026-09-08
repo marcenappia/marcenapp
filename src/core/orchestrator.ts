@@ -1,5 +1,6 @@
 // IARA OS v1 — Client-side orchestrator wrapper
 // Chama ai-orchestrator (Function Calling) e executa o plano via toolRegistry.
+// A camada de readiness impede que a IARA pule etapas operacionais sem evidências confirmadas.
 // Fallback: se orchestrator falhar tecnicamente, cai no interpretador antigo (iaraService).
 import { supabase } from '@/integrations/supabase/client';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
@@ -26,13 +27,41 @@ export interface OrchestratorRun {
   error?: string;
 }
 
+const TOOL_TARGETS: Partial<Record<string, IaraJourneyTarget>> = {
+  calcularOrcamento: 'orcamento',
+  liberarProducao: 'producao',
+  gerarPlanoCorte: 'corte',
+};
+
+function readinessBlocker(target: IaraJourneyTarget, memory: IaraMemory): ToolResult | null {
+  const readiness = assessIaraJourneyReadiness(target, memory);
+  if (readiness.ready) return null;
+  return {
+    ok: false,
+    error: `IARA não libera esta etapa ainda. ${readiness.blockers.join(' ')}`,
+  };
+}
+
 export async function planWithLLM(
   userPrompt: string,
   context?: Record<string, unknown>,
 ): Promise<OrchestratorPlan> {
+  const safetyContext = {
+    ...context,
+    iaraIdentity: IARA_IDENTITY,
+    executionPolicy: {
+      language: 'pt-BR',
+      neverInventCriticalData: true,
+      requireExplicitConfirmationForProjectCreation: true,
+      visualEstimatesAreNotProductionMeasurements: true,
+      classifyCriticalData: ['CONFIRMADO', 'ESTIMADO', 'PRECISA_CONFERIR'],
+      proposeBeforeChangingProjectFromDiaryOrConversation: true,
+      readinessGate: true,
+    },
+  };
   const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string }>(
     'ai-orchestrator',
-    { userPrompt, context },
+    { userPrompt, context: safetyContext },
   );
   return { plan: data.plan ?? [], summary: data.summary ?? '', model: data.model };
 }
@@ -71,7 +100,18 @@ export async function runOrchestrator(
   }
 
   const results: Array<{ tool: string; result: ToolResult }> = [];
+  const memory = normalizeIaraMemory(context?.iaraMemory);
+
   for (const call of plan) {
+    const target = TOOL_TARGETS[call.tool];
+    if (target) {
+      const blocked = readinessBlocker(target, memory);
+      if (blocked) {
+        results.push({ tool: call.tool, result: blocked });
+        break;
+      }
+    }
+
     const r = await executeToolCall(call.tool, call.args, ctx);
     results.push({ tool: call.tool, result: r });
     // Se uma etapa crítica falhou, paramos (evita cascata de erros)

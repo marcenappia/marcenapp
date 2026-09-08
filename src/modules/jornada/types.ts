@@ -14,6 +14,7 @@ export const ETAPAS_OBRA = [
 ] as const;
 
 export type EtapaId = (typeof ETAPAS_OBRA)[number]['id'];
+export type StatusAprovacao = 'pendente' | 'aprovado' | 'recusado';
 
 export interface PerguntaIara {
   id: string;
@@ -37,6 +38,9 @@ export interface ProgressoObra {
   analise?: AnaliseIara | null;
   respostas?: Record<string, string>;
   aprovado?: boolean;
+  statusAprovacao?: StatusAprovacao;
+  aprovadoEm?: string;
+  valorAprovado?: number | null;
   atualizadoEm: string;
 }
 
@@ -61,6 +65,21 @@ export const salvarProgresso = (projectId: string, patch: Partial<ProgressoObra>
   }
   return novo;
 };
+
+export const registrarAprovacao = (projectId: string, valor: number) =>
+  salvarProgresso(projectId, {
+    aprovado: true,
+    statusAprovacao: 'aprovado',
+    aprovadoEm: new Date().toISOString(),
+    valorAprovado: Math.max(0, Number(valor) || 0),
+    etapa: 7,
+  });
+
+export const registrarRecusa = (projectId: string) =>
+  salvarProgresso(projectId, {
+    aprovado: false,
+    statusAprovacao: 'recusado',
+  });
 
 export const percentualObra = (etapa: EtapaId) =>
   Math.round(((etapa - 1) / (ETAPAS_OBRA.length - 1)) * 100);

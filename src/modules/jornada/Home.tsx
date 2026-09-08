@@ -10,6 +10,7 @@ interface ObraResumo {
   cliente?: string | null;
   atualizadoEm: string;
   etapa: EtapaId;
+  status?: string | null;
 }
 
 interface ProjectListRow {
@@ -35,7 +36,7 @@ interface Props {
   navigateTo: (id: string, params?: Record<string, string>) => void;
 }
 
-/** Tela inicial pensada para o marceneiro: uma ação principal e a lista de obras. */
+/** Tela inicial: uma ação principal, projetos recentes e próximo passo claro. */
 export const Home = ({ navigateTo }: Props) => {
   const { user, profile } = useAuth();
   const [obras, setObras] = useState<ObraResumo[]>([]);
@@ -54,10 +55,11 @@ export const Home = ({ navigateTo }: Props) => {
       .then(({ data }) => {
         const lista: ObraResumo[] = (data ?? []).map((p: ProjectListRow) => ({
           id: p.id,
-          nome: p.nome || p.name || 'Obra sem nome',
+          nome: p.nome || p.name || 'Projeto sem nome',
           cliente: p.clientes?.nome ?? null,
           atualizadoEm: p.updated_at,
           etapa: etapaDaObra(p),
+          status: p.status ?? null,
         }));
         setObras(lista);
         setCarregando(false);
@@ -72,7 +74,7 @@ export const Home = ({ navigateTo }: Props) => {
         <h2 className="text-2xl md:text-3xl font-black text-slate-900">
           {primeiroNome ? `Olá, ${primeiroNome}!` : 'Bem-vindo à sua marcenaria'}
         </h2>
-        <p className="text-slate-500 mt-1">Comece uma obra nova ou continue de onde parou.</p>
+        <p className="text-slate-500 mt-1">Comece um projeto ou continue de onde parou.</p>
       </div>
 
       <button
@@ -83,8 +85,8 @@ export const Home = ({ navigateTo }: Props) => {
       >
         <span className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shrink-0"><Plus size={32} strokeWidth={3} /></span>
         <span className="text-left">
-          <span className="block text-2xl font-black leading-none">NOVO PROJETO</span>
-          <span className="block text-indigo-100 text-sm mt-1">Foto do ambiente → pedido do cliente → apresentação</span>
+          <span className="block text-xl md:text-2xl font-black leading-none">Novo projeto</span>
+          <span className="block text-indigo-100 text-sm mt-1">Foto do ambiente, medidas e apresentação para o cliente.</span>
         </span>
         <ChevronRight size={28} className="ml-auto opacity-70" />
       </button>
@@ -120,24 +122,24 @@ export const Home = ({ navigateTo }: Props) => {
       </div>
 
       <section aria-labelledby="minhas-obras">
-        <h3 id="minhas-obras" className="text-lg font-black text-slate-800 mb-3 flex items-center gap-2"><Hammer size={20} /> Minhas obras</h3>
+        <h3 id="minhas-obras" className="text-lg font-black text-slate-800 mb-3 flex items-center gap-2"><Hammer size={20} /> Projetos recentes</h3>
 
         {!user && (
           <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-6 text-center">
-            <p className="text-slate-700 font-semibold">Entre na sua conta para ver e salvar suas obras.</p>
-            <p className="text-slate-500 text-sm mt-1">Você pode começar um projeto agora — pediremos o acesso só quando for salvar.</p>
+            <p className="text-slate-700 font-semibold">Entre na sua conta para ver e salvar seus projetos.</p>
+            <p className="text-slate-500 text-sm mt-1">Você pode começar agora e entrar quando precisar salvar.</p>
           </div>
         )}
 
         {user && !carregando && obras.length === 0 && (
           <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-6">
-            <p className="text-slate-800 font-bold text-lg">Nenhuma obra ainda</p>
-            <p className="text-slate-500 mt-1">Em 3 passos você já tem uma imagem para mostrar ao cliente:</p>
+            <p className="text-slate-800 font-bold text-lg">Seu primeiro projeto começa aqui</p>
+            <p className="text-slate-500 mt-1">O fluxo é simples:</p>
             <ol className="mt-4 space-y-3">
               {[
-                { icon: Camera, t: 'Tire uma foto do ambiente' },
-                { icon: MessageSquareText, t: 'Escreva o que o cliente quer' },
-                { icon: Sparkles, t: 'A IARA confere e monta a apresentação' },
+                { icon: Camera, t: 'Registre o ambiente e as medidas' },
+                { icon: MessageSquareText, t: 'Descreva o que o cliente precisa' },
+                { icon: Sparkles, t: 'A IARA ajuda a conferir e apresentar' },
               ].map(({ icon: I, t }, i) => (
                 <li key={t} className="flex items-center gap-3 text-slate-700">
                   <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-black flex items-center justify-center text-sm">{i + 1}</span>
@@ -148,7 +150,7 @@ export const Home = ({ navigateTo }: Props) => {
           </div>
         )}
 
-        {carregando && <div className="h-20 rounded-2xl bg-slate-100 animate-pulse" />}
+        {carregando && <div className="h-20 rounded-2xl bg-slate-100 animate-pulse" aria-label="Carregando projetos" />}
 
         <ul className="space-y-3">
           {obras.map((o) => {
@@ -159,19 +161,19 @@ export const Home = ({ navigateTo }: Props) => {
               <li key={o.id}>
                 <button
                   type="button"
-                  onClick={() => navigateTo(concluida ? 'orcamento' : 'novo', { projeto: o.id })}
+                  onClick={() => navigateTo(concluida ? 'orcamento' : 'diario', { projeto: o.id })}
                   className="w-full text-left rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md p-4 transition-all active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-extrabold text-slate-900 text-lg truncate">{o.nome}</p>
-                      <p className="text-sm text-slate-500 truncate">{o.cliente ? `${o.cliente} · ` : ''}{concluida ? 'Aprovada — ver orçamento' : `Próximo passo: ${etapa}`}</p>
+                      <p className="text-sm text-slate-500 truncate">{o.cliente ? `${o.cliente} · ` : ''}{concluida ? 'Projeto aprovado' : `Próximo passo: ${etapa}`}</p>
                     </div>
-                    <span className={`shrink-0 text-sm font-black px-3 py-1.5 rounded-full ${concluida ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                      {concluida ? <Calculator size={16} /> : 'Continuar'}
+                    <span className={`shrink-0 text-sm font-black px-3 py-1.5 rounded-full flex items-center gap-1.5 ${concluida ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                      {concluida ? <><Calculator size={16} /> Orçamento</> : <><BookOpen size={15} /> Diário</>}
                     </span>
                   </div>
-                  <div className="mt-3 h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="mt-3 h-2 rounded-full bg-slate-100 overflow-hidden" aria-hidden="true">
                     <div className={`h-full rounded-full ${concluida ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${Math.max(pct, 4)}%` }} />
                   </div>
                 </button>

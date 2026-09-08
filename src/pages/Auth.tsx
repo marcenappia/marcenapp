@@ -1,9 +1,24 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable/index';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
-import logo from '@/assets/marcenapp-logo.jpeg';
+import logo from '@/assets/marcenapp-logo.svg';
+
+type OAuthProvider = 'google' | 'apple';
+
+const GoogleIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.8-5.4 3.8-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.3 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12s4.3 9.6 9.6 9.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12z" />
+  </svg>
+);
+
+const AppleIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+    <path d="M16.4 12.7c0-2.5 2-3.7 2.1-3.8-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9-.8 0-2-.9-3.3-.9-1.7 0-3.3 1-4.1 2.5-1.8 3.1-.5 7.6 1.3 10.1.8 1.2 1.8 2.6 3.2 2.5 1.3-.1 1.8-.8 3.3-.8s2 .8 3.3.8c1.4 0 2.3-1.2 3.1-2.5.9-1.4 1.3-2.8 1.4-2.9-.1 0-2.9-1.1-2.9-3.9zM14 5.3c.7-.8 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z" />
+  </svg>
+);
 
 const Auth = () => {
   const { user } = useAuth();
@@ -17,8 +32,28 @@ const Auth = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [countdown, setCountdown] = useState(0);
+  const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
 
   const SUPPORT_LINK = import.meta.env.VITE_SUPPORT_WHATSAPP_LINK || "https://wa.me/5511999999999";
+
+  const handleOAuth = async (provider: OAuthProvider) => {
+    setError('');
+    setSuccess('');
+    setOauthLoading(provider);
+    try {
+      const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin });
+      if (result.error) {
+        setError(result.error.message || `Não foi possível entrar com ${provider === 'google' ? 'Google' : 'Apple'}.`);
+        setOauthLoading(null);
+        return;
+      }
+      if (result.redirected) return;
+      navigate('/');
+    } catch (err: any) {
+      setError(err?.message || 'Ocorreu um erro inesperado.');
+      setOauthLoading(null);
+    }
+  };
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -89,12 +124,28 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--sidebar-bg))] px-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <img src={logo} alt="MarcenApp" className="w-20 h-20 rounded-full mx-auto mb-4 border-4 border-[hsl(var(--sidebar-active))] shadow-lg shadow-[hsl(var(--sidebar-active)/0.3)]" />
+          <img src={logo} alt="MARCENAPP" width={88} height={88} className="w-22 h-22 mx-auto mb-4 object-contain drop-shadow-[0_8px_24px_hsl(var(--sidebar-active)/0.35)]" />
           <h1 className="text-2xl font-bold text-white tracking-tight">
             MARCENA<span className="text-[hsl(var(--sidebar-active))]">PP</span>
           </h1>
           <p className="text-[hsl(var(--sidebar-text))] text-sm mt-1">Marcenaria 4.0</p>
         </div>
+
+        {!isReset && (
+          <div className="space-y-3">
+            <button type="button" onClick={() => handleOAuth('google')} disabled={loading || oauthLoading !== null} aria-label="Continuar com Google" className="w-full py-3 rounded-xl bg-white text-slate-800 font-semibold hover:bg-slate-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-3">
+              {oauthLoading === 'google' ? <Loader2 className="animate-spin" size={18} /> : <GoogleIcon />}
+              Continuar com Google
+            </button>
+            <button type="button" onClick={() => handleOAuth('apple')} disabled={loading || oauthLoading !== null} aria-label="Continuar com Apple" className="w-full py-3 rounded-xl bg-black text-white font-semibold border border-white/20 hover:bg-neutral-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-3">
+              {oauthLoading === 'apple' ? <Loader2 className="animate-spin" size={18} /> : <AppleIcon />}
+              Continuar com Apple
+            </button>
+            <div className="flex items-center gap-3 text-[11px] uppercase tracking-widest text-[hsl(var(--sidebar-text))]">
+              <span className="h-px flex-1 bg-white/15" />ou com e-mail<span className="h-px flex-1 bg-white/15" />
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && !isReset && (

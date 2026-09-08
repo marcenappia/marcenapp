@@ -15,70 +15,62 @@ import { StudioHub } from '@/modules/ambientes/StudioHub';
 import { Elevator } from '@/modules/ambientes/components/Elevator';
 import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
 import OrcamentoModule from '@/modules/orcamentos';
+import ProducaoModule from '@/modules/producao';
 import CorteModule from '@/modules/patio';
 import { Contrato } from '@/modules/projetos/components/Contrato';
 import ClientesModule from '@/modules/projetos/components/Clientes';
-import DiarioModule from '@/modules/projetos/components/Diario';
-
-// Hooks & Config
+import DiarioObra from '@/modules/diario/DiarioObra';
 import { modules, CATEGORY_LABELS, ModuleCategory, MOBILE_NAV_IDS } from '@/modules/config';
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
+import { useProductionPersistence } from '@/modules/projetos/hooks/useProductionPersistence';
 import { ProjectData } from '@/modules/projetos/types';
 import type { Part } from '@/modules/patio';
 
-const defaultProject: ProjectData = {
-  width: 2.40,
-  height: 2.60,
-  depth: 0.60,
-  modules: 3,
-  drawers: 4,
-  doors: 6,
-  internalMaterial: 'mdf15_white',
-  externalMaterial: 'mdf18_white',
-  backMaterial: 'mdf6_white',
-  handleType: 'external',
-  profitMargin: 35,
-  laborRate: 100,
-};
+const defaultProject: ProjectData = { width: 2.40, height: 2.60, depth: 0.60, modules: 3, drawers: 4, doors: 6, internalMaterial: 'mdf15_white', externalMaterial: 'mdf18_white', backMaterial: 'mdf6_white', handleType: 'external', profitMargin: 35, laborRate: 100 };
 
 const Index = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  // A tela inicial é a jornada do marceneiro (Início); 'chat' foi absorvido pelo Estúdio
   const rawModule = searchParams.get('module') || 'dashboard';
   const activeModule = rawModule === 'chat' ? 'studio' : rawModule;
   const projetoParam = searchParams.get('projeto');
-  
-  const setActiveModule = (id: string, params: Record<string, string> = {}) => {
-    setSearchParams({ module: id, ...params }, { replace: true });
-  };
-
+  const setActiveModule = (id: string, params: Record<string, string> = {}) => setSearchParams({ module: id, ...params }, { replace: true });
   const [budgetProject, setBudgetProject] = useState(defaultProject);
   const [parts, setParts] = useState<Part[]>([]);
   const [gallery, setGallery] = useState<string[]>([]);
+  const [diaryContext, setDiaryContext] = useState<{ texto: string; projectId?: string; tipo?: string } | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showIara, setShowIara] = useState(false);
+
+  useEffect(() => { const moduleData = modules.find(m => m.id === activeModule); if (moduleData) document.title = `${moduleData.label} | MARCENAPP`; }, [activeModule]);
+  useProjectPersistence(budgetProject, setBudgetProject);
+  useProductionPersistence(budgetProject.id, parts, setParts);
 
   useEffect(() => {
-    const moduleData = modules.find(m => m.id === activeModule);
-    if (moduleData) {
-      document.title = `${moduleData.label} | Marcenapp`;
-    }
-  }, [activeModule]);
-
-
-  // Persistence logic moved to hook
-  useProjectPersistence(budgetProject, setBudgetProject);
+    if (activeModule !== 'orcamento' && activeModule !== 'corte' && activeModule !== 'producao') { setDiaryContext(null); return; }
+    const key = `marcenapp_${activeModule}_diary_context`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) { setDiaryContext(null); return; }
+      const context = JSON.parse(raw) as { texto?: string; projectId?: string; tipo?: string };
+      if (context.texto && (!context.projectId || context.projectId === budgetProject?.id)) {
+        setDiaryContext({ texto: context.texto, projectId: context.projectId, tipo: context.tipo });
+        localStorage.removeItem(key);
+      } else setDiaryContext(null);
+    } catch { setDiaryContext(null); }
+  }, [activeModule, budgetProject?.id]);
 
   const activeModuleData = modules.find(m => m.id === activeModule) ?? modules[0];
   const ActiveIcon = activeModuleData.icon;
+  const iaraContextLabel = activeModule === 'orcamento' ? 'Conferir orçamento' : activeModule === 'producao' ? 'Conferir produção' : activeModule === 'corte' ? 'Verificar corte' : activeModule === 'diario' ? 'Organizar informações' : activeModule === 'studio' ? 'Conferir projeto' : activeModule === 'elevator' ? 'Conferir planta' : 'Perguntar à IARA';
 
   const renderModule = () => {
     switch (activeModule) {
       case 'dashboard': return <Home navigateTo={setActiveModule} />;
       case 'novo': return <NovoProjeto key={projetoParam ?? 'novo'} projectId={projetoParam} setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'clientes': return <ClientesModule />;
-      case 'diario': return <DiarioModule />;
+      case 'diario': return <DiarioObra projectId={projetoParam ?? budgetProject.id} navigateTo={setActiveModule} />;
       case 'studio': return <StudioHub setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} budgetProject={budgetProject} />;
       case 'elevator': return <Elevator setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'orcamento': return <OrcamentoModule project={budgetProject} setProject={setBudgetProject} />;
@@ -87,55 +79,31 @@ const Index = () => {
       default: return null;
     }
   };
+
   const handleKeyDown = (e: React.KeyboardEvent, id: string) => {
     const navButtons = Array.from(document.querySelectorAll('[id^="nav-"]')) as HTMLElement[];
     const currentIndex = navButtons.findIndex(btn => btn.id === `nav-${id}`);
-    
     if (currentIndex === -1) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      const nextIndex = (currentIndex + 1) % navButtons.length;
-      navButtons[nextIndex].focus();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const prevIndex = (currentIndex - 1 + navButtons.length) % navButtons.length;
-      navButtons[prevIndex].focus();
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      navButtons[0].focus();
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      navButtons[navButtons.length - 1].focus();
-    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); navButtons[(currentIndex + 1) % navButtons.length].focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); navButtons[(currentIndex - 1 + navButtons.length) % navButtons.length].focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); navButtons[0].focus(); }
+    else if (e.key === 'End') { e.preventDefault(); navButtons[navButtons.length - 1].focus(); }
   };
 
   const handleMobileKeyDown = (e: React.KeyboardEvent, id: string) => {
     const mobileButtons = Array.from(document.querySelectorAll('[id^="mobile-nav-"]')) as HTMLElement[];
     const currentIndex = mobileButtons.findIndex(btn => btn.id === `mobile-nav-${id}`);
-    
     if (currentIndex === -1) return;
-
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      const nextIndex = (currentIndex + 1) % mobileButtons.length;
-      mobileButtons[nextIndex].focus();
-    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      const prevIndex = (currentIndex - 1 + mobileButtons.length) % mobileButtons.length;
-      mobileButtons[prevIndex].focus();
-    }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); mobileButtons[(currentIndex + 1) % mobileButtons.length].focus(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); mobileButtons[(currentIndex - 1 + mobileButtons.length) % mobileButtons.length].focus(); }
   };
 
-  // Agrupar módulos por categoria para a sidebar (itens ocultos ficam fora do menu)
   const groupedModules = useMemo(() => {
     const categories: Partial<Record<ModuleCategory, typeof modules>> = {};
-    modules.filter(m => !m.hidden).forEach(m => {
-      if (!categories[m.category]) categories[m.category] = [];
-      categories[m.category]!.push(m);
-    });
+    modules.filter(m => !m.hidden).forEach(m => { if (!categories[m.category]) categories[m.category] = []; categories[m.category]!.push(m); });
     return categories;
   }, []);
+  const mobileModules = useMemo(() => MOBILE_NAV_IDS.map(id => modules.find(m => m.id === id)).filter(Boolean) as typeof modules, []);
 
   const mobileModules = useMemo(
     () => MOBILE_NAV_IDS.map(id => modules.find(m => m.id === id)).filter(Boolean) as typeof modules,

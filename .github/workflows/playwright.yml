@@ -1,30 +1,45 @@
 name: Playwright Tests
+
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
+      - 'feat/**'
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VITE_SUPABASE_URL: https://test.supabase.co
+  VITE_SUPABASE_PUBLISHABLE_KEY: test-publishable-key
+
 jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
-    - name: Install dependencies
-      run: npm install -g bun && bun install
-    - name: Install Playwright Browsers
-      run: bunx playwright install --with-deps
-    - name: Run Playwright tests
-      run: bun run test:e2e
-    - name: Upload Playwright artifacts
-      uses: actions/upload-artifact@v4
-      if: failure() || cancelled()
-      with:
-        name: playwright-report-${{ github.sha }}-${{ github.run_id }}
-        path: |
-          playwright-report/
-          test-results/
-        retention-days: 7
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Install dependencies
+        run: npm install -g bun && bun install
+      - name: Install Playwright Browsers
+        run: bunx playwright install --with-deps
+      - name: Unit tests
+        run: bun run test
+      - name: Run Playwright tests
+        run: bun run test:e2e
+      - name: Upload Playwright artifacts
+        uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: playwright-report-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

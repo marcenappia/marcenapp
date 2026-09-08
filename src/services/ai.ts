@@ -2,12 +2,13 @@ import { supabase } from '@/integrations/supabase/client';
 
 /** Returns true if user is logged in, false otherwise */
 export const requireAuth = async (): Promise<boolean> => {
+  if (!supabase) return false;
   const { data: { session } } = await supabase.auth.getSession();
   return !!session;
 };
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 
 export class AIAuthError extends Error {
   constructor(message = 'Faça login para usar os recursos de IA.') {
@@ -16,11 +17,16 @@ export class AIAuthError extends Error {
   }
 }
 
-/**
- * Cabeçalhos para as Edge Functions de IA: envia o JWT da sessão do usuário
- * (nunca a chave pública). Lança AIAuthError se não houver sessão.
- */
+export class AIConfigError extends Error {
+  constructor(message = 'A conexão com a IA não está configurada nesta publicação.') {
+    super(message);
+    this.name = 'AIConfigError';
+  }
+}
+
+/** Cabeçalhos para as Edge Functions de IA: envia somente o JWT da sessão. */
 export const aiHeaders = async (): Promise<Record<string, string>> => {
+  if (!supabase || !SUPABASE_KEY) throw new AIConfigError();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new AIAuthError();
   return {
@@ -46,7 +52,8 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Pr
     const msg = errorData?.error || errorData?.message || `Erro ${res.status}`;
     throw new Error(msg);
   }
-  return data as T;
+
+  throw lastError ?? new Error('Falha ao comunicar com a IA.');
 };
 
 export const callAIImage = async (prompt: string, images?: { mimeType: string; data: string }[]) => {

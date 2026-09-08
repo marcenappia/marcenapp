@@ -11,17 +11,15 @@ export interface ModuleConfig {
   mobileLabel: string;
   icon: LucideIcon;
   category: ModuleCategory;
-  /** Não aparece nos menus (acessado por botão/ação) */
   hidden?: boolean;
 }
 
-/** Itens do menu inferior no celular (ordem importa) */
-export const MOBILE_NAV_IDS = ['dashboard', 'novo', 'studio', 'orcamento', 'corte'];
+// No celular, manter só as cinco ações mais frequentes. Os demais módulos ficam no menu.
+export const MOBILE_NAV_IDS = ['dashboard', 'novo', 'diario', 'studio', 'orcamento'];
 
 export const modules: ModuleConfig[] = [
-  // CAMADA 1 — PORTAL (Gestão)
   { id: 'dashboard', label: 'Início', mobileLabel: 'Início', icon: Home, category: 'portal' },
-  { id: 'novo', label: 'Novo Projeto', mobileLabel: 'Novo', icon: Plus, category: 'portal', hidden: true },
+  { id: 'novo', label: 'Novo projeto', mobileLabel: 'Novo', icon: Plus, category: 'portal' },
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: Users, category: 'portal' },
   { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
 
@@ -38,9 +36,9 @@ export const modules: ModuleConfig[] = [
 ];
 
 export const CATEGORY_LABELS: Record<ModuleCategory, string> = {
-  intelligence: 'IARA — Cognição',
-  portal: 'Portal — Operacional',
-  studio: 'Estúdio + IARA — Materialização',
-  finance: 'Estela — Financeiro',
-  production: 'Produção — Logística'
+  intelligence: 'IARA',
+  portal: 'Gestão da obra',
+  studio: 'Projeto e apresentação',
+  finance: 'Orçamento',
+  production: 'Produção',
 };

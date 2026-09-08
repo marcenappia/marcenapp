@@ -2,41 +2,102 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 import { buildCorsHeaders, guardRequest, jsonResponse, readJsonBody } from "../_shared/guard.ts";
 
-const MAX_BODY_BYTES = 20 * 1024 * 1024; // 20MB (imagens base64 para análise)
+const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const MAX_PROMPT_CHARS = 12000;
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BASE64 = 15 * 1024 * 1024;
+const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const LOVABLE_MODEL = "google/gemini-3.7-flash";
+const GEMINI_MODEL = "gemini-3.6-flash";
 
 const BodySchema = z.object({
   prompt: z.string().trim().min(1, "prompt is required").max(MAX_PROMPT_CHARS),
-  images: z
-    .array(
-      z.object({
-        mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp|gif)$/i),
-        data: z.string().min(1).max(MAX_IMAGE_BASE64),
-      }),
-    )
-    .max(MAX_IMAGES)
-    .optional(),
+  images: z.array(z.object({
+    mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp|gif)$/i),
+    data: z.string().min(1).max(MAX_IMAGE_BASE64),
+  })).max(MAX_IMAGES).optional(),
   jsonMode: z.boolean().optional().default(false),
+  provider: z.enum(["automatic", "gemini", "lovable"]).optional().default("automatic"),
 });
+
+type Input = z.infer<typeof BodySchema>;
+
+const callLovable = async (input: Input, apiKey: string) => {
+  const content: Array<Record<string, unknown>> = [{ type: "text", text: input.prompt }];
+  for (const img of input.images ?? []) {
+    content.push({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.data}` } });
+  }
+
+  const body: Record<string, unknown> = {
+    model: LOVABLE_MODEL,
+    messages: [{ role: "user", content }],
+  };
+  if (input.jsonMode) body.response_format = { type: "json_object" };
+
+  const response = await fetch(LOVABLE_GATEWAY_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "Lovable-API-Key": apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const status = response.status;
+    console.error("Lovable AI Gateway error:", status, await response.text());
+    const error = new Error(status === 402 ? "Créditos do Lovable AI esgotados." : "O serviço Lovable AI está indisponível no momento.");
+    (error as Error & { status?: number }).status = status;
+    throw error;
+  }
+
+  const data = await response.json();
+  const message = data.choices?.[0]?.message?.content;
+  const text = Array.isArray(message)
+    ? message.map((part: { type?: string; text?: string }) => part?.text ?? "").join("")
+    : (message ?? "");
+  return { text, model: data.model ?? LOVABLE_MODEL, provider: "lovable" };
+};
+
+const callGemini = async (input: Input, apiKey: string) => {
+  const parts: Array<Record<string, unknown>> = [{ text: input.prompt }];
+  for (const img of input.images ?? []) {
+    parts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const body: Record<string, unknown> = { contents: [{ role: "user", parts }] };
+  if (input.jsonMode) body.generationConfig = { responseMimeType: "application/json" };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const status = response.status;
+    console.error("Gemini API error:", status, await response.text());
+    const error = new Error(status === 429 ? "Limite do provedor de IA atingido. Tente novamente em alguns segundos." : "O serviço Gemini está indisponível no momento.");
+    (error as Error & { status?: number }).status = status;
+    throw error;
+  }
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  return { text, model: GEMINI_MODEL, provider: "gemini" };
+};
 
 serve(async (req) => {
   const cors = buildCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return jsonResponse(cors, { error: "Method not allowed" }, 405);
 
-  // Autenticação + rate limit por usuário (30 chamadas/min).
   const guard = await guardRequest(req, cors, { fn: "ai-text", limit: 30, windowSeconds: 60 });
   if (!guard.ok) return guard.response;
 
   try {
-    const GEMINI_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-    if (!GEMINI_KEY) {
-      console.error("ai-text: GOOGLE_GEMINI_API_KEY não configurada");
-      return jsonResponse(cors, { error: "Serviço de IA não configurado." }, 500);
-    }
-
     const read = await readJsonBody(req, MAX_BODY_BYTES);
     if (!read.ok) {
       return read.reason === "too_large"
@@ -46,46 +107,42 @@ serve(async (req) => {
 
     const parsed = BodySchema.safeParse(read.body);
     if (!parsed.success) {
-      return jsonResponse(
-        cors,
-        { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors },
-        400,
-      );
-    }
-    const { prompt, images, jsonMode } = parsed.data;
-
-    const parts: Array<Record<string, unknown>> = [{ text: prompt }];
-    for (const img of images ?? []) {
-      parts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
+      return jsonResponse(cors, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
     }
 
-    const model = "gemini-2.0-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
+    const input = parsed.data;
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    const geminiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
-    const body: Record<string, unknown> = { contents: [{ role: "user", parts }] };
-    if (jsonMode) body.generationConfig = { responseMimeType: "application/json" };
+    if (input.provider === "lovable") {
+      if (!lovableKey) return jsonResponse(cors, { error: "Serviço Lovable AI não configurado.", code: "provider_not_configured", provider: "lovable" }, 500);
+      return jsonResponse(cors, await callLovable(input, lovableKey));
+    }
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    if (input.provider === "gemini") {
+      if (!geminiKey) return jsonResponse(cors, { error: "Serviço Gemini não configurado.", code: "provider_not_configured", provider: "gemini" }, 500);
+      return jsonResponse(cors, await callGemini(input, geminiKey));
+    }
 
-    if (!response.ok) {
-      const status = response.status;
-      console.error("Gemini API error:", status, await response.text());
-      if (status === 429) {
-        return jsonResponse(cors, { error: "Limite do provedor de IA atingido. Tente novamente em alguns segundos.", code: "rate_limited" }, 429, { "Retry-After": "10" });
+    // Automático: não deixa uma chave ausente de um provedor derrubar a IA inteira.
+    if (lovableKey) {
+      try {
+        return jsonResponse(cors, await callLovable(input, lovableKey));
+      } catch (error) {
+        const status = (error as Error & { status?: number }).status;
+        if (!geminiKey || (status !== 402 && status !== 429 && status !== 500 && status !== 502 && status !== 503)) throw error;
+        console.warn("ai-text: Lovable indisponível; usando Gemini como fallback automático.");
       }
-      return jsonResponse(cors, { error: "O serviço de IA está indisponível no momento.", code: "upstream_error" }, 502);
     }
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    if (geminiKey) return jsonResponse(cors, await callGemini(input, geminiKey));
 
-    return jsonResponse(cors, { text, model });
+    return jsonResponse(cors, { error: "Nenhum provedor de IA está configurado no servidor.", code: "provider_not_configured" }, 500);
   } catch (e) {
+    const status = (e as Error & { status?: number }).status;
+    if (status === 429) return jsonResponse(cors, { error: "Limite do provedor de IA atingido. Tente novamente em alguns segundos.", code: "rate_limited" }, 429, { "Retry-After": "10" });
+    if (status === 402) return jsonResponse(cors, { error: "Créditos do provedor de IA esgotados.", code: "credits_exhausted" }, 402);
     console.error("ai-text error:", e);
-    return jsonResponse(cors, { error: "Erro interno ao processar texto.", code: "internal_error" }, 500);
+    return jsonResponse(cors, { error: e instanceof Error ? e.message : "Erro interno ao processar texto.", code: "internal_error" }, 500);
   }
 });

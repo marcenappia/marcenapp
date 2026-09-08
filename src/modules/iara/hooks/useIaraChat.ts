@@ -4,6 +4,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runOrchestrator } from '@/core/orchestrator';
+import { assessIaraRequest } from '@/core/iaraBrain';
+import { assessIaraJourneyReadiness, type IaraJourneyReadiness, type IaraJourneyTarget } from '@/core/iaraJourneyReadiness';
+import { createIaraMemory, getConfirmedMeasurements, getMeasurementEvidence, IaraMemory, normalizeIaraMemory, rememberEvent, rememberMeasurements, resolveIaraConflict } from '@/core/iaraMemory';
+import { syncIaraOperationalMemory } from '@/core/iaraOperationalMemory';
+import { carregarDiario } from '@/modules/projetos/services/diarioStorage';
 
 interface SpeechRecognitionLike {
   start: () => void;
@@ -20,11 +25,10 @@ interface SpeechRecognitionWindow extends Window {
 }
 
 export const useIaraChat = (
-  factors: { L: number, A: number },
+  factors: { L: number, A: number, P?: number },
   decorStyle: string,
   setShowAuthDialog: (val: boolean) => void,
   hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void },
-  /** Projeto ativo — histórico é isolado por projeto (null = sem projeto salvo) */
   projectId: string | null = null,
 ) => {
   const { user } = useAuth();
@@ -36,8 +40,8 @@ export const useIaraChat = (
   const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [memory, setMemory] = useState<IaraMemory>(createIaraMemory());
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload } | null>(null);
-  
   const commandHistory = useMarcenappOS(state => state.commandHistory);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -50,13 +54,10 @@ export const useIaraChat = (
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
   }, [user, projectId]);
 
-  // Monitora mudanças de status na fila de comandos para notificar o usuário
   useEffect(() => {
-    if (commandHistory.length === 0) return;
+    if (!commandHistory.length) return;
     const lastCommand = commandHistory[0];
-    
     const notifyChat = async () => {
-      // Evita loops infinitos ou notificações duplicadas
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
 
@@ -76,48 +77,50 @@ export const useIaraChat = (
         });
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
-        await saveMessage({
-          sender: 'iara',
-          text: `Desculpe, o Estúdio encontrou um problema ao processar sua solicitação: ${lastCommand.error}.`,
-        });
+        await saveMessage({ sender: 'iara', text: `Desculpe, o Estúdio encontrou um problema ao processar sua solicitação: ${lastCommand.error}.` });
         setIsTyping(false);
       }
     };
-
     notifyChat();
   }, [commandHistory, saveMessage]);
 
   useEffect(() => {
-    if (!user) { setMessages([]); return; }
+    if (!user) { setMessages([]); setMemory(createIaraMemory()); return; }
     let cancelled = false;
     setMessages([]);
+    setMemory(createIaraMemory());
     setError(null);
-
-    let query = supabase
-      .from('chat_messages')
-      .select('*')
-      .eq('user_id', user.id);
+    let query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
     query = projectId ? query.eq('project_id', projectId) : query.is('project_id', null);
     query.order('created_at', { ascending: true }).then(({ data, error: loadError }) => {
       if (cancelled) return;
       if (loadError) { setError('Não foi possível carregar o histórico. Verifique sua conexão.'); return; }
       if (data) setMessages(data as ChatMessage[]);
     });
-
-    const channel = supabase
-      .channel(`chat_messages_${projectId ?? 'none'}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages',
-        filter: `user_id=eq.${user.id}`,
-      }, (payload) => {
-        const msg = payload.new as ChatMessage;
-        if ((msg.project_id ?? null) !== (projectId ?? null)) return;
-        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
-      })
-      .subscribe();
-
+    if (projectId) {
+      supabase.from('projects').select('jornada,internal_material,external_material,back_material').eq('id', projectId).eq('user_id', user.id).maybeSingle().then(({ data }) => {
+        if (cancelled || !data) return;
+        const rawMemory = normalizeIaraMemory((data.jornada as any)?.iaraMemory);
+        const project = {
+          jornada: data.jornada,
+          internalMaterial: (data as any).internal_material,
+          externalMaterial: (data as any).external_material,
+          backMaterial: (data as any).back_material,
+        };
+        const diary = carregarDiario(projectId);
+        const synced = syncIaraOperationalMemory(rawMemory, project, diary);
+        setMemory(synced);
+        if (synced.updatedAt !== rawMemory.updatedAt || synced.lastEvent?.type !== rawMemory.lastEvent?.type) {
+          const jornada = (data.jornada ?? {}) as Record<string, unknown>;
+          supabase.from('projects').update({ jornada: { ...jornada, iaraMemory: synced } as any }).eq('id', projectId).eq('user_id', user.id);
+        }
+      });
+    }
+    const channel = supabase.channel(`chat_messages_${projectId ?? 'none'}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
+      const msg = payload.new as ChatMessage;
+      if ((msg.project_id ?? null) !== (projectId ?? null)) return;
+      setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
+    }).subscribe();
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [user, projectId]);
 
@@ -125,49 +128,50 @@ export const useIaraChat = (
     if (!user) return;
     setIsTyping(true);
     setError(null);
-
     let currentBaseRaw: string | null = null;
     let currentMaskRaw: string | null = null;
     let previewImg: string | null = null;
-
-    if (upload) {
-      currentBaseRaw = upload.baseRaw;
-      currentMaskRaw = upload.maskRaw;
-      previewImg = upload.base64;
-      setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw });
-    } else if (lastContext) {
-      currentBaseRaw = lastContext.baseRaw;
-      currentMaskRaw = lastContext.maskRaw;
-    }
+    if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw }); }
+    else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; }
 
     try {
       await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
-
-      const run = await runOrchestrator(
-        promptText,
-        {
-          userId: user.id,
-          decorStyle,
-          lastImageBase: currentBaseRaw ?? undefined,
-          lastImageMask: currentMaskRaw ?? undefined,
-        },
-        {
-          decorStyle,
-          currentProject: { largura: factors.L, altura: factors.A },
-        },
-      );
-
-      // Sem plano → conversa/pedido de esclarecimento
-      if (run.plan.length === 0) {
-        await saveMessage({
-          sender: 'iara',
-          text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.',
-        });
+      const evidence = getMeasurementEvidence(memory);
+      const confirmed = getConfirmedMeasurements(memory);
+      const brain = assessIaraRequest(promptText, { width: confirmed.width ?? factors.L, height: confirmed.height ?? factors.A, depth: confirmed.depth ?? factors.P, hasImage: Boolean(currentBaseRaw), measurementEvidence: evidence });
+      if (!brain.allow) {
+        await saveMessage({ sender: 'iara', text: `🛡️ **Conferência necessária**\n\n${brain.reason}\n\n${brain.question}`, metadata: { brain: true, status: brain.status, blocked: true, projectId, memoryEvidence: evidence } });
         lastFailedRef.current = null;
         return;
       }
 
-      // Consolida resposta com resultado de cada tool call
+      const target = targetFromPrompt(promptText);
+      if (target) {
+        const gate = readiness(target);
+        if (!gate.ready) {
+          await saveMessage({
+            sender: 'iara',
+            text: `🧭 **Ainda não é hora de ${target}.**\n\n${gate.blockers.map(blocker => `• ${blocker}`).join('\n')}\n\nQuando esses pontos estiverem conferidos, eu continuo sem refazer o trabalho.`,
+            metadata: { journeyReadiness: gate, blocked: true, projectId },
+          });
+          lastFailedRef.current = null;
+          return;
+        }
+      }
+
+      const run = await runOrchestrator(
+        promptText,
+        { userId: user.id, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined },
+        { decorStyle, currentProject: { largura: confirmed.width ?? factors.L, altura: confirmed.height ?? factors.A, profundidade: confirmed.depth ?? factors.P }, iaraBrain: { evidenceStatus: brain.status, criticalRequest: brain.critical, imageIsEvidenceOnly: Boolean(currentBaseRaw) }, iaraMemory: { evidenceStatus: evidence, confirmedMeasurements: confirmed, conflicts: memory.conflicts.filter(c => !c.resolved).slice(0, 10) }, journeyReadiness: target ? readiness(target) : undefined },
+      );
+
+      if (run.plan.length === 0) {
+        await saveMessage({ sender: 'iara', text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.' });
+        lastFailedRef.current = null;
+        return;
+      }
+
+      let nextMemory = rememberEvent(memory, 'pedido-processado', promptText.slice(0, 180));
       const linhas = run.results.map(({ tool, result }) => {
         if (result.ok === false) return `❌ ${tool}: ${result.error}`;
         switch (tool) {
@@ -196,13 +200,10 @@ export const useIaraChat = (
             return `✅ ${tool} executado.`;
         }
       });
-
+      if (nextMemory.updatedAt !== memory.updatedAt || nextMemory.lastEvent?.type !== memory.lastEvent?.type) await persistMemory(nextMemory);
       const footer = run.usedFallback ? '\n\n_(interpretação por fallback keyword)_' : '';
       const header = run.summary ? `${run.summary}\n\n` : '';
-      await saveMessage({
-        sender: 'iara',
-        text: `${header}${linhas.join('\n')}${footer}`,
-      });
+      await saveMessage({ sender: 'iara', text: `${header}${linhas.join('\n')}${footer}`, metadata: { memoryEvidence: getMeasurementEvidence(nextMemory), memoryUpdatedAt: nextMemory.updatedAt, journeyReadiness: target ? readiness(target) : undefined } });
       lastFailedRef.current = null;
     } catch (e: unknown) {
       // Guarda o envio para permitir "Tentar novamente" sem redigitar
@@ -216,33 +217,25 @@ export const useIaraChat = (
   const handleSend = async () => {
     if (!chatInput.trim() && !pendingUpload) return;
     if (!user) { setShowAuthDialog(true); return; }
-
     const promptText = chatInput.trim();
     const upload = pendingUpload;
-    setChatInput("");
-    setPendingUpload(null);
+    setChatInput(""); setPendingUpload(null);
     await sendPrompt(promptText, upload);
   };
 
-  const retryLast = async () => {
-    const failed = lastFailedRef.current;
-    if (!failed) { setError(null); return; }
-    await sendPrompt(failed.text, failed.upload);
-  };
-
+  const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload); };
   const dismissError = () => setError(null);
-
-
+  const resolveMemoryConflict = async (conflictId: string, choice: 'confirmed' | 'new') => {
+    const next = resolveIaraConflict(memory, conflictId, choice);
+    if (next === memory) return;
+    await persistMemory(next);
+  };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (r) => {
-      const img = new Image();
-      img.onload = () => setMaskingImage({ src: r.target!.result as string, img });
-      img.src = r.target!.result as string;
-    };
+    reader.onload = (r) => { const img = new Image(); img.onload = () => setMaskingImage({ src: r.target!.result as string, img }); img.src = r.target!.result as string; };
     reader.readAsDataURL(file);
   };
 
@@ -256,16 +249,9 @@ export const useIaraChat = (
       recognitionRef.current = r;
     }
   }, []);
+  const toggleRecording = () => { if (isListening) recognitionRef.current?.stop(); else recognitionRef.current?.start(); };
 
-  const toggleRecording = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-    } else {
-      recognitionRef.current?.start();
-    }
-  };
-
-  return {
-    messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError
-  };
+  const memoryEvidence = getMeasurementEvidence(memory);
+  const memoryConflictCount = memory.conflicts.filter(c => !c.resolved).length;
+  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, memoryEvidence, memoryConflictCount, memory, resolveMemoryConflict, readiness };
 };

@@ -139,6 +139,62 @@ export type Database = {
         }
         Relationships: []
       }
+      diario_entradas: {
+        Row: {
+          categoria: string | null
+          created_at: string
+          evidencia: string | null
+          foto_path: string | null
+          id: string
+          importante: boolean
+          metadata: Json
+          pendencia_resolvida: boolean
+          project_id: string | null
+          texto: string
+          tipo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          categoria?: string | null
+          created_at?: string
+          evidencia?: string | null
+          foto_path?: string | null
+          id?: string
+          importante?: boolean
+          metadata?: Json
+          pendencia_resolvida?: boolean
+          project_id?: string | null
+          texto?: string
+          tipo?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          categoria?: string | null
+          created_at?: string
+          evidencia?: string | null
+          foto_path?: string | null
+          id?: string
+          importante?: boolean
+          metadata?: Json
+          pendencia_resolvida?: boolean
+          project_id?: string | null
+          texto?: string
+          tipo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diario_entradas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gallery_images: {
         Row: {
           created_at: string

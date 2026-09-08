@@ -1,0 +1,43 @@
+# MARCENAPP
+
+MARCENAPP é uma plataforma de marcenaria inteligente para organizar o trabalho do marceneiro do ambiente real até a produção.
+
+## Posicionamento
+
+- MARCENAPP: plataforma e sistema para marcenaria inteligente.
+- MARCENA: experiência comercial do MARCENAPP focada em apresentar projetos e ajudar na aprovação e venda.
+- IARA: inteligência integrada ao MARCENAPP para entender pedidos, organizar informações e conduzir o fluxo.
+
+## O que o MARCENAPP faz
+
+- Projeto 3D de marcenaria a partir do ambiente e do pedido do cliente.
+- Projeto 2D e documentação com base em informações confirmadas.
+- Orçamento de marcenaria conectado ao projeto.
+- Aprovação e ajustes antes da produção.
+- Diário e acompanhamento da obra.
+- Produção e plano de corte.
+- Organização do fluxo de móveis planejados.
+
+## Fluxo principal
+
+Foto do ambiente → pedido do cliente → entendimento pela IARA → medidas confirmadas → projeto visual → ajustes → aprovação → projeto 2D → orçamento → produção e corte.
+
+## Páginas públicas
+
+- https://marcenap40.lovable.app/
+- https://marcenap40.lovable.app/marcena
+- https://marcenap40.lovable.app/marcenaria
+- https://marcenap40.lovable.app/moveis-planejados
+- https://marcenap40.lovable.app/projeto-3d-marcenaria
+- https://marcenap40.lovable.app/projeto-2d-marcenaria
+- https://marcenap40.lovable.app/orcamento-marcenaria
+- https://marcenap40.lovable.app/plano-de-corte
+- https://marcenap40.lovable.app/software-para-marceneiro
+
+## Termos relacionados
+
+marcenaria, marcenaria inteligente, marceneiro, móveis planejados, projeto de marcenaria, projeto 3D de marcenaria, projeto 2D de marcenaria, orçamento de marcenaria, plano de corte, software para marceneiro, cozinha planejada, quarto planejado, painel planejado, closet planejado.
+
+## Fonte oficial
+
+O domínio oficial desta informação é https://marcenap40.lovable.app/.

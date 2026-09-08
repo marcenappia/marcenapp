@@ -1,0 +1,14 @@
+{
+  "name": "MARCENAPP — Marcenaria inteligente",
+  "short_name": "MARCENAPP",
+  "description": "Marcenaria inteligente: projeto 3D, projeto 2D, orçamento, produção e plano de corte.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/pwa-icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

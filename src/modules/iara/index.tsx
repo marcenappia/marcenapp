@@ -1,25 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Maximize2 } from 'lucide-react';
+import { X, ShieldCheck, Brain } from 'lucide-react';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput } from './components/ChatInput';
+import { IaraReadinessPanel } from './components/IaraReadinessPanel';
 import AuthDialog from '../../components/marcenaria/AuthDialog';
 import { useIaraChat } from './hooks/useIaraChat';
-
-const LogoHex = ({ size = 40, className = "" }: { size?: number; className?: string }) => (
-  <div className={`relative flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
-    <svg viewBox="0 0 100 100" className="w-full h-full relative z-10 drop-shadow-[0_0_10px_rgba(14,165,233,0.5)]">
-      <defs>
-        <linearGradient id="chatLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="hsl(var(--primary))" />
-          <stop offset="100%" stopColor="hsl(234, 88%, 48%)" />
-        </linearGradient>
-      </defs>
-      <path d="M50 5 L90 27.5 L90 72.5 L50 95 L10 72.5 L10 27.5 Z" fill="hsl(var(--sidebar-bg))" stroke="url(#chatLogoGrad)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="50" y="66" textAnchor="middle" fontSize="46" fontWeight="900" fill="white" style={{ fontFamily: 'system-ui', fontStyle: 'italic', letterSpacing: '-2px' }}>M</text>
-      <circle cx="50" cy="34" r="6" fill="hsl(var(--primary))" />
-    </svg>
-  </div>
-);
+import logo from '@/assets/marcenapp-logo.svg';
 
 interface IaraModuleProps {
   syncProject?: { width?: number; height?: number; depth?: number } | null;
@@ -27,23 +13,15 @@ interface IaraModuleProps {
   syncDescription?: string;
   onDescriptionChange?: (text: string) => void;
   embedded?: boolean;
-  /** Projeto ativo — isola o histórico do chat por projeto */
   projectId?: string | null;
 }
 
 const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescriptionChange, embedded, projectId = null }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
-  const [factors, setFactors] = useState({
-    L: syncProject?.width ?? 2.4,
-    A: syncProject?.height ?? 2.6,
-    P: syncProject?.depth ?? 0.6,
-    E: 0.018, X: 0, Y: 0,
-  });
-  const [decorStyle, setDecorStyle] = useState("Limpo");
-  
+  const [factors, setFactors] = useState({ L: syncProject?.width ?? 2.4, A: syncProject?.height ?? 2.6, P: syncProject?.depth ?? 0.6, E: 0.018, X: 0, Y: 0 });
+  const [decorStyle] = useState("Limpo");
   const [activeImageZoom, setActiveImageZoom] = useState<{ url: string; budget?: string | null } | null>(null);
 
-  // ↓ Estúdio → IARA: quando o projeto do Estúdio muda, ajusta factors
   useEffect(() => {
     if (!syncProject) return;
     setFactors(prev => {
@@ -58,54 +36,27 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     });
   }, [syncProject]);
 
-  // ↑ IARA → Estúdio: quando sliders/tool alteram factors, propaga ao Estúdio
   useEffect(() => {
     if (!onProjectChange) return;
-    const sameAsStudio =
-      syncProject?.width === factors.L &&
-      syncProject?.height === factors.A &&
-      syncProject?.depth === factors.P;
+    const sameAsStudio = syncProject?.width === factors.L && syncProject?.height === factors.A && syncProject?.depth === factors.P;
     if (sameAsStudio) return;
     onProjectChange({ width: factors.L, height: factors.A, depth: factors.P });
   }, [factors.L, factors.A, factors.P, onProjectChange, syncProject]);
 
-  const {
-    messages, chatInput, setChatInput, isTyping, isListening,
-    handleSend, handleImageSelect, toggleRecording,
-    maskingImage, setMaskingImage, pendingUpload, setPendingUpload,
-    error, retryLast, dismissError,
-  } = useIaraChat(factors, decorStyle, setShowAuthDialog, {
-    onProjectCreated: (p) => {
-      setFactors(prev => ({
-        ...prev,
-        L: p.width ?? prev.L,
-        A: p.height ?? prev.A,
-        P: p.depth ?? prev.P,
-      }));
-    },
+  const { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, memoryEvidence, memoryConflictCount, memory, resolveMemoryConflict } = useIaraChat(factors, decorStyle, setShowAuthDialog, {
+    onProjectCreated: (p) => setFactors(prev => ({ ...prev, L: p.width ?? prev.L, A: p.height ?? prev.A, P: p.depth ?? prev.P })),
   }, projectId);
 
-  // ↕ Descrição do Projeto ↔ chatInput (bidirecional, com debounce)
   const lastPushedRef = useRef<string | null>(null);
   const pushTimerRef = useRef<ReturnType<typeof setTimeout>>();
-
   const pushDescription = (text: string, immediate = false) => {
     if (!onDescriptionChange) return;
     if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
     const doPush = () => { lastPushedRef.current = text; onDescriptionChange(text); };
-    if (immediate) doPush();
-    else pushTimerRef.current = setTimeout(doPush, 300);
+    if (immediate) doPush(); else pushTimerRef.current = setTimeout(doPush, 300);
   };
   useEffect(() => () => { if (pushTimerRef.current) clearTimeout(pushTimerRef.current); }, []);
-
-  useEffect(() => {
-    if (syncDescription === undefined) return;
-    // Ignora o eco do que a própria IARA acabou de enviar (evita sobrescrever digitação)
-    if (syncDescription === lastPushedRef.current) return;
-    if (syncDescription !== chatInput) setChatInput(syncDescription);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncDescription]);
-
+  useEffect(() => { if (syncDescription === undefined || syncDescription === lastPushedRef.current) return; if (syncDescription !== chatInput) setChatInput(syncDescription); }, [syncDescription]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -113,21 +64,10 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
   const isDrawingRef = useRef(false);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
-
-  useEffect(() => {
-    if (maskingImage && canvasRef.current) {
-      const c = canvasRef.current;
-      c.width = 1080; c.height = 1920;
-      const ctx = c.getContext('2d');
-      if (ctx) {
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.lineWidth = 60;
-        ctxRef.current = ctx;
-      }
-    }
+    if (!maskingImage || !canvasRef.current) return;
+    const c = canvasRef.current; c.width = 1080; c.height = 1920;
+    const ctx = c.getContext('2d');
+    if (ctx) { ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'; ctx.lineWidth = 60; ctxRef.current = ctx; }
   }, [maskingImage]);
 
   const getCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -144,38 +84,32 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
 
   const confirmMask = async () => {
     if (!maskingImage || !canvasRef.current) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = 1080; canvas.height = 1920;
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, 1080, 1920);
-    const ratio = Math.min(1080 / maskingImage.img.width, 1920 / maskingImage.img.height);
-    const dw = maskingImage.img.width * ratio; const dh = maskingImage.img.height * ratio;
+    const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1920;
+    const ctx = canvas.getContext("2d")!; ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, 1080, 1920);
+    const ratio = Math.min(1080 / maskingImage.img.width, 1920 / maskingImage.img.height); const dw = maskingImage.img.width * ratio; const dh = maskingImage.img.height * ratio;
     ctx.drawImage(maskingImage.img, (1080 - dw)/2, (1920 - dh)/2, dw, dh);
-    const baseB64 = canvas.toDataURL("image/jpeg", 0.7);
-    const baseRaw = baseB64.split(",")[1];
-    ctx.clearRect(0,0,1080,1920); ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, 1080, 1920);
-    ctx.drawImage(canvasRef.current, 0, 0);
+    const baseB64 = canvas.toDataURL("image/jpeg", 0.7); const baseRaw = baseB64.split(",")[1];
+    ctx.clearRect(0,0,1080,1920); ctx.fillStyle = "#000000"; ctx.fillRect(0,0,1080,1920); ctx.drawImage(canvasRef.current, 0, 0);
     const idata = ctx.getImageData(0,0,1080,1920); const d = idata.data;
     for(let i=0; i<d.length; i+=4) { if(d[i+3]>10) { d[i]=d[i+1]=d[i+2]=255; d[i+3]=255; } else { d[i]=d[i+1]=d[i+2]=0; d[i+3]=255; } }
-    ctx.putImageData(idata, 0, 0);
-    const maskRaw = canvas.toDataURL("image/png").split(",")[1];
-    setPendingUpload({ base64: baseB64, baseRaw, maskRaw });
-    setMaskingImage(null);
+    ctx.putImageData(idata, 0, 0); const maskRaw = canvas.toDataURL("image/png").split(",")[1];
+    setPendingUpload({ base64: baseB64, baseRaw, maskRaw }); setMaskingImage(null);
   };
+
+  const memoryLabel = memoryEvidence === 'confirmed' ? 'Medidas confirmadas' : memoryEvidence === 'estimated' ? 'Medidas estimadas' : 'Medidas ainda não conferidas';
+  const memoryClass = memoryEvidence === 'confirmed' ? 'text-emerald-600' : memoryEvidence === 'estimated' ? 'text-amber-600' : 'text-orange-600';
 
   return (
     <div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
       <header className="px-4 py-3 bg-card border-b border-border flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <LogoHex size={36} />
+          <img src={logo} alt="MARCENAPP" className="h-9 w-9 rounded-xl shadow-sm" />
           <div>
-            <h2 className="text-sm font-black text-foreground leading-none uppercase italic tracking-tight">IARA.ai</h2>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-[9px] text-green-600 uppercase font-bold tracking-widest">Online</span>
-            </div>
+            <h2 className="text-sm font-black text-foreground leading-none uppercase tracking-tight">IARA — Assistente técnica</h2>
+            <div className="flex items-center gap-2 mt-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /><span className="text-[9px] text-green-600 uppercase font-bold tracking-widest">Online</span><span className={`text-[9px] font-bold ${memoryClass}`}>{memoryLabel}</span>{memoryConflictCount > 0 && <span className="text-[9px] font-bold text-red-600">• {memoryConflictCount} conflito(s)</span>}</div>
           </div>
         </div>
+        <div className="hidden sm:flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-muted-foreground"><Brain size={13} className="text-primary" /><span>Memória operacional · conferência antes de decisões críticas</span></div>
       </header>
 
       <ChatMessages
@@ -243,5 +177,4 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     </div>
   );
 };
-
 export default IaraModule;

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Index from '../pages/Index';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -15,8 +15,8 @@ vi.mock('@/integrations/supabase/client', () => {
     channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn() })),
     removeChannel: vi.fn(),
     then: vi.fn((cb) => {
-       if (cb) return Promise.resolve(cb({ data: [], error: null }));
-       return Promise.resolve({ data: [], error: null });
+      if (cb) return Promise.resolve(cb({ data: [], error: null }));
+      return Promise.resolve({ data: [], error: null });
     }),
   };
   mock.single.mockReturnValue(Promise.resolve({ data: null, error: null }));
@@ -24,9 +24,9 @@ vi.mock('@/integrations/supabase/client', () => {
 });
 
 vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({ 
-    user: { id: 'u1' }, profile: { name: 'T' }, 
-    refreshProfile: vi.fn(), signOut: vi.fn() 
+  useAuth: () => ({
+    user: { id: 'u1' }, profile: { name: 'T' },
+    refreshProfile: vi.fn(), signOut: vi.fn(),
   }),
 }));
 
@@ -48,10 +48,10 @@ describe('Menu Accessibility', () => {
     expect(chatBtn).toHaveClass('focus-visible:ring-2');
   });
 
-  it('home (jornada) is the default module and mobile nav has Novo Projeto', () => {
+  it('home is the default module and exposes the primary create action', () => {
     window.innerWidth = 400;
     render(<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Index /></BrowserRouter>);
     expect(screen.getByTestId('home')).toBeInTheDocument();
-    expect(screen.getByLabelText('Novo Projeto')).toBeInTheDocument();
+    expect(document.getElementById('mobile-nav-novo')).toBeInTheDocument();
   });
 });
