@@ -2,8 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Landing from "./pages/Landing";
 import AppShell from "./pages/AppShell";
 import Auth from "./pages/Auth";
@@ -28,6 +28,14 @@ const SEO_SLUGS = ["marcena", "marcenaria", "moveis-planejados", "projeto-3d-mar
 
 const ConfigurationNotice = () => <main className="min-h-screen bg-slate-950 px-6 py-16 text-white"><div className="mx-auto max-w-xl rounded-2xl border border-amber-400/30 bg-white/5 p-8 shadow-2xl"><p className="text-xs font-black uppercase tracking-[.18em] text-amber-300">MARCENAPP</p><h1 className="mt-3 text-2xl font-black">Configuração do ambiente pendente</h1><p className="mt-3 leading-relaxed text-slate-300">O ambiente do aplicativo ainda não recebeu as variáveis públicas do Supabase. Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY na hospedagem para habilitar login, dados e recursos que dependem do banco.</p></div></main>;
 
+const RequireAuth = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <div className="min-h-screen bg-[#0b1015]" />;
+  if (!user) return <Navigate to={`/auth?next=${encodeURIComponent(location.pathname)}`} replace />;
+  return <>{children}</>;
+};
+
 const PublicRoutes = () => <Routes>
   <Route path="/" element={<Landing />} />
   <Route path="/loja" element={<Loja />} />
@@ -37,20 +45,19 @@ const PublicRoutes = () => <Routes>
 </Routes>;
 
 const ProtectedApp = () => {
-  const location = useLocation();
   if (!supabaseConfigured) return <ConfigurationNotice />;
   return <Routes>
     <Route path="/auth" element={<Auth />} />
-    <Route path="/checkout" element={<Checkout />} />
-    <Route path="/perfil" element={<PerfilMarcenaria />} />
-    <Route path="/planos" element={<Planos />} />
-    <Route path="/conexoes" element={<Conexoes />} />
-    <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
-    <Route path="/admin/ia" element={<AdminGuard><AIProviderAdmin /></AdminGuard>} />
-    <Route path="/admin/ia/uso" element={<AdminGuard><AdminAIUsage /></AdminGuard>} />
-    <Route path="/admin/usuarios" element={<AdminGuard><AdminUsers /></AdminGuard>} />
-    <Route path="/admin/obras" element={<AdminGuard><AdminProjects /></AdminGuard>} />
-    <Route path="/app" element={<AppShell />} />
+    <Route path="/checkout" element={<RequireAuth><Checkout /></RequireAuth>} />
+    <Route path="/perfil" element={<RequireAuth><PerfilMarcenaria /></RequireAuth>} />
+    <Route path="/planos" element={<RequireAuth><Planos /></RequireAuth>} />
+    <Route path="/conexoes" element={<RequireAuth><Conexoes /></RequireAuth>} />
+    <Route path="/admin" element={<RequireAuth><AdminGuard><AdminDashboard /></AdminGuard></RequireAuth>} />
+    <Route path="/admin/ia" element={<RequireAuth><AdminGuard><AIProviderAdmin /></AdminGuard></RequireAuth>} />
+    <Route path="/admin/ia/uso" element={<RequireAuth><AdminGuard><AdminAIUsage /></AdminGuard></RequireAuth>} />
+    <Route path="/admin/usuarios" element={<RequireAuth><AdminGuard><AdminUsers /></AdminGuard></RequireAuth>} />
+    <Route path="/admin/obras" element={<RequireAuth><AdminGuard><AdminProjects /></AdminGuard></RequireAuth>} />
+    <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>} />
     <Route path="*" element={<NotFound />} />
   </Routes>;
 };
