@@ -6,26 +6,15 @@ import { studioService } from '@/modules/ambientes/services/studioService';
 import { useStudioStore } from '@/store/useStudioStore';
 import type { ProjectData } from '@/modules/projetos/types';
 import { AnaliseIara, EtapaId, carregarProgresso, salvarProgresso } from '../types';
-import {
-  baixarComoDataUrl, dataUrlParaBlob, carregarObra, enviarApresentacao, enviarFotoAmbiente, salvarJornada, JornadaSalva, StatusObra,
-} from '../services/obraService';
+import { baixarComoDataUrl, dataUrlParaBlob, carregarObra, enviarApresentacao, enviarFotoAmbiente, salvarJornada, JornadaSalva, StatusObra } from '../services/obraService';
 
-interface Foto {
-  dataUrl: string;
-  base64: string;
-  mime: string;
-}
-
-interface Opcoes {
-  projectId: string | null;
-  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
-}
+interface Foto { dataUrl: string; base64: string; mime: string; }
+interface Opcoes { projectId: string | null; setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>; }
 
 /** Lógica da jornada "Novo Projeto" — reaproveita IARA (ai-text) e Estúdio (ai-image). */
 export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoes) => {
   const { user } = useAuth();
   const setGeneratedImage = useStudioStore((s) => s.setGeneratedImage);
-
   const [projectId, setProjectId] = useState<string | null>(inicialId);
   const [etapa, setEtapa] = useState<EtapaId>(1);
   const [nome, setNome] = useState('');
@@ -43,7 +32,6 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
   const [status, setStatus] = useState<StatusObra>('rascunho');
   const pendente = useRef<(() => void) | null>(null);
 
-  // Retomar obra existente: primeiro do banco (qualquer aparelho), depois do cache local
   useEffect(() => {
     if (!inicialId) { setRetomando(false); return; }
     let ativo = true;
@@ -52,252 +40,144 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
       const p = remoto ?? carregarProgresso(inicialId);
       if (!ativo) return;
       if (!p) { setRetomando(false); return; }
-      setNome(p.nome ?? '');
-      setClienteNome(p.clienteNome ?? '');
-      setPedido(p.pedido ?? '');
-      setAnalise(p.analise ?? null);
-      setRespostas(p.respostas ?? {});
+      setNome(p.nome ?? ''); setClienteNome(p.clienteNome ?? ''); setPedido(p.pedido ?? ''); setAnalise(p.analise ?? null); setRespostas(p.respostas ?? {});
       if (remoto) setStatus(remoto.status);
-
       let temFoto = false;
       if (remoto?.fotoPath) {
         const dataUrl = await baixarComoDataUrl(remoto.fotoPath);
-        if (dataUrl && ativo) {
-          const mime = /data:(.*?);/.exec(dataUrl)?.[1] ?? 'image/jpeg';
-          setFoto({ dataUrl, base64: dataUrl.split(',')[1], mime });
-          temFoto = true;
-        }
+        if (dataUrl && ativo) { const mime = /data:(.*?);/.exec(dataUrl)?.[1] ?? 'image/jpeg'; setFoto({ dataUrl, base64: dataUrl.split(',')[1], mime }); temFoto = true; }
       }
-      if (remoto?.imagemPath) {
-        const img = await baixarComoDataUrl(remoto.imagemPath);
-        if (img && ativo) { setImagem(img); setGeneratedImage(img); }
-      }
+      if (remoto?.imagemPath) { const img = await baixarComoDataUrl(remoto.imagemPath); if (img && ativo) { setImagem(img); setGeneratedImage(img); } }
       if (!ativo) return;
-      // Sem foto salva não dá para seguir além da etapa 2 (IARA precisa da cena)
       const alvo = !temFoto && p.etapa > 2 && p.etapa < 7 ? 2 : p.etapa;
-      setEtapa(alvo as EtapaId);
-      setRetomando(false);
+      setEtapa(alvo as EtapaId); setRetomando(false);
     })();
     return () => { ativo = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inicialId, user?.id]);
 
-  /** Salva no banco (quando há obra criada) e no cache local. Falha silenciosa: não trava o fluxo. */
   const persistir = (patch: JornadaSalva, extra?: { status?: StatusObra; aprovado?: boolean }) => {
     if (!projectId) return;
     salvarJornada(projectId, patch, extra).catch(() => salvarProgresso(projectId, { ...patch, aprovado: extra?.aprovado }));
   };
 
-  const comAuth = async (acao: () => void) => {
-    const ok = await requireAuth();
-    if (ok) return acao();
-    pendente.current = acao;
-    setShowAuth(true);
-  };
+  const comAuth = async (acao: () => void) => { const ok = await requireAuth(); if (ok) return acao(); pendente.current = acao; setShowAuth(true); };
+  const onAuthSuccess = () => { setShowAuth(false); const a = pendente.current; pendente.current = null; a?.(); };
 
-  const onAuthSuccess = () => {
-    setShowAuth(false);
-    const a = pendente.current;
-    pendente.current = null;
-    a?.();
-  };
-
-  // Etapa 1 → cria/atualiza projeto e cliente
   const salvarNome = () =>
     comAuth(async () => {
       if (!user || !nome.trim()) return;
-      setLoading('salvando');
-      setErro(null);
+      setLoading('salvando'); setErro(null);
       try {
         let clienteId: string | null = null;
         if (clienteNome.trim()) {
-          const { data: existente } = await supabase
-            .from('clientes').select('id').eq('user_id', user.id).ilike('nome', clienteNome.trim()).limit(1);
+          const { data: existente, error: buscaErro } = await supabase.from('clientes').select('id').eq('user_id', user.id).ilike('nome', clienteNome.trim()).limit(1);
+          if (buscaErro) throw buscaErro;
           if (existente?.[0]) clienteId = existente[0].id;
           else {
-            const { data: novo } = await supabase
-              .from('clientes').insert({ user_id: user.id, nome: clienteNome.trim() }).select('id').single();
+            const { data: novo, error: clienteErro } = await supabase.from('clientes').insert({ user_id: user.id, nome: clienteNome.trim() }).select('id').single();
+            if (clienteErro) throw clienteErro;
             clienteId = novo?.id ?? null;
+            if (!clienteId) throw new Error('O cliente não foi criado.');
           }
         }
         let id = projectId;
         if (id) {
-          await supabase.from('projects').update({ nome: nome.trim(), name: nome.trim(), cliente_id: clienteId }).eq('id', id);
-        } else {
-          const { data, error } = await supabase
-            .from('projects')
-            .insert({ user_id: user.id, nome: nome.trim(), name: nome.trim(), cliente_id: clienteId })
-            .select('id').single();
+          const { error } = await supabase.from('projects').update({ nome: nome.trim(), name: nome.trim(), cliente_id: clienteId }).eq('id', id).eq('user_id', user.id);
           if (error) throw error;
+        } else {
+          const { data, error } = await supabase.from('projects').insert({ user_id: user.id, nome: nome.trim(), name: nome.trim(), cliente_id: clienteId }).select('id').single();
+          if (error) throw error;
+          if (!data?.id) throw new Error('O projeto não foi criado.');
           id = data.id;
           setProjectId(id);
         }
-        if (id) {
-          salvarProgresso(id, { etapa: 2, nome: nome.trim(), clienteNome: clienteNome.trim() });
-          await salvarJornada(id, { etapa: Math.max(etapa, 2) as EtapaId }).catch(() => undefined);
-        }
+        if (!id) throw new Error('O projeto não recebeu um identificador.');
+        setBudgetProject((prev) => ({ ...prev, id, name: nome.trim() }));
+        salvarProgresso(id, { etapa: 2, nome: nome.trim(), clienteNome: clienteNome.trim() });
+        await salvarJornada(id, { etapa: Math.max(etapa, 2) as EtapaId }).catch(() => undefined);
         setEtapa(2);
       } catch (e: unknown) {
         setErro(e instanceof Error ? e.message : 'Não deu para salvar a obra. Tente de novo.');
-      } finally {
-        setLoading(null);
-      }
+      } finally { setLoading(null); }
     });
 
-  const escolherFoto = (file: File) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      setFoto({ dataUrl, base64: dataUrl.split(',')[1], mime: file.type || 'image/jpeg' });
-    };
-    reader.readAsDataURL(file);
-  };
+  const escolherFoto = (file: File) => { const reader = new FileReader(); reader.onloadend = () => { const dataUrl = reader.result as string; setFoto({ dataUrl, base64: dataUrl.split(',')[1], mime: file.type || 'image/jpeg' }); }; reader.readAsDataURL(file); };
 
-  // Etapa 2 → guarda a foto no armazenamento para retomar em outro aparelho
   const confirmarFoto = () =>
     comAuth(async () => {
       if (!foto) return;
-      setLoading('salvando');
-      setErro(null);
+      setLoading('salvando'); setErro(null);
       try {
-        if (user && projectId) {
-          const { blob, mime } = dataUrlParaBlob(foto.dataUrl);
-          await enviarFotoAmbiente(user.id, projectId, blob, mime);
-        }
-        persistir({ etapa: 3 });
-        setEtapa(3);
-      } catch (e: unknown) {
-        setErro(e instanceof Error ? e.message : 'Não deu para guardar a foto. Tente de novo.');
-      } finally {
-        setLoading(null);
-      }
+        if (user && projectId) { const { blob, mime } = dataUrlParaBlob(foto.dataUrl); await enviarFotoAmbiente(user.id, projectId, blob, mime); }
+        persistir({ etapa: 3 }); setEtapa(3);
+      } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Não deu para guardar a foto. Tente de novo.'); }
+      finally { setLoading(null); }
     });
 
-  // Etapa 3 → IARA analisa a cena e pergunta só o que falta
   const analisar = () =>
     comAuth(async () => {
       if (!foto || !pedido.trim()) return;
-      setLoading('analisando');
-      setErro(null);
+      setLoading('analisando'); setErro(null);
       try {
-        const prompt = `Você é a IARA, assistente de um marceneiro brasileiro. Veja a foto do ambiente e o pedido do cliente.
-Pedido do cliente: "${pedido.trim()}"
-Responda SOMENTE JSON válido neste formato:
-{"resumo":"1 frase simples do que será feito","ambiente":"cozinha|quarto|sala|banheiro|escritório|outro",
-"medidas":{"width":número ou null,"height":número ou null,"depth":número ou null},
-"perguntas":[{"id":"chave_curta","pergunta":"pergunta curta em português simples","dica":"ex.: em metros"}]}
-Regras: medidas em metros, só preencha se der para estimar pela foto com segurança; senão use null.
-Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (medidas que não dá para ver, tipo de porta, cor/acabamento, se tem eletrodoméstico embutido). Se nada faltar, "perguntas": [].`;
+        const prompt = `Você é a IARA, assistente de um marceneiro brasileiro. Veja a foto do ambiente e o pedido do cliente.\nPedido do cliente: "${pedido.trim()}"\nResponda SOMENTE JSON válido neste formato:\n{"resumo":"1 frase simples do que será feito","ambiente":"cozinha|quarto|sala|banheiro|escritório|outro","medidas":{"width":número ou null,"height":número ou null,"depth":número ou null},"perguntas":[{"id":"chave_curta","pergunta":"pergunta curta em português simples","dica":"ex.: em metros"}]}\nRegras: medidas em metros, só preencha se der para estimar pela foto com segurança; senão use null.\nFaça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (medidas que não dá para ver, tipo de porta, cor/acabamento, se tem eletrodoméstico embutido). Se nada faltar, "perguntas": [].`;
         const texto = await callAIText(prompt, [{ mimeType: foto.mime, data: foto.base64 }], true);
         const limpo = texto.replace(/```json/gi, '').replace(/```/g, '').trim();
         const json = JSON.parse(limpo) as AnaliseIara;
-        const resultado: AnaliseIara = {
-          resumo: json.resumo || pedido.trim(),
-          ambiente: json.ambiente,
-          medidas: json.medidas || {},
-          perguntas: Array.isArray(json.perguntas) ? json.perguntas.slice(0, 4) : [],
-        };
-        setAnalise(resultado);
-        persistir({ etapa: 4, pedido: pedido.trim(), analise: resultado });
-        setEtapa(4);
-      } catch (e: unknown) {
-        setErro(e instanceof Error ? e.message : 'A IARA não conseguiu analisar agora. Tente de novo.');
-      } finally {
-        setLoading(null);
-      }
+        const resultado: AnaliseIara = { resumo: json.resumo || pedido.trim(), ambiente: json.ambiente, medidas: json.medidas || {}, perguntas: Array.isArray(json.perguntas) ? json.perguntas.slice(0, 4) : [] };
+        setAnalise(resultado); persistir({ etapa: 4, pedido: pedido.trim(), analise: resultado }); setEtapa(4);
+      } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'A IARA não conseguiu analisar agora. Tente de novo.'); }
+      finally { setLoading(null); }
     });
 
   const aplicarMedidas = () => {
     const m = analise?.medidas;
-    const num = (v: unknown, chave: string) => {
-      const r = parseFloat(String(respostas[chave] ?? '').replace(',', '.'));
-      return Number.isFinite(r) && r > 0 ? r : typeof v === 'number' && v > 0 ? v : undefined;
-    };
+    const num = (v: unknown, chave: string) => { const r = parseFloat(String(respostas[chave] ?? '').replace(',', '.')); return Number.isFinite(r) && r > 0 ? r : typeof v === 'number' && v > 0 ? v : undefined; };
     const w = num(m?.width, 'largura'); const h = num(m?.height, 'altura'); const d = num(m?.depth, 'profundidade');
-    setBudgetProject((prev) => ({
-      ...prev,
-      id: projectId ?? prev?.id,
-      width: w ?? prev.width,
-      height: h ?? prev.height,
-      depth: d ?? prev.depth,
-    }));
+    setBudgetProject((prev) => ({ ...prev, id: projectId ?? prev?.id, width: w ?? prev.width, height: h ?? prev.height, depth: d ?? prev.depth }));
   };
 
-  // Etapa 4 → Estúdio gera a apresentação
   const gerarApresentacao = () =>
     comAuth(async () => {
       if (!foto) return;
-      setLoading('gerando');
-      setErro(null);
+      setLoading('gerando'); setErro(null);
       try {
-        const extras = Object.entries(respostas)
-          .filter(([, v]) => v.trim())
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('; ');
+        const extras = Object.entries(respostas).filter(([, v]) => v.trim()).map(([k, v]) => `${k}: ${v}`).join('; ');
         const prompt = `Insira móveis planejados de marcenaria neste ambiente real, mantendo paredes, piso, janelas e iluminação da foto. Pedido do cliente: ${pedido}. ${analise?.resumo ?? ''}. Detalhes: ${extras || 'nenhum'}.`;
         const img = await studioService.generateVisual(prompt, [{ mimeType: foto.mime, data: foto.base64 }], 'photorealistic, 8k, architectural photography', 'modern Brazilian carpentry, MDF cabinetry');
         if (!img) throw new Error('Não saiu imagem. Tente de novo.');
-        setImagem(img);
-        setGeneratedImage(img);
-        aplicarMedidas();
-        if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt });
-        if (user && projectId) await enviarApresentacao(user.id, projectId, img).catch(() => undefined);
-        persistir({ etapa: 5, respostas });
-        setEtapa(5);
-      } catch (e: unknown) {
-        setErro(e instanceof Error ? e.message : 'Não deu para gerar a apresentação. Tente de novo.');
-      } finally {
-        setLoading(null);
-      }
+        setImagem(img); setGeneratedImage(img); aplicarMedidas();
+        if (user) { const { error } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt }); if (error) throw error; }
+        if (user && projectId) { await enviarApresentacao(user.id, projectId, img); }
+        persistir({ etapa: 5, respostas }); setEtapa(5);
+      } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Não deu para gerar a apresentação. Tente de novo.'); }
+      finally { setLoading(null); }
     });
 
   const ajustarApresentacao = () =>
     comAuth(async () => {
       if (!imagem || !ajuste.trim()) return;
-      setLoading('ajustando');
-      setErro(null);
+      setLoading('ajustando'); setErro(null);
       try {
         const img = await studioService.refineVisual(imagem, ajuste.trim());
         if (!img) throw new Error('Não saiu imagem. Tente de novo.');
-        setImagem(img);
-        setGeneratedImage(img);
-        setAjuste('');
-        if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt: ajuste.trim() });
-        if (user && projectId) await enviarApresentacao(user.id, projectId, img).catch(() => undefined);
-      } catch (e: unknown) {
-        setErro(e instanceof Error ? e.message : 'Não deu para ajustar. Tente de novo.');
-      } finally {
-        setLoading(null);
-      }
+        setImagem(img); setGeneratedImage(img); setAjuste('');
+        if (user) { const { error } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt: ajuste.trim() }); if (error) throw error; }
+        if (user && projectId) await enviarApresentacao(user.id, projectId, img);
+      } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Não deu para ajustar. Tente de novo.'); }
+      finally { setLoading(null); }
     });
 
-  // Etapa 6 → aprovação do cliente fica registrada no banco (status + data)
   const registrarAprovacao = () =>
     comAuth(async () => {
       if (!projectId) return;
-      setLoading('salvando');
-      setErro(null);
-      try {
-        await salvarJornada(projectId, { etapa: 7 }, { status: 'aprovado', aprovado: true });
-        setStatus('aprovado');
-        setEtapa(7);
-      } catch (e: unknown) {
-        setErro(e instanceof Error ? e.message : 'Não deu para registrar a aprovação. Tente de novo.');
-      } finally {
-        setLoading(null);
-      }
+      setLoading('salvando'); setErro(null);
+      try { await salvarJornada(projectId, { etapa: 7 }, { status: 'aprovado', aprovado: true }); setStatus('aprovado'); setEtapa(7); }
+      catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Não deu para registrar a aprovação. Tente de novo.'); }
+      finally { setLoading(null); }
     });
 
   const voltar = () => setEtapa((e) => (e > 1 ? ((e - 1) as EtapaId) : e));
 
-  return {
-    projectId, etapa, setEtapa, voltar,
-    nome, setNome, clienteNome, setClienteNome, salvarNome,
-    foto, escolherFoto, limparFoto: () => setFoto(null), confirmarFoto,
-    pedido, setPedido, analisar,
-    analise, respostas, setRespostas, gerarApresentacao,
-    imagem, ajuste, setAjuste, ajustarApresentacao, registrarAprovacao,
-    loading, erro, limparErro: () => setErro(null), retomando, status, logado: !!user,
-    showAuth, setShowAuth, onAuthSuccess,
-  };
+  return { projectId, etapa, setEtapa, voltar, nome, setNome, clienteNome, setClienteNome, salvarNome, foto, escolherFoto, limparFoto: () => setFoto(null), confirmarFoto, pedido, setPedido, analisar, analise, respostas, setRespostas, gerarApresentacao, imagem, ajuste, setAjuste, ajustarApresentacao, registrarAprovacao, loading, erro, limparErro: () => setErro(null), retomando, status, logado: !!user, showAuth, setShowAuth, onAuthSuccess };
 };
