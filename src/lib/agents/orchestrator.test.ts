@@ -58,12 +58,30 @@ describe('MARCENAPP agents', () => {
     expect(result.status).toBe('needs_input');
   });
 
-  it('a jornada para com segurança quando o motor de corte ainda não está configurado', async () => {
+  it('audita e bloqueia sobreposição de peças', async () => {
+    const result = await getAgent('cut_audit').handle({
+      id: 'cut-audit-1', type: 'cut.audit', correlationId: 'test-correlation',
+      input: {
+        parts: [{ code: 'P1', width: 500, height: 700, quantity: 2 }],
+        cutPlan: [{ code: 'CH1', width: 2750, height: 1850, pieces: [
+          { code: 'P1', x: 0, y: 0, width: 500, height: 700 },
+          { code: 'P1', x: 400, y: 0, width: 500, height: 700 },
+        ] }],
+      },
+    });
+    expect(result.status).toBe('needs_input');
+    expect(result.blockers?.some((blocker) => blocker.includes('Sobreposição'))).toBe(true);
+  });
+
+  it('executa a jornada completa quando o plano candidato passa pela auditoria geométrica', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
       photoUrl: 'photo.jpg', measurements: { width: 3000 },
-      parts: [{ code: 'P1', width: 500, height: 700 }],
+      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1 }],
       materials: [{ code: 'MDF-18', quantity: 2 }],
+      cutPlan: [{ code: 'CH1', width: 2750, height: 1850, pieces: [
+        { code: 'P1', x: 0, y: 0, width: 500, height: 700 },
+      ] }],
       projectId: 'project-1', documentType: 'budget',
       scene: { type: 'kitchen' }, renderUrl: 'render.jpg',
       presentationId: 'presentation-1', approved: true, approvalId: 'approval-1',
