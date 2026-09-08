@@ -13,7 +13,8 @@ export interface CortecloudRequest {
     | CortecloudListServicesInput
     | CortecloudMaterialInput
     | CortecloudUpdateMaterialInput
-    | CortecloudUpdateServiceInput;
+    | CortecloudUpdateServiceInput
+    | { serviceId: string | number };
 }
 
 export async function cortecloudRequest<T>(request: CortecloudRequest): Promise<T> {
