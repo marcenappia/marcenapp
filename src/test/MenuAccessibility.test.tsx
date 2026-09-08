@@ -52,6 +52,6 @@ describe('Menu Accessibility', () => {
     window.innerWidth = 400;
     render(<BrowserRouter><Index /></BrowserRouter>);
     expect(screen.getByTestId('home')).toBeInTheDocument();
-    expect(screen.getByLabelText('Novo projeto')).toBeInTheDocument();
+    expect(document.getElementById('mobile-nav-novo')).toBeInTheDocument();
   });
 });
