@@ -1,14 +1,17 @@
 export type AgentId =
+  | 'customer'
   | 'project'
   | 'measurement'
   | 'materials'
-  | 'budget'
+  | 'render'
+  | 'quality'
+  | 'presentation'
+  | 'approval'
   | 'inventory'
   | 'production'
-  | 'render'
-  | 'customer'
-  | 'order'
-  | 'documents';
+  | 'budget'
+  | 'documents'
+  | 'order';
 
 export type AgentTask = {
   id: string;
