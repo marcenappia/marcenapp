@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "project": "MARCENAPP",
+  "precedence": ["marcenapp", "official", "community"],
+  "conflictRule": "MARCENAPP-owned skills win when triggers or domain rules overlap.",
+  "costRule": "A skill instruction file has no service charge by itself. External usage must be declared per skill.",
+  "skills": [
+    {"slug":"marcenapp-governance","source":"marcenapp","priority":100,"status":"active","costClass":"none","conflicts":["all"]},
+    {"slug":"github","source":"official","provider":"OpenAI","priority":80,"status":"active","costClass":"none","conflicts":["github-workflow"]},
+    {"slug":"supabase","source":"official","provider":"Supabase","priority":80,"status":"active","costClass":"none","conflicts":["database","auth"]},
+    {"slug":"supabase-postgres-best-practices","source":"official","provider":"Supabase","priority":85,"status":"active","costClass":"none","conflicts":["postgres","schema","rls"]},
+    {"slug":"playwright","source":"official","provider":"OpenAI","priority":80,"status":"active","costClass":"local","conflicts":["e2e","visual-qa"]},
+    {"slug":"vitest","source":"official","provider":"Supabase","priority":75,"status":"active","costClass":"local","conflicts":["testing"]},
+    {"slug":"vercel-react-best-practices","source":"official","provider":"Vercel","priority":70,"status":"active","costClass":"none","conflicts":["react","performance"]},
+    {"slug":"agent-skill-authoring","source":"official","provider":"Supabase","priority":65,"status":"active","costClass":"none","conflicts":["skills","agent-instructions"]}
+  ]
+}
