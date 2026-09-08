@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import Landing from "./pages/Landing";
 import AppShell from "./pages/AppShell";
@@ -39,34 +39,50 @@ const ConfigurationNotice = () => (
     <div className="mx-auto max-w-xl rounded-2xl border border-amber-400/30 bg-white/5 p-8 shadow-2xl">
       <p className="text-xs font-black uppercase tracking-[.18em] text-amber-300">MARCENAPP</p>
       <h1 className="mt-3 text-2xl font-black">Configuração do ambiente pendente</h1>
-      <p className="mt-3 leading-relaxed text-slate-300">O deploy foi carregado, mas as variáveis públicas do Supabase não foram configuradas. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY nas variáveis de ambiente da hospedagem e publique novamente.</p>
+      <p className="mt-3 leading-relaxed text-slate-300">O ambiente do aplicativo ainda não recebeu as variáveis públicas do Supabase. Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY na hospedagem para habilitar login, dados e recursos que dependem do banco.</p>
     </div>
   </main>
 );
 
+const PublicRoutes = () => (
+  <Routes>
+    <Route path="/" element={<Landing />} />
+    <Route path="/marceneiro/:slug" element={<MarceneiroPublico />} />
+    {SEO_SLUGS.map((slug) => <Route key={slug} path={`/${slug}`} element={<SeoPage />} />)}
+    <Route path="*" element={<ProtectedApp />} />
+  </Routes>
+);
+
+const ProtectedApp = () => {
+  const location = useLocation();
+
+  if (!supabaseConfigured) return <ConfigurationNotice />;
+
+  return (
+    <Routes>
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/perfil" element={<PerfilMarcenaria />} />
+      <Route path="/planos" element={<Planos />} />
+      <Route path="/conexoes" element={<Conexoes />} />
+      <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
+      <Route path="/admin/ia" element={<AdminGuard><AIProviderAdmin /></AdminGuard>} />
+      <Route path="/admin/ia/uso" element={<AdminGuard><AdminAIUsage /></AdminGuard>} />
+      <Route path="/admin/usuarios" element={<AdminGuard><AdminUsers /></AdminGuard>} />
+      <Route path="/admin/obras" element={<AdminGuard><AdminProjects /></AdminGuard>} />
+      <Route path="/app" element={<AppShell />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
+
 const App = () => (
-  !supabaseConfigured ? <ConfigurationNotice /> : <QueryClientProvider client={queryClient}>
+  <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/marceneiro/:slug" element={<MarceneiroPublico />} />
-            <Route path="/perfil" element={<PerfilMarcenaria />} />
-            <Route path="/planos" element={<Planos />} />
-            <Route path="/conexoes" element={<Conexoes />} />
-            {SEO_SLUGS.map((slug) => <Route key={slug} path={`/${slug}`} element={<SeoPage />} />)}
-            <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
-            <Route path="/admin/ia" element={<AdminGuard><AIProviderAdmin /></AdminGuard>} />
-            <Route path="/admin/ia/uso" element={<AdminGuard><AdminAIUsage /></AdminGuard>} />
-            <Route path="/admin/usuarios" element={<AdminGuard><AdminUsers /></AdminGuard>} />
-            <Route path="/admin/obras" element={<AdminGuard><AdminProjects /></AdminGuard>} />
-            <Route path="/app" element={<AppShell />} />
-            <Route path="/" element={<Landing />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <PublicRoutes />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
