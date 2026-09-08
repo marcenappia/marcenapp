@@ -30,7 +30,6 @@ export default function Checkout() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
   const email = user?.email ?? '';
   const trialDate = useMemo(() => addDays(7), []);
 
@@ -47,21 +46,8 @@ export default function Checkout() {
     setSuccess('');
     setLoading(true);
     try {
-      const { customer } = await createAsaasCustomer({
-        name: name.trim(),
-        email,
-        mobilePhone: phone || undefined,
-        externalReference: `marcenapp:${user.id}`,
-      });
-      const { subscription } = await createAsaasSubscription({
-        customerId: customer.id,
-        value: plan.price,
-        billingType,
-        cycle: 'MONTHLY',
-        nextDueDate: trialDate,
-        description: `MARCENAPP ${plan.name} — teste de 7 dias`,
-        externalReference: `marcenapp:${user.id}:${planKey}`,
-      });
+      const { customer } = await createAsaasCustomer({ name: name.trim(), email, mobilePhone: phone || undefined, externalReference: `marcenapp:${user.id}` });
+      const { subscription } = await createAsaasSubscription({ customerId: customer.id, value: plan.price, billingType, cycle: 'MONTHLY', nextDueDate: trialDate, description: `MARCENAPP ${plan.name} — teste de 7 dias`, externalReference: `marcenapp:${user.id}:${planKey}`, plan: planKey });
       setSuccess(`Plano ${plan.name} ativado. Sua primeira cobrança está programada para ${new Date(`${trialDate}T12:00:00`).toLocaleDateString('pt-BR')}. Código da assinatura: ${subscription.id}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível conectar ao Asaas agora.');
