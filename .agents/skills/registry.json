@@ -1,17 +1,20 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "project": "MARCENAPP",
   "precedence": ["marcenapp", "official", "community"],
-  "conflictRule": "MARCENAPP-owned skills win when triggers or domain rules overlap.",
+  "conflictRule": "MARCENAPP-owned domain skills win when triggers or domain rules overlap. Technical skills remain scoped to their technical domain.",
   "costRule": "A skill instruction file has no service charge by itself. External usage must be declared per skill.",
+  "branchRule": "The skill registry must not be treated as a replacement for src/lib/agents/registry.ts. Agent architecture and skill governance are separate layers.",
   "skills": [
-    {"slug":"marcenapp-governance","source":"marcenapp","priority":100,"status":"active","costClass":"none","conflicts":["all"]},
-    {"slug":"github","source":"official","provider":"OpenAI","priority":80,"status":"active","costClass":"none","conflicts":["github-workflow"]},
-    {"slug":"supabase","source":"official","provider":"Supabase","priority":80,"status":"active","costClass":"none","conflicts":["database","auth"]},
-    {"slug":"supabase-postgres-best-practices","source":"official","provider":"Supabase","priority":85,"status":"active","costClass":"none","conflicts":["postgres","schema","rls"]},
-    {"slug":"playwright","source":"official","provider":"OpenAI","priority":80,"status":"active","costClass":"local","conflicts":["e2e","visual-qa"]},
-    {"slug":"vitest","source":"official","provider":"Supabase","priority":75,"status":"active","costClass":"local","conflicts":["testing"]},
-    {"slug":"vercel-react-best-practices","source":"official","provider":"Vercel","priority":70,"status":"active","costClass":"none","conflicts":["react","performance"]},
-    {"slug":"agent-skill-authoring","source":"official","provider":"Supabase","priority":65,"status":"active","costClass":"none","conflicts":["skills","agent-instructions"]}
+    {"slug":"marcenapp-governance","source":"marcenapp","priority":100,"status":"active","costClass":"none","agentScope":["all"],"conflicts":[]},
+    {"slug":"marcenapp-agent-architecture","source":"marcenapp","priority":100,"status":"active","costClass":"none","agentScope":["all"],"conflicts":["agent-instructions","agent-routing"]},
+    {"slug":"marcenapp-scene-standards","source":"marcenapp","priority":100,"status":"active","costClass":"none","agentScope":["vision","perspective","multiview","render","quality","presentation"],"conflicts":["visual-design","scene-rendering","visual-qa"],"notes":"Approved MARCENAPP scene/layout/color/logo rules are authoritative."},
+    {"slug":"official-github","upstreamSlug":"github","source":"official","provider":"OpenAI","priority":80,"status":"active","costClass":"none","agentScope":["all"],"conflicts":["github-workflow"]},
+    {"slug":"official-supabase","upstreamSlug":"supabase","source":"official","provider":"Supabase","priority":80,"status":"active","costClass":"none","agentScope":["all"],"conflicts":["database","auth"]},
+    {"slug":"official-supabase-postgres-best-practices","upstreamSlug":"supabase-postgres-best-practices","source":"official","provider":"Supabase","priority":85,"status":"active","costClass":"none","agentScope":["materials","inventory","production","budget","documents","order"],"conflicts":["postgres","schema","rls"]},
+    {"slug":"official-playwright","upstreamSlug":"playwright-interactive","source":"official","provider":"OpenAI","priority":80,"status":"active","costClass":"local","agentScope":["quality","presentation","all"],"conflicts":["e2e","visual-qa"]},
+    {"slug":"official-vitest","upstreamSlug":"vitest","source":"official","provider":"Supabase","priority":75,"status":"active","costClass":"local","agentScope":["all"],"conflicts":["testing"]},
+    {"slug":"official-vercel-react-best-practices","upstreamSlug":"vercel-react-best-practices","source":"official","provider":"Vercel","priority":70,"status":"active","costClass":"none","agentScope":["all"],"conflicts":["react","performance"],"notes":"Performance guidance only; must not alter MARCENAPP visual/domain rules."},
+    {"slug":"official-agent-skill-authoring","upstreamSlug":"skill-creator","source":"official","provider":"Supabase","priority":65,"status":"active","costClass":"none","agentScope":["all"],"conflicts":["skills","agent-instructions"]}
   ]
 }
