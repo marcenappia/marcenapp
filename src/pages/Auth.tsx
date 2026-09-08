@@ -14,6 +14,7 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [countdown, setCountdown] = useState(0);
@@ -30,17 +31,33 @@ const Auth = () => {
     };
   }, [countdown]);
 
-  // Reset states when switching between login/signup/reset
   useEffect(() => {
     setError('');
     setSuccess('');
     setLoading(false);
-    // We keep countdown to prevent bypass by switching tabs
   }, [isLogin, isReset]);
 
   useEffect(() => {
     if (user) navigate('/');
   }, [user, navigate]);
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    setError('');
+    setSuccess('');
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth`,
+      },
+    });
+
+    if (error) {
+      setError(error.message);
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +113,30 @@ const Auth = () => {
           <p className="text-[hsl(var(--sidebar-text))] text-sm mt-1">Marcenaria 4.0</p>
         </div>
 
+        {isLogin && !isReset && (
+          <>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={googleLoading || loading}
+              className="w-full py-3 rounded-xl bg-white text-slate-900 font-semibold hover:bg-white/90 transition-all disabled:opacity-50 flex items-center justify-center gap-3 border border-white/20"
+            >
+              {googleLoading ? (
+                <Loader2 className="animate-spin" size={18} />
+              ) : (
+                <span className="text-lg font-bold">G</span>
+              )}
+              Continuar com Google
+            </button>
+
+            <div className="flex items-center gap-3 text-white/40 text-xs">
+              <div className="h-px flex-1 bg-white/15" />
+              <span>ou entre com e-mail</span>
+              <div className="h-px flex-1 bg-white/15" />
+            </div>
+          </>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && !isReset && (
             <input
@@ -133,7 +174,6 @@ const Auth = () => {
                 type="button"
                 onClick={() => { 
                   setIsReset(true); 
-                  // States are cleared by the useEffect [isLogin, isReset]
                 }}
                 className="text-xs text-[hsl(var(--sidebar-text))] hover:text-[hsl(var(--sidebar-active))] transition-colors"
               >
@@ -176,7 +216,7 @@ const Auth = () => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || googleLoading}
             className="w-full py-3 rounded-xl bg-[hsl(var(--sidebar-active))] text-white font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="animate-spin" size={18} />}
