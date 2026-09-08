@@ -25,9 +25,7 @@ export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid(
 
   while (remaining.length) {
     const ready = remaining.filter((step) => getAgent(step.agentId).dependencies?.every((dep) => done.has(dep)) ?? true);
-    if (!ready.length) {
-      return { correlationId, results, status: 'failed' };
-    }
+    if (!ready.length) return { correlationId, results, status: 'failed' };
 
     const batch = await Promise.all(ready.map(async (step) => {
       const task: AgentTask = { id: step.id, type: step.type, input: step.input, correlationId };
@@ -47,6 +45,7 @@ export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid(
   return { correlationId, results, status: 'completed' };
 }
 
+/** Canonical commercial journey. The existing UI flow is preserved; agents execute underneath it. */
 export async function runProjectJourney(input: Record<string, unknown>): Promise<AgentPlanResult> {
   return runAgentPlan([
     { id: 'customer', agentId: 'customer', type: 'customer.validate', input },
@@ -54,6 +53,9 @@ export async function runProjectJourney(input: Record<string, unknown>): Promise
     { id: 'measurement', agentId: 'measurement', type: 'measurement.validate', input },
     { id: 'materials', agentId: 'materials', type: 'materials.prepare', input },
     { id: 'render', agentId: 'render', type: 'render.prepare', input },
+    { id: 'quality', agentId: 'quality', type: 'quality.validate', input },
+    { id: 'presentation', agentId: 'presentation', type: 'presentation.prepare', input },
+    { id: 'approval', agentId: 'approval', type: 'approval.record', input },
     { id: 'inventory', agentId: 'inventory', type: 'inventory.check', input },
     { id: 'production', agentId: 'production', type: 'production.prepare', input },
     { id: 'budget', agentId: 'budget', type: 'budget.prepare', input },
