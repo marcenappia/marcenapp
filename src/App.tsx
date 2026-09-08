@@ -19,6 +19,7 @@ import AdminUsers from "./modules/admin/AdminUsers";
 import AdminProjects from "./modules/admin/AdminProjects";
 import AdminGuard from "./modules/admin/AdminGuard";
 import NotFound from "./pages/NotFound";
+import { supabaseConfigured } from "@/integrations/supabase/client";
 
 const queryClient = new QueryClient();
 
@@ -33,8 +34,18 @@ const SEO_SLUGS = [
   "software-para-marceneiro",
 ] as const;
 
+const ConfigurationNotice = () => (
+  <main className="min-h-screen bg-slate-950 px-6 py-16 text-white">
+    <div className="mx-auto max-w-xl rounded-2xl border border-amber-400/30 bg-white/5 p-8 shadow-2xl">
+      <p className="text-xs font-black uppercase tracking-[.18em] text-amber-300">MARCENAPP</p>
+      <h1 className="mt-3 text-2xl font-black">Configuração do ambiente pendente</h1>
+      <p className="mt-3 leading-relaxed text-slate-300">O deploy foi carregado, mas as variáveis públicas do Supabase não foram configuradas. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY nas variáveis de ambiente da hospedagem e publique novamente.</p>
+    </div>
+  </main>
+);
+
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  !supabaseConfigured ? <ConfigurationNotice /> : <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <TooltipProvider>
         <Toaster />
