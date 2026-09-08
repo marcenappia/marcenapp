@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Studio } from './index';
-import IaraModule from '@/modules/iara';
 import { useDebouncedValue } from '@/hooks/useDebounce';
 import { sincronizarLinhaDoTempoProjeto, registrarEventoSistema } from '@/modules/projetos/services/diarioStorage';
 
@@ -36,21 +35,39 @@ export const StudioHub = (props: StudioHubProps) => {
     } catch { /* contexto opcional */ }
   }, [projectId]);
 
+  useEffect(() => {
+    if (!projectId || !description.trim()) return;
+    const timer = window.setTimeout(() => {
+      registrarEventoSistema(projectId, 'descricao-atualizada-estudio', 'Descrição do projeto atualizada no Estúdio.', 'studio');
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [description, projectId]);
+
   const syncProject = { width: budgetProject?.width, height: budgetProject?.height, depth: budgetProject?.depth };
 
-  const handleIaraProjectChange = (p: { width: number; height: number; depth: number }) => {
-    props.setBudgetProject((prev: any) => {
-      if (prev?.width === p.width && prev?.height === p.height && prev?.depth === p.depth) return prev;
-      return { ...prev, width: p.width, height: p.height, depth: p.depth };
-    });
-    if (projectId) registrarEventoSistema(projectId, 'medidas-atualizadas-iara', `Medidas principais sincronizadas com a IARA — ${p.width} × ${p.height} × ${p.depth} m.`, 'iara');
-  };
+  return <div className="relative space-y-5">
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Projeto em andamento</p>
+          <h3 className="mt-1 truncate text-base font-extrabold text-slate-900">Estúdio de marcenaria</h3>
+          <p className="mt-1 text-xs text-slate-500">Crie a apresentação visual, confira o ambiente e prepare a documentação do projeto.</p>
+        </div>
+        <div className="shrink-0 rounded-xl bg-slate-50 px-3 py-2 text-right border border-slate-100">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Medidas atuais</p>
+          <p className="mt-0.5 text-sm font-extrabold text-slate-700">{budgetProject?.width} × {budgetProject?.height} × {budgetProject?.depth} m</p>
+        </div>
+      </div>
+      {diaryContext && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900"><strong>Nota do Diário:</strong> {diaryContext}</div>}
+      <div className="mt-4">
+        <label htmlFor="studio-description" className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">Briefing do projeto</label>
+        <textarea id="studio-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva o que precisa ser criado. Ex.: cozinha com ilha, painel de TV ou armário planejado..." className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400" />
+        <p className="mt-1.5 text-[10px] text-slate-400">Este briefing pode ser usado pela IARA como contexto do projeto.</p>
+      </div>
+    </section>
 
-  return <div className="relative space-y-4">
-    <div className="flex items-center justify-between"><div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Estúdio + IARA — projeto sincronizado <span className="ml-2 text-indigo-600">{budgetProject?.width}×{budgetProject?.height}×{budgetProject?.depth}m</span></div></div>
-    {diaryContext && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900"><strong>Nota trazida da plancheta:</strong> {diaryContext}</div>}
-    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4"><label htmlFor="studio-description" className="text-xs font-bold text-slate-400 uppercase mb-2 block">Descrição do Projeto <span className="ml-2 text-[9px] text-indigo-400 normal-case tracking-normal font-normal">(sincronizado com IARA e Diário)</span></label><textarea id="studio-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex: Cozinha estilo industrial 3.2×2.6m com ilha central..." className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm h-24 outline-none focus:border-indigo-500 resize-none text-white placeholder:text-slate-500" /></div>
-    <Studio {...studioProps} projectId={projectId} descriptionSlot={<IaraModule embedded projectId={projectId} syncProject={syncProject} onProjectChange={handleIaraProjectChange} syncDescription={debouncedDescription} onDescriptionChange={setDescription} />} />
+    <Studio {...studioProps} projectId={projectId} descriptionSlot={<div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4"><div className="flex items-start gap-3"><div className="mt-0.5 rounded-lg bg-white p-2 text-indigo-600 shadow-sm">✦</div><div><p className="text-xs font-black uppercase tracking-wider text-indigo-900">IARA integrada ao projeto</p><p className="mt-1 text-[11px] leading-relaxed text-indigo-800">A IARA fica disponível no botão do cabeçalho para revisar medidas, esclarecer dúvidas e apoiar decisões técnicas sem ocupar a área de trabalho.</p></div></div></div>} />
+    <p className="px-1 text-[10px] text-slate-400">A IARA não altera medidas de fabricação sem confirmação. Resultados visuais são referências até serem conferidos.</p>
   </div>;
 };
 
