@@ -106,20 +106,13 @@ serve(async (req) => {
       if (width < MIN_DIM || width > MAX_DIM || height < MIN_DIM || height > MAX_DIM) return badRequest({ message: "Validation failed", code: "validation_error", fields: { size: [`width and height must be between ${MIN_DIM} and ${MAX_DIM}`] } });
     }
 
-    const parts: Array<Record<string, unknown>> = [{ text: prompt }];
-    if (images && images.length > 0) {
-      for (const img of images) {
-        parts.push({
-          inlineData: { mimeType: img.mimeType, data: img.data }
-        });
-      }
-    }
+    const parts: any[] = [{ text: prompt }];
+    if (images?.length) for (const img of images) parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
 
     // Gemini 2.5 Flash Image is scheduled for shutdown on 2026-10-02.
     const model = "gemini-3.1-flash-image";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
-
-    const body: Record<string, unknown> = {
+    const body: Record<string, any> = {
       contents: [{ role: "user", parts }],
       generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
     };

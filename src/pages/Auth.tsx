@@ -113,8 +113,8 @@ const Auth = () => {
         if (error) setError(error.message);
         else setSuccess('Verifique seu e-mail para confirmar o cadastro.');
       }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ocorreu um erro inesperado.');
+    } catch (err: any) {
+      setError(err.message || 'Ocorreu um erro inesperado.');
     } finally {
       setLoading(false);
     }

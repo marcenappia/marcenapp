@@ -141,7 +141,6 @@ serve(async (req) => {
 
     const data = await response.json();
     const parts = data.candidates?.[0]?.content?.parts ?? [];
-
     const plan: Array<{ tool: string; args: Record<string, unknown> }> = [];
     let summary = "";
     for (const part of parts) {

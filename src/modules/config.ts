@@ -1,5 +1,5 @@
-import { 
-  Home, Wand2, Calculator, Package, Scale, Users, BookOpen, Plus, ArrowUpFromLine
+import {
+  Home, Wand2, ArrowUpFromLine, Calculator, Scissors, Scale, Users, BookOpen, Plus, Factory,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -21,18 +21,13 @@ export const modules: ModuleConfig[] = [
   { id: 'dashboard', label: 'Início', mobileLabel: 'Início', icon: Home, category: 'portal' },
   { id: 'novo', label: 'Novo projeto', mobileLabel: 'Novo', icon: Plus, category: 'portal' },
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: Users, category: 'portal' },
-  { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
-
-  // CAMADA 2 — ESTÚDIO + IARA (Materialização & Cognição unificadas)
-  { id: 'studio', label: 'Estúdio + IARA', mobileLabel: 'Studio', icon: Wand2, category: 'studio' },
-  { id: 'elevator', label: 'Elevador Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine, category: 'studio' },
-
-  // FINANCEIRO — ESTELA
-  { id: 'orcamento', label: 'Estela Financeiro', mobileLabel: 'Estela', icon: Calculator, category: 'finance' },
-
-  // PRODUÇÃO (Operacional)
-  { id: 'corte', label: 'Plano de Corte', mobileLabel: 'Corte', icon: Package, category: 'production' },
-  { id: 'contrato', label: 'Contratos', mobileLabel: 'Legal', icon: Scale, category: 'production' },
+  { id: 'diario', label: 'Diário de obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
+  { id: 'studio', label: 'Estúdio', mobileLabel: 'Estúdio', icon: Wand2, category: 'studio' },
+  { id: 'elevator', label: 'Elevar planta', mobileLabel: 'Planta', icon: ArrowUpFromLine, category: 'studio' },
+  { id: 'orcamento', label: 'Orçamento', mobileLabel: 'Orçamento', icon: Calculator, category: 'finance' },
+  { id: 'producao', label: 'Produção', mobileLabel: 'Produção', icon: Factory, category: 'production' },
+  { id: 'corte', label: 'Plano de corte', mobileLabel: 'Corte', icon: Scissors, category: 'production' },
+  { id: 'contrato', label: 'Contratos', mobileLabel: 'Contratos', icon: Scale, category: 'production' },
 ];
 
 export const CATEGORY_LABELS: Record<ModuleCategory, string> = {

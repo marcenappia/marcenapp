@@ -4,13 +4,18 @@ import AuthDialog from '@/components/marcenaria/AuthDialog';
 import { useNovoProjeto } from './hooks/useNovoProjeto';
 import { ProgressoObra } from './components/ProgressoObra';
 import { EtapaNome, EtapaFoto, EtapaPedido, EtapaAnalise, EtapaApresentacao, EtapaOrcamento } from './components/Etapas';
-import type { ProjectData } from '@/modules/projetos/types';
 
-interface Props {
-  projectId: string | null;
-  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
-  navigateTo: (id: string) => void;
-}
+interface Props { projectId: string | null; setBudgetProject: React.Dispatch<React.SetStateAction<any>>; navigateTo: (id: string) => void; }
+
+const JOURNEY = [
+  { label: 'Foto', icon: Camera },
+  { label: 'Pedido', icon: MessageSquare },
+  { label: 'IARA', icon: Sparkles },
+  { label: 'Projeto', icon: Boxes },
+  { label: 'Orçamento', icon: FileText },
+  { label: 'Produção', icon: Factory },
+  { label: 'Corte', icon: Scissors },
+];
 
 /** Jornada guiada "Novo Projeto": uma ação principal por etapa, mobile-first. */
 export const NovoProjeto = ({ projectId, setBudgetProject, navigateTo }: Props) => {

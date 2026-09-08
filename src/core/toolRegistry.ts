@@ -7,15 +7,15 @@ import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { callAIText } from '@/services/ai';
 
-export type ToolResult<T = Record<string, unknown>> =
+export type ToolResult<T = any> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
-export interface ToolDefinition<TArgs extends Record<string, unknown> = Record<string, unknown>, TResult = Record<string, unknown>> {
+export interface ToolDefinition<TArgs = any, TResult = any> {
   name: string;
   description: string;
   version: string;
-  inputSchema: z.ZodTypeAny;
+  inputSchema: z.ZodType<TArgs>;
   execute: (args: TArgs, ctx: ExecutionContext) => Promise<ToolResult<TResult>>;
 }
 
@@ -26,11 +26,7 @@ export interface ExecutionContext {
   lastImageMask?: string;
 }
 
-// ============================================================
-// Ferramentas
-// ============================================================
-
-const createCliente: ToolDefinition<{ nome: string; email?: string; telefone?: string }> = {
+const createCliente: ToolDefinition = {
   name: 'createCliente',
   description: 'Cria um novo cliente sem inventar dados pessoais',
   version: '1.1.0',
@@ -48,7 +44,7 @@ const createCliente: ToolDefinition<{ nome: string; email?: string; telefone?: s
   },
 };
 
-const createProjeto: ToolDefinition<{ nome: string; clienteNome?: string; width?: number; height?: number; depth?: number; tipo?: string }> = {
+const createProjeto: ToolDefinition = {
   name: 'createProjeto',
   description: 'Cria projeto somente com dimensões reais/confirmadas; nunca aplica medidas padrão silenciosamente. Requer confirmação explícita do usuário.',
   version: '1.2.0',
@@ -74,7 +70,7 @@ const createProjeto: ToolDefinition<{ nome: string; clienteNome?: string; width?
   },
 };
 
-const gerarRender: ToolDefinition<{ prompt: string; estilo?: string }> = {
+const gerarRender: ToolDefinition = {
   name: 'gerarRender',
   description: 'Enfileira render no Estúdio sem transformar estimativas visuais em medidas de fabricação',
   version: '1.1.0',
@@ -93,7 +89,7 @@ const gerarRender: ToolDefinition<{ prompt: string; estilo?: string }> = {
   },
 };
 
-const calcularOrcamento: ToolDefinition<{ observacoes?: string }> = {
+const calcularOrcamento: ToolDefinition = {
   name: 'calcularOrcamento',
   description: 'Calcula orçamento estimado do projeto atual; não substitui conferência do orçamento profissional',
   version: '1.1.0',
@@ -118,7 +114,7 @@ const calcularOrcamento: ToolDefinition<{ observacoes?: string }> = {
   },
 };
 
-const gerarContrato: ToolDefinition<{ clienteNome: string; valor?: number; prazoDias?: number; clausulasExtras?: string[] }> = {
+const gerarContrato: ToolDefinition = {
   name: 'gerarContrato',
   description: 'Prepara documentação contratual; revisão jurídica profissional pode ser necessária',
   version: '1.1.0',

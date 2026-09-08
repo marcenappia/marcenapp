@@ -36,21 +36,45 @@ export const aiHeaders = async (): Promise<Record<string, string>> => {
   };
 };
 
-/** POST autenticado em uma Edge Function; converte erros em mensagens legíveis. */
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** POST autenticado em uma Edge Function com retry curto e seguro para 429/503. */
 export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Promise<T> => {
+  if (!SUPABASE_URL || !SUPABASE_KEY) throw new AIConfigError();
+
   const headers = await aiHeaders();
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-  let data: unknown = null;
-  try { data = await res.json(); } catch { /* corpo vazio */ }
-  if (!res.ok) {
-    if (res.status === 401) throw new AIAuthError('Sessão expirada. Faça login novamente.');
-    const errorData = data as { error?: string; message?: string } | null;
-    const msg = errorData?.error || errorData?.message || `Erro ${res.status}`;
-    throw new Error(msg);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
+        method: 'POST',
+        headers: { ...headers, 'x-retry-count': String(attempt) },
+        body: JSON.stringify(body),
+      });
+
+      let data: any = null;
+      try { data = await res.json(); } catch { /* corpo vazio */ }
+
+      if (res.ok) return data as T;
+      if (res.status === 401) throw new AIAuthError('Sessão expirada. Faça login novamente.');
+
+      const msg = data?.error || data?.message || `Erro ${res.status}`;
+      if ((res.status === 429 || res.status === 503) && attempt < 2) {
+        const retryAfter = Number(res.headers.get('Retry-After') ?? 2);
+        await sleep(Math.min(Math.max(retryAfter, 1), 10) * 1000);
+        lastError = new Error(msg);
+        continue;
+      }
+      throw new Error(msg);
+    } catch (error) {
+      if (error instanceof AIAuthError || error instanceof AIConfigError) throw error;
+      lastError = error instanceof Error ? error : new Error('Falha ao comunicar com a IA.');
+      if (attempt < 2) {
+        await sleep(500 * 2 ** attempt);
+        continue;
+      }
+    }
   }
 
   throw lastError ?? new Error('Falha ao comunicar com a IA.');

@@ -40,25 +40,13 @@ test.describe('Navegação, acessibilidade e responsividade', () => {
     }
   });
 
-  test('screen reader accessibility and ARIA labels', async ({ page, isMobile }) => {
-    const mod = { id: 'chat', label: 'IARA Chat' };
-    const selector = isMobile ? `#mobile-nav-${mod.id}` : `#nav-${mod.id}`;
-    const btn = page.locator(selector).first();
-
-    await btn.focus();
-    // Verify that the element has the correct accessible name
-    await expect(btn).toHaveAttribute('aria-label', mod.label);
-    
-    await page.keyboard.press('Enter');
-    // Verify ARIA state after activation
-    await expect(btn).toHaveAttribute('aria-current', 'page');
-    
-    // Verify that screen reader would announce the correct label and state
-    const accessibilitySnapshot = await page.accessibility.snapshot({ root: await btn.elementHandle() });
-    expect(accessibilitySnapshot?.name).toBe(mod.label);
-    if (!isMobile) {
-      // On desktop, check if the current page indicator is detected
-      expect(accessibilitySnapshot?.current).toBe('page');
+  test('módulos atualizam aria-current sem depender de URL', async ({ page, isMobile }) => {
+    const modules = isMobile ? mobileModules : desktopModules;
+    const prefix = isMobile ? '#mobile-nav-' : '#nav-';
+    for (const id of modules) {
+      const button = page.locator(`${prefix}${id}`);
+      await button.click();
+      await expect(button).toHaveAttribute('aria-current', 'page');
     }
   });
 

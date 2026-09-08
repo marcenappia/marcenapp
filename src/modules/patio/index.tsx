@@ -1,90 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { FileDown, Plus, RefreshCcw, Trash2, ShoppingCart, PackageOpen, CheckCircle2 } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
-import type { ProjectData } from '@/modules/projetos/types';
+import { planCutting, CutPlanningPart, GrainDirection, CutRemnant } from '@/core/cutPlanning';
+import { buildHardwareList } from '@/core/hardware';
 
-export interface Part {
-  id: number;
-  name: string;
-  w: number;
-  h: number;
-  qtd: number;
-  mat: 'white' | 'wood';
-}
-
-interface ExplodedPart extends Part {
-  uid: string;
-}
-
-interface SheetItem extends ExplodedPart {
-  x: number;
-  y: number;
-}
-
-interface Sheet {
-  items: SheetItem[];
-  usedArea: number;
-}
-
-export function generatePartsFromProject(project: Partial<ProjectData>): Part[] {
-  const width = Math.max(0, Math.round(Number(project?.width) * 1000));
-  const height = Math.max(0, Math.round(Number(project?.height) * 1000));
-  const depth = Math.max(0, Math.round(Number(project?.depth) * 1000));
-  const doors = Math.max(0, Math.floor(Number(project?.doors) || 0));
-  const drawers = Math.max(0, Math.floor(Number(project?.drawers) || 0));
-  const modules = Math.max(1, Math.floor(Number(project?.modules) || 1));
-  const carcassWidth = Math.max(0, width - 36);
-  const openingHeight = Math.max(0, height - 36);
-  const openingWidth = Math.max(0, Math.floor(carcassWidth / modules));
-  const parts: Omit<Part, 'id'>[] = [];
-
-  const add = (name: string, w: number, h: number, qtd: number, mat: Part['mat']) => {
-    if (w > 0 && h > 0 && qtd > 0) parts.push({ name, w, h, qtd, mat });
-  };
-
-  add('Lateral', depth, openingHeight, 2, 'white');
-  add('Base / Topo', depth, carcassWidth, 2, 'white');
-  add('Prateleira', Math.max(0, depth - 20), openingWidth, Math.max(0, modules * 2), 'white');
-  add('Fundo', Math.max(0, openingHeight), carcassWidth, 1, 'white');
-  add('Porta', Math.max(0, Math.floor(carcassWidth / Math.max(1, doors)) - 3), Math.max(0, height - 4), doors, 'wood');
-  add('Frente de gaveta', Math.max(0, openingWidth - 4), Math.max(0, Math.floor(openingHeight / Math.max(1, drawers + 1)) - 3), drawers, 'wood');
-
-  return parts.map((part, index) => ({ ...part, id: index + 1 }));
-}
-
-const SHEET_W = 2730;
-const SHEET_H = 1830;
-const KERF = 3;
-
-function packParts(parts: ExplodedPart[]): Sheet[] {
-  const sorted = [...parts].sort((a, b) => b.h - a.h);
-  const sheets: Sheet[] = [];
-  let currentSheet: Sheet = { items: [], usedArea: 0 };
-  let x = 0, y = 0, rowH = 0;
-
-  const newSheet = () => {
-    if (currentSheet.items.length) sheets.push(currentSheet);
-    currentSheet = { items: [], usedArea: 0 };
-    x = 0; y = 0; rowH = 0;
-  };
-
-  sorted.forEach(p => {
-    if (x + p.w > SHEET_W) { x = 0; y += rowH + KERF; rowH = 0; }
-    if (y + p.h > SHEET_H) newSheet();
-    currentSheet.items.push({ ...p, x, y });
-    currentSheet.usedArea += p.w * p.h;
-    x += p.w + KERF;
-    rowH = Math.max(rowH, p.h);
-  });
-
-  if (currentSheet.items.length) sheets.push(currentSheet);
-  return sheets;
-}
+interface Part extends CutPlanningPart {}
 
 interface Props {
   parts: Part[];
   setParts: (parts: Part[]) => void;
-  project: ProjectData;
+  project: any;
 }
 
 interface SavedRemnant extends CutRemnant {
@@ -190,7 +115,20 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
   };
 
   const importFromBudget = () => {
-    setParts(generatePartsFromProject(project));
+    const w = Math.round(project.width * 1000);
+    const h = Math.round(project.height * 1000);
+    const d = Math.round(project.depth * 1000);
+    const modules = Math.max(1, Math.round(project.modules || 1));
+    const moduleW = Math.max(300, Math.floor((w - Math.max(0, modules - 1) * 18) / modules));
+    const autoParts: Part[] = [
+      { id: Date.now() + 1, name: 'Lateral', w: Math.max(250, d - 20), h, qtd: modules * 2, mat: 'white', thickness: 15, grain: 'vertical' },
+      { id: Date.now() + 2, name: 'Base', w: Math.max(250, d - 20), h: moduleW - 30, qtd: modules, mat: 'white', thickness: 15, grain: 'none' },
+      { id: Date.now() + 3, name: 'Topo', w: Math.max(250, d - 20), h: moduleW - 30, qtd: modules, mat: 'white', thickness: 15, grain: 'none' },
+      { id: Date.now() + 4, name: 'Prateleira', w: Math.max(230, d - 40), h: Math.max(260, moduleW - 40), qtd: modules * 2, mat: 'white', thickness: 15, grain: 'none' },
+      { id: Date.now() + 5, name: 'Fundo', w: moduleW, h, qtd: modules, mat: 'white', thickness: 6, grain: 'vertical' },
+    ];
+    if (project.doors > 0) autoParts.push({ id: Date.now() + 6, name: 'Porta', w: Math.max(250, Math.floor((w - (project.doors - 1) * 3) / project.doors)), h: Math.max(300, h - 4), qtd: Math.round(project.doors), mat: 'wood', thickness: 18, grain: 'vertical' });
+    setParts([...parts, ...autoParts]);
   };
 
   const addPart = () => {

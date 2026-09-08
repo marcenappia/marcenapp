@@ -24,24 +24,15 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
 
   useEffect(() => {
     if (!syncProject) return;
-    setFactors(prev => {
-      const next = {
-        ...prev,
-        L: syncProject.width ?? prev.L,
-        A: syncProject.height ?? prev.A,
-        P: syncProject.depth ?? prev.P,
-      };
-      if (next.L === prev.L && next.A === prev.A && next.P === prev.P) return prev;
-      return next;
-    });
-  }, [syncProject]);
+    setFactors(prev => ({ ...prev, L: syncProject.width ?? prev.L, A: syncProject.height ?? prev.A, P: syncProject.depth ?? prev.P }));
+  }, [syncProject?.width, syncProject?.height, syncProject?.depth]);
 
   useEffect(() => {
     if (!onProjectChange) return;
     const sameAsStudio = syncProject?.width === factors.L && syncProject?.height === factors.A && syncProject?.depth === factors.P;
     if (sameAsStudio) return;
     onProjectChange({ width: factors.L, height: factors.A, depth: factors.P });
-  }, [factors.L, factors.A, factors.P, onProjectChange, syncProject]);
+  }, [factors.L, factors.A, factors.P]);
 
   const { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, memoryEvidence, memoryConflictCount, memory, resolveMemoryConflict } = useIaraChat(factors, decorStyle, setShowAuthDialog, {
     onProjectCreated: (p) => setFactors(prev => ({ ...prev, L: p.width ?? prev.L, A: p.height ?? prev.A, P: p.depth ?? prev.P })),
@@ -61,26 +52,17 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const isDrawingRef = useRef(false);
-
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
   useEffect(() => {
     if (!maskingImage || !canvasRef.current) return;
     const c = canvasRef.current; c.width = 1080; c.height = 1920;
     const ctx = c.getContext('2d');
     if (ctx) { ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'; ctx.lineWidth = 60; ctxRef.current = ctx; }
   }, [maskingImage]);
-
-  const getCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const sx = 1080 / rect.width; const sy = 1920 / rect.height;
-    const isTouchEvent = 'touches' in e;
-    const cx = isTouchEvent ? e.touches[0].clientX : e.clientX;
-    const cy = isTouchEvent ? e.touches[0].clientY : e.clientY;
-    return { offsetX: (cx - rect.left) * sx, offsetY: (cy - rect.top) * sy };
-  };
-  const startDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => { if (!ctxRef.current) return; ctxRef.current.beginPath(); const c = getCoords(e); ctxRef.current.moveTo(c.offsetX, c.offsetY); isDrawingRef.current = true; };
-  const moveDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => { if (!isDrawingRef.current || !ctxRef.current) return; const c = getCoords(e); ctxRef.current.lineTo(c.offsetX, c.offsetY); ctxRef.current.stroke(); };
-  const endDraw = () => { isDrawingRef.current = false; };
+  const getCoords = (e: any) => { const rect = canvasRef.current!.getBoundingClientRect(); const sx = 1080 / rect.width; const sy = 1920 / rect.height; const cx = e.touches ? e.touches[0].clientX : e.clientX; const cy = e.touches ? e.touches[0].clientY : e.clientY; return { offsetX: (cx - rect.left) * sx, offsetY: (cy - rect.top) * sy }; };
+  const startDraw = (e: any) => { if (!ctxRef.current) return; ctxRef.current.beginPath(); const c = getCoords(e); ctxRef.current.moveTo(c.offsetX, c.offsetY); (canvasRef.current as any).isDrawing = true; };
+  const moveDraw = (e: any) => { if (!(canvasRef.current as any)?.isDrawing || !ctxRef.current) return; const c = getCoords(e); ctxRef.current.lineTo(c.offsetX, c.offsetY); ctxRef.current.stroke(); };
+  const endDraw = () => { if (canvasRef.current) (canvasRef.current as any).isDrawing = false; };
 
   const confirmMask = async () => {
     if (!maskingImage || !canvasRef.current) return;
@@ -111,68 +93,12 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
         </div>
         <div className="hidden sm:flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-muted-foreground"><Brain size={13} className="text-primary" /><span>Memória operacional · conferência antes de decisões críticas</span></div>
       </header>
-
-      <ChatMessages
-        messages={messages}
-        isTyping={isTyping}
-        onImageZoom={setActiveImageZoom}
-        messagesEndRef={messagesEndRef}
-        error={error}
-        onRetry={retryLast}
-        onDismissError={dismissError}
-        onSuggestion={(text) => { setChatInput(text); pushDescription(text, true); }}
-      />
-      
-      <ChatInput
-        chatInput={chatInput}
-        setChatInput={(v) => {
-          setChatInput(v);
-          pushDescription(v);
-        }}
-        onSend={() => {
-          const sent = chatInput.trim();
-          if (sent) pushDescription(sent, true);
-          handleSend();
-        }}
-        onImageSelect={handleImageSelect}
-        toggleRecording={toggleRecording}
-        isListening={isListening}
-        pendingUpload={pendingUpload}
-        setPendingUpload={setPendingUpload}
-      />
-
-
-      {maskingImage && (
-        <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="w-full max-w-sm aspect-[9/16] relative bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
-            <img src={maskingImage.src} className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
-            <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw} className="absolute inset-0 w-full h-full touch-none cursor-crosshair" />
-            <div className="absolute top-6 left-6 right-6 flex justify-between items-center bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5">
-              <span className="text-white text-xs font-black uppercase tracking-tighter italic">IARA Target Painter</span>
-              <button onClick={() => setMaskingImage(null)} className="text-white/60 hover:text-white transition-colors"><X size={20}/></button>
-            </div>
-          </div>
-          <div className="mt-8 flex gap-4 w-full max-w-sm">
-            <button onClick={() => setMaskingImage(null)} className="flex-1 py-4 bg-white/5 text-white/60 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white/10 transition-all">Cancelar</button>
-            <button onClick={confirmMask} className="flex-1 py-4 bg-primary text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all">Confirmar Alvo</button>
-          </div>
-        </div>
-      )}
-
-      {activeImageZoom && (
-        <div className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4 animate-in zoom-in-95 duration-200" onClick={() => setActiveImageZoom(null)}>
-          <div className="relative max-w-4xl w-full" onClick={e => e.stopPropagation()}>
-            <img src={activeImageZoom.url} className="w-full h-auto rounded-2xl shadow-2xl" alt="Zoom" />
-            <button onClick={() => setActiveImageZoom(null)} className="absolute -top-4 -right-4 p-3 bg-white text-black rounded-full shadow-2xl hover:scale-110 active:scale-90 transition-all"><X size={24}/></button>
-            {activeImageZoom.budget && (
-              <div className="absolute bottom-6 left-6 bg-primary/90 backdrop-blur-lg px-6 py-3 rounded-2xl border border-white/20 shadow-2xl">
-                <span className="text-white font-black italic tracking-tighter text-xl">R$ {activeImageZoom.budget}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
+      <div className="px-4 py-2 bg-muted/30 border-b border-border flex items-center gap-2 text-[10px] text-muted-foreground"><ShieldCheck size={14} className="shrink-0 text-primary" /><span><strong className="text-foreground">Modo técnico seguro:</strong> medidas estimadas não viram produção automaticamente. A IARA acompanha o que foi confirmado e sinaliza conflitos antes de uma decisão irreversível.</span></div>
+      <IaraReadinessPanel memory={memory} onResolveConflict={resolveMemoryConflict} />
+      <ChatMessages messages={messages} isTyping={isTyping} onImageZoom={setActiveImageZoom} messagesEndRef={messagesEndRef} error={error} onRetry={retryLast} onDismissError={dismissError} onSuggestion={(text) => { setChatInput(text); pushDescription(text, true); }} />
+      <ChatInput chatInput={chatInput} setChatInput={(v) => { setChatInput(v); pushDescription(typeof v === 'function' ? (v as any)(chatInput) : v); }} onSend={() => { const sent = chatInput.trim(); if (sent) pushDescription(sent, true); handleSend(); }} onImageSelect={handleImageSelect} toggleRecording={toggleRecording} isListening={isListening} pendingUpload={pendingUpload} setPendingUpload={setPendingUpload} />
+      {maskingImage && <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-300"><div className="w-full max-w-sm aspect-[9/16] relative bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10"><img src={maskingImage.src} className="absolute inset-0 w-full h-full object-contain pointer-events-none" /><canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw} className="absolute inset-0 w-full h-full touch-none cursor-crosshair" /><div className="absolute top-6 left-6 right-6 flex justify-between items-center bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5"><span className="text-white text-xs font-black uppercase tracking-tighter italic">IARA Target Painter</span><button onClick={() => setMaskingImage(null)} className="text-white/60 hover:text-white transition-colors"><X size={20}/></button></div></div><div className="mt-8 flex gap-4 w-full max-w-sm"><button onClick={() => setMaskingImage(null)} className="flex-1 py-4 bg-white/5 text-white/60 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white/10 transition-all">Cancelar</button><button onClick={confirmMask} className="flex-1 py-4 bg-primary text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all">Confirmar Alvo</button></div></div>}
+      {activeImageZoom && <div className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4 animate-in zoom-in-95 duration-200" onClick={() => setActiveImageZoom(null)}><div className="relative max-w-4xl w-full" onClick={e => e.stopPropagation()}><img src={activeImageZoom.url} className="w-full h-auto rounded-2xl shadow-2xl" alt="Zoom" /><button onClick={() => setActiveImageZoom(null)} className="absolute -top-4 -right-4 p-3 bg-white text-black rounded-full shadow-2xl hover:scale-110 active:scale-90 transition-all"><X size={24}/></button>{activeImageZoom.budget && <div className="absolute bottom-6 left-6 bg-primary/90 backdrop-blur-lg px-6 py-3 rounded-2xl border border-white/20 shadow-2xl"><span className="text-white font-black italic tracking-tighter text-xl">R$ {activeImageZoom.budget}</span></div>}</div></div>}
       <AuthDialog isOpen={showAuthDialog} onClose={() => setShowAuthDialog(false)} onSuccess={() => setShowAuthDialog(false)} />
     </div>
   );

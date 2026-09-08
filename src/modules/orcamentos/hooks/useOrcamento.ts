@@ -1,78 +1,55 @@
-import { useMemo } from 'react';
-import type { ProjectData } from '@/modules/projetos/types';
+import { useMemo, useState } from 'react';
+import { calculateBudget, DEFAULT_PRICES, PriceCatalog, CutSavings } from '@/core/pricing';
 
-interface MaterialPrice {
-  price: number;
-  area?: number;
+const STORAGE_KEY = 'marcenapp-pricing-v1';
+const SAVINGS_KEY_PREFIX = 'marcenapp-cut-savings-v1:';
+
+function loadPrices(): PriceCatalog {
+  if (typeof window === 'undefined') return DEFAULT_PRICES;
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (!stored) return DEFAULT_PRICES;
+    const parsed = JSON.parse(stored) as PriceCatalog;
+    return Object.fromEntries(Object.entries(DEFAULT_PRICES).map(([key, defaults]) => [key, { ...defaults, ...(parsed[key] ?? {}) }]));
+  } catch { return DEFAULT_PRICES; }
 }
 
-const prices: Record<string, MaterialPrice> = {
-  mdf15_white: { price: 260.00, area: 5.08 },
-  mdf18_white: { price: 290.00, area: 5.08 },
-  mdf18_wood: { price: 495.00, area: 5.08 },
-  mdf6_white: { price: 220.00, area: 5.08 },
-  slide: { price: 28.00 },
-  hinge: { price: 7.50 },
-  handle_external: { price: 15.00 },
-  handle_profile: { price: 45.00 },
-  handle_cava: { price: 0.00 },
-  hardware_setup: { price: 180.00 },
-};
+function projectKey(project: any) {
+  return String(project?.id ?? project?.name ?? project?.jornada?.id ?? 'current');
+}
 
-export const useOrcamento = (project: Partial<ProjectData>) => {
-  const calc = useMemo(() => {
-    const safeProject: Partial<ProjectData> = project ?? {};
-    const width = Number(safeProject.width) || 0;
-    const height = Number(safeProject.height) || 0;
-    const depth = Number(safeProject.depth) || 0;
-    const drawers = Number(safeProject.drawers) || 0;
-    const doors = Number(safeProject.doors) || 0;
-    const laborRate = Number(safeProject.laborRate) || 0;
-    const profitMargin = Number(safeProject.profitMargin) || 0;
+function loadSavings(project: any): CutSavings {
+  if (typeof window === 'undefined') return { internal: 0, external: 0, back: 0, total: 0 };
+  try {
+    const raw = window.localStorage.getItem(`${SAVINGS_KEY_PREFIX}${projectKey(project)}`);
+    return raw ? JSON.parse(raw) : { internal: 0, external: 0, back: 0, total: 0 };
+  } catch { return { internal: 0, external: 0, back: 0, total: 0 }; }
+}
 
-    const intMat = prices[safeProject.internalMaterial] || prices.mdf15_white;
-    const extMat = prices[safeProject.externalMaterial] || prices.mdf18_white;
-    const backMat = prices[safeProject.backMaterial] || prices.mdf6_white;
+export const useOrcamento = (project: any) => {
+  const [prices, setPrices] = useState<PriceCatalog>(loadPrices);
+  const savings = useMemo(() => loadSavings(project), [project]);
+  const calc = useMemo(() => calculateBudget(project, prices, savings), [project, prices, savings]);
 
-    const frontalArea = width * height;
-    const sideArea = (height * depth) * 2;
-    const topArea = width * depth;
-    const totalFaceArea = frontalArea + sideArea + topArea;
+  const updatePrice = (material: string, field: keyof PriceCatalog[string], value: number) => {
+    setPrices(current => {
+      const next = { ...current, [material]: { ...current[material], [field]: value } };
+      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* storage opcional */ }
+      return next;
+    });
+  };
 
-    const sheetsInt = Math.max(1, Math.ceil((totalFaceArea * 0.85) / (intMat.area ?? 5.08)));
-    const sheetsExt = Math.max(1, Math.ceil((totalFaceArea * 1.25) / (extMat.area ?? 5.08)));
-    const sheetsBack = Math.max(1, Math.ceil((width * height * 0.55) / (backMat.area ?? 5.08)));
-
-    const costInt = sheetsInt * intMat.price;
-    const costExt = sheetsExt * extMat.price;
-    const costBack = sheetsBack * backMat.price;
-
-    const handleCost = safeProject.handleType === 'external'
-      ? (drawers + doors) * prices.handle_external.price
-      : (drawers + doors) * prices.handle_profile.price;
-
-    const hardwareCost = (drawers * prices.slide.price) + (doors * 2 * prices.hinge.price) + handleCost + prices.hardware_setup.price;
-    const totalMat = costInt + costExt + costBack + hardwareCost;
-
-    const labor = totalMat * (laborRate / 100);
-    const subtotal = totalMat + labor;
-    const profit = subtotal * (profitMargin / 100);
-    const total = subtotal + profit;
-
-    return {
-      total,
-      mat: totalMat,
-      labor,
-      profit,
-      sheetsInt,
-      sheetsExt,
-      sheetsBack,
-      totalFaceArea,
-    };
-  }, [project]);
+  const resetPrices = () => {
+    setPrices(DEFAULT_PRICES);
+    try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* storage opcional */ }
+  };
 
   return {
     calc,
+    prices,
+    savings,
+    updatePrice,
+    resetPrices,
     formatBRL: (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v),
   };
 };

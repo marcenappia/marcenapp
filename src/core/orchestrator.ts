@@ -5,11 +5,13 @@
 import { supabase } from '@/integrations/supabase/client';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
 import { callAIFunction } from '@/services/ai';
-import type { Json } from '@/integrations/supabase/types';
+import { IARA_IDENTITY } from './iaraExpert';
+import { assessIaraJourneyReadiness, type IaraJourneyTarget } from './iaraJourneyReadiness';
+import { normalizeIaraMemory, type IaraMemory } from './iaraMemory';
 
 export interface ToolCall {
   tool: string;
-  args: Record<string, unknown>;
+  args: Record<string, any>;
 }
 
 export interface OrchestratorPlan {
@@ -44,7 +46,7 @@ function readinessBlocker(target: IaraJourneyTarget, memory: IaraMemory): ToolRe
 
 export async function planWithLLM(
   userPrompt: string,
-  context?: Record<string, unknown>,
+  context?: Record<string, any>,
 ): Promise<OrchestratorPlan> {
   const safetyContext = {
     ...context,
@@ -69,7 +71,7 @@ export async function planWithLLM(
 export async function runOrchestrator(
   userPrompt: string,
   ctx: ExecutionContext,
-  context?: Record<string, unknown>,
+  context?: Record<string, any>,
 ): Promise<OrchestratorRun> {
   // Log inicial (best-effort)
   let runId: string | null = null;
@@ -124,15 +126,13 @@ export async function runOrchestrator(
       await supabase
         .from('orchestrator_runs')
         .update({
-          plan: plan as unknown as Json,
-          results: results as unknown as Json,
+          plan: plan as any,
+          results: results as any,
           used_fallback: usedFallback,
           status: results.every(r => r.result.ok) ? 'completed' : 'failed',
         })
         .eq('id', runId);
-    } catch (error) {
-      console.error('Falha ao registrar execução do orquestrador:', error);
-    }
+    } catch {}
   }
 
   return { runId, plan, summary, results, usedFallback };

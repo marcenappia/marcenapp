@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
-import { StudioView as Studio } from './StudioView';
-import IaraModule from '@/modules/iara';
-import { useDebouncedValue } from '@/hooks/useDebounce';
-import type { ProjectData } from '@/modules/projetos/types';
+import React, { useEffect, useState } from 'react';
+import { Studio } from './index';
+import { sincronizarLinhaDoTempoProjeto, registrarEventoSistema } from '@/modules/projetos/services/diarioStorage';
 
 interface StudioHubProps {
-  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
+  setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
   navigateTo: (id: string) => void;
   gallery: string[];
   setGallery: React.Dispatch<React.SetStateAction<string[]>>;
-  budgetProject: ProjectData;
+  budgetProject: any;
 }
 
 const DIARY_CONTEXT_KEY = 'marcenapp_studio_diary_context';
@@ -35,12 +33,13 @@ export const StudioHub = (props: StudioHubProps) => {
     } catch { /* contexto opcional */ }
   }, [projectId]);
 
-  const handleIaraProjectChange = (p: { width: number; height: number; depth: number }) => {
-    props.setBudgetProject((prev) => {
-      if (prev?.width === p.width && prev?.height === p.height && prev?.depth === p.depth) return prev;
-      return { ...prev, width: p.width, height: p.height, depth: p.depth };
-    });
-  };
+  useEffect(() => {
+    if (!projectId || !description.trim()) return;
+    const timer = window.setTimeout(() => {
+      registrarEventoSistema(projectId, 'descricao-atualizada-estudio', 'Descrição do projeto atualizada no Estúdio.', 'studio');
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [description, projectId]);
 
   return <div className="relative space-y-5">
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

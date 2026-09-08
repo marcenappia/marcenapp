@@ -1,3 +1,81 @@
-// Re-export StudioView como Studio para compatibilidade com quem importa de ./index
-// (拆分 de StudioHub para evitar import circular: StudioView.tsx → StudioHub.tsx → index.tsx)
-export { StudioView as Studio } from './StudioView';
+import React, { useState } from 'react';
+import { Upload, MapPin, LayoutTemplate, RefreshCcw, Loader2, Image as ImageIcon, Download, DollarSign, Maximize2, X, Ruler, House, Construction, Layers3, PencilRuler } from 'lucide-react';
+import { Button, Card, Modal, DecorationPanel } from '@/components/marcenaria/shared';
+import AuthDialog from '@/components/marcenaria/AuthDialog';
+import { useStudio } from './hooks/useStudio';
+import { EnvironmentAnalysisPanel } from './components/EnvironmentAnalysisPanel';
+import { ProjectDocumentation2D } from './components/ProjectDocumentation2D';
+import { StudioStatusBar } from './components/StudioStatusBar';
+import { studioService, type StudioGenerationMode } from './services/studioService';
+
+interface StudioProps { setBudgetProject: React.Dispatch<React.SetStateAction<any>>; navigateTo: (id: string) => void; gallery: string[]; setGallery: React.Dispatch<React.SetStateAction<string[]>>; descriptionSlot?: React.ReactNode; projectId?: string | null; }
+
+export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, descriptionSlot, projectId }: StudioProps) => {
+  const [projectMode, setProjectMode] = useState<'ready' | 'planned' | 'concept'>('ready');
+  const [plannedDimensions, setPlannedDimensions] = useState({ width: '', height: '', depth: '' });
+  const [elevatingPlan, setElevatingPlan] = useState(false);
+  const generationMode: StudioGenerationMode = projectMode === 'ready' ? 'environment-project' : 'planned-environment';
+  const planned = { width: plannedDimensions.width ? Number(plannedDimensions.width) : undefined, height: plannedDimensions.height ? Number(plannedDimensions.height) : undefined, depth: plannedDimensions.depth ? Number(plannedDimensions.depth) : undefined };
+  const { prompt, setPrompt, sketchImage, setSketchImage, envImage, setEnvImage, generatedImage, setGeneratedImage, loading, analyzing, selectedDecor, setSelectedDecor, isRefining, setIsRefining, error, setError, showModal, setShowModal, isRecording, selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction, generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime, environmentAnalysis, analyzingEnvironment, confirmingEnvironment, environmentError, analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis, updateEnvironmentAnalysis } = useStudio(setBudgetProject, navigateTo, gallery, setGallery, projectId, generationMode, planned);
+
+  const clearVisualResult = () => { setGeneratedImage(null); setGallery([]); setIsRefining(false); setShowModal(false); };
+  const hasDocumentation = Boolean(gallery.length > 0 || generatedImage);
+
+  const processFile = (file: File, type: 'sketch' | 'env') => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      const base64Clean = result.split(',')[1];
+      clearVisualResult();
+      if (type === 'sketch') { setSketchImage(result); setSketchBase64(base64Clean); setSketchMime(file.type); }
+      else { resetEnvironmentAnalysis(); setEnvImage(result); setEnvBase64(base64Clean); setEnvMime(file.type); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDownload = () => { if (!generatedImage) return; const link = document.createElement('a'); link.href = generatedImage; link.download = `marcenaria-${Date.now()}.png`; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
+  const selectMode = (mode: 'ready' | 'planned' | 'concept') => { setProjectMode(mode); setError(null); clearVisualResult(); if (mode !== 'ready') { resetEnvironmentAnalysis(); setEnvImage(null); setEnvBase64(null); setEnvMime(null); } };
+
+  const handleElevatePlan = async () => {
+    if (!sketchImage) { setError('Envie uma planta baixa antes de elevar o ambiente.'); return; }
+    setElevatingPlan(true); setError(null);
+    try {
+      const base64 = sketchImage.includes(',') ? sketchImage.split(',')[1] : sketchImage;
+      const mimeType = sketchImage.match(/^data:([^;]+);/)?.[1] || 'image/png';
+      const elevated = await studioService.elevateFloorPlan({ mimeType, data: base64 }, prompt || 'Criar uma base espacial para o projeto de marcenaria neste ambiente.', planned);
+      if (!elevated) throw new Error('Não foi possível elevar a planta. Tente novamente.');
+      setGeneratedImage(elevated);
+      setGallery([elevated]);
+      setIsRefining(false);
+      setShowModal(true);
+    } catch (e: any) { setError(e?.message || 'Não foi possível elevar a planta.'); }
+    finally { setElevatingPlan(false); }
+  };
+
+  return <>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in pb-20 md:pb-0">
+      <div className="lg:col-span-4 space-y-4">
+        <StudioStatusBar hasEnvironment={Boolean(envImage || sketchImage)} environmentConfirmed={Boolean(environmentAnalysis?.confirmedByIara)} hasResult={Boolean(generatedImage)} hasDocumentation={hasDocumentation} />
+        <Card className="p-3 border-slate-200 bg-white"><div className="flex items-center gap-2 mb-2"><House size={16} className="text-indigo-600"/><span className="text-xs font-black uppercase tracking-wider text-slate-700">Etapa do ambiente</span></div><div className="grid grid-cols-3 gap-2">
+          <button onClick={() => selectMode('ready')} className={`rounded-lg border p-2 text-left ${projectMode === 'ready' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200'}`}><MapPin size={15} className="mb-1 text-indigo-600"/><div className="text-[10px] font-bold">Ambiente pronto</div><div className="text-[9px] text-slate-500">Tenho foto</div></button>
+          <button onClick={() => selectMode('planned')} className={`rounded-lg border p-2 text-left ${projectMode === 'planned' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200'}`}><Construction size={15} className="mb-1 text-indigo-600"/><div className="text-[10px] font-bold">Em obra</div><div className="text-[9px] text-slate-500">Projeto futuro</div></button>
+          <button onClick={() => selectMode('concept')} className={`rounded-lg border p-2 text-left ${projectMode === 'concept' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200'}`}><LayoutTemplate size={15} className="mb-1 text-indigo-600"/><div className="text-[10px] font-bold">Conceito</div><div className="text-[9px] text-slate-500">Sem medidas</div></button>
+        </div></Card>
+
+        {projectMode === 'ready' ? <div className="grid grid-cols-2 gap-2">
+          <Card className={`p-2 h-32 flex items-center justify-center relative border-dashed border-2 ${isRefining ? 'border-amber-400 bg-amber-50' : 'border-slate-300'}`}><>{!sketchImage ? <label className="cursor-pointer flex flex-col items-center justify-center w-full h-full hover:bg-slate-50"><PencilRuler className="text-slate-400" size={20}/><span className="text-[10px] text-slate-500 mt-1 text-center font-medium">Rascunho / referência</span><input type="file" className="hidden" accept="image/*" onChange={e => e.target.files?.[0] && processFile(e.target.files[0], 'sketch')}/></label> : <img src={sketchImage} className="h-full w-full object-contain" alt="Rascunho ou referência do projeto"/>}{sketchImage && <button aria-label="Remover referência" onClick={() => {setSketchImage(null); setSketchBase64(null); setSketchMime(null); setIsRefining(false);}} className="absolute top-1 right-1 bg-white rounded-full p-1 shadow"><X size={10}/></button>}</></Card>
+          <Card className="p-2 h-32 flex items-center justify-center relative border-dashed border-2 border-slate-300">{!envImage ? <label className="cursor-pointer flex flex-col items-center justify-center w-full h-full hover:bg-slate-50"><MapPin className="text-slate-400" size={20}/><span className="text-[10px] text-slate-500 mt-1 text-center font-medium">Foto do ambiente</span><input type="file" className="hidden" accept="image/*" onChange={e => e.target.files?.[0] && processFile(e.target.files[0], 'env')}/></label> : <img src={envImage} className="h-full w-full object-contain" alt="Foto original do ambiente"/>}{envImage && <button aria-label="Remover foto do ambiente" onClick={() => {resetEnvironmentAnalysis(); setEnvImage(null); setEnvBase64(null); setEnvMime(null);}} className="absolute top-1 right-1 bg-white rounded-full p-1 shadow"><X size={10}/></button>}</Card>
+        </div> : <Card className="p-3 border-slate-200 bg-white"><div className="flex items-center gap-2 mb-2"><Ruler size={16} className="text-indigo-600"/><span className="text-xs font-bold text-slate-700">Ambiente futuro <span className="font-normal text-slate-400">(medidas opcionais)</span></span></div><div className="grid grid-cols-3 gap-2">{(['width','height','depth'] as const).map(key => <label key={key} className="text-[9px] font-bold uppercase text-slate-500">{key === 'width' ? 'Largura (m)' : key === 'height' ? 'Altura (m)' : 'Profundidade (m)'}<input type="number" min="0" step="0.01" value={plannedDimensions[key]} onChange={e => setPlannedDimensions(prev => ({...prev, [key]: e.target.value}))} className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800" placeholder="—"/></label>)}</div><div className="mt-2 text-[10px] text-slate-500">Pode começar sem medidas. Nesse caso, o resultado será tratado como <strong>conceito visual</strong>, nunca como medida de fabricação.</div><label className="mt-3 flex h-20 cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 text-center text-[10px] text-slate-500 hover:bg-slate-50"><Upload size={15} className="mr-2"/> Enviar planta, croqui ou foto da obra (opcional)<input type="file" className="hidden" accept="image/*" onChange={e => e.target.files?.[0] && processFile(e.target.files[0], 'sketch')}/></label>{sketchImage && <><div className="mt-2 flex items-center gap-2 text-[10px] text-slate-600"><img src={sketchImage} className="h-12 w-12 rounded object-cover" alt="Planta ou referência"/>Referência adicionada</div><div className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50 p-3"><div className="flex items-start gap-2"><Layers3 size={17} className="mt-0.5 shrink-0 text-indigo-600"/><div><div className="text-[11px] font-black text-indigo-900">Elevar planta</div><div className="mt-1 text-[10px] leading-relaxed text-indigo-800">A MARCENAPP interpreta a planta baixa, sobe paredes e usa portas e janelas visíveis como referência para preparar o ambiente antes do projeto.</div></div></div><Button onClick={handleElevatePlan} disabled={elevatingPlan} className="mt-3 w-full bg-indigo-600 hover:bg-indigo-700 border-none">{elevatingPlan ? <Loader2 className="animate-spin" size={16}/> : <Layers3 size={16}/>} {elevatingPlan ? 'Preparando ambiente...' : 'Preparar ambiente no Estúdio'}</Button></div></>}</Card>}
+
+        {projectMode === 'ready' && envImage && <EnvironmentAnalysisPanel analysis={environmentAnalysis} analyzing={analyzingEnvironment} confirming={confirmingEnvironment} onAnalyze={analyzeEnvironmentImage} onConfirm={confirmEnvironment} onChange={updateEnvironmentAnalysis}/>} {environmentError && <p className="text-xs text-red-600 bg-red-50 border border-red-100 p-2 rounded-lg">{environmentError}</p>}
+        {descriptionSlot ? <div className="h-[520px] lg:h-[600px]">{descriptionSlot}</div> : <Card className="p-4 bg-slate-800 border-slate-700 text-white"><label className="text-xs font-bold text-slate-400 uppercase">{isRefining ? 'Comando de edição' : projectMode === 'concept' ? 'O que o cliente quer?' : 'Pedido do cliente'}</label><textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder={isRecording ? 'Ouvindo...' : (isRefining ? 'Ex: Trocar gavetas por prateleiras...' : 'Ex: Painel de TV com rack, portas inferiores e nichos...')} className="w-full mt-2 bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm h-24 outline-none resize-none text-white placeholder:text-slate-500"/><div className="flex gap-2 mt-3 overflow-x-auto pb-2">{styles.map(s => <button key={s.id} onClick={() => setSelectedStyle(s)} className={`px-2 py-1 rounded text-xs whitespace-nowrap border ${selectedStyle.id === s.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-600 text-slate-300'}`}>{s.label}</button>)}</div><DecorationPanel selectedDecor={selectedDecor} onSelect={setSelectedDecor}/>{projectMode !== 'ready' && <div className="mt-2 rounded-lg bg-slate-900 p-2 text-[10px] text-slate-400">{projectMode === 'planned' ? 'Projeto para ambiente futuro: venda agora e confira o ambiente real antes de produzir.' : 'Conceito comercial: apresente a ideia antes de ter planta ou medidas.'}</div>}<Button onClick={generate} disabled={loading} className="w-full mt-4 border-none bg-indigo-600 hover:bg-indigo-700">{loading ? <Loader2 className="animate-spin" size={18}/> : (isRefining ? <RefreshCcw size={18}/> : <LayoutTemplate size={18}/>)}{loading ? 'Preparando projeto...' : (isRefining ? 'Aplicar alteração' : projectMode === 'concept' ? 'Criar conceito' : 'Criar projeto')}</Button>{error && <p className="text-xs text-red-400 mt-2 bg-red-950/50 p-2 rounded">{error}</p>}</Card>}
+        {gallery.length > 0 && <div className="space-y-2"><div className="flex items-center justify-between"><span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Resultados do projeto</span><span className="text-[10px] text-slate-400">{gallery.length} resultado{gallery.length > 1 ? 's' : ''}</span></div><div className="flex gap-2 overflow-x-auto pb-2">{gallery.map((img, idx) => <button key={idx} type="button" onClick={() => setGeneratedImage(img)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 ${generatedImage === img ? 'border-indigo-500' : 'border-slate-200'}`} aria-label={`Abrir resultado ${idx + 1}`}><img src={img} className="h-full w-full object-cover" alt={`Resultado do projeto ${idx + 1}`}/></button>)}</div></div>}
+        <ProjectDocumentation2D prompt={prompt} projectMode={projectMode} plannedDimensions={plannedDimensions} environmentAnalysis={environmentAnalysis}/>
+      </div>
+      <div className="lg:col-span-8"><div className="mb-2 flex items-center justify-between"><div><span className="text-xs font-black uppercase tracking-wider text-slate-700">Resultado do projeto</span><p className="text-[10px] text-slate-400">A imagem gerada fica separada das fotos e referências do ambiente.</p></div>{generatedImage && <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-500">Visualização</span>}</div><div className="bg-slate-900 rounded-xl border border-slate-800 h-[400px] lg:h-[600px] flex items-center justify-center overflow-hidden relative">{generatedImage ? <><img src={generatedImage} className="w-full h-full object-contain cursor-zoom-in" onClick={() => setShowModal(true)} alt="Resultado do projeto"/><div className="absolute bottom-4 right-4"><Button onClick={() => setShowModal(true)} variant="primary" className="text-xs font-bold shadow-xl" icon={Maximize2}>Expandir</Button></div></> : <div className="text-center px-6"><ImageIcon className="text-slate-600 mx-auto mb-3" size={40}/><span className="text-slate-500 text-sm">O resultado do projeto aparecerá aqui</span></div>}</div></div>
+    </div>
+    <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={<span className="flex items-center gap-2"><ImageIcon className="text-indigo-400" size={18}/> Resultado do projeto</span>} footer={<div className="flex w-full flex-wrap gap-2 justify-end"><Button onClick={() => {if (!generatedImage) return; setSketchImage(generatedImage); setSketchBase64(generatedImage.split(',')[1]); setSketchMime('image/png'); setIsRefining(true); setPrompt(''); setShowModal(false);}} variant="magic" icon={RefreshCcw}>Refinar imagem</Button><Button onClick={handleDownload} variant="secondary" icon={Download}>Baixar</Button><Button onClick={analyzeForBudget} variant="primary" className="bg-emerald-600 hover:bg-emerald-700" icon={DollarSign}>{analyzing ? <Loader2 className="animate-spin" size={18}/> : 'Levar ao orçamento'}</Button></div>}><div className="flex items-center justify-center h-full min-h-[50vh]"><img src={generatedImage || ''} className="max-w-full max-h-[70vh] rounded shadow-2xl" alt="Resultado ampliado do projeto"/></div></Modal>
+    <AuthDialog isOpen={showAuthDialog} onClose={() => {setShowAuthDialog(false); setPendingAction(null);}} onSuccess={() => {if (pendingAction) pendingAction(); setPendingAction(null);}}/>
+  </>;
+};
