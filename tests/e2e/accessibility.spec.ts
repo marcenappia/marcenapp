@@ -31,7 +31,7 @@ test.describe('Navegação, acessibilidade e responsividade', () => {
     test.skip(!isMobile, 'Mobile only');
     for (const width of [320, 375, 430]) {
       await page.setViewportSize({ width, height: 800 });
-      const nav = page.locator('#mobile-bottom-nav');
+      const nav = page.locator('nav.md\\:hidden').last();
       await expect(nav).toBeVisible();
       const navBox = await nav.boundingBox();
       expect(navBox).not.toBeNull();
