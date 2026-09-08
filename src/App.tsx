@@ -19,6 +19,7 @@ import AdminDashboard from "./modules/admin/AdminDashboard";
 import AdminAIUsage from "./modules/admin/AdminAIUsage";
 import AdminUsers from "./modules/admin/AdminUsers";
 import AdminProjects from "./modules/admin/AdminProjects";
+import AdminSkills from "./modules/admin/AdminSkills";
 import AdminGuard from "./modules/admin/AdminGuard";
 import NotFound from "./pages/NotFound";
 import AppSplash from "./components/AppSplash";
@@ -58,6 +59,7 @@ const ProtectedApp = () => {
     <Route path="/admin/ia/uso" element={<RequireAuth><AdminGuard><AdminAIUsage /></AdminGuard></RequireAuth>} />
     <Route path="/admin/usuarios" element={<RequireAuth><AdminGuard><AdminUsers /></AdminGuard></RequireAuth>} />
     <Route path="/admin/obras" element={<RequireAuth><AdminGuard><AdminProjects /></AdminGuard></RequireAuth>} />
+    <Route path="/admin/skills" element={<RequireAuth><AdminGuard><AdminSkills /></AdminGuard></RequireAuth>} />
     <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>} />
     <Route path="*" element={<NotFound />} />
   </Routes>;
