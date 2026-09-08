@@ -66,6 +66,23 @@ async function asaasJson(path: string, init: RequestInit = {}) {
   return body;
 }
 
+async function adminClient() {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceKey) throw new Error("server_config_incomplete");
+  return createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+}
+
+const PRODUCT_CATALOG: Record<string, { name: string; creditType: "image" | "contract" | "cut_plan" | "marcena"; credits: number; amount: number }> = {
+  image_single: { name: "Imagem profissional avulsa", creditType: "image", credits: 1, amount: 50 },
+  image_pack_5: { name: "Pacote MARCENA — 5 imagens", creditType: "image", credits: 5, amount: 199 },
+  contract_single: { name: "Contrato avulso", creditType: "contract", credits: 1, amount: 29.9 },
+  contract_pack_5: { name: "Pacote de contratos — 5", creditType: "contract", credits: 5, amount: 99 },
+  cut_plan_single: { name: "Plano de corte avulso", creditType: "cut_plan", credits: 1, amount: 39.9 },
+  marcena_essencial: { name: "MARCENA Essencial", creditType: "marcena", credits: 1, amount: 29.9 },
+  marcena_profissional: { name: "MARCENA Profissional", creditType: "marcena", credits: 3, amount: 79.9 },
+};
+
 serve(async (req) => {
   const headers = cors(req);
   if (req.method === "OPTIONS") return new Response(null, { headers });
@@ -81,10 +98,7 @@ serve(async (req) => {
       if (!expected || !received || expected !== received) return json(headers, { error: "Webhook não autorizado." }, 401);
       const event = body.event;
       if (!event?.id || !event?.event) return json(headers, { error: "Evento Asaas inválido." }, 400);
-      const supabaseUrl = Deno.env.get("SUPABASE_URL");
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      if (!supabaseUrl || !serviceKey) return json(headers, { error: "Configuração do servidor incompleta." }, 500);
-      const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+      const admin = await adminClient();
       const payment = event.payment ?? {};
       const subscriptionId = payment.subscription ?? event.subscription?.id ?? null;
       const { error } = await admin.from("asaas_webhook_events").insert({ event_id: event.id, event_type: event.event, payment_id: payment.id ?? null, customer_id: payment.customer ?? event.customer?.id ?? null, subscription_id: subscriptionId, payload: event });
@@ -92,10 +106,26 @@ serve(async (req) => {
         console.error("Asaas webhook persistence error", error);
         return json(headers, { error: "Não foi possível registrar o webhook." }, 500);
       }
+
       if (event.subscription?.id && event.subscription?.status) {
         const { error: updateError } = await admin.from("billing_subscriptions").update({ status: String(event.subscription.status), updated_at: new Date().toISOString() }).eq("asaas_subscription_id", String(event.subscription.id));
         if (updateError) console.error("Billing subscription status update error", updateError);
       }
+
+      if (payment.id) {
+        const status = String(payment.status ?? event.event ?? "PENDING");
+        const receivedStatus = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(status) || event.event === "PAYMENT_RECEIVED";
+        const { data: purchase } = await admin.from("billing_purchases").select("id,user_id,credit_type,credits,status").eq("asaas_payment_id", String(payment.id)).maybeSingle();
+        if (purchase) {
+          const { error: purchaseError } = await admin.from("billing_purchases").update({ status, updated_at: new Date().toISOString() }).eq("id", purchase.id);
+          if (purchaseError) console.error("Billing purchase update error", purchaseError);
+          if (receivedStatus && purchase.status !== "RECEIVED") {
+            const { error: creditError } = await admin.rpc("grant_billing_credits", { p_user_id: purchase.user_id, p_credit_type: purchase.credit_type, p_credits: purchase.credits });
+            if (creditError) console.error("Billing credit grant error", creditError);
+          }
+        }
+      }
+
       return json(headers, { received: true, duplicate: Boolean(error) });
     }
 
@@ -142,10 +172,30 @@ serve(async (req) => {
       return json(headers, { payment: await asaasJson("/payments", { method: "POST", body: JSON.stringify({ customer, billingType, value, dueDate: body.dueDate ?? new Date().toISOString().slice(0, 10), description: body.description ? String(body.description).slice(0, 500) : undefined, externalReference: body.externalReference ? String(body.externalReference) : undefined, installmentCount: body.installmentCount ? Number(body.installmentCount) : undefined, totalValue: body.totalValue ? Number(body.totalValue) : undefined }) }) });
     }
 
-    if (action === "get_pix_qr") {
-      const paymentId = String(body.paymentId ?? "").trim();
-      if (!paymentId) return json(headers, { error: "paymentId é obrigatório." }, 400);
-      return json(headers, { pix: await asaasJson(`/payments/${encodeURIComponent(paymentId)}/pixQrCode`) });
+    if (action === "create_product_payment") {
+      const productKey = String(body.productKey ?? "");
+      const product = PRODUCT_CATALOG[productKey];
+      if (!product) return json(headers, { error: "Produto avulso inválido." }, 400);
+      const customer = String(body.customerId ?? "").trim();
+      if (!customer) return json(headers, { error: "Cliente Asaas obrigatório." }, 400);
+      const billingType = String(body.billingType ?? "UNDEFINED");
+      if (!["UNDEFINED", "BOLETO", "PIX", "CREDIT_CARD"].includes(billingType)) return json(headers, { error: "Forma de pagamento inválida." }, 400);
+      const admin = await adminClient();
+      const externalReference = `marcenapp:product:${productKey}:${user.id}:${crypto.randomUUID()}`;
+      const payment = await asaasJson("/payments", { method: "POST", body: JSON.stringify({ customer, billingType, value: product.amount, dueDate: body.dueDate ?? new Date().toISOString().slice(0, 10), description: product.name, externalReference }) });
+      const { error } = await admin.from("billing_purchases").insert({ user_id: user.id, product_key: productKey, product_name: product.name, credit_type: product.creditType, credits: product.credits, amount: product.amount, asaas_customer_id: customer, asaas_payment_id: String(payment.id), status: String(payment.status ?? "PENDING") });
+      if (error) {
+        console.error("Billing purchase persistence error", error);
+        return json(headers, { error: "Cobrança criada, mas não foi possível registrar a compra no MARCENAPP." }, 502);
+      }
+      return json(headers, { payment, product });
+    }
+
+    if (action === "get_wallet") {
+      const admin = await adminClient();
+      const { data, error } = await admin.from("billing_wallets").select("image_credits,contract_credits,cut_plan_credits,marcena_credits,updated_at").eq("user_id", user.id).maybeSingle();
+      if (error) return json(headers, { error: "Não foi possível carregar seus créditos." }, 500);
+      return json(headers, { wallet: data ?? { image_credits: 0, contract_credits: 0, cut_plan_credits: 0, marcena_credits: 0 } });
     }
 
     if (action === "create_subscription") {
@@ -159,10 +209,7 @@ serve(async (req) => {
       if (!["start", "pro", "business"].includes(plan)) return json(headers, { error: "Plano MARCENAPP inválido." }, 400);
       const nextDueDate = String(body.nextDueDate ?? new Date().toISOString().slice(0, 10));
       const subscription = await asaasJson("/subscriptions", { method: "POST", body: JSON.stringify({ customer, billingType, value, cycle, nextDueDate, description: body.description ? String(body.description).slice(0, 500) : undefined, externalReference: body.externalReference ? String(body.externalReference) : `marcenapp:${user.id}:${plan}` }) });
-      const supabaseUrl = Deno.env.get("SUPABASE_URL");
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      if (!supabaseUrl || !serviceKey) throw new Error("server_config_incomplete");
-      const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+      const admin = await adminClient();
       const { error: billingError } = await admin.from("billing_subscriptions").insert({ user_id: user.id, plan, asaas_customer_id: customer, asaas_subscription_id: String(subscription.id), status: String(subscription.status ?? "ACTIVE"), trial_ends_at: nextDueDate });
       if (billingError) {
         console.error("Billing subscription persistence error", billingError);
