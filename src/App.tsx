@@ -21,6 +21,7 @@ import AdminUsers from "./modules/admin/AdminUsers";
 import AdminProjects from "./modules/admin/AdminProjects";
 import AdminGuard from "./modules/admin/AdminGuard";
 import NotFound from "./pages/NotFound";
+import AppSplash from "./components/AppSplash";
 import { supabaseConfigured } from "@/integrations/supabase/client";
 
 const queryClient = new QueryClient();
@@ -31,8 +32,8 @@ const ConfigurationNotice = () => <main className="min-h-screen bg-slate-950 px-
 const RequireAuth = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <div className="min-h-screen bg-[#0b1015]" />;
-  if (!user) return <Navigate to={`/auth?next=${encodeURIComponent(location.pathname)}`} replace />;
+  if (loading) return <AppSplash message="Verificando sua sessão…" />;
+  if (!user) return <Navigate to={`/auth?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   return <>{children}</>;
 };
 
