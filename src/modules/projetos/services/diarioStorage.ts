@@ -45,7 +45,7 @@ export function registrarEventoSistema(projectId: string, evento: string, texto:
   return proximo;
 }
 
-export function sincronizarLinhaDoTempoProjeto(projectId: string, project: any) {
+export function sincronizarLinhaDoTempoProjeto(projectId: string, project: Record<string, unknown> | null | undefined) {
   let entradas = carregarDiario(projectId);
   const jornada = project?.jornada || {};
   if (jornada.statusAprovacao === 'aprovado' || jornada.orcamentoAprovado === true) {

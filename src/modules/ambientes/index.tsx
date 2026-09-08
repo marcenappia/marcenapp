@@ -8,7 +8,7 @@ import { ProjectDocumentation2D } from './components/ProjectDocumentation2D';
 import { StudioStatusBar } from './components/StudioStatusBar';
 import { studioService, type StudioGenerationMode } from './services/studioService';
 
-interface StudioProps { setBudgetProject: React.Dispatch<React.SetStateAction<any>>; navigateTo: (id: string) => void; gallery: string[]; setGallery: React.Dispatch<React.SetStateAction<string[]>>; descriptionSlot?: React.ReactNode; projectId?: string | null; }
+interface StudioProps { setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>; navigateTo: (id: string) => void; gallery: string[]; setGallery: React.Dispatch<React.SetStateAction<string[]>>; descriptionSlot?: React.ReactNode; projectId?: string | null; }
 
 export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, descriptionSlot, projectId }: StudioProps) => {
   const [projectMode, setProjectMode] = useState<'ready' | 'planned' | 'concept'>('ready');
@@ -49,7 +49,7 @@ export const Studio = ({ setBudgetProject, navigateTo, gallery, setGallery, desc
       setGallery([elevated]);
       setIsRefining(false);
       setShowModal(true);
-    } catch (e: any) { setError(e?.message || 'Não foi possível elevar a planta.'); }
+    } catch (e) { setError(getErrorMessage(e, 'Não foi possível elevar a planta.')); }
     finally { setElevatingPlan(false); }
   };
 

@@ -3,6 +3,7 @@
 // A camada de readiness impede que a IARA pule etapas operacionais sem evidências confirmadas.
 // Fallback: se orchestrator falhar tecnicamente, cai no interpretador antigo (iaraService).
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
 import { callAIFunction } from '@/services/ai';
 import { IARA_IDENTITY } from './iaraExpert';
@@ -11,7 +12,7 @@ import { normalizeIaraMemory, type IaraMemory } from './iaraMemory';
 
 export interface ToolCall {
   tool: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
 }
 
 export interface OrchestratorPlan {
@@ -46,7 +47,7 @@ function readinessBlocker(target: IaraJourneyTarget, memory: IaraMemory): ToolRe
 
 export async function planWithLLM(
   userPrompt: string,
-  context?: Record<string, any>,
+  context?: Record<string, unknown>,
 ): Promise<OrchestratorPlan> {
   const safetyContext = {
     ...context,
@@ -71,7 +72,7 @@ export async function planWithLLM(
 export async function runOrchestrator(
   userPrompt: string,
   ctx: ExecutionContext,
-  context?: Record<string, any>,
+  context?: Record<string, unknown>,
 ): Promise<OrchestratorRun> {
   // Log inicial (best-effort)
   let runId: string | null = null;
@@ -126,13 +127,13 @@ export async function runOrchestrator(
       await supabase
         .from('orchestrator_runs')
         .update({
-          plan: plan as any,
-          results: results as any,
+          plan: plan as unknown as Json,
+          results: results as unknown as Json,
           used_fallback: usedFallback,
           status: results.every(r => r.result.ok) ? 'completed' : 'failed',
         })
         .eq('id', runId);
-    } catch {}
+    } catch { /* log best-effort */ }
   }
 
   return { runId, plan, summary, results, usedFallback };

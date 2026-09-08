@@ -6,7 +6,7 @@ import { downloadTextFile, serializeCutPlanCsv, serializeCutPlanJson } from '@/c
 import type { CutSheet } from '@/core/cutPlanning';
 
 interface Props {
-  project: any;
+  project: ProjectData;
   sheets: CutSheet[];
 }
 

@@ -5,7 +5,7 @@ import { useNovoProjeto } from './hooks/useNovoProjeto';
 import { ProgressoObra } from './components/ProgressoObra';
 import { EtapaNome, EtapaFoto, EtapaPedido, EtapaAnalise, EtapaApresentacao, EtapaOrcamento } from './components/Etapas';
 
-interface Props { projectId: string | null; setBudgetProject: React.Dispatch<React.SetStateAction<any>>; navigateTo: (id: string) => void; }
+interface Props { projectId: string | null; setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>; navigateTo: (id: string) => void; }
 
 const JOURNEY = [
   { label: 'Foto', icon: Camera },

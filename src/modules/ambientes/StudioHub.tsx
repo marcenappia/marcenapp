@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Studio } from './index';
 import { sincronizarLinhaDoTempoProjeto, registrarEventoSistema } from '@/modules/projetos/services/diarioStorage';
+import type { ProjectData } from '@/modules/projetos/types';
 
 interface StudioHubProps {
-  setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
+  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
   navigateTo: (id: string) => void;
   gallery: string[];
   setGallery: React.Dispatch<React.SetStateAction<string[]>>;
-  budgetProject: any;
+  budgetProject: ProjectData | null;
 }
 
 const DIARY_CONTEXT_KEY = 'marcenapp_studio_diary_context';
@@ -36,7 +37,7 @@ export const StudioHub = (props: StudioHubProps) => {
   useEffect(() => {
     if (!projectId || !description.trim()) return;
     const timer = window.setTimeout(() => {
-      registrarEventoSistema(projectId, 'descricao-atualizada-estudio', 'Descrição do projeto atualizada no Estúdio.', 'studio');
+      registrarEventoSistema(projectId, 'descricao-atualizada-estudio', 'Descrição do projeto atualizada no Estúdio.', 'estudio');
     }, 700);
     return () => window.clearTimeout(timer);
   }, [description, projectId]);

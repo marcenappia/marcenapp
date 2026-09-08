@@ -34,7 +34,7 @@ export interface DiarioCabecalhoObra {
   status: string | null;
 }
 
-const table = () => supabase.from('diario_entradas' as never) as any;
+const table = () => supabase.from('diario_entradas');
 
 export const listarRegistros = async (projectId: string): Promise<DiarioRegistro[]> => {
   const { data, error } = await table()

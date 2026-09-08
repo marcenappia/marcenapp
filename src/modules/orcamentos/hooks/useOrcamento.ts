@@ -14,11 +14,11 @@ function loadPrices(): PriceCatalog {
   } catch { return DEFAULT_PRICES; }
 }
 
-function projectKey(project: any) {
+function projectKey(project: ProjectData) {
   return String(project?.id ?? project?.name ?? project?.jornada?.id ?? 'current');
 }
 
-function loadSavings(project: any): CutSavings {
+function loadSavings(project: ProjectData): CutSavings {
   if (typeof window === 'undefined') return { internal: 0, external: 0, back: 0, total: 0 };
   try {
     const raw = window.localStorage.getItem(`${SAVINGS_KEY_PREFIX}${projectKey(project)}`);
@@ -26,7 +26,7 @@ function loadSavings(project: any): CutSavings {
   } catch { return { internal: 0, external: 0, back: 0, total: 0 }; }
 }
 
-export const useOrcamento = (project: any) => {
+export const useOrcamento = (project: ProjectData) => {
   const [prices, setPrices] = useState<PriceCatalog>(loadPrices);
   const savings = useMemo(() => loadSavings(project), [project]);
   const calc = useMemo(() => calculateBudget(project, prices, savings), [project, prices, savings]);

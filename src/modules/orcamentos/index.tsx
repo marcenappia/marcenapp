@@ -5,7 +5,7 @@ import { useOrcamento } from './hooks/useOrcamento';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-interface Props { project: any; setProject: (p: any) => void; setParts?: (parts: any[]) => void; navigateTo?: (id: string) => void; }
+interface Props { project: ProjectData; setProject: (p: ProjectData) => void; setParts?: (parts: CutPlanningPart[]) => void; navigateTo?: (id: string) => void; }
 
 const MATERIALS = [
   { value: 'mdf15_white', label: 'MDF Branco 15mm' },
@@ -33,11 +33,11 @@ const OrcamentoModule = ({ project, setProject, setParts, navigateTo }: Props) =
       if (!data) throw new Error('Obra não encontrada.');
       const jornada = (data.jornada ?? {}) as Record<string, unknown>;
       const nextJornada = { ...jornada, etapa: 7, statusAprovacao: 'aprovado', orcamentoAprovado: true, valorAprovado: calc.total, orcamentoAprovadoEm: new Date().toISOString() };
-      const { error } = await supabase.from('projects').update({ jornada: nextJornada as any }).eq('id', project.id).eq('user_id', user.id);
+      const { error } = await supabase.from('projects').update({ jornada: nextJornada as unknown as Json }).eq('id', project.id).eq('user_id', user.id);
       if (error) throw error;
       setProject({ ...project, jornada: nextJornada });
       setAprovado(true);
-    } catch (e: any) {
+    } catch (e) {
       window.alert(e?.message || 'Não foi possível registrar a aprovação do orçamento.');
     } finally { setAprovando(false); }
   };
@@ -53,12 +53,12 @@ const OrcamentoModule = ({ project, setProject, setParts, navigateTo }: Props) =
       const productionParts = calc.parts.map((part, index) => ({ ...part, id: Date.now() + index }));
       const production = { status: 'liberada', updatedAt: generatedAt, generatedAt, source: 'orcamento-aprovado', approvedTotal: calc.total, approvedAt: jornada.orcamentoAprovadoEm ?? generatedAt, parts: productionParts };
       const nextJornada = { ...jornada, etapa: 8, production };
-      const { error } = await supabase.from('projects').update({ jornada: nextJornada as any }).eq('id', project.id).eq('user_id', user.id);
+      const { error } = await supabase.from('projects').update({ jornada: nextJornada as unknown as Json }).eq('id', project.id).eq('user_id', user.id);
       if (error) throw error;
       setParts?.(productionParts);
       setProject({ ...project, jornada: nextJornada });
       navigateTo?.('producao');
-    } catch (e: any) {
+    } catch (e) {
       window.alert(e?.message || 'Não foi possível liberar a produção.');
     } finally { setGerandoProducao(false); }
   };
