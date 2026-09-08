@@ -49,7 +49,7 @@ const Auth = () => {
       }
       if (result.redirected) return;
       navigate('/');
-    } catch (err: any) {
+    } catch (err) {
       setError(err?.message || 'Ocorreu um erro inesperado.');
       setOauthLoading(null);
     }
@@ -113,7 +113,7 @@ const Auth = () => {
         if (error) setError(error.message);
         else setSuccess('Verifique seu e-mail para confirmar o cadastro.');
       }
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || 'Ocorreu um erro inesperado.');
     } finally {
       setLoading(false);

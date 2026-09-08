@@ -7,11 +7,11 @@ import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { callAIText } from '@/services/ai';
 
-export type ToolResult<T = any> =
+export type ToolResult<T = unknown> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
-export interface ToolDefinition<TArgs = any, TResult = any> {
+export interface ToolDefinition<TArgs = unknown, TResult = unknown> {
   name: string;
   description: string;
   version: string;
@@ -26,7 +26,18 @@ export interface ExecutionContext {
   lastImageMask?: string;
 }
 
-const createCliente: ToolDefinition = {
+/** Forma apagada usada pelo registry para guardar ferramentas heterogêneas. */
+export interface RegisteredTool {
+  name: string;
+  description: string;
+  version: string;
+  inputSchema: z.ZodTypeAny;
+  execute: (args: never, ctx: ExecutionContext) => Promise<ToolResult>;
+}
+
+function defineTool<TArgs, TResult>(tool: ToolDefinition<TArgs, TResult>): ToolDefinition<TArgs, TResult> { return tool; }
+
+const createCliente = defineTool({
   name: 'createCliente',
   description: 'Cria um novo cliente sem inventar dados pessoais',
   version: '1.1.0',
@@ -42,9 +53,9 @@ const createCliente: ToolDefinition = {
     if (error) return { ok: false, error: error.message };
     return { ok: true, data };
   },
-};
+});
 
-const createProjeto: ToolDefinition = {
+const createProjeto = defineTool({
   name: 'createProjeto',
   description: 'Cria projeto somente com dimensões reais/confirmadas; nunca aplica medidas padrão silenciosamente. Requer confirmação explícita do usuário.',
   version: '1.2.0',
@@ -68,9 +79,9 @@ const createProjeto: ToolDefinition = {
     if (error) return { ok: false, error: error.message };
     return { ok: true, data };
   },
-};
+});
 
-const gerarRender: ToolDefinition = {
+const gerarRender = defineTool({
   name: 'gerarRender',
   description: 'Enfileira render no Estúdio sem transformar estimativas visuais em medidas de fabricação',
   version: '1.1.0',
@@ -87,9 +98,9 @@ const gerarRender: ToolDefinition = {
     useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: args.prompt, estilo, studioCommandId: id } });
     return { ok: true, data: { studioCommandId: id, status: 'queued' } };
   },
-};
+});
 
-const calcularOrcamento: ToolDefinition = {
+const calcularOrcamento = defineTool({
   name: 'calcularOrcamento',
   description: 'Calcula orçamento estimado do projeto atual; não substitui conferência do orçamento profissional',
   version: '1.1.0',
@@ -112,9 +123,9 @@ const calcularOrcamento: ToolDefinition = {
     const total = subtotal * (1 + Number(proj.profit_margin ?? 35) / 100);
     return { ok: true, data: { projetoId: proj.id, nome: proj.nome, total: Number(total.toFixed(2)), materiais: Number(totalMat.toFixed(2)), maoDeObra: Number(labor.toFixed(2)) } };
   },
-};
+});
 
-const gerarContrato: ToolDefinition = {
+const gerarContrato = defineTool({
   name: 'gerarContrato',
   description: 'Prepara documentação contratual; revisão jurídica profissional pode ser necessária',
   version: '1.1.0',
@@ -134,18 +145,18 @@ const gerarContrato: ToolDefinition = {
     }
     return { ok: true, data: { cliente: args.clienteNome, valor: args.valor ?? null, prazoDias: args.prazoDias ?? 45, clausulasGeradas: clausulas.length } };
   },
-};
+});
 
-const TOOLS: Record<string, ToolDefinition> = { createCliente, createProjeto, gerarRender, calcularOrcamento, gerarContrato };
+const TOOLS: Record<string, RegisteredTool> = { createCliente, createProjeto, gerarRender, calcularOrcamento, gerarContrato };
 
-export function getTool(name: string): ToolDefinition | undefined { return TOOLS[name]; }
-export function listTools(): ToolDefinition[] { return Object.values(TOOLS); }
+export function getTool(name: string): RegisteredTool | undefined { return TOOLS[name]; }
+export function listTools(): RegisteredTool[] { return Object.values(TOOLS); }
 
 export async function executeToolCall(name: string, args: unknown, ctx: ExecutionContext): Promise<ToolResult> {
   const tool = getTool(name);
   if (!tool) return { ok: false, error: `Ferramenta desconhecida: ${name}` };
   const parsed = tool.inputSchema.safeParse(args);
   if (!parsed.success) return { ok: false, error: `Dados insuficientes ou inválidos para ${name}. A IARA deve pedir confirmação antes de executar.` };
-  try { return await tool.execute(parsed.data, ctx); }
+  try { return await tool.execute(parsed.data as never, ctx); }
   catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Erro desconhecido' }; }
 }

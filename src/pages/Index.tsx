@@ -33,7 +33,7 @@ const Index = () => {
   const projetoParam = searchParams.get('projeto');
   const setActiveModule = (id: string, params: Record<string, string> = {}) => setSearchParams({ module: id, ...params }, { replace: true });
   const [budgetProject, setBudgetProject] = useState(defaultProject);
-  const [parts, setParts] = useState<any[]>([]);
+  const [parts, setParts] = useState<CutPlanningPart[]>([]);
   const [gallery, setGallery] = useState<string[]>([]);
   const [diaryContext, setDiaryContext] = useState<{ texto: string; projectId?: string; tipo?: string } | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);

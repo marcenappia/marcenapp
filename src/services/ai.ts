@@ -53,10 +53,10 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Pr
         body: JSON.stringify(body),
       });
 
-      let data: any = null;
+      let data: { error?: string; message?: string } | null = null;
       try { data = await res.json(); } catch { /* corpo vazio */ }
 
-      if (res.ok) return data as T;
+      if (res.ok) return data as unknown as T;
       if (res.status === 401) throw new AIAuthError('Sessão expirada. Faça login novamente.');
 
       const msg = data?.error || data?.message || `Erro ${res.status}`;

@@ -3,15 +3,15 @@ import { CheckCircle2, Factory, FileDown, Scissors, Boxes, Circle } from 'lucide
 import { Card } from '@/components/marcenaria/shared';
 
 interface Props {
-  project: any;
-  parts: any[];
+  project: ProjectData;
+  parts: CutPlanningPart[];
   navigateTo?: (id: string) => void;
 }
 
 const ProducaoModule = ({ project, parts, navigateTo }: Props) => {
   const production = project?.jornada?.production;
   const productionParts = useMemo(() => (production?.parts?.length ? production.parts : parts), [production?.parts, parts]);
-  const totalUnits = useMemo(() => productionParts.reduce((sum: number, part: any) => sum + Number(part.qtd || 0), 0), [productionParts]);
+  const totalUnits = useMemo(() => productionParts.reduce((sum: number, part: CutPlanningPart) => sum + Number(part.qtd || 0), 0), [productionParts]);
   const approvedTotal = Number(production?.approvedTotal || project?.jornada?.valorAprovado || 0);
   const released = production?.status === 'liberada';
 
@@ -61,7 +61,7 @@ const ProducaoModule = ({ project, parts, navigateTo }: Props) => {
             <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center text-slate-400">Nenhuma peça foi gerada ainda.</div>
           ) : (
             <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
-              {productionParts.map((part: any, index: number) => (
+              {productionParts.map((part: CutPlanningPart, index: number) => (
                 <div key={`${part.id ?? part.name}-${index}`} className="rounded-xl border border-slate-100 bg-slate-50 p-3 flex items-center justify-between gap-3">
                   <div className="min-w-0"><p className="font-bold text-sm text-slate-700 truncate">{part.name || `Peça ${index + 1}`}</p><p className="text-xs text-slate-500">{part.w} × {part.h} mm · {part.thickness || 15} mm · {part.mat === 'wood' ? 'Madeirado' : 'Branco'}</p></div>
                   <span className="shrink-0 rounded-lg bg-white border border-slate-200 px-2.5 py-1 text-sm font-black text-slate-700">{part.qtd || 1}</span>

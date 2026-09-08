@@ -4,7 +4,7 @@ import Index from '../pages/Index';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 vi.mock('@/integrations/supabase/client', () => {
-  const mock: any = {
+  const mock: Record<string, unknown> = {
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
     single: vi.fn().mockReturnThis(),
