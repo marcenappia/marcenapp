@@ -3,22 +3,37 @@ import { agents, getAgent } from './registry';
 import { runAgentPlan, runProjectJourney } from './orchestrator';
 
 describe('MARCENAPP agents', () => {
-  it('registra todos os agentes da jornada comercial', () => {
-    expect(agents).toHaveLength(13);
+  it('registra todos os especialistas da jornada comercial', () => {
+    expect(agents).toHaveLength(20);
     expect(agents.map((a) => a.id)).toEqual([
-      'customer', 'project', 'measurement', 'materials', 'render', 'quality',
-      'presentation', 'approval', 'inventory', 'production', 'budget', 'documents', 'order',
+      'customer', 'project', 'vision', 'perspective', 'measurement', 'measurement_prediction',
+      'multiview', 'furniture_engineering', 'materials', 'cut_optimization', 'cut_audit',
+      'render', 'quality', 'presentation', 'approval', 'inventory', 'production', 'budget',
+      'documents', 'order',
     ]);
   });
 
-  it('respeita dependências e permite execução paralela quando pronta', async () => {
+  it('respeita dependências e compartilha resultados entre especialistas', async () => {
     const result = await runAgentPlan([
       { id: 'customer', agentId: 'customer', type: 'validate', input: { name: 'Cliente' } },
       { id: 'project', agentId: 'project', type: 'prepare', input: { clientId: '1', workName: 'Cozinha' } },
+      { id: 'vision', agentId: 'vision', type: 'analyze', input: { photoUrl: 'photo.jpg' } },
+      { id: 'perspective', agentId: 'perspective', type: 'analyze', input: { photoUrl: 'photo.jpg' } },
       { id: 'measurement', agentId: 'measurement', type: 'validate', input: { photoUrl: 'photo.jpg' } },
     ]);
     expect(result.status).toBe('completed');
-    expect(result.results).toHaveLength(3);
+    expect(result.results).toHaveLength(5);
+    const perspective = result.results.find((r) => r.agentId === 'perspective');
+    expect(perspective?.correlationId).toBe(result.correlationId);
+  });
+
+  it('não simula análise visual real nem inventa medidas', async () => {
+    const result = await getAgent('vision').handle({
+      id: 'vision-1', type: 'vision.environment.analyze', input: { photoUrl: 'photo.jpg' }, correlationId: 'test-correlation',
+    });
+    expect(result.status).toBe('completed');
+    expect(result.confidence).toBe(0);
+    expect(result.warnings?.some((warning) => warning.includes('nenhuma medida foi inventada'))).toBe(true);
   });
 
   it('não simula sucesso quando faltam dados', async () => {
@@ -36,7 +51,14 @@ describe('MARCENAPP agents', () => {
     expect(result.status).toBe('needs_input');
   });
 
-  it('executa a jornada completa com uma única correlação', async () => {
+  it('bloqueia conferência multivista sem imagem', async () => {
+    const result = await getAgent('multiview').handle({
+      id: 'multiview-1', type: 'multiview.reconcile', input: {}, correlationId: 'test-correlation',
+    });
+    expect(result.status).toBe('needs_input');
+  });
+
+  it('a jornada para com segurança quando o motor de corte ainda não está configurado', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
       photoUrl: 'photo.jpg', measurements: { width: 3000 },
@@ -49,6 +71,6 @@ describe('MARCENAPP agents', () => {
     });
     expect(result.status).toBe('completed');
     expect(new Set(result.results.map((r) => r.correlationId)).size).toBe(1);
-    expect(result.results).toHaveLength(13);
+    expect(result.results).toHaveLength(20);
   });
 });
