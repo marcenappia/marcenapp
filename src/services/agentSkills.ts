@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 export type AgentSkill = {
   id: string;
   slug: string;
+  upstream_slug: string | null;
   name: string;
   source: 'marcenapp' | 'official' | 'community';
   provider: string | null;
@@ -17,6 +18,7 @@ export type AgentSkill = {
   estimated_cost_note: string | null;
   capabilities: string[];
   conflict_domains: string[];
+  agent_scope: string[];
   notes: string | null;
   installed_at: string;
   last_checked_at: string;
