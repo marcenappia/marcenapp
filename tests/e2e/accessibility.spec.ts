@@ -64,7 +64,8 @@ test.describe('Navegação, acessibilidade e responsividade', () => {
     const iaraButton = page.locator('button[aria-label="Estúdio + IARA"]:visible').first();
     await expect(iaraButton).toBeVisible();
     await iaraButton.click();
-    await expect(page.getByRole('dialog', { name: /IARA — Assistente técnica/i })).toBeVisible();
-    await expect(page.getByText('Modo técnico seguro')).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: /IARA — Assistente técnica/i });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('Modo técnico seguro').first()).toBeVisible();
   });
 });
