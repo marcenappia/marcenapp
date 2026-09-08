@@ -34,14 +34,17 @@ const Auth = () => {
 
   const SUPPORT_LINK = import.meta.env.VITE_SUPPORT_WHATSAPP_LINK || "https://wa.me/5511999999999";
 
-  const goAfterAuth = () => navigate(selectedPlan ? `/checkout?plan=${encodeURIComponent(selectedPlan)}` : '/');
+  // O cadastro/login libera o aplicativo imediatamente. O teste de 7 dias
+  // acontece dentro do MARCENAPP; contratar o plano e informar pagamento é
+  // uma decisão posterior, não um bloqueio para entrar.
+  const goAfterAuth = () => navigate('/app', { replace: true });
 
   const handleOAuth = async (provider: OAuthProvider) => {
     setError('');
     setSuccess('');
     setOauthLoading(provider);
     try {
-      const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin });
+      const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: `${window.location.origin}/auth${selectedPlan ? `?plan=${encodeURIComponent(selectedPlan)}` : ''}` });
       if (result.error) {
         setError(result.error.message || `Não foi possível entrar com ${provider === 'google' ? 'Google' : 'Apple'}.`);
         setOauthLoading(null);
@@ -87,9 +90,16 @@ const Auth = () => {
         if (error) setError(error.message);
         else goAfterAuth();
       } else {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { name }, emailRedirectTo: `${window.location.origin}/auth${selectedPlan ? `?plan=${encodeURIComponent(selectedPlan)}` : ''}` } });
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name, selected_plan: selectedPlan || 'start', trial_days: 7 },
+            emailRedirectTo: `${window.location.origin}/auth${selectedPlan ? `?plan=${encodeURIComponent(selectedPlan)}` : ''}`,
+          },
+        });
         if (error) setError(error.message);
-        else setSuccess('Verifique seu e-mail para confirmar o cadastro. Depois, você continuará para a contratação do plano escolhido.');
+        else setSuccess('Cadastro criado. Confirme seu e-mail se solicitado; depois o MARCENAPP libera o aplicativo. Você começa com 7 dias de teste sem pagamento.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ocorreu um erro inesperado.');
@@ -105,7 +115,8 @@ const Auth = () => {
           <img src={logo} alt="MARCENAPP" width={88} height={88} className="mx-auto mb-4 h-22 w-22 object-contain drop-shadow-[0_8px_24px_hsl(var(--sidebar-active)/0.35)]" />
           <h1 className="text-2xl font-bold tracking-tight text-white">MARCENA<span className="text-[hsl(var(--sidebar-active))]">PP</span></h1>
           <p className="mt-1 text-sm text-[hsl(var(--sidebar-text))]">Marcenaria 4.0</p>
-          {selectedPlan && <p className="mt-3 text-xs font-bold text-amber-300">Plano selecionado: {selectedPlan}</p>}
+          {selectedPlan && <p className="mt-3 text-xs font-bold text-amber-300">Plano selecionado: {selectedPlan} · 7 dias grátis</p>}
+          {!selectedPlan && <p className="mt-3 text-xs font-bold text-emerald-300">Entre e comece seu teste de 7 dias sem pagamento</p>}
         </div>
 
         {!isReset && <div className="space-y-3">
@@ -124,7 +135,7 @@ const Auth = () => {
           {error && <div className="space-y-2"><p className="rounded-lg bg-red-950/50 p-3 text-sm text-red-400">{error}</p>{isReset && <p className="text-center"><a href={SUPPORT_LINK} target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(var(--sidebar-text))] underline hover:text-white">Não resolveu? Fale com o suporte</a></p>}</div>}
           {success && <p className="rounded-lg bg-emerald-950/50 p-3 text-sm text-emerald-400">{success}</p>}
 
-          <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--sidebar-active))] py-3 font-bold text-white transition-all hover:brightness-110 disabled:opacity-50">{loading && <Loader2 className="animate-spin" size={18} />}{isReset ? 'Enviar Recuperação' : isLogin ? 'Entrar' : 'Cadastrar'}</button>
+          <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--sidebar-active))] py-3 font-bold text-white transition-all hover:brightness-110 disabled:opacity-50">{loading && <Loader2 className="animate-spin" size={18} />}{isReset ? 'Enviar Recuperação' : isLogin ? 'Entrar no MARCENAPP' : 'Criar conta e testar grátis'}</button>
         </form>
 
         <p className="text-center text-sm text-[hsl(var(--sidebar-text))]">{isReset ? <button onClick={() => setIsReset(false)} className="font-semibold text-[hsl(var(--sidebar-active))] hover:underline">Voltar para o login</button> : <>{isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}<button onClick={() => setIsLogin(!isLogin)} className="font-semibold text-[hsl(var(--sidebar-active))] hover:underline">{isLogin ? 'Cadastre-se' : 'Entrar'}</button></>}</p>
