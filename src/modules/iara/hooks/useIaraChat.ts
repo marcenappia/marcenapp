@@ -1,9 +1,23 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runOrchestrator } from '@/core/orchestrator';
+
+interface SpeechRecognitionLike {
+  start: () => void;
+  stop: () => void;
+  lang: string;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+}
+
+interface SpeechRecognitionWindow extends Window {
+  SpeechRecognition?: new () => SpeechRecognitionLike;
+  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+}
 
 export const useIaraChat = (
   factors: { L: number, A: number },
@@ -26,7 +40,15 @@ export const useIaraChat = (
   
   const commandHistory = useMarcenappOS(state => state.commandHistory);
 
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+
+  const saveMessage = useCallback(async (msg: Partial<ChatMessage>) => {
+    if (!user) return;
+    const { error: insertError } = await supabase
+      .from('chat_messages')
+      .insert({ user_id: user.id, project_id: projectId, ...msg });
+    if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
+  }, [user, projectId]);
 
   // Monitora mudanças de status na fila de comandos para notificar o usuário
   useEffect(() => {
@@ -38,17 +60,18 @@ export const useIaraChat = (
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
 
-      if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
+      const resultUrl = lastCommand.result?.resultUrl;
+      if (lastCommand.status === 'completed' && typeof resultUrl === 'string' && resultUrl.length > 0) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
         
         // Validação rigorosa: Vincular resultado ao ID do comando no chat
         await saveMessage({
           sender: 'iara',
           text: `A materialização foi concluída com sucesso no Estúdio! (Ref: ${lastCommand.id})`,
-          image_url: lastCommand.result.resultUrl, 
+          image_url: resultUrl,
           metadata: {
             commandId: lastCommand.id,
-            resultUrl: lastCommand.result.resultUrl
+            resultUrl
           }
         });
         setIsTyping(false);
@@ -62,7 +85,7 @@ export const useIaraChat = (
     };
 
     notifyChat();
-  }, [commandHistory]);
+  }, [commandHistory, saveMessage]);
 
   useEffect(() => {
     if (!user) { setMessages([]); return; }
@@ -97,14 +120,6 @@ export const useIaraChat = (
 
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [user, projectId]);
-
-  const saveMessage = async (msg: Partial<ChatMessage>) => {
-    if (!user) return;
-    const { error: insertError } = await supabase
-      .from('chat_messages')
-      .insert({ user_id: user.id, project_id: projectId, ...msg });
-    if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
-  };
 
   const sendPrompt = async (promptText: string, upload: typeof pendingUpload) => {
     if (!user) return;
@@ -157,22 +172,26 @@ export const useIaraChat = (
         if (result.ok === false) return `❌ ${tool}: ${result.error}`;
         switch (tool) {
           case 'createCliente':
-            return `✅ Cliente **${result.data.nome}** cadastrado.`;
-          case 'createProjeto':
-            if (result.data?.width && result.data?.height && result.data?.depth) {
+            return `✅ Cliente **${(result.data as { nome: string }).nome}** cadastrado.`;
+          case 'createProjeto': {
+            const projeto = result.data as { nome: string; width: number; height: number; depth: number };
+            if (projeto.width && projeto.height && projeto.depth) {
               hooks?.onProjectCreated?.({
-                width: Number(result.data.width),
-                height: Number(result.data.height),
-                depth: Number(result.data.depth),
+                width: Number(projeto.width),
+                height: Number(projeto.height),
+                depth: Number(projeto.depth),
               });
             }
-            return `✅ Projeto **${result.data.nome}** criado (${result.data.width}×${result.data.height}×${result.data.depth}m).`;
+            return `✅ Projeto **${projeto.nome}** criado (${projeto.width}×${projeto.height}×${projeto.depth}m).`;
+          }
           case 'gerarRender':
-            return `🎨 Render enfileirado no Estúdio (ref: ${result.data.studioCommandId}). Aviso quando ficar pronto.`;
+            return `🎨 Render enfileirado no Estúdio (ref: ${(result.data as { studioCommandId: string }).studioCommandId}). Aviso quando ficar pronto.`;
           case 'calcularOrcamento':
-            return `💰 Orçamento estimado: **R$ ${result.data.total.toLocaleString('pt-BR')}** (materiais R$ ${result.data.materiais.toLocaleString('pt-BR')} + mão de obra R$ ${result.data.maoDeObra.toLocaleString('pt-BR')}).`;
+            { const orcamento = result.data as { total: number; materiais: number; maoDeObra: number };
+            return `💰 Orçamento estimado: **R$ ${orcamento.total.toLocaleString('pt-BR')}** (materiais R$ ${orcamento.materiais.toLocaleString('pt-BR')} + mão de obra R$ ${orcamento.maoDeObra.toLocaleString('pt-BR')}).`; }
           case 'gerarContrato':
-            return `📄 Contrato preparado para **${result.data.cliente}**${result.data.valor ? ` (R$ ${result.data.valor.toLocaleString('pt-BR')})` : ''}. ${result.data.clausulasGeradas} cláusula(s) via IA.`;
+            { const contrato = result.data as { cliente: string; valor: number | null; clausulasGeradas: number };
+            return `📄 Contrato preparado para **${contrato.cliente}**${contrato.valor ? ` (R$ ${contrato.valor.toLocaleString('pt-BR')})` : ''}. ${contrato.clausulasGeradas} cláusula(s) via IA.`; }
           default:
             return `✅ ${tool} executado.`;
         }
@@ -185,10 +204,10 @@ export const useIaraChat = (
         text: `${header}${linhas.join('\n')}${footer}`,
       });
       lastFailedRef.current = null;
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Guarda o envio para permitir "Tentar novamente" sem redigitar
       lastFailedRef.current = { text: promptText, upload };
-      setError(e?.message || 'Falha ao falar com a IARA. Tente novamente.');
+      setError(e instanceof Error ? e.message : 'Falha ao falar com a IARA. Tente novamente.');
     } finally {
       setIsTyping(false);
     }
@@ -228,11 +247,12 @@ export const useIaraChat = (
   };
 
   useEffect(() => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const speechWindow = window as SpeechRecognitionWindow;
+    const SR = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (SR) {
       const r = new SR(); r.lang = "pt-BR";
       r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false);
-      r.onresult = (e: any) => setChatInput(prev => `${prev} ${e.results[0][0].transcript}`);
+      r.onresult = (e) => setChatInput(prev => `${prev} ${e.results[0][0].transcript}`);
       recognitionRef.current = r;
     }
   }, []);

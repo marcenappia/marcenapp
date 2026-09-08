@@ -21,7 +21,7 @@ async function call(body: BodyInit, headers: Record<string, string> = {}) {
     body,
   });
   const text = await res.text();
-  let json: any = null;
+  let json: unknown = null;
   try { json = JSON.parse(text); } catch { /* keep null */ }
   return { status: res.status, json, text };
 }

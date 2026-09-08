@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Studio } from './StudioView';
+import { StudioView as Studio } from './StudioView';
 import IaraModule from '@/modules/iara';
 import { useDebouncedValue } from '@/hooks/useDebounce';
+import type { ProjectData } from '@/modules/projetos/types';
 
 interface StudioHubProps {
-  setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
+  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
   navigateTo: (id: string) => void;
   gallery: string[];
   setGallery: React.Dispatch<React.SetStateAction<string[]>>;
-  budgetProject: any;
+  budgetProject: ProjectData;
 }
 
 export const StudioHub = (props: StudioHubProps) => {
@@ -25,7 +26,7 @@ export const StudioHub = (props: StudioHubProps) => {
   };
 
   const handleIaraProjectChange = (p: { width: number; height: number; depth: number }) => {
-    props.setBudgetProject((prev: any) => {
+    props.setBudgetProject((prev) => {
       if (prev?.width === p.width && prev?.height === p.height && prev?.depth === p.depth) return prev;
       return { ...prev, width: p.width, height: p.height, depth: p.depth };
     });

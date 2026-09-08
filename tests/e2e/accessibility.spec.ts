@@ -139,7 +139,7 @@ test.describe('Accessibility Audit & Keyboard Navigation', () => {
     await expect(btn).toHaveAttribute('aria-current', 'page');
     
     // Verify that screen reader would announce the correct label and state
-    const accessibilitySnapshot = await page.accessibility.snapshot({ root: btn.elementHandle() as any });
+    const accessibilitySnapshot = await page.accessibility.snapshot({ root: await btn.elementHandle() });
     expect(accessibilitySnapshot?.name).toBe(mod.label);
     if (!isMobile) {
       // On desktop, check if the current page indicator is detected

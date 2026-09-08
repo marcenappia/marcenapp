@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { callAIText, requireAuth } from '@/services/ai';
 import { studioService } from '@/modules/ambientes/services/studioService';
 import { useStudioStore } from '@/store/useStudioStore';
+import type { ProjectData } from '@/modules/projetos/types';
 import { AnaliseIara, EtapaId, carregarProgresso, salvarProgresso } from '../types';
 import {
   baixarComoDataUrl, dataUrlParaBlob, carregarObra, enviarApresentacao, enviarFotoAmbiente, salvarJornada, JornadaSalva, StatusObra,
@@ -17,7 +18,7 @@ interface Foto {
 
 interface Opcoes {
   projectId: string | null;
-  setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
+  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
 }
 
 /** Lógica da jornada "Novo Projeto" — reaproveita IARA (ai-text) e Estúdio (ai-image). */
@@ -136,8 +137,8 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
           await salvarJornada(id, { etapa: Math.max(etapa, 2) as EtapaId }).catch(() => undefined);
         }
         setEtapa(2);
-      } catch (e: any) {
-        setErro(e?.message || 'Não deu para salvar a obra. Tente de novo.');
+      } catch (e: unknown) {
+        setErro(e instanceof Error ? e.message : 'Não deu para salvar a obra. Tente de novo.');
       } finally {
         setLoading(null);
       }
@@ -165,8 +166,8 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
         }
         persistir({ etapa: 3 });
         setEtapa(3);
-      } catch (e: any) {
-        setErro(e?.message || 'Não deu para guardar a foto. Tente de novo.');
+      } catch (e: unknown) {
+        setErro(e instanceof Error ? e.message : 'Não deu para guardar a foto. Tente de novo.');
       } finally {
         setLoading(null);
       }
@@ -199,8 +200,8 @@ Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (
         setAnalise(resultado);
         persistir({ etapa: 4, pedido: pedido.trim(), analise: resultado });
         setEtapa(4);
-      } catch (e: any) {
-        setErro(e?.message || 'A IARA não conseguiu analisar agora. Tente de novo.');
+      } catch (e: unknown) {
+        setErro(e instanceof Error ? e.message : 'A IARA não conseguiu analisar agora. Tente de novo.');
       } finally {
         setLoading(null);
       }
@@ -213,7 +214,7 @@ Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (
       return Number.isFinite(r) && r > 0 ? r : typeof v === 'number' && v > 0 ? v : undefined;
     };
     const w = num(m?.width, 'largura'); const h = num(m?.height, 'altura'); const d = num(m?.depth, 'profundidade');
-    setBudgetProject((prev: any) => ({
+    setBudgetProject((prev) => ({
       ...prev,
       id: projectId ?? prev?.id,
       width: w ?? prev.width,
@@ -243,8 +244,8 @@ Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (
         if (user && projectId) await enviarApresentacao(user.id, projectId, img).catch(() => undefined);
         persistir({ etapa: 5, respostas });
         setEtapa(5);
-      } catch (e: any) {
-        setErro(e?.message || 'Não deu para gerar a apresentação. Tente de novo.');
+      } catch (e: unknown) {
+        setErro(e instanceof Error ? e.message : 'Não deu para gerar a apresentação. Tente de novo.');
       } finally {
         setLoading(null);
       }
@@ -263,8 +264,8 @@ Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (
         setAjuste('');
         if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt: ajuste.trim() });
         if (user && projectId) await enviarApresentacao(user.id, projectId, img).catch(() => undefined);
-      } catch (e: any) {
-        setErro(e?.message || 'Não deu para ajustar. Tente de novo.');
+      } catch (e: unknown) {
+        setErro(e instanceof Error ? e.message : 'Não deu para ajustar. Tente de novo.');
       } finally {
         setLoading(null);
       }
@@ -280,8 +281,8 @@ Faça no máximo 4 perguntas e somente sobre o que realmente falta para orçar (
         await salvarJornada(projectId, { etapa: 7 }, { status: 'aprovado', aprovado: true });
         setStatus('aprovado');
         setEtapa(7);
-      } catch (e: any) {
-        setErro(e?.message || 'Não deu para registrar a aprovação. Tente de novo.');
+      } catch (e: unknown) {
+        setErro(e instanceof Error ? e.message : 'Não deu para registrar a aprovação. Tente de novo.');
       } finally {
         setLoading(null);
       }

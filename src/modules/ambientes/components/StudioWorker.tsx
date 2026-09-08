@@ -1,9 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useCallback } from 'react';
 import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import type { OSCommand } from '@/store/useMarcenappOS';
+import type { RenderCommand } from '@/store/useStudioStore';
 
 /**
  * Componente "Headless" que processa comandos do estúdio em segundo plano seguindo uma fila.
@@ -24,19 +26,9 @@ export const StudioWorker = () => {
   const failCommand = useStudioStore(state => state.failCommand);
   
   // Ref para evitar processamento duplo se o estado mudar rápido demais
-  const currentlyProcessing = { current: null as string | null };
+  const currentlyProcessing = useRef<string | null>(null);
 
-  useEffect(() => {
-    // Busca o primeiro comando pendente na fila
-    const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
-    
-    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) {
-      processCommand(nextCommand);
-    }
-  }, [commandQueue, isRendering]);
-
-
-  const saveToGallery = async (imageUrl: string, promptText: string) => {
+  const saveToGallery = useCallback(async (imageUrl: string, promptText: string) => {
     if (!user) return;
     const { error } = await supabase.from('gallery_images').insert({
       user_id: user.id,
@@ -44,12 +36,12 @@ export const StudioWorker = () => {
       prompt: promptText,
     });
     if (error) console.error("Erro ao salvar na galeria:", error.message);
-  };
+  }, [user]);
 
   /** Resolve os dados de render: comando do Estúdio (por studioCommandId) ou o próprio payload. */
-  const resolveRenderCommand = (osCommand: { payload?: any }) => {
+  const resolveRenderCommand = (osCommand: OSCommand): Partial<RenderCommand> => {
     const payload = osCommand.payload ?? {};
-    const studioId: string | undefined = payload.studioCommandId;
+    const studioId = typeof payload.studioCommandId === 'string' ? payload.studioCommandId : undefined;
     if (studioId) {
       const studioCmd = useStudioStore.getState().commandQueue.find(c => c.id === studioId);
       if (studioCmd) return { ...studioCmd };
@@ -57,7 +49,7 @@ export const StudioWorker = () => {
     return { ...payload };
   };
 
-  const processCommand = async (osCommand: OSCommand) => {
+  const processCommand = useCallback(async (osCommand: OSCommand) => {
     // Verifica se o comando foi cancelado antes de iniciar
     if (osCommand.status === 'cancelled') {
       currentlyProcessing.current = null;
@@ -77,8 +69,10 @@ export const StudioWorker = () => {
       return;
     }
 
+    const studioCommandId = command.id ?? osCommand.id;
+
     currentlyProcessing.current = osCommand.id;
-    startProcessing(studioId);
+    startProcessing(studioCommandId);
     updateOSStatus(osCommand.id, 'processing');
     
     try {
@@ -90,19 +84,28 @@ export const StudioWorker = () => {
       );
 
       if (result) {
-        completeCommand(osCommand.id, result);
+        completeCommand(studioCommandId, result);
         updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
         await saveToGallery(result, command.prompt);
       } else {
         throw new Error("O serviço de IA não retornou uma imagem válida.");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro desconhecido na geração.";
       console.error("StudioWorker Error:", error);
-      fail(error?.message || "Erro desconhecido na geração.");
+      failCommand(studioCommandId, message);
+      updateOSStatus(osCommand.id, 'failed', undefined, message);
     } finally {
       currentlyProcessing.current = null;
     }
-  };
+  }, [completeCommand, failCommand, saveToGallery, startProcessing, updateOSStatus]);
+
+  useEffect(() => {
+    const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
+    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) {
+      processCommand(nextCommand);
+    }
+  }, [commandQueue, isRendering, processCommand]);
 
   return null;
 };

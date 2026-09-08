@@ -2,19 +2,41 @@ import React, { useState } from 'react';
 import { Package, Palette, Printer, Calculator, Sliders } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
 import { useOrcamento } from './hooks/useOrcamento';
+import type { ProjectData } from '@/modules/projetos/types';
 
 interface Props {
-  project: any;
-  setProject: (p: any) => void;
-  setParts?: (parts: any[]) => void;
+  project: ProjectData;
+  setProject: (project: ProjectData) => void;
 }
 
 const OrcamentoModule = ({ project, setProject }: Props) => {
   const [showModal, setShowModal] = useState(false);
   const { calc, formatBRL } = useOrcamento(project);
 
+  const volumeM3 = ((Number(project.width) || 0) * (Number(project.height) || 0) * (Number(project.depth) || 0)).toFixed(2);
+  const projectId = project?.id ? String(project.id).slice(-6).toUpperCase() : 'NOVO';
+
   return (
     <>
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Projeto</p>
+          <p className="mt-3 text-lg font-black text-slate-900">#{projectId}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Volume</p>
+          <p className="mt-3 text-lg font-black text-slate-900">{volumeM3} m³</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Materiais</p>
+          <p className="mt-3 text-lg font-black text-slate-900">{formatBRL(calc.mat)}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Lucro</p>
+          <p className="mt-3 text-lg font-black text-emerald-600">{formatBRL(calc.profit)}</p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in pb-20 md:pb-0">
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">
@@ -61,6 +83,30 @@ const OrcamentoModule = ({ project, setProject }: Props) => {
               <InputGroup label="Margem de Lucro (%)" value={project.profitMargin} onChange={v => setProject({ ...project, profitMargin: Number(v) })} suffix="%" />
             </div>
           </Card>
+
+          <Card className="p-6">
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <Calculator size={20} className="text-indigo-500" /> Resumo do projeto
+            </h3>
+            <div className="grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Dimensões</span>
+                <span className="mt-2 block text-base font-bold text-slate-900">{project.width} × {project.height} × {project.depth} m</span>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Estrutura</span>
+                <span className="mt-2 block text-base font-bold text-slate-900">{project.doors} portas / {project.drawers} gavetas</span>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Material</span>
+                <span className="mt-2 block text-base font-bold text-slate-900">{project.externalMaterial === 'mdf18_white' ? 'MDF Branco' : 'MDF Madeirado'}</span>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Aproveitamento</span>
+                <span className="mt-2 block text-base font-bold text-slate-900">{calc.sheetsInt + calc.sheetsExt + calc.sheetsBack} chapas estimadas</span>
+              </div>
+            </div>
+          </Card>
         </div>
 
         <div className="lg:col-span-1">
@@ -68,6 +114,16 @@ const OrcamentoModule = ({ project, setProject }: Props) => {
             <div className="p-6">
               <span style={{color: '#a5b4fc', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em'}}>Valor Final</span>
               <div style={{fontSize: '2.2rem', fontWeight: 700, marginBottom: '1rem', marginTop: '0.5rem', color: '#fff'}}>{formatBRL(calc.total)}</div>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem', fontSize: '0.75rem', color: '#cbd5e1'}}>
+                <div style={{background: '#111827', borderRadius: '0.75rem', padding: '0.6rem'}}>
+                  <div style={{color: '#94a3b8'}}>M³</div>
+                  <div style={{color: '#fff', fontWeight: 700, marginTop: '0.2rem'}}>{((Number(project.width) || 0) * (Number(project.height) || 0) * (Number(project.depth) || 0)).toFixed(2)}</div>
+                </div>
+                <div style={{background: '#111827', borderRadius: '0.75rem', padding: '0.6rem'}}>
+                  <div style={{color: '#94a3b8'}}>Chapas</div>
+                  <div style={{color: '#fff', fontWeight: 700, marginTop: '0.2rem'}}>{calc.sheetsInt + calc.sheetsExt + calc.sheetsBack}</div>
+                </div>
+              </div>
               <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#cbd5e1'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #334155', paddingBottom: '0.5rem'}}>
                   <span>Materiais</span><span style={{color: '#fff', fontWeight: 600}}>{formatBRL(calc.mat)}</span>

@@ -24,6 +24,7 @@ import DiarioModule from '@/modules/projetos/components/Diario';
 import { modules, CATEGORY_LABELS, ModuleCategory, MOBILE_NAV_IDS } from '@/modules/config';
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
 import { ProjectData } from '@/modules/projetos/types';
+import type { Part } from '@/modules/patio';
 
 const defaultProject: ProjectData = {
   width: 2.40,
@@ -54,7 +55,7 @@ const Index = () => {
   };
 
   const [budgetProject, setBudgetProject] = useState(defaultProject);
-  const [parts, setParts] = useState<any[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
   const [gallery, setGallery] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -80,7 +81,7 @@ const Index = () => {
       case 'diario': return <DiarioModule />;
       case 'studio': return <StudioHub setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} budgetProject={budgetProject} />;
       case 'elevator': return <Elevator setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
-      case 'orcamento': return <OrcamentoModule project={budgetProject} setProject={(p: any) => setBudgetProject(p)} />;
+      case 'orcamento': return <OrcamentoModule project={budgetProject} setProject={setBudgetProject} />;
       case 'corte': return <CorteModule parts={parts} setParts={setParts} project={budgetProject} />;
       case 'contrato': return <Contrato />;
       default: return null;
@@ -148,7 +149,10 @@ const Index = () => {
       <Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
       
       {/* Desktop Sidebar - Refatorada para Camadas */}
-      <aside className="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col border-r border-slate-800 z-20 shrink-0 shadow-2xl">
+      <aside
+        className="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col border-r border-slate-800 z-20 shrink-0 shadow-2xl"
+        aria-label="Menu principal"
+      >
         <div className="p-4 flex items-center gap-3 font-bold text-white border-b border-slate-800 h-16">
           <img src={logo} alt="M" className="w-9 h-9 rounded-full border-2 border-indigo-500" />
           <div className="leading-tight">
@@ -174,7 +178,7 @@ const Index = () => {
                   onKeyDown={(e) => handleKeyDown(e, m.id)}
                   className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                     activeModule === m.id
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-400'
                       : 'hover:bg-white/5 hover:text-white text-slate-400'
                   }`}
                 >
@@ -211,15 +215,20 @@ const Index = () => {
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50 h-full overflow-hidden">
         {/* Header */}
         <header className="bg-white border-b border-slate-200 px-4 md:px-8 h-16 flex items-center justify-between sticky top-0 z-10 shadow-sm shrink-0">
-          <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2 truncate">
-            <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-              <ActiveIcon size={20} className="shrink-0" />
-            </div>
-            <div className="flex flex-col">
-              <span className="truncate leading-none">{activeModuleData.label}</span>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{CATEGORY_LABELS[activeModuleData.category].split(' — ')[0]}</span>
-            </div>
-          </h2>
+          <div className="flex items-center gap-3 min-w-0">
+            <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2 truncate">
+              <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                <ActiveIcon size={20} className="shrink-0" />
+              </div>
+              <div className="flex flex-col">
+                <span className="truncate leading-none">{activeModuleData.label}</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{CATEGORY_LABELS[activeModuleData.category].split(' — ')[0]}</span>
+              </div>
+            </h2>
+            <span className="hidden md:inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-indigo-700">
+              Ativo agora
+            </span>
+          </div>
           <div className="relative">
             {user ? (
               <>

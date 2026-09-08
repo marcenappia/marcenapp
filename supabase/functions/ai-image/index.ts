@@ -184,7 +184,7 @@ serve(async (req) => {
       }
     }
 
-    const parts: any[] = [{ text: prompt }];
+    const parts: Array<Record<string, unknown>> = [{ text: prompt }];
     if (images && images.length > 0) {
       for (const img of images) {
         parts.push({
@@ -196,7 +196,7 @@ serve(async (req) => {
     const model = "gemini-2.5-flash-image";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
 
-    const body: Record<string, any> = {
+    const body: Record<string, unknown> = {
       contents: [{ role: "user", parts }],
       generationConfig: {
         responseModalities: ["TEXT", "IMAGE"],

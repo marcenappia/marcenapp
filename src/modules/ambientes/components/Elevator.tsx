@@ -7,9 +7,12 @@ import { Button, Card, Modal, DecorationPanel } from '@/components/marcenaria/sh
 import { callAIText } from '@/services/ai';
 import { studioService } from '../services/studioService';
 import { iaraService } from '@/modules/iara/services/iaraService';
+import type { ProjectData } from '@/modules/projetos/types';
+import type { DecorOption } from '@/components/marcenaria/shared';
+import { Box } from 'lucide-react';
 
 interface Props {
-  setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
+  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
   navigateTo: (id: string) => void;
 }
 
@@ -25,7 +28,7 @@ export const Elevator = ({ setBudgetProject, navigateTo }: Props) => {
   const [view, setView] = useState("perspective");
   const [showModal, setShowModal] = useState(false);
   const [furniturePlacement, setFurniturePlacement] = useState("");
-  const [selectedDecor, setSelectedDecor] = useState<any>({ id: 'minimal', label: 'Minimalista', icon: undefined as any, prompt: 'Minimalist decoration, few objects, clean.' });
+  const [selectedDecor, setSelectedDecor] = useState<DecorOption>({ id: 'minimal', label: 'Minimalista', icon: Box, prompt: 'Minimalist decoration, few objects, clean.' });
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -65,7 +68,7 @@ export const Elevator = ({ setBudgetProject, navigateTo }: Props) => {
       const imageUrl = await studioService.generateVisual(finalPrompt, [{ mimeType: 'image/png', data: planBase64 }]);
       if (imageUrl) { setGeneratedImage(imageUrl); setShowModal(true); }
       else throw new Error("Sem imagem gerada.");
-    } catch (e: any) { alert(e.message || "Erro API"); } finally { setLoading(false); }
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : "Erro API"); } finally { setLoading(false); }
   };
 
   const analyzeForBudget = async () => {
@@ -74,7 +77,7 @@ export const Elevator = ({ setBudgetProject, navigateTo }: Props) => {
     try {
       const imageBase64 = generatedImage.split(',')[1];
       const est = await iaraService.analyzeImage(imageBase64);
-      setBudgetProject((prev: any) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
+      setBudgetProject((prev) => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
       setShowModal(false); navigateTo('orcamento');
     } catch { alert("Erro análise visual."); navigateTo('orcamento'); } finally { setAnalyzing(false); }
   };

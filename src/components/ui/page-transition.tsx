@@ -51,9 +51,9 @@ const PageTransition = ({
     <AnimatePresence mode="wait">
       <motion.div
         key={location.pathname}
-        initial={reducedMotion ? false : v.initial}
-        animate={reducedMotion ? false : v.animate}
-        exit={reducedMotion ? false : v.exit}
+        initial={reducedMotion ? undefined : v.initial}
+        animate={reducedMotion ? undefined : v.animate}
+        exit={reducedMotion ? undefined : v.exit}
         transition={{
           duration: reducedMotion ? 0 : duration,
           ease: [0.22, 1, 0.36, 1], // custom easing: cepat no início, lento no fim

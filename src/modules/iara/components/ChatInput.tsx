@@ -1,6 +1,12 @@
 import React from 'react';
 import { Paperclip, Mic, MicOff, Send, X } from 'lucide-react';
 
+export interface PendingUpload {
+  base64: string;
+  baseRaw: string;
+  maskRaw: string;
+}
+
 interface ChatInputProps {
   chatInput: string;
   setChatInput: (val: string) => void;
@@ -8,8 +14,8 @@ interface ChatInputProps {
   onImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   toggleRecording: () => void;
   isListening: boolean;
-  pendingUpload: { base64: string } | null;
-  setPendingUpload: (val: any) => void;
+  pendingUpload: PendingUpload | null;
+  setPendingUpload: (val: PendingUpload | null) => void;
 }
 
 export const ChatInput = ({ 

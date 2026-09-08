@@ -2,10 +2,19 @@ import React from 'react';
 import { DollarSign, Package, Scissors, Wand2, ArrowRight, Scale, History } from 'lucide-react';
 import { Card, Button } from '@/components/marcenaria/shared';
 import { formatBRL } from '@/utils/format';
+import type { ProjectData } from './types';
+
+interface PartSummary {
+  id: number;
+  name: string;
+  w: number;
+  h: number;
+  qtd: number;
+}
 
 interface Props {
-  projectData: any;
-  partsData: any[];
+  projectData: ProjectData;
+  partsData: PartSummary[];
   navigateTo: (id: string) => void;
 }
 

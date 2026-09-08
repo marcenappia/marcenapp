@@ -40,7 +40,7 @@ describe('Onboarding Component', () => {
 
   const renderOnboarding = (activeModule = 'chat') => {
     return render(
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Onboarding onNavigate={mockOnNavigate} activeModule={activeModule} />
       </BrowserRouter>
     );
@@ -74,7 +74,7 @@ describe('Onboarding Component', () => {
       user: null, 
       profile: null,
       refreshProfile: vi.fn()
-    } as any);
+    } as unknown as ReturnType<typeof useAuthMock.useAuth>);
 
     localStorage.setItem('marcenapp_onboarding_step', '2');
     localStorage.setItem('marcenapp_onboarding_seen', 'false');

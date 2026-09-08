@@ -23,7 +23,7 @@ vi.mock('@/hooks/useAuth', () => ({
 
 const renderAuth = () => {
   return render(
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Auth />
     </BrowserRouter>
   );
@@ -37,7 +37,7 @@ describe('Auth Page - Reset Password Flow', () => {
 
   it('shows loading state and triggers countdown on success', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
-    (supabase.auth.resetPasswordForEmail as any).mockResolvedValue({ data: {}, error: null });
+    vi.mocked(supabase.auth.resetPasswordForEmail).mockResolvedValue({ data: {}, error: null });
 
     renderAuth();
 
@@ -74,9 +74,9 @@ describe('Auth Page - Reset Password Flow', () => {
 
   it('shows support link when error occurs during reset', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
-    (supabase.auth.resetPasswordForEmail as any).mockResolvedValue({ 
+    vi.mocked(supabase.auth.resetPasswordForEmail).mockResolvedValue({ 
       data: null, 
-      error: { message: 'Failed to send' } 
+      error: { message: 'Failed to send' } as unknown as import('@supabase/auth-js').AuthError
     });
 
     renderAuth();

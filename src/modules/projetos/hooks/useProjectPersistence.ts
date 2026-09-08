@@ -9,39 +9,49 @@ export const useProjectPersistence = (
 ) => {
   const { user } = useAuth();
   const saveTimeout = useRef<NodeJS.Timeout>();
+  const hasLoadedProject = useRef(false);
 
   useEffect(() => {
+    hasLoadedProject.current = false;
     if (!user) return;
-    supabase
-      .from('projects')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .then(({ data }) => {
-        if (data && data.length > 0) {
-          const p = data[0];
-          setBudgetProject({
-            id: p.id,
-            width: Number(p.width) || 2.4,
-            height: Number(p.height) || 2.6,
-            depth: Number(p.depth) || 0.6,
-            modules: p.modules || 3,
-            drawers: p.drawers || 4,
-            doors: p.doors || 6,
-            internalMaterial: p.internal_material || 'mdf15_white',
-            externalMaterial: p.external_material || 'mdf18_white',
-            backMaterial: p.back_material || 'mdf6_white',
-            handleType: p.handle_type || 'external',
-            profitMargin: Number(p.profit_margin) || 35,
-            laborRate: Number(p.labor_rate) || 100,
-          });
-        }
-      });
-  }, [user]);
+
+    let cancelled = false;
+    const loadProject = async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (cancelled) return;
+      if (data && data.length > 0) {
+        const p = data[0];
+        setBudgetProject({
+          id: p.id,
+          width: Number(p.width) || 2.4,
+          height: Number(p.height) || 2.6,
+          depth: Number(p.depth) || 0.6,
+          modules: p.modules || 3,
+          drawers: p.drawers || 4,
+          doors: p.doors || 6,
+          internalMaterial: p.internal_material || 'mdf15_white',
+          externalMaterial: p.external_material || 'mdf18_white',
+          backMaterial: p.back_material || 'mdf6_white',
+          handleType: p.handle_type || 'external',
+          profitMargin: Number(p.profit_margin) || 35,
+          laborRate: Number(p.labor_rate) || 100,
+        });
+      }
+      hasLoadedProject.current = true;
+    };
+
+    loadProject();
+    return () => { cancelled = true; };
+  }, [user, setBudgetProject]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !hasLoadedProject.current) return;
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(async () => {
       let targetId = budgetProject.id;
@@ -81,5 +91,5 @@ export const useProjectPersistence = (
     }, 2000);
 
     return () => { if (saveTimeout.current) clearTimeout(saveTimeout.current); };
-  }, [user, budgetProject]);
+  }, [user, budgetProject, setBudgetProject]);
 };

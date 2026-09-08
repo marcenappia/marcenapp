@@ -4,7 +4,7 @@ import Index from '../pages/Index';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 vi.mock('@/integrations/supabase/client', () => {
-  const mock: any = {
+  const mock = {
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
     single: vi.fn().mockReturnThis(),
@@ -43,14 +43,14 @@ describe('Menu Accessibility', () => {
   });
 
   it('nav buttons should have focus indicators', () => {
-    render(<BrowserRouter><Index /></BrowserRouter>);
+    render(<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Index /></BrowserRouter>);
     const chatBtn = screen.getAllByLabelText(/Estúdio \+ IARA/i)[0];
     expect(chatBtn).toHaveClass('focus-visible:ring-2');
   });
 
   it('home (jornada) is the default module and mobile nav has Novo Projeto', () => {
     window.innerWidth = 400;
-    render(<BrowserRouter><Index /></BrowserRouter>);
+    render(<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Index /></BrowserRouter>);
     expect(screen.getByTestId('home')).toBeInTheDocument();
     expect(screen.getByLabelText('Novo Projeto')).toBeInTheDocument();
   });

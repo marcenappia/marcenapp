@@ -5,6 +5,8 @@ import { requireAuth, DecorOption } from '@/components/marcenaria/shared';
 import { useStudioStore, ImageData } from '@/store/useStudioStore';
 import { studioService } from '../services/studioService';
 import { iaraService } from '@/modules/iara/services/iaraService';
+import type { ProjectData } from '@/modules/projetos/types';
+import { Box } from 'lucide-react';
 
 interface StudioStyle {
   id: string;
@@ -19,7 +21,7 @@ const styles: StudioStyle[] = [
 ];
 
 export const useStudio = (
-  setBudgetProject: React.Dispatch<React.SetStateAction<any>>, 
+  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>, 
   navigateTo: (route: string) => void, 
   gallery: string[], 
   setGallery: React.Dispatch<React.SetStateAction<string[]>>
@@ -40,9 +42,9 @@ export const useStudio = (
   const [selectedDecor, setSelectedDecor] = useState<DecorOption>({ 
     id: 'minimal', 
     label: 'Minimalista', 
-    icon: () => null, // Placeholder since we import the type but need a default object
-    prompt: 'Minimalist style, clean surfaces, few objects, museum-like, organized.' 
-  } as any); // cast to any for the default icon placeholder, but type is DecorOption
+    icon: Box,
+    prompt: 'Minimalist style, clean surfaces, few objects, museum-like, organized.'
+  });
   
   const [isRefining, setIsRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +76,7 @@ export const useStudio = (
           if (!generatedImage) setGeneratedImage(urls[0]);
         }
       });
-  }, [user]);
+  }, [user, generatedImage, setGallery, setGeneratedImage]);
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
     if (!user) return;
@@ -119,8 +121,8 @@ export const useStudio = (
       } else {
         throw new Error("Falha na geração. Tente novamente.");
       }
-    } catch (e: any) {
-      setError(e?.message || "Erro de conexão.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erro de conexão.");
     } finally { setLoading(false); }
   };
 
@@ -136,7 +138,7 @@ export const useStudio = (
     try {
       const imageBase64 = generatedImage.split(',')[1];
       const est = await iaraService.analyzeImage(imageBase64);
-      setBudgetProject((prev: any) => ({ 
+      setBudgetProject((prev) => ({ 
         ...prev, 
         width: est.width || 2, 
         height: est.height || 2.5, 

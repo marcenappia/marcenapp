@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { Json } from '@/integrations/supabase/types';
+import type { Database, Json } from '@/integrations/supabase/types';
 import { AnaliseIara, EtapaId, ProgressoObra, salvarProgresso } from '../types';
 
 /**
@@ -64,7 +64,7 @@ export const salvarJornada = async (
   const anterior = (atual?.jornada && typeof atual.jornada === 'object' ? atual.jornada : {}) as Record<string, unknown>;
   const jornada = { ...anterior, ...patch, atualizadoEm: new Date().toISOString() } as unknown as Json;
 
-  const update: Record<string, unknown> = { jornada };
+  const update: Database['public']['Tables']['projects']['Update'] = { jornada };
   if (extra?.status) update.status = extra.status;
   if (extra?.aprovado) update.aprovado_em = new Date().toISOString();
 

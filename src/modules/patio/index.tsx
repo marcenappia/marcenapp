@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, RefreshCcw } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
+import type { ProjectData } from '@/modules/projetos/types';
 
-interface Part {
+export interface Part {
   id: number;
   name: string;
   w: number;
@@ -23,6 +24,32 @@ interface SheetItem extends ExplodedPart {
 interface Sheet {
   items: SheetItem[];
   usedArea: number;
+}
+
+export function generatePartsFromProject(project: Partial<ProjectData>): Part[] {
+  const width = Math.max(0, Math.round(Number(project?.width) * 1000));
+  const height = Math.max(0, Math.round(Number(project?.height) * 1000));
+  const depth = Math.max(0, Math.round(Number(project?.depth) * 1000));
+  const doors = Math.max(0, Math.floor(Number(project?.doors) || 0));
+  const drawers = Math.max(0, Math.floor(Number(project?.drawers) || 0));
+  const modules = Math.max(1, Math.floor(Number(project?.modules) || 1));
+  const carcassWidth = Math.max(0, width - 36);
+  const openingHeight = Math.max(0, height - 36);
+  const openingWidth = Math.max(0, Math.floor(carcassWidth / modules));
+  const parts: Omit<Part, 'id'>[] = [];
+
+  const add = (name: string, w: number, h: number, qtd: number, mat: Part['mat']) => {
+    if (w > 0 && h > 0 && qtd > 0) parts.push({ name, w, h, qtd, mat });
+  };
+
+  add('Lateral', depth, openingHeight, 2, 'white');
+  add('Base / Topo', depth, carcassWidth, 2, 'white');
+  add('Prateleira', Math.max(0, depth - 20), openingWidth, Math.max(0, modules * 2), 'white');
+  add('Fundo', Math.max(0, openingHeight), carcassWidth, 1, 'white');
+  add('Porta', Math.max(0, Math.floor(carcassWidth / Math.max(1, doors)) - 3), Math.max(0, height - 4), doors, 'wood');
+  add('Frente de gaveta', Math.max(0, openingWidth - 4), Math.max(0, Math.floor(openingHeight / Math.max(1, drawers + 1)) - 3), drawers, 'wood');
+
+  return parts.map((part, index) => ({ ...part, id: index + 1 }));
 }
 
 const SHEET_W = 2730;
@@ -57,7 +84,7 @@ function packParts(parts: ExplodedPart[]): Sheet[] {
 interface Props {
   parts: Part[];
   setParts: (parts: Part[]) => void;
-  project: any;
+  project: ProjectData;
 }
 
 const CorteModule = ({ parts, setParts, project }: Props) => {
@@ -66,15 +93,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
   const [newPart, setNewPart] = useState<Omit<Part, 'id'>>({ name: '', w: 0, h: 0, qtd: 1, mat: 'white' });
 
   const importFromBudget = () => {
-    const w = Math.round(project.width * 1000);
-    const h = Math.round(project.height * 1000);
-    const d = Math.round(project.depth * 1000);
-    const autoParts: Part[] = [
-      { id: Date.now() + 1, name: 'Lateral', w: d, h: h, qtd: 2, mat: 'white' },
-      { id: Date.now() + 2, name: 'Base/Topo', w: d, h: w - 30, qtd: 2, mat: 'white' },
-      { id: Date.now() + 3, name: 'Porta', w: Math.floor(w / Math.max(1, project.doors)) - 2, h: h - 4, qtd: project.doors, mat: 'wood' },
-    ];
-    setParts([...parts, ...autoParts]);
+    setParts(generatePartsFromProject(project));
   };
 
   const addPart = () => {

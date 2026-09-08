@@ -56,7 +56,7 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
       if (next.L === prev.L && next.A === prev.A && next.P === prev.P) return prev;
       return next;
     });
-  }, [syncProject?.width, syncProject?.height, syncProject?.depth]);
+  }, [syncProject]);
 
   // ↑ IARA → Estúdio: quando sliders/tool alteram factors, propaga ao Estúdio
   useEffect(() => {
@@ -67,7 +67,7 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
       syncProject?.depth === factors.P;
     if (sameAsStudio) return;
     onProjectChange({ width: factors.L, height: factors.A, depth: factors.P });
-  }, [factors.L, factors.A, factors.P]);
+  }, [factors.L, factors.A, factors.P, onProjectChange, syncProject]);
 
   const {
     messages, chatInput, setChatInput, isTyping, isListening,
@@ -110,6 +110,7 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const isDrawingRef = useRef(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -129,16 +130,17 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     }
   }, [maskingImage]);
 
-  const getCoords = (e: any) => {
+  const getCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
     const sx = 1080 / rect.width; const sy = 1920 / rect.height;
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    const isTouchEvent = 'touches' in e;
+    const cx = isTouchEvent ? e.touches[0].clientX : e.clientX;
+    const cy = isTouchEvent ? e.touches[0].clientY : e.clientY;
     return { offsetX: (cx - rect.left) * sx, offsetY: (cy - rect.top) * sy };
   };
-  const startDraw = (e: any) => { if (!ctxRef.current) return; ctxRef.current.beginPath(); const c = getCoords(e); ctxRef.current.moveTo(c.offsetX, c.offsetY); (canvasRef.current as any).isDrawing = true; };
-  const moveDraw = (e: any) => { if (!(canvasRef.current as any)?.isDrawing || !ctxRef.current) return; const c = getCoords(e); ctxRef.current.lineTo(c.offsetX, c.offsetY); ctxRef.current.stroke(); };
-  const endDraw = () => { if (canvasRef.current) (canvasRef.current as any).isDrawing = false; };
+  const startDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => { if (!ctxRef.current) return; ctxRef.current.beginPath(); const c = getCoords(e); ctxRef.current.moveTo(c.offsetX, c.offsetY); isDrawingRef.current = true; };
+  const moveDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => { if (!isDrawingRef.current || !ctxRef.current) return; const c = getCoords(e); ctxRef.current.lineTo(c.offsetX, c.offsetY); ctxRef.current.stroke(); };
+  const endDraw = () => { isDrawingRef.current = false; };
 
   const confirmMask = async () => {
     if (!maskingImage || !canvasRef.current) return;
@@ -191,7 +193,7 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
         chatInput={chatInput}
         setChatInput={(v) => {
           setChatInput(v);
-          pushDescription(typeof v === 'function' ? (v as any)(chatInput) : v);
+          pushDescription(v);
         }}
         onSend={() => {
           const sent = chatInput.trim();

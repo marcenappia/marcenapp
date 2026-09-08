@@ -121,19 +121,22 @@ export const useStudioStore = create<StudioState>()(
       name: 'marcenapp-studio-storage',
       version: 2, // Incrementado de 1 para 2 para refletir a nova estrutura de comandos (idempotencyKey, metadata, etc)
       storage: createJSONStorage(() => localStorage),
-      migrate: (persistedState: any, version: number) => {
+      migrate: (persistedState: unknown, version: number) => {
+        const state = (persistedState && typeof persistedState === 'object'
+          ? persistedState
+          : {}) as Partial<StudioState>;
         if (version === 0) {
           // Migração da versão legada (sem commandQueue)
           return {
-            ...persistedState,
+            ...state,
             commandQueue: [],
           };
         }
         if (version === 1) {
           // Migração da versão 1 para 2: Adiciona campos obrigatórios caso faltem
           return {
-            ...persistedState,
-            commandQueue: persistedState.commandQueue?.map((cmd: any) => ({
+            ...state,
+            commandQueue: state.commandQueue?.map((cmd: Partial<RenderCommand>) => ({
               ...cmd,
               status: cmd.status || 'pending',
               metadata: cmd.metadata || { origin: 'manual' }

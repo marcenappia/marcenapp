@@ -3,9 +3,10 @@ import { Upload, MapPin, Wand2, RefreshCcw, Loader2, Sparkles, Download, DollarS
 import { Button, Card, Modal, DecorationPanel } from '@/components/marcenaria/shared';
 import AuthDialog from '@/components/marcenaria/AuthDialog';
 import { useStudio } from './hooks/useStudio';
+import type { ProjectData } from '@/modules/projetos/types';
 
 interface StudioProps {
-  setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
+  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
   navigateTo: (id: string) => void;
   gallery: string[];
   setGallery: React.Dispatch<React.SetStateAction<string[]>>;

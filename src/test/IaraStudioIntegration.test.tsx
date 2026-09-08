@@ -50,7 +50,7 @@ describe('IARA-Studio Architecture', () => {
   };
 
   it('StudioWorker executes commands from the queue and syncs both stores', async () => {
-    (studioService.generateVisual as any).mockResolvedValue('url1');
+    vi.mocked(studioService.generateVisual).mockResolvedValue('url1');
 
     let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
     renderAct(() => {
@@ -69,7 +69,7 @@ describe('IARA-Studio Architecture', () => {
     expect(osCmd?.status).toBe('completed');
     expect(osCmd?.result?.resultUrl).toBe('url1');
     expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
-    expect((studioService.generateVisual as any).mock.calls[0][1]).toEqual([{ mimeType: 'image/png', data: 'abc' }]);
+    expect(vi.mocked(studioService.generateVisual).mock.calls[0][1]).toEqual([{ mimeType: 'image/png', data: 'abc' }]);
   });
 
   it('IARA command without visual context fails without calling the render service', async () => {

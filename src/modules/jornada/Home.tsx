@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Hammer, ChevronRight, Camera, MessageSquareText, Sparkles, Calculator } from 'lucide-react';
+import { Plus, Hammer, ChevronRight, Camera, MessageSquareText, Sparkles, Calculator, Wand2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { carregarProgresso, ETAPAS_OBRA, percentualObra, EtapaId } from './types';
@@ -10,6 +10,16 @@ interface ObraResumo {
   cliente?: string | null;
   atualizadoEm: string;
   etapa: EtapaId;
+}
+
+interface ProjectListRow {
+  id: string;
+  nome: string | null;
+  name: string | null;
+  updated_at: string;
+  status: string | null;
+  jornada: unknown;
+  clientes?: { nome?: string | null } | null;
 }
 
 /** Etapa vem do banco (funciona em qualquer aparelho); cache local só como reserva. */
@@ -42,7 +52,7 @@ export const Home = ({ navigateTo }: Props) => {
       .order('updated_at', { ascending: false })
       .limit(20)
       .then(({ data }) => {
-        const lista: ObraResumo[] = (data ?? []).map((p: any) => ({
+        const lista: ObraResumo[] = (data ?? []).map((p: ProjectListRow) => ({
           id: p.id,
           nome: p.nome || p.name || 'Obra sem nome',
           cliente: p.clientes?.nome ?? null,
@@ -78,6 +88,36 @@ export const Home = ({ navigateTo }: Props) => {
         </span>
         <ChevronRight size={28} className="ml-auto opacity-70" />
       </button>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => navigateTo('studio')}
+          className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-indigo-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
+        >
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Estúdio</p>
+            <p className="mt-1 text-base font-bold text-slate-900">Criar visual</p>
+          </div>
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <Wand2 size={18} />
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigateTo('orcamento')}
+          className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-emerald-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
+        >
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Financeiro</p>
+            <p className="mt-1 text-base font-bold text-slate-900">Orçamento</p>
+          </div>
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+            <Calculator size={18} />
+          </span>
+        </button>
+      </div>
 
       <section aria-labelledby="minhas-obras">
         <h3 id="minhas-obras" className="text-lg font-black text-slate-800 mb-3 flex items-center gap-2"><Hammer size={20} /> Minhas obras</h3>

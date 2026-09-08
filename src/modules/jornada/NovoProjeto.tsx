@@ -4,10 +4,11 @@ import AuthDialog from '@/components/marcenaria/AuthDialog';
 import { useNovoProjeto } from './hooks/useNovoProjeto';
 import { ProgressoObra } from './components/ProgressoObra';
 import { EtapaNome, EtapaFoto, EtapaPedido, EtapaAnalise, EtapaApresentacao, EtapaOrcamento } from './components/Etapas';
+import type { ProjectData } from '@/modules/projetos/types';
 
 interface Props {
   projectId: string | null;
-  setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
+  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
   navigateTo: (id: string) => void;
 }
 

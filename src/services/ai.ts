@@ -31,18 +31,19 @@ export const aiHeaders = async (): Promise<Record<string, string>> => {
 };
 
 /** POST autenticado em uma Edge Function; converte erros em mensagens legíveis. */
-export const callAIFunction = async <T = any>(fn: string, body: unknown): Promise<T> => {
+export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Promise<T> => {
   const headers = await aiHeaders();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
   });
-  let data: any = null;
+  let data: unknown = null;
   try { data = await res.json(); } catch { /* corpo vazio */ }
   if (!res.ok) {
     if (res.status === 401) throw new AIAuthError('Sessão expirada. Faça login novamente.');
-    const msg = data?.error || data?.message || `Erro ${res.status}`;
+    const errorData = data as { error?: string; message?: string } | null;
+    const msg = errorData?.error || errorData?.message || `Erro ${res.status}`;
     throw new Error(msg);
   }
   return data as T;

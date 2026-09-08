@@ -15,6 +15,7 @@ import {
 import { Button } from './shared';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 
 interface Step {
   id: string;
@@ -138,7 +139,7 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
     }
   }, [userId, hasProfile, profileStep, profileReduceMotion, profileCompletedKey]);
 
-  const updateProfilePreferences = async (updates: any) => {
+  const updateProfilePreferences = async (updates: Database['public']['Tables']['profiles']['Update']) => {
     if (!user || isUpdating.current) return;
     isUpdating.current = true;
     try {

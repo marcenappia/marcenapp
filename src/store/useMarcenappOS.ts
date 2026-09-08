@@ -9,9 +9,9 @@ export interface OSCommand {
   source: OSModule;
   target: OSModule;
   action: string;
-  payload: any;
+  payload: Record<string, unknown>;
   status: OSCommandStatus;
-  result?: any;
+  result?: Record<string, unknown>;
   error?: string;
   timestamp: number;
   idempotencyKey?: string;
@@ -24,7 +24,7 @@ interface OSState {
   
   // Ações de Governança
   dispatchCommand: (cmd: Omit<OSCommand, 'id' | 'status' | 'timestamp'>) => string;
-  updateCommandStatus: (id: string, status: OSCommandStatus, result?: any, error?: string) => void;
+  updateCommandStatus: (id: string, status: OSCommandStatus, result?: Record<string, unknown>, error?: string) => void;
   setActiveModule: (id: string) => void;
   
   // Memória e Cache

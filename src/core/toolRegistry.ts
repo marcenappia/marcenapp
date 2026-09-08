@@ -7,15 +7,15 @@ import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { callAIText } from '@/services/ai';
 
-export type ToolResult<T = any> =
+export type ToolResult<T = Record<string, unknown>> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
-export interface ToolDefinition<TArgs = any, TResult = any> {
+export interface ToolDefinition<TArgs extends Record<string, unknown> = Record<string, unknown>, TResult = Record<string, unknown>> {
   name: string;
   description: string;
   version: string;
-  inputSchema: z.ZodType<TArgs>;
+  inputSchema: z.ZodTypeAny;
   execute: (args: TArgs, ctx: ExecutionContext) => Promise<ToolResult<TResult>>;
 }
 
@@ -30,7 +30,7 @@ export interface ExecutionContext {
 // Ferramentas
 // ============================================================
 
-const createCliente: ToolDefinition = {
+const createCliente: ToolDefinition<{ nome: string; email?: string; telefone?: string }> = {
   name: 'createCliente',
   description: 'Cria um novo cliente',
   version: '1.0.0',
@@ -55,7 +55,7 @@ const createCliente: ToolDefinition = {
   },
 };
 
-const createProjeto: ToolDefinition = {
+const createProjeto: ToolDefinition<{ nome: string; clienteNome?: string; width?: number; height?: number; depth?: number; tipo?: string }> = {
   name: 'createProjeto',
   description: 'Cria ou atualiza projeto de marcenaria',
   version: '1.0.0',
@@ -98,7 +98,7 @@ const createProjeto: ToolDefinition = {
   },
 };
 
-const gerarRender: ToolDefinition = {
+const gerarRender: ToolDefinition<{ prompt: string; estilo?: string }> = {
   name: 'gerarRender',
   description: 'Enfileira render no Estúdio via Command Bus',
   version: '1.0.0',
@@ -137,7 +137,7 @@ const gerarRender: ToolDefinition = {
   },
 };
 
-const calcularOrcamento: ToolDefinition = {
+const calcularOrcamento: ToolDefinition<{ observacoes?: string }> = {
   name: 'calcularOrcamento',
   description: 'Calcula orçamento estimado do projeto atual',
   version: '1.0.0',
@@ -186,7 +186,7 @@ const calcularOrcamento: ToolDefinition = {
   },
 };
 
-const gerarContrato: ToolDefinition = {
+const gerarContrato: ToolDefinition<{ clienteNome: string; valor?: number; prazoDias?: number; clausulasExtras?: string[] }> = {
   name: 'gerarContrato',
   description: 'Gera contrato + cláusulas customizadas via IA',
   version: '1.0.0',
