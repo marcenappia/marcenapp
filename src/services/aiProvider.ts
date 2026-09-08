@@ -10,18 +10,18 @@ export async function getAIProvider(): Promise<AIProvider> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return DEFAULT_PROVIDER;
   const { data } = await supabase
-    .from('ai_provider_settings')
+    .from('ai_provider_settings' as any)
     .select('provider')
     .eq('user_id', user.id)
     .maybeSingle();
-  const provider = data?.provider as AIProvider | undefined;
+  const provider = (data as { provider?: AIProvider } | null)?.provider;
   return provider === 'gemini' || provider === 'lovable' || provider === 'automatic' ? provider : DEFAULT_PROVIDER;
 }
 
 export async function setAIProvider(provider: AIProvider): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Faça login para configurar o provedor de IA.');
-  const { error } = await supabase.from('ai_provider_settings').upsert({ user_id: user.id, provider, updated_at: new Date().toISOString() });
+  const { error } = await supabase.from('ai_provider_settings' as any).upsert({ user_id: user.id, provider, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 
