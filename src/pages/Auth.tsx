@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable/index';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
@@ -9,7 +8,7 @@ import logo from '@/assets/marcenapp-logo.svg';
 type OAuthProvider = 'google' | 'apple';
 
 const GoogleIcon = () => (<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.8-5.4 3.8-3.3 0-5.9-2.7-5.9-6s2.6-6 5.9-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.3 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12s4.3 9.6 9.6 9.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12z" /></svg>);
-const AppleIcon = () => (<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M16.4 12.7c0-2.5 2-3.7 2.1-3.8-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9-.8 0-2-.9-3.3-.9-1.7 0-3.3 1-4.1 2.5-1.8 3.1-.5 7.6 1.3 10.1.8 1.2 1.8 2.6 3.2 2.5 1.3-.1 1.8-.8 3.3-.8s2 .8 3.3.8c1.4 0 2.3-1.2 3.1-2.5.9-1.4 1.3-2.8 1.4-2.9-.1 0-2.9-1.1-2.9-3.9zM14 5.3c.7-.8 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z" /></svg>);
+const AppleIcon = () => (<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M16.4 12.7c0-2.5 2-3.7 2.1-3.8-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9-.8 0-2-.9-3.3-.9-1.7 0-3.3 1-4.1 2.5-1.8 3.1-.5 7.6 1.3 10.1 1.2 1.2 2.3 2.6 3.2 2.5 1.3-.1 1.8-.8 3.3-.8s2 .8 3.3.8c1.4 0 2.3-1.2 3.1-2.5.9-1.4 1.3-2.8 1.4-2.9-.1 0-2.9-1.1-2.9-3.9zM14 5.3c.7-.8 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z" /></svg>);
 
 const Auth = () => {
   const { user } = useAuth();
@@ -38,12 +37,16 @@ const Auth = () => {
       const callbackParams = new URLSearchParams();
       if (selectedPlan) callbackParams.set('plan', selectedPlan);
       if (safeNext !== '/app') callbackParams.set('next', safeNext);
-      const callback = `${window.location.origin}/auth${callbackParams.toString() ? `?${callbackParams.toString()}` : ''}`;
-      const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: callback });
-      if (result.error) { setError(result.error.message || `Não foi possível entrar com ${provider === 'google' ? 'Google' : 'Apple'}.`); setOauthLoading(null); return; }
-      if (result.redirected) return;
-      goAfterAuth();
-    } catch (err) { setError(err instanceof Error ? err.message : 'Ocorreu um erro inesperado.'); setOauthLoading(null); }
+      const redirectTo = `${window.location.origin}/auth${callbackParams.toString() ? `?${callbackParams.toString()}` : ''}`;
+      const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+      if (error) {
+        setError(error.message || `Não foi possível entrar com ${provider === 'google' ? 'Google' : 'Apple'}.`);
+        setOauthLoading(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ocorreu um erro inesperado.');
+      setOauthLoading(null);
+    }
   };
 
   useEffect(() => { let timer: ReturnType<typeof setTimeout> | undefined; if (countdown > 0) timer = setTimeout(() => setCountdown(countdown - 1), 1000); return () => { if (timer) clearTimeout(timer); }; }, [countdown]);
