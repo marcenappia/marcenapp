@@ -3,13 +3,14 @@ import { FileDown, Plus, RefreshCcw, Trash2, ShoppingCart, PackageOpen, CheckCir
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
 import { planCutting, CutPlanningPart, GrainDirection, CutRemnant } from '@/core/cutPlanning';
 import { buildHardwareList } from '@/core/hardware';
+import type { ProjectData } from '@/modules/projetos/types';
 
-interface Part extends CutPlanningPart {}
+type Part = CutPlanningPart;
 
 interface Props {
   parts: Part[];
   setParts: (parts: Part[]) => void;
-  project: any;
+  project: ProjectData;
 }
 
 interface SavedRemnant extends CutRemnant {
@@ -22,7 +23,28 @@ const KERF = 3;
 const REMNANT_STORAGE = 'marcenapp-remnants-v1';
 const SAVINGS_KEY_PREFIX = 'marcenapp-cut-savings-v1:';
 
-const projectKey = (project: any) => String(project?.id ?? project?.name ?? project?.jornada?.id ?? 'current');
+const projectKey = (project: ProjectData) => String(project?.id ?? project?.name ?? project?.jornada?.id ?? 'current');
+
+/** Lista de peças determinística a partir das dimensões do projeto (sem acumular peças antigas). */
+export function generatePartsFromProject(project: Pick<ProjectData, 'width' | 'height' | 'depth' | 'modules' | 'doors' | 'drawers'>): Part[] {
+  const W = Math.round((Number(project?.width) || 0) * 1000);
+  const H = Math.round((Number(project?.height) || 0) * 1000);
+  const D = Math.round((Number(project?.depth) || 0) * 1000);
+  const modules = Math.max(1, Math.round(Number(project?.modules) || 1));
+  const doors = Math.max(0, Math.round(Number(project?.doors) || 0));
+  const drawers = Math.max(0, Math.round(Number(project?.drawers) || 0));
+  const sideDepth = Math.max(250, D - 20);
+  const innerWidth = Math.max(260, W - 36);
+  const parts: Part[] = [
+    { id: 1, name: 'Lateral', w: sideDepth, h: H, qtd: 2, mat: 'white', thickness: 15, grain: 'vertical' },
+    { id: 2, name: 'Base / Topo', w: sideDepth, h: innerWidth, qtd: 2, mat: 'white', thickness: 15, grain: 'none' },
+    { id: 3, name: 'Prateleira', w: Math.max(230, D - 40), h: Math.max(260, Math.floor((innerWidth - Math.max(0, modules - 1) * 18) / modules)), qtd: modules * 2, mat: 'white', thickness: 15, grain: 'none' },
+    { id: 4, name: 'Fundo', w: Math.max(260, W), h: H, qtd: 1, mat: 'white', thickness: 6, grain: 'vertical' },
+  ];
+  if (doors > 0) parts.push({ id: parts.length + 1, name: 'Porta', w: Math.max(250, Math.floor((W - Math.max(0, doors - 1) * 3) / doors)), h: Math.max(300, H - 4), qtd: doors, mat: 'wood', thickness: 18, grain: 'vertical' });
+  if (drawers > 0) parts.push({ id: parts.length + 1, name: 'Frente de gaveta', w: Math.max(250, Math.floor((innerWidth - Math.max(0, modules - 1) * 18) / modules) - 20), h: 120, qtd: drawers, mat: 'wood', thickness: 18, grain: 'horizontal' });
+  return parts;
+}
 
 const getGrain = (part: Part): GrainDirection => {
   if (part.grain) return part.grain;
@@ -115,20 +137,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
   };
 
   const importFromBudget = () => {
-    const w = Math.round(project.width * 1000);
-    const h = Math.round(project.height * 1000);
-    const d = Math.round(project.depth * 1000);
-    const modules = Math.max(1, Math.round(project.modules || 1));
-    const moduleW = Math.max(300, Math.floor((w - Math.max(0, modules - 1) * 18) / modules));
-    const autoParts: Part[] = [
-      { id: Date.now() + 1, name: 'Lateral', w: Math.max(250, d - 20), h, qtd: modules * 2, mat: 'white', thickness: 15, grain: 'vertical' },
-      { id: Date.now() + 2, name: 'Base', w: Math.max(250, d - 20), h: moduleW - 30, qtd: modules, mat: 'white', thickness: 15, grain: 'none' },
-      { id: Date.now() + 3, name: 'Topo', w: Math.max(250, d - 20), h: moduleW - 30, qtd: modules, mat: 'white', thickness: 15, grain: 'none' },
-      { id: Date.now() + 4, name: 'Prateleira', w: Math.max(230, d - 40), h: Math.max(260, moduleW - 40), qtd: modules * 2, mat: 'white', thickness: 15, grain: 'none' },
-      { id: Date.now() + 5, name: 'Fundo', w: moduleW, h, qtd: modules, mat: 'white', thickness: 6, grain: 'vertical' },
-    ];
-    if (project.doors > 0) autoParts.push({ id: Date.now() + 6, name: 'Porta', w: Math.max(250, Math.floor((w - (project.doors - 1) * 3) / project.doors)), h: Math.max(300, h - 4), qtd: Math.round(project.doors), mat: 'wood', thickness: 18, grain: 'vertical' });
-    setParts([...parts, ...autoParts]);
+    setParts(generatePartsFromProject(project));
   };
 
   const addPart = () => {
