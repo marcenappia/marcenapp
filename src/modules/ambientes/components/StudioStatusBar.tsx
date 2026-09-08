@@ -8,25 +8,35 @@ interface StudioStatusBarProps {
   hasDocumentation: boolean;
 }
 
-const Step = ({ done, active, icon: Icon, label }: { done: boolean; active: boolean; icon: React.ElementType; label: string }) => (
-  <div className="flex min-w-0 items-center gap-1.5">
-    {done ? <CheckCircle2 size={14} className="shrink-0 text-emerald-600" /> : active ? <Icon size={14} className="shrink-0 text-indigo-600" /> : <Circle size={14} className="shrink-0 text-slate-300" />}
-    <span className={`truncate text-[9px] font-bold ${done ? 'text-emerald-700' : active ? 'text-slate-700' : 'text-slate-400'}`}>{label}</span>
+const Step = ({ number, done, active, icon: Icon, label }: { number: number; done: boolean; active: boolean; icon: React.ElementType; label: string }) => (
+  <div className="flex min-w-[120px] flex-1 items-center gap-2">
+    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[10px] font-black ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : active ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+      {done ? <CheckCircle2 size={15} aria-hidden="true" /> : active ? <Icon size={14} aria-hidden="true" /> : number}
+    </div>
+    <div className="min-w-0">
+      <p className={`truncate text-[10px] font-extrabold ${done ? 'text-emerald-700' : active ? 'text-slate-800' : 'text-slate-400'}`}>{label}</p>
+      <p className="text-[8px] font-medium text-slate-400">{done ? 'Concluído' : active ? 'Próxima etapa' : 'Pendente'}</p>
+    </div>
   </div>
 );
 
 export const StudioStatusBar = ({ hasEnvironment, environmentConfirmed, hasResult, hasDocumentation }: StudioStatusBarProps) => (
-  <div className="mb-4 overflow-x-auto rounded-xl border border-slate-200 bg-white px-3 py-2">
-    <div className="flex min-w-max items-center gap-3">
-      <Step done={hasEnvironment} active={!hasEnvironment} icon={FileImage} label="Ambiente" />
-      <span className="text-slate-200">→</span>
-      <Step done={environmentConfirmed} active={hasEnvironment && !environmentConfirmed} icon={Ruler} label="Medidas confirmadas" />
-      <span className="text-slate-200">→</span>
-      <Step done={hasResult} active={environmentConfirmed && !hasResult} icon={FileImage} label="Projeto visual" />
-      <span className="text-slate-200">→</span>
-      <Step done={hasDocumentation} active={hasResult && !hasDocumentation} icon={ClipboardList} label="Documentação 2D" />
-      <span className="text-slate-200">→</span>
-      <Step done={false} active={hasDocumentation} icon={Factory} label="Orçamento / produção" />
+  <section aria-label="Progresso do projeto" className="mb-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <div>
+        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-indigo-600">Progresso</p>
+        <p className="text-[10px] text-slate-500">Siga as etapas até liberar orçamento e produção.</p>
+      </div>
+      <span className="rounded-full bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-500">
+        {[hasEnvironment, environmentConfirmed, hasResult, hasDocumentation].filter(Boolean).length}/4
+      </span>
     </div>
-  </div>
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      <Step number={1} done={hasEnvironment} active={!hasEnvironment} icon={FileImage} label="Ambiente" />
+      <Step number={2} done={environmentConfirmed} active={hasEnvironment && !environmentConfirmed} icon={Ruler} label="Medidas" />
+      <Step number={3} done={hasResult} active={environmentConfirmed && !hasResult} icon={FileImage} label="Projeto visual" />
+      <Step number={4} done={hasDocumentation} active={hasResult && !hasDocumentation} icon={ClipboardList} label="Documentação" />
+      <Step number={5} done={false} active={hasDocumentation} icon={Factory} label="Orçamento e produção" />
+    </div>
+  </section>
 );
