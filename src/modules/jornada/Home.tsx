@@ -13,6 +13,16 @@ interface ObraResumo {
   status?: string | null;
 }
 
+interface ProjetoLinha {
+  id: string;
+  nome?: string | null;
+  name?: string | null;
+  updated_at: string;
+  status?: string | null;
+  jornada?: unknown;
+  clientes?: { nome?: string | null } | null;
+}
+
 const etapaDaObra = (p: { id: string; status?: string | null; jornada?: unknown }): EtapaId => {
   const aprovado = p.status === 'aprovado' || p.status === 'em_producao' || p.status === 'concluido';
   const remota = (p.jornada && typeof p.jornada === 'object' ? (p.jornada as { etapa?: number }).etapa : undefined);
