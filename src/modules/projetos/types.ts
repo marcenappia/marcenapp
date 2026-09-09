@@ -9,6 +9,7 @@ export interface ProductionSnapshot {
   status?: string;
   approvedTotal?: number;
   generatedAt?: string;
+  updatedAt?: string;
 }
 
 /** Dados da jornada da obra guardados junto ao projeto. */
@@ -18,6 +19,7 @@ export interface JornadaData {
   cliente?: string;
   production?: ProductionSnapshot;
   orcamentoAprovado?: boolean;
+  orcamentoAprovadoEm?: string;
   statusAprovacao?: string;
   valorAprovado?: number;
   [key: string]: unknown;
@@ -39,6 +41,7 @@ export interface ProjectData {
   backMaterial: string;
   handleType: string;
   profitMargin: number;
+  discountPercent?: number;
   laborRate: number;
   jornada?: JornadaData;
 }

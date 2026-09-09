@@ -1,3 +1,5 @@
+import type { ProjectData } from '@/modules/projetos/types';
+import { getErrorMessage } from '@/utils/errors';
 import React, { useState } from 'react';
 import { Upload, MapPin, LayoutTemplate, RefreshCcw, Loader2, Image as ImageIcon, Download, DollarSign, Maximize2, X, Ruler, House, Construction, Layers3, PencilRuler } from 'lucide-react';
 import { Button, Card, Modal, DecorationPanel } from '@/components/marcenaria/shared';

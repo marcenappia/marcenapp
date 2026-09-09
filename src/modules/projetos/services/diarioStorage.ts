@@ -1,3 +1,9 @@
+import type { JornadaData } from '@/modules/projetos/types';
+
+type JornadaTimeline = Omit<JornadaData, 'production'> & {
+  production?: { status?: string; generatedAt?: string; updatedAt?: string; parts?: unknown[] };
+};
+
 export type DiarioTipo = 'nota' | 'foto' | 'audio';
 export type DiarioOrigem = 'manual' | 'sistema';
 
@@ -45,12 +51,12 @@ export function registrarEventoSistema(projectId: string, evento: string, texto:
   return proximo;
 }
 
-export function sincronizarLinhaDoTempoProjeto(projectId: string, project: Record<string, unknown> | null | undefined) {
+export function sincronizarLinhaDoTempoProjeto(projectId: string, project: { id?: string; jornada?: JornadaTimeline } | null | undefined) {
   let entradas = carregarDiario(projectId);
-  const jornada = project?.jornada || {};
+  const jornada: JornadaTimeline = project?.jornada ?? {};
   if (jornada.statusAprovacao === 'aprovado' || jornada.orcamentoAprovado === true) {
     const valor = Number(jornada.valorAprovado || 0);
-    entradas = registrarEventoSistema(projectId, 'orcamento-aprovado', valor > 0 ? `Orçamento aprovado pelo cliente — ${valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` : 'Orçamento aprovado pelo cliente.', 'orcamento', jornada.orcamentoAprovadoEm);
+    entradas = registrarEventoSistema(projectId, 'orcamento-aprovado', valor > 0 ? `Orçamento aprovado pelo cliente — ${valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` : 'Orçamento aprovado pelo cliente.', 'orcamento', typeof jornada.orcamentoAprovadoEm === 'string' ? jornada.orcamentoAprovadoEm : undefined);
   }
   if (jornada.production?.status === 'liberada') {
     entradas = registrarEventoSistema(projectId, 'producao-liberada', 'Produção liberada a partir do orçamento aprovado. Lista de peças preparada para produção e corte.', 'producao', jornada.production.generatedAt || jornada.production.updatedAt);

@@ -1,3 +1,5 @@
+import type { ProjectData } from '@/modules/projetos/types';
+import type { CutPlanningPart } from '@/core/cutPlanning';
 import React, { useMemo } from 'react';
 import { CheckCircle2, Factory, FileDown, Scissors, Boxes, Circle } from 'lucide-react';
 import { Card } from '@/components/marcenaria/shared';

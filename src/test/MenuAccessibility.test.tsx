@@ -19,7 +19,7 @@ vi.mock('@/integrations/supabase/client', () => {
       return Promise.resolve({ data: [], error: null });
     }),
   };
-  mock.single.mockReturnValue(Promise.resolve({ data: null, error: null }));
+  (mock.single as ReturnType<typeof vi.fn>).mockReturnValue(Promise.resolve({ data: null, error: null }));
   return { supabase: mock };
 });
 

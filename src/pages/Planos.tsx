@@ -5,7 +5,7 @@ const plans = [
   { name: 'Start', slug: 'start', price: '79', description: 'Para começar a tirar trabalho operacional das costas.', features: ['Jornada da obra', 'Diário digital', 'Estúdio', 'Orçamentos', 'IARA com uso controlado'] },
   { name: 'Pro', slug: 'pro', price: '179', description: 'Para marcenarias que querem vender e entregar com mais velocidade.', featured: true, features: ['Tudo do Start', 'Produção e plano de corte', 'Mais uso de IA', 'Memória operacional da obra', 'Prioridade nas melhorias'] },
   { name: 'Business', slug: 'business', price: '349', description: 'Para equipes e operações com maior volume.', features: ['Tudo do Pro', 'Maior capacidade de IA', 'Visão administrativa', 'Indicadores operacionais', 'Suporte prioritário'] },
-] as const;
+] as Array<{ name: string; slug: string; price: string; description: string; featured?: boolean; features: readonly string[] }>;
 
 export default function Planos() {
   const navigate = useNavigate();

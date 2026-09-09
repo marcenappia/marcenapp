@@ -13,6 +13,16 @@ interface ObraResumo {
   status?: string | null;
 }
 
+interface ProjetoLinha {
+  id: string;
+  nome?: string | null;
+  name?: string | null;
+  updated_at: string;
+  status?: string | null;
+  jornada?: unknown;
+  clientes?: { nome?: string | null } | null;
+}
+
 const etapaDaObra = (p: { id: string; status?: string | null; jornada?: unknown }): EtapaId => {
   const aprovado = p.status === 'aprovado' || p.status === 'em_producao' || p.status === 'concluido';
   const remota = (p.jornada && typeof p.jornada === 'object' ? (p.jornada as { etapa?: number }).etapa : undefined);
@@ -42,7 +52,7 @@ export const Home = ({ navigateTo }: Props) => {
       .order('updated_at', { ascending: false })
       .limit(20)
       .then(({ data }) => {
-        const lista: ObraResumo[] = (data ?? []).map((p: Record<string, unknown>) => ({
+        const lista: ObraResumo[] = ((data ?? []) as unknown as ProjetoLinha[]).map((p) => ({
           id: p.id,
           nome: p.nome || p.name || 'Projeto sem nome',
           cliente: p.clientes?.nome ?? null,
