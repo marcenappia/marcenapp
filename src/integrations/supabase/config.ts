@@ -6,8 +6,8 @@
  */
 export const SUPABASE_URL =
   (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
-  'https://bawzbqwmijbvgopyylqt.supabase.co';
+  'https://uzhqhieqlcyncelltfjw.supabase.co';
 
 export const SUPABASE_PUBLISHABLE_KEY =
   (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhd3picXdtaWpidmdvcHl5bHF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NzQyOTcsImV4cCI6MjA5MjU1MDI5N30.hRQU1FhIB8RVrDDvA7DK96objrxs0d-H7l0dd-X-gdU';
+  'sb_publishable_o9A9xyvRYXt-Rl9MZfdArA_SdYOAySX';
