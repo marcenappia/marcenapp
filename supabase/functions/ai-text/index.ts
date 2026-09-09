@@ -8,7 +8,7 @@ const MAX_IMAGES = 6;
 const MAX_IMAGE_BASE64 = 15 * 1024 * 1024;
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_MODEL = "google/gemini-3.7-flash";
-const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_MODEL = "gemini-3.7-flash";
 
 const BodySchema = z.object({
   prompt: z.string().trim().min(1, "prompt is required").max(MAX_PROMPT_CHARS),
@@ -66,26 +66,40 @@ const callGemini = async (input: Input, apiKey: string) => {
     parts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
   const body: Record<string, unknown> = { contents: [{ role: "user", parts }] };
   if (input.jsonMode) body.generationConfig = { responseMimeType: "application/json" };
 
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
     body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     const status = response.status;
-    console.error("Gemini API error:", status, await response.text());
-    const error = new Error(status === 429 ? "Limite do provedor de IA atingido. Tente novamente em alguns segundos." : "O serviço Gemini está indisponível no momento.");
+    const raw = await response.text();
+    console.error("Gemini API error:", status, raw);
+    const error = new Error(
+      status === 400
+        ? "A solicitação para o Gemini foi rejeitada. Verifique o modelo, os dados enviados e o modo JSON."
+        : status === 401 || status === 403
+          ? "A chave Gemini foi rejeitada. Verifique se a chave de autorização está ativa e restrita à Gemini API."
+          : status === 404
+            ? "O modelo Gemini configurado não está disponível nesta API."
+            : status === 429
+              ? "Limite do provedor de IA atingido. Tente novamente em alguns segundos."
+              : "O serviço Gemini está indisponível no momento."
+    );
     (error as Error & { status?: number }).status = status;
     throw error;
   }
 
   const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const text = data.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part?.text ?? "").join("") ?? "";
   return { text, model: GEMINI_MODEL, provider: "gemini" };
 };
 
