@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/config';
 
 /** Returns true if user is logged in, false otherwise */
 export const requireAuth = async (): Promise<boolean> => {
@@ -7,8 +8,7 @@ export const requireAuth = async (): Promise<boolean> => {
   return !!session;
 };
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const SUPABASE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
 export class AIAuthError extends Error {
   constructor(message = 'Faça login para usar os recursos de IA.') {
@@ -26,7 +26,7 @@ export class AIConfigError extends Error {
 
 /** Cabeçalhos para as Edge Functions de IA: envia somente o JWT da sessão. */
 export const aiHeaders = async (): Promise<Record<string, string>> => {
-  if (!supabase || !SUPABASE_KEY) throw new AIConfigError();
+  if (!supabase || !SUPABASE_URL || !SUPABASE_KEY) throw new AIConfigError();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new AIAuthError();
   return {
@@ -80,12 +80,32 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Pr
   throw lastError ?? new Error('Falha ao comunicar com a IA.');
 };
 
+const imageParts = (images?: { mimeType: string; data: string }[]) =>
+  (images ?? []).filter((image) => image?.data).slice(0, 4).map((image) => ({
+    mimeType: image.mimeType || 'image/jpeg',
+    data: image.data,
+  }));
+
 export const callAIImage = async (prompt: string, images?: { mimeType: string; data: string }[]) => {
-  const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', { prompt, images });
-  return data.imageUrl ?? null;
+  const payloadImages = imageParts(images).map((image) => `data:${image.mimeType};base64,${image.data}`);
+  const data = await callAIFunction<{ imageBase64?: string; imageUrl?: string | null }>('ai-image', {
+    prompt,
+    images: payloadImages,
+  });
+  if (data.imageUrl) return data.imageUrl;
+  if (data.imageBase64) return `data:image/png;base64,${data.imageBase64}`;
+  return null;
 };
 
 export const callAIText = async (prompt: string, images?: { mimeType: string; data: string }[], jsonMode = false) => {
-  const data = await callAIFunction<{ text: string }>('ai-text', { prompt, images, jsonMode });
+  const parts: Array<Record<string, unknown>> = [{ text: prompt }];
+  for (const image of imageParts(images)) {
+    parts.push({ inlineData: { mimeType: image.mimeType || 'image/jpeg', data: image.data } });
+  }
+  const data = await callAIFunction<{ text: string }>('ai-text', {
+    prompt,
+    jsonMode,
+    contents: { parts },
+  });
   return data.text;
 };
