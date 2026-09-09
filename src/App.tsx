@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Landing from "./pages/Landing";
 import AppShell from "./pages/AppShell";
 import Auth from "./pages/Auth";
+import PasswordRecovery from "./pages/PasswordRecovery";
 import Checkout from "./pages/Checkout";
 import Loja from "./pages/Loja";
 import MarceneiroPublico from "./pages/MarceneiroPublico";
@@ -51,12 +52,13 @@ const ProtectedApp = () => {
   if (!supabaseConfigured) return <ConfigurationNotice />;
   return <Routes>
     <Route path="/auth" element={<Auth />} />
+    <Route path="/password-recovery" element={<PasswordRecovery />} />
     <Route path="/checkout" element={<RequireAuth><Checkout /></RequireAuth>} />
     <Route path="/perfil" element={<RequireAuth><PerfilMarcenaria /></RequireAuth>} />
     <Route path="/planos" element={<RequireAuth><Planos /></RequireAuth>} />
     <Route path="/conexoes" element={<RequireAuth><Conexoes /></RequireAuth>} />
     <Route path="/admin" element={<RequireAuth><AdminGuard><AdminDashboard /></AdminGuard></RequireAuth>} />
-    <Route path="/admin/ia" element={<RequireAuth><AdminGuard><AIProviderAdmin /></AdminGuard></RequireAuth>} />
+    <Route path="/admin/ia" element={<RequireAuth><AIProviderAdmin /></AdminGuard></RequireAuth>} />
     <Route path="/admin/ia/uso" element={<RequireAuth><AdminGuard><AdminAIUsage /></AdminGuard></RequireAuth>} />
     <Route path="/admin/usuarios" element={<RequireAuth><AdminGuard><AdminUsers /></AdminGuard></RequireAuth>} />
     <Route path="/admin/obras" element={<RequireAuth><AdminGuard><AdminProjects /></AdminGuard></RequireAuth>} />
