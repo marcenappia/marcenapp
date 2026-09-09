@@ -98,10 +98,6 @@ export const callAIImage = async (prompt: string, images?: { mimeType: string; d
 };
 
 export const callAIText = async (prompt: string, images?: { mimeType: string; data: string }[], jsonMode = false) => {
-  const parts: Array<Record<string, unknown>> = [{ text: prompt }];
-  for (const image of imageParts(images)) {
-    parts.push({ inlineData: { mimeType: image.mimeType || 'image/jpeg', data: image.data } });
-  }
   const data = await callAIFunction<{ text: string }>('ai-text', {
     prompt,
     jsonMode,
