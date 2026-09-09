@@ -1,0 +1,2 @@
+alter table public.billing_purchases validate constraint billing_purchases_customer_owner_fk;
+alter table public.billing_subscriptions validate constraint billing_subscriptions_customer_owner_fk;
