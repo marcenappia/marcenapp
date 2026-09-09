@@ -10,6 +10,20 @@ import { createIaraMemory, getConfirmedMeasurements, getMeasurementEvidence, Iar
 import { syncIaraOperationalMemory } from '@/core/iaraOperationalMemory';
 import { carregarDiario } from '@/modules/projetos/services/diarioStorage';
 
+interface SpeechRecognitionResultLike { transcript: string; }
+interface SpeechRecognitionEventLike { results: ArrayLike<ArrayLike<SpeechRecognitionResultLike>>; }
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  onstart?: () => void;
+  onresult?: (event: SpeechRecognitionEventLike) => void;
+  onend?: () => void;
+  start: () => void;
+  stop: () => void;
+}
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+type SpeechWindow = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
+
 export const useIaraChat = (
   factors: { L: number, A: number, P?: number },
   decorStyle: string,
@@ -29,7 +43,9 @@ export const useIaraChat = (
   const [memory, setMemory] = useState<IaraMemory>(createIaraMemory());
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload } | null>(null);
   const commandHistory = useMarcenappOS(state => state.commandHistory);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+
+  const errorMessage = (value: unknown, fallback: string) => value instanceof Error && value.message ? value.message : fallback;
 
   useEffect(() => {
     if (!commandHistory.length) return;
@@ -68,19 +84,19 @@ export const useIaraChat = (
     if (projectId) {
       supabase.from('projects').select('jornada,internal_material,external_material,back_material').eq('id', projectId).eq('user_id', user.id).maybeSingle().then(({ data }) => {
         if (cancelled || !data) return;
-        const rawMemory = normalizeIaraMemory((data.jornada as any)?.iaraMemory);
+        const jornadaData = data.jornada && typeof data.jornada === 'object' && !Array.isArray(data.jornada) ? data.jornada as Record<string, unknown> : {};
+        const rawMemory = normalizeIaraMemory(jornadaData.iaraMemory);
         const project = {
           jornada: data.jornada,
-          internalMaterial: (data as any).internal_material,
-          externalMaterial: (data as any).external_material,
-          backMaterial: (data as any).back_material,
+          internalMaterial: data.internal_material,
+          externalMaterial: data.external_material,
+          backMaterial: data.back_material,
         };
         const diary = carregarDiario(projectId);
         const synced = syncIaraOperationalMemory(rawMemory, project, diary);
         setMemory(synced);
         if (synced.updatedAt !== rawMemory.updatedAt || synced.lastEvent?.type !== rawMemory.lastEvent?.type) {
-          const jornada = (data.jornada ?? {}) as Record<string, unknown>;
-          supabase.from('projects').update({ jornada: { ...jornada, iaraMemory: synced } as any }).eq('id', projectId).eq('user_id', user.id);
+          supabase.from('projects').update({ jornada: { ...jornadaData, iaraMemory: synced } }).eq('id', projectId).eq('user_id', user.id);
         }
       });
     }
@@ -94,7 +110,7 @@ export const useIaraChat = (
 
   const saveMessage = async (msg: Partial<ChatMessage>) => {
     if (!user) return;
-    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: user.id, project_id: projectId, ...msg, metadata: (msg.metadata ?? null) as any });
+    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: user.id, project_id: projectId, ...msg, metadata: msg.metadata ?? null });
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
   };
 
@@ -104,7 +120,7 @@ export const useIaraChat = (
     const { data } = await supabase.from('projects').select('jornada').eq('id', targetProjectId).eq('user_id', user.id).maybeSingle();
     if (!data) return;
     const jornada = (data.jornada ?? {}) as Record<string, unknown>;
-    await supabase.from('projects').update({ jornada: { ...jornada, iaraMemory: next } as any }).eq('id', targetProjectId).eq('user_id', user.id);
+    await supabase.from('projects').update({ jornada: { ...jornada, iaraMemory: next } }).eq('id', targetProjectId).eq('user_id', user.id);
   };
 
   const targetFromPrompt = (prompt: string): IaraJourneyTarget | null => {
@@ -142,11 +158,7 @@ export const useIaraChat = (
       if (target) {
         const gate = readiness(target);
         if (!gate.ready) {
-          await saveMessage({
-            sender: 'iara',
-            text: `🧭 **Ainda não é hora de ${target}.**\n\n${gate.blockers.map(blocker => `• ${blocker}`).join('\n')}\n\nQuando esses pontos estiverem conferidos, eu continuo sem refazer o trabalho.`,
-            metadata: { journeyReadiness: gate, blocked: true, projectId },
-          });
+          await saveMessage({ sender: 'iara', text: `🧭 **Ainda não é hora de ${target}.**\n\n${gate.blockers.map(blocker => `• ${blocker}`).join('\n')}\n\nQuando esses pontos estiverem conferidos, eu continuo sem refazer o trabalho.`, metadata: { journeyReadiness: gate, blocked: true, projectId } });
           lastFailedRef.current = null;
           return;
         }
@@ -191,9 +203,9 @@ export const useIaraChat = (
       const header = run.summary ? `${run.summary}\n\n` : '';
       await saveMessage({ sender: 'iara', text: `${header}${linhas.join('\n')}${footer}`, metadata: { memoryEvidence: getMeasurementEvidence(nextMemory), memoryUpdatedAt: nextMemory.updatedAt, journeyReadiness: target ? readiness(target) : undefined } });
       lastFailedRef.current = null;
-    } catch (e: any) {
+    } catch (error) {
       lastFailedRef.current = { text: promptText, upload };
-      setError(e?.message || 'Falha ao falar com a IARA. Tente novamente.');
+      setError(errorMessage(error, 'Falha ao falar com a IARA. Tente novamente.'));
     } finally { setIsTyping(false); }
   };
 
@@ -223,8 +235,16 @@ export const useIaraChat = (
   };
 
   useEffect(() => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SR) { const r = new SR(); r.lang = "pt-BR"; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (e: any) => setChatInput(prev => `${prev} ${e.results[0][0].transcript}`); recognitionRef.current = r; }
+    const speechWindow = window as SpeechWindow;
+    const SR = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (SR) {
+      const r = new SR();
+      r.lang = "pt-BR";
+      r.onstart = () => setIsListening(true);
+      r.onend = () => setIsListening(false);
+      r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0]?.[0]?.transcript ?? ''}`.trim());
+      recognitionRef.current = r;
+    }
   }, []);
   const toggleRecording = () => { if (isListening) recognitionRef.current?.stop(); else recognitionRef.current?.start(); };
 
