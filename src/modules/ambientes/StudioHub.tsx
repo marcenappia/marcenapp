@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Studio } from './StudioView';
+import { StudioView as Studio } from './StudioView';
 import IaraModule from '@/modules/iara';
 import { useDebouncedValue } from '@/hooks/useDebounce';
 
