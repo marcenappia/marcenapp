@@ -5,7 +5,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 type Profile = { name:string; company:string; trade_name:string; bio:string; phone:string; city:string; state:string; website_url:string; instagram_url:string; facebook_url:string; whatsapp_url:string; other_links:{label:string;url:string}[]; specialties:string[]; avatar_url:string };
 type ProfileRow = Partial<Profile> & { [key:string]: unknown };
-type ProfileQuery = { select:(columns:string)=>{ eq:(column:string,value:unknown)=>{ eq:(column:string,value:unknown)=>{ maybeSingle:()=>Promise<{data:ProfileRow|null;error:unknown}> } } } } };
+type ProfileQuery = {
+ select:(columns:string)=>ProfileQuery;
+ eq:(column:string,value:unknown)=>ProfileQuery;
+ maybeSingle:()=>Promise<{data:ProfileRow|null;error:unknown}>;
+};
 const profilesTable = () => (supabase.from as unknown as (table:string)=>ProfileQuery)('profiles');
 
 export default function MarceneiroPublico(){
