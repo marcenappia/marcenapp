@@ -57,7 +57,6 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
     if (!projectId) return;
     salvarJornada(projectId, patch, extra).catch(() => salvarProgresso(projectId, { ...patch, aprovado: extra?.aprovado }));
   };
-
   const comAuth = async (acao: () => void) => { const ok = await requireAuth(); if (ok) return acao(); pendente.current = acao; setShowAuth(true); };
   const onAuthSuccess = () => { setShowAuth(false); const a = pendente.current; pendente.current = null; a?.(); };
 
@@ -127,8 +126,20 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
     finally { setLoading(null); }
   });
 
-  const irParaAprovacao = () => { persistir({ etapa: 6 }); setEtapa(6); };
+  const ajustarApresentacao = () => comAuth(async () => {
+    if (!imagem || !ajuste.trim()) return;
+    setLoading('ajustando'); setErro(null);
+    try {
+      const img = await studioService.refineVisual(imagem, ajuste.trim());
+      if (!img) throw new Error('Não saiu imagem. Tente de novo.');
+      setImagem(img); setGeneratedImage(img); setAjuste('');
+      if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt: ajuste.trim() });
+      if (user && projectId) await enviarApresentacao(user.id, projectId, img).catch(() => undefined);
+    } catch (e: any) { setErro(e?.message || 'Não deu para ajustar. Tente de novo.'); }
+    finally { setLoading(null); }
+  });
 
+  const irParaAprovacao = () => { persistir({ etapa: 6 }); setEtapa(6); };
   const registrarAprovacao = () => comAuth(async () => {
     if (!projectId) return;
     setLoading('salvando'); setErro(null);
@@ -136,14 +147,13 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
     catch (e: any) { setErro(e?.message || 'Não deu para registrar a aprovação. Tente de novo.'); }
     finally { setLoading(null); }
   });
-
   const irParaProducao = () => { persistir({ etapa: 8 }); setEtapa(8); };
   const voltar = () => setEtapa((e) => (e > 1 ? ((e - 1) as EtapaId) : e));
 
   return {
     projectId, etapa, setEtapa, voltar, nome, setNome, clienteNome, setClienteNome, salvarNome,
     foto, escolherFoto, limparFoto: () => setFoto(null), confirmarFoto, pedido, setPedido, analisar,
-    analise, respostas, setRespostas, gerarApresentacao, imagem, ajuste, setAjuste, ajustarApresentacao: async () => {},
+    analise, respostas, setRespostas, gerarApresentacao, imagem, ajuste, setAjuste, ajustarApresentacao,
     irParaAprovacao, registrarAprovacao, irParaProducao, loading, erro, limparErro: () => setErro(null), retomando, status, logado: !!user,
     showAuth, setShowAuth, onAuthSuccess,
   };
