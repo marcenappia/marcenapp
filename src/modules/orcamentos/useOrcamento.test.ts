@@ -13,6 +13,7 @@ describe('useOrcamento', () => {
     externalMaterial: 'mdf18_white',
     backMaterial: 'mdf6_white',
     handleType: 'external',
+    modules: 1,
     laborRate: 100,
     profitMargin: 35,
   };

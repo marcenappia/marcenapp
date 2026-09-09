@@ -37,9 +37,12 @@ export const useIaraChat = (
     const notifyChat = async () => {
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
-      if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
+      const resultUrl = typeof (lastCommand.result as { resultUrl?: unknown } | undefined)?.resultUrl === 'string'
+        ? String((lastCommand.result as { resultUrl?: string }).resultUrl)
+        : '';
+      if (lastCommand.status === 'completed' && resultUrl) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
-        await saveMessage({ sender: 'iara', text: `A materialização foi concluída com sucesso no Estúdio! (Ref: ${lastCommand.id})`, image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl } });
+        await saveMessage({ sender: 'iara', text: `A materialização foi concluída com sucesso no Estúdio! (Ref: ${lastCommand.id})`, image_url: resultUrl, metadata: { commandId: lastCommand.id, resultUrl } });
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
         await saveMessage({ sender: 'iara', text: `Desculpe, o Estúdio encontrou um problema ao processar sua solicitação: ${lastCommand.error}.` });
