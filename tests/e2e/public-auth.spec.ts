@@ -6,8 +6,9 @@ test.describe('Landing, acesso e rotas públicas', () => {
     page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Do rascunho ao/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Criar meu primeiro projeto/i })).toBeVisible();
-    await page.getByRole('button', { name: /Criar meu primeiro projeto/i }).click();
+    const cta = page.getByRole('button', { name: 'Criar meu primeiro projeto', exact: true }).first();
+    await expect(cta).toBeVisible();
+    await cta.click();
     await expect(page).toHaveURL(/\/auth(?:\?|$)/);
     expect(consoleErrors).toEqual([]);
   });
