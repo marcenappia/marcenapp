@@ -15,7 +15,7 @@ export interface ModuleConfig {
 }
 
 /** Itens do menu inferior no celular (ordem importa) */
-export const MOBILE_NAV_IDS = ['dashboard', 'novo', 'studio', 'orcamento', 'corte'];
+export const MOBILE_NAV_IDS = ['dashboard', 'novo', 'studio', 'orcamento', 'diario', 'corte'];
 
 export const modules: ModuleConfig[] = [
   // CAMADA 1 — PORTAL (Gestão)

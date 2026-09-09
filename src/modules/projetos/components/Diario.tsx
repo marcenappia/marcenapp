@@ -1,12 +1,24 @@
 import React from 'react';
-import { BookOpen, Calendar, Camera, Clock } from 'lucide-react';
+import { BookOpen, Calendar, Camera, Clock, ArrowLeft } from 'lucide-react';
 import { Card, Button } from '@/components/marcenaria/shared';
 
-const DiarioModule = () => {
+interface Props {
+  navigateTo?: (id: string) => void;
+}
+
+const DiarioModule = ({ navigateTo }: Props) => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => navigateTo ? navigateTo('dashboard') : window.history.back()}
+          className="p-2 rounded-xl hover:bg-slate-100 text-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          aria-label="Voltar para a jornada"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex-1">
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <BookOpen className="text-amber-600" /> Diário de Obra
           </h2>
