@@ -58,7 +58,7 @@ const ProtectedApp = () => {
     <Route path="/planos" element={<RequireAuth><Planos /></RequireAuth>} />
     <Route path="/conexoes" element={<RequireAuth><Conexoes /></RequireAuth>} />
     <Route path="/admin" element={<RequireAuth><AdminGuard><AdminDashboard /></AdminGuard></RequireAuth>} />
-    <Route path="/admin/ia" element={<RequireAuth><AIProviderAdmin /></AdminGuard></RequireAuth>} />
+    <Route path="/admin/ia" element={<RequireAuth><AdminGuard><AIProviderAdmin /></AdminGuard></RequireAuth>} />
     <Route path="/admin/ia/uso" element={<RequireAuth><AdminGuard><AdminAIUsage /></AdminGuard></RequireAuth>} />
     <Route path="/admin/usuarios" element={<RequireAuth><AdminGuard><AdminUsers /></AdminGuard></RequireAuth>} />
     <Route path="/admin/obras" element={<RequireAuth><AdminGuard><AdminProjects /></AdminGuard></RequireAuth>} />
