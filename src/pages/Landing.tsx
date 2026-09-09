@@ -20,7 +20,7 @@ const plans = [
   { name: 'Start', price: '79', description: 'Para começar a transformar projetos em vendas.', features: ['MARCENA Studio', 'IARA', 'Jornada do projeto', 'Orçamento', 'Diário digital'] },
   { name: 'Pro', price: '179', description: 'Para projetar, apresentar e produzir com mais velocidade.', featured: true, features: ['Tudo do Start', 'Mais uso de IA', 'Plano de corte', 'Produção', 'Memória da obra'] },
   { name: 'Business', price: '349', description: 'Para equipes e marcenarias com maior volume.', features: ['Tudo do Pro', 'Maior capacidade de IA', 'Visão administrativa', 'Indicadores', 'Suporte prioritário'] },
-] as const;
+] as Array<{ name: string; price: string; description: string; featured?: boolean; features: string[] }>;
 
 const Landing = () => {
   const { user, loading } = useAuth();

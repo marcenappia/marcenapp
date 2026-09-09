@@ -1,3 +1,5 @@
+import type { JornadaData } from '@/modules/projetos/types';
+
 export type DiarioTipo = 'nota' | 'foto' | 'audio';
 export type DiarioOrigem = 'manual' | 'sistema';
 
@@ -45,9 +47,9 @@ export function registrarEventoSistema(projectId: string, evento: string, texto:
   return proximo;
 }
 
-export function sincronizarLinhaDoTempoProjeto(projectId: string, project: Record<string, unknown> | null | undefined) {
+export function sincronizarLinhaDoTempoProjeto(projectId: string, project: { jornada?: JornadaData } | null | undefined) {
   let entradas = carregarDiario(projectId);
-  const jornada = project?.jornada || {};
+  const jornada: JornadaData = project?.jornada ?? {};
   if (jornada.statusAprovacao === 'aprovado' || jornada.orcamentoAprovado === true) {
     const valor = Number(jornada.valorAprovado || 0);
     entradas = registrarEventoSistema(projectId, 'orcamento-aprovado', valor > 0 ? `Orçamento aprovado pelo cliente — ${valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` : 'Orçamento aprovado pelo cliente.', 'orcamento', jornada.orcamentoAprovadoEm);

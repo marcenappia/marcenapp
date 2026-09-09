@@ -42,7 +42,7 @@ export const Home = ({ navigateTo }: Props) => {
       .order('updated_at', { ascending: false })
       .limit(20)
       .then(({ data }) => {
-        const lista: ObraResumo[] = (data ?? []).map((p: Record<string, unknown>) => ({
+        const lista: ObraResumo[] = ((data ?? []) as unknown as ProjetoLinha[]).map((p) => ({
           id: p.id,
           nome: p.nome || p.name || 'Projeto sem nome',
           cliente: p.clientes?.nome ?? null,

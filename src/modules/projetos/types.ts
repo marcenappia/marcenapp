@@ -9,6 +9,7 @@ export interface ProductionSnapshot {
   status?: string;
   approvedTotal?: number;
   generatedAt?: string;
+  updatedAt?: string;
 }
 
 /** Dados da jornada da obra guardados junto ao projeto. */
@@ -31,7 +32,7 @@ export interface ProjectData {
   width: number;
   height: number;
   depth: number;
-  modules: number;
+  modules?: number;
   drawers: number;
   doors: number;
   internalMaterial: string;
@@ -39,6 +40,7 @@ export interface ProjectData {
   backMaterial: string;
   handleType: string;
   profitMargin: number;
+  discountPercent?: number;
   laborRate: number;
   jornada?: JornadaData;
 }
