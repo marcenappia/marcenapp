@@ -26,10 +26,6 @@ export interface ExecutionContext {
   lastImageMask?: string;
 }
 
-// ============================================================
-// Ferramentas
-// ============================================================
-
 const createCliente: ToolDefinition = {
   name: 'createCliente',
   description: 'Cria um novo cliente',
@@ -57,18 +53,18 @@ const createCliente: ToolDefinition = {
 
 const createProjeto: ToolDefinition = {
   name: 'createProjeto',
-  description: 'Cria ou atualiza projeto de marcenaria',
-  version: '1.0.0',
+  description: 'Cria projeto de marcenaria somente após confirmação explícita das três dimensões',
+  version: '1.1.0',
   inputSchema: z.object({
     nome: z.string().min(1),
     clienteNome: z.string().optional(),
-    width: z.number().positive().optional(),
-    height: z.number().positive().optional(),
-    depth: z.number().positive().optional(),
+    width: z.number().positive(),
+    height: z.number().positive(),
+    depth: z.number().positive(),
     tipo: z.string().optional(),
+    confirmado: z.literal(true),
   }),
   async execute(args, ctx) {
-    // Resolve cliente (opcional) por nome
     let clienteId: string | null = null;
     if (args.clienteNome) {
       const { data: cli } = await supabase
@@ -84,9 +80,9 @@ const createProjeto: ToolDefinition = {
       user_id: ctx.userId,
       nome: args.nome,
       cliente_id: clienteId,
-      width: args.width ?? 3.0,
-      height: args.height ?? 2.6,
-      depth: args.depth ?? 0.6,
+      width: args.width,
+      height: args.height,
+      depth: args.depth,
     };
     const { data, error } = await supabase
       .from('projects')
@@ -108,7 +104,6 @@ const gerarRender: ToolDefinition = {
   }),
   async execute(args, ctx) {
     const estilo = args.estilo || ctx.decorStyle || 'Limpo';
-
     if (!ctx.lastImageBase || !ctx.lastImageMask) {
       return {
         ok: false,
@@ -141,11 +136,8 @@ const calcularOrcamento: ToolDefinition = {
   name: 'calcularOrcamento',
   description: 'Calcula orçamento estimado do projeto atual',
   version: '1.0.0',
-  inputSchema: z.object({
-    observacoes: z.string().optional(),
-  }),
+  inputSchema: z.object({ observacoes: z.string().optional() }),
   async execute(_args, ctx) {
-    // Pega último projeto do usuário
     const { data: proj, error } = await supabase
       .from('projects')
       .select('*')
@@ -155,7 +147,6 @@ const calcularOrcamento: ToolDefinition = {
       .maybeSingle();
     if (error || !proj) return { ok: false, error: 'Nenhum projeto encontrado. Crie um projeto primeiro.' };
 
-    // Fórmula equivalente à do useOrcamento
     const prices: Record<string, { price: number; area: number }> = {
       mdf15_white: { price: 260, area: 5.08 },
       mdf18_white: { price: 290, area: 5.08 },
@@ -188,8 +179,8 @@ const calcularOrcamento: ToolDefinition = {
 
 const gerarContrato: ToolDefinition = {
   name: 'gerarContrato',
-  description: 'Gera contrato + cláusulas customizadas via IA',
-  version: '1.0.0',
+  description: 'Gera documentação contratual assistida por IA; não constitui aconselhamento jurídico',
+  version: '1.1.0',
   inputSchema: z.object({
     clienteNome: z.string().min(1),
     valor: z.number().optional(),
@@ -201,7 +192,7 @@ const gerarContrato: ToolDefinition = {
     for (const desc of args.clausulasExtras ?? []) {
       try {
         const text = await callAIText(
-          `Atue como Advogado especialista em contratos de marcenaria. Escreva uma cláusula curta e objetiva sobre: "${desc}". Português formal.`,
+          `Prepare uma cláusula contratual curta e objetiva para um contrato de marcenaria sobre: "${desc}". Use português formal. Não apresente aconselhamento jurídico e não afirme que o texto substitui revisão profissional.`,
         );
         if (text) {
           clausulas.push(text);
@@ -227,10 +218,6 @@ const gerarContrato: ToolDefinition = {
   },
 };
 
-// ============================================================
-// Registry
-// ============================================================
-
 const TOOLS: Record<string, ToolDefinition> = {
   createCliente,
   createProjeto,
@@ -247,7 +234,6 @@ export function listTools(): ToolDefinition[] {
   return Object.values(TOOLS);
 }
 
-// Executor que a IARA usa para rodar o plano vindo do orchestrator
 export async function executeToolCall(
   name: string,
   args: unknown,
