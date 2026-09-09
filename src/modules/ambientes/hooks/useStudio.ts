@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { requireAuth, DecorOption } from '@/components/marcenaria/shared';
 import { useStudioStore, ImageData } from '@/store/useStudioStore';
-import { studioService, StudioGenerationMode } from '../services/studioService';
+import { imageSourceToData, studioService, StudioGenerationMode } from '../services/studioService';
 import { iaraService } from '@/modules/iara/services/iaraService';
 import { analyzeEnvironment, confirmEnvironmentWithIara } from '../services/environmentAnalysis';
 import { validateEnvironmentGeometry } from '../services/environmentGeometry';
@@ -47,7 +47,7 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
   const isRendering = useStudioStore(state => state.isRendering);
   useEffect(() => { setLoading(isRendering); }, [isRendering]);
   useEffect(() => { if (!user) return; supabase.from('gallery_images').select('image_url, prompt').eq('user_id', user.id).order('created_at', { ascending: false }).then(({ data }) => { if (data && data.length > 0) { const urls = data.map(d => d.image_url); setGallery(urls); if (!generatedImage) setGeneratedImage(urls[0]); } }); }, [user]);
-  const saveToGallery = async (imageUrl: string, promptText: string) => { if (!user) return; await supabase.from('gallery_images').insert({ user_id: user.id, image_url: imageUrl, prompt: promptText }); };
+  const saveToGallery = async (imageUrl: string, promptText: string) => { if (!user) return; const { error: insertError } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: imageUrl, prompt: promptText }); if (insertError) throw new Error(`Não foi possível salvar a imagem na galeria: ${insertError.message}`); };
   const resetEnvironmentAnalysis = () => { setEnvironmentAnalysis(null); setEnvironmentError(null); };
   const analyzeEnvironmentImage = async () => { if (!envBase64) { setEnvironmentError('Adicione uma foto real do ambiente primeiro.'); return; } const authed = await requireAuth(); if (!authed) { setPendingAction(() => () => analyzeEnvironmentImage()); setShowAuthDialog(true); return; } setAnalyzingEnvironment(true); setEnvironmentError(null); try { setEnvironmentAnalysis(await analyzeEnvironment(envBase64, envMime || 'image/jpeg')); } catch (e: any) { setEnvironmentError(e?.message || 'Não foi possível analisar o ambiente.'); } finally { setAnalyzingEnvironment(false); } };
   const confirmEnvironment = async () => { if (!envBase64 || !environmentAnalysis) return; const authed = await requireAuth(); if (!authed) { setPendingAction(() => () => confirmEnvironment()); setShowAuthDialog(true); return; } setConfirmingEnvironment(true); setEnvironmentError(null); try { const result = await confirmEnvironmentWithIara(envBase64, environmentAnalysis, envMime || 'image/jpeg'); setEnvironmentAnalysis(result.analysis); if (result.questions.length > 0) setEnvironmentError(`A IARA pede conferência: ${result.questions.join(' ')}`); else if (projectId) registrarEventoSistema(projectId, 'ambiente-confirmado-iara', 'Ambiente real analisado e confirmado pela IARA. Mapa espacial liberado para o projeto.', 'iara'); } catch (e: any) { setEnvironmentError(e?.message || 'Não foi possível concluir a conferência.'); } finally { setConfirmingEnvironment(false); } };
@@ -76,13 +76,14 @@ export const useStudio = (setBudgetProject: React.Dispatch<React.SetStateAction<
     if (!generatedImage) return;
     if (generationMode === 'planned-environment' && (!plannedDimensions.width || !plannedDimensions.height || !plannedDimensions.depth)) { setError('Antes do orçamento, confirme largura, altura e profundidade do ambiente. O conceito pode ser vendido agora, mas não deve virar medida de fabricação.'); return; }
     const authed = await requireAuth(); if (!authed) { setPendingAction(() => () => analyzeForBudget()); setShowAuthDialog(true); return; }
-    setAnalyzing(true);
+    setAnalyzing(true); setError(null);
     try {
-      const imageBase64 = generatedImage.split(',')[1]; const est = await iaraService.analyzeImage(imageBase64);
+      const image = await imageSourceToData(generatedImage);
+      const est = await iaraService.analyzeImage(image.data);
       setBudgetProject((prev: any) => ({ ...prev, width: plannedDimensions.width || est.width || prev?.width, height: plannedDimensions.height || est.height || prev?.height, depth: plannedDimensions.depth || est.depth || prev?.depth, drawers: est.drawers || 2, doors: est.doors || 2 }));
       if (projectId) registrarEventoSistema(projectId, 'estimativa-enviada-orcamento', generationMode === 'planned-environment' ? 'IARA preparou uma estimativa visual para o orçamento; medidas do ambiente foram informadas como referência e ainda exigem conferência final.' : 'IARA preparou a estimativa visual para o orçamento.', 'iara');
       setShowModal(false); navigateTo('orcamento');
-    } catch { alert("Não foi possível analisar. Redirecionando..."); navigateTo('orcamento'); } finally { setAnalyzing(false); }
+    } catch (e: any) { setError(e?.message || 'Não foi possível analisar a imagem para o orçamento. Tente novamente.'); } finally { setAnalyzing(false); }
   };
 
   return { prompt, setPrompt, sketchImage, setSketchImage, envImage, setEnvImage, generatedImage, setGeneratedImage, loading, analyzing, selectedDecor, setSelectedDecor, isRefining, setIsRefining, error, setError, showModal, setShowModal, isRecording, setIsRecording, selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction, generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime, environmentAnalysis, analyzingEnvironment, confirmingEnvironment, environmentError, analyzeEnvironmentImage, confirmEnvironment, resetEnvironmentAnalysis, updateEnvironmentAnalysis };
