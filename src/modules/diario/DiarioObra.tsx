@@ -12,7 +12,28 @@ interface Props {
   navigateTo?: (id: string, params?: Record<string, string>) => void;
 }
 
+interface SpeechRecognitionResultLike {
+  transcript: string;
+}
+interface SpeechRecognitionEventLike {
+  results?: ArrayLike<ArrayLike<SpeechRecognitionResultLike>>;
+}
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+}
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+type SpeechWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
+
 const btn = 'flex-1 min-h-[86px] rounded-2xl font-extrabold text-base flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.98] touch-manipulation focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200';
+const errorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message ? error.message : fallback;
 
 const proximoPasso = (obra: DiarioCabecalhoObra) => {
   if (obra.status === 'concluido') return { id: 'producao', label: 'Obra concluída — abrir produção' };
@@ -67,11 +88,12 @@ export const DiarioObra = ({ projectId, navigateTo }: Props) => {
   };
 
   const falar = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const speechWindow = window as SpeechWindow;
+    const SR = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (!SR) { setErro('Este aparelho não permite ditar por voz. Use "Escrever".'); return; }
     const rec = new SR();
     rec.lang = 'pt-BR'; rec.interimResults = false;
-    rec.onresult = (e: any) => { const t = e.results?.[0]?.[0]?.transcript?.trim(); if (t) registrar('voz', t); };
+    rec.onresult = (event) => { const t = event.results?.[0]?.[0]?.transcript?.trim(); if (t) registrar('voz', t); };
     rec.onerror = () => { setOuvindo(false); setErro('Não consegui ouvir. Tente de novo.'); };
     rec.onend = () => setOuvindo(false);
     setErro(null); setOuvindo(true); rec.start();
@@ -105,7 +127,7 @@ ${lista}`;
       const medidas = registros.filter((r) => /\d+\s?(cm|m|mm|metros?)/i.test(r.texto));
       await Promise.all(medidas.map((r) => atualizarRegistro(r.id, { categoria: 'medida', evidencia: 'precisa_conferir' })));
       if (medidas.length) recarregar();
-    } catch (e: any) { setErro(e?.message || 'A IARA não conseguiu organizar agora.'); }
+    } catch (error) { setErro(errorMessage(error, 'A IARA não conseguiu organizar agora.')); }
     finally { setCarregando(false); }
   };
 
@@ -122,7 +144,7 @@ Responda em português, em no máximo 6 tópicos, começando por "O que falta:".
 Diário:
 ${lista}`;
       setFaltandoIara(await callAIText(prompt));
-    } catch (e: any) { setErro(e?.message || 'A IARA não conseguiu verificar as pendências agora.'); }
+    } catch (error) { setErro(errorMessage(error, 'A IARA não conseguiu verificar as pendências agora.')); }
     finally { setCarregando(false); }
   };
 
