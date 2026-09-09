@@ -1,220 +1,163 @@
 // IARA OS v1 — Orchestrator via Gemini Function Calling
-// Recebe { userPrompt, context? } e retorna { plan: ToolCall[], summary }
-// Não executa nada. Apenas decide.
+// Recebe { userPrompt, context? } e retorna { plan: ToolCall[], summary }.
+// Não executa ferramentas; a execução permanece no cliente autenticado.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
-import { buildCorsHeaders, guardRequest, readJsonBody } from "../_shared/guard.ts";
+import { buildCorsHeaders, guardRequest, readJsonBody, jsonResponse } from "../_shared/guard.ts";
 
-const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2MB — o orquestrador recebe apenas texto/contexto
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 const BodySchema = z.object({
   userPrompt: z.string().min(1).max(4000),
-  context: z
-    .object({
-      currentProject: z.record(z.any()).optional(),
-      lastImage: z.string().optional(),
-      decorStyle: z.string().optional(),
-      recentClients: z.array(z.object({ id: z.string(), nome: z.string() })).optional(),
-    })
-    .partial()
-    .optional(),
+  context: z.object({
+    currentProject: z.record(z.any()).optional(),
+    lastImage: z.string().optional(),
+    decorStyle: z.string().optional(),
+    recentClients: z.array(z.object({ id: z.string(), nome: z.string() })).optional(),
+  }).partial().optional(),
 });
 
-// Declarações de ferramentas (contratos estáveis). Espelho no client em src/core/toolRegistry.ts
 const TOOL_DECLARATIONS = [
   {
     name: "createCliente",
-    description:
-      "Cria um novo cliente no cadastro. Use quando o usuário mencionar um novo cliente com nome (ex: 'para o cliente João', 'criar cliente Maria Silva').",
+    description: "Cria um novo cliente quando o nome foi informado pelo usuário. Nunca invente dados pessoais.",
     parameters: {
       type: "object",
       properties: {
-        nome: { type: "string", description: "Nome completo do cliente" },
-        email: { type: "string", description: "Email do cliente (opcional)" },
-        telefone: { type: "string", description: "Telefone do cliente (opcional)" },
+        nome: { type: "string", description: "Nome do cliente" },
+        email: { type: "string", description: "Email opcional" },
+        telefone: { type: "string", description: "Telefone opcional" },
       },
       required: ["nome"],
     },
   },
   {
     name: "createProjeto",
-    description:
-      "Cria/atualiza um projeto de marcenaria com dimensões. Use para 'cozinha planejada', 'guarda-roupa', etc.",
+    description: "Cria projeto de marcenaria somente quando nome e largura, altura e profundidade foram explicitamente confirmados pelo usuário. Nunca use medidas padrão silenciosas.",
     parameters: {
       type: "object",
       properties: {
-        nome: { type: "string", description: "Nome do projeto (ex: 'Cozinha planejada')" },
-        clienteNome: { type: "string", description: "Nome do cliente vinculado (opcional)" },
+        nome: { type: "string", description: "Nome do projeto" },
+        clienteNome: { type: "string", description: "Cliente vinculado, se informado" },
         width: { type: "number", description: "Largura em metros" },
         height: { type: "number", description: "Altura em metros" },
         depth: { type: "number", description: "Profundidade em metros" },
-        tipo: {
-          type: "string",
-          description: "Tipo do móvel: cozinha, guarda-roupa, armario, estante, outro",
-        },
+        tipo: { type: "string", description: "Tipo do móvel" },
+        confirmado: { type: "boolean", description: "Deve ser true somente após confirmação explícita das três dimensões" },
       },
-      required: ["nome"],
+      required: ["nome", "width", "height", "depth", "confirmado"],
     },
   },
   {
     name: "gerarRender",
-    description:
-      "Solicita ao Estúdio a materialização visual (render 3D) do projeto atual. Requer contexto de imagem base + máscara já preparadas OU descrição textual pura.",
+    description: "Solicita materialização visual. Não transforme estimativas visuais em medidas de fabricação.",
     parameters: {
       type: "object",
       properties: {
         prompt: { type: "string", description: "Descrição do que renderizar" },
-        estilo: {
-          type: "string",
-          description: "Estilo de humanização: Limpo, Cozy, Luxo, Escritório, Minimalista",
-        },
+        estilo: { type: "string", description: "Estilo visual" },
       },
       required: ["prompt"],
     },
   },
   {
     name: "calcularOrcamento",
-    description:
-      "Calcula orçamento estimado do projeto atual usando dimensões e materiais. Use para 'quanto custa', 'preço', 'valor'.",
+    description: "Calcula orçamento a partir dos dados reais do projeto atual. Se faltarem dados críticos, peça confirmação.",
     parameters: {
       type: "object",
-      properties: {
-        observacoes: { type: "string", description: "Observações extras (opcional)" },
-      },
+      properties: { observacoes: { type: "string" } },
     },
   },
   {
     name: "gerarContrato",
-    description:
-      "Gera contrato para o cliente/projeto atual. Pode incluir cláusulas customizadas via IA.",
+    description: "Prepara documentação contratual assistida por IA. Não apresenta o texto como aconselhamento jurídico definitivo.",
     parameters: {
       type: "object",
       properties: {
-        clienteNome: { type: "string", description: "Nome do cliente contratante" },
-        valor: { type: "number", description: "Valor total em reais" },
-        prazoDias: { type: "number", description: "Prazo de entrega em dias úteis" },
-        clausulasExtras: {
-          type: "array",
-          items: { type: "string" },
-          description: "Descrições curtas de cláusulas adicionais a gerar via IA",
-        },
+        clienteNome: { type: "string" },
+        valor: { type: "number" },
+        prazoDias: { type: "number" },
+        clausulasExtras: { type: "array", items: { type: "string" } },
       },
       required: ["clienteNome"],
     },
   },
 ];
 
-const SYSTEM_INSTRUCTION = `Você é o orquestrador IARA OS da Marcenapp — um sistema operacional para marcenarias.
-Sua função: interpretar a intenção do usuário e produzir um PLANO DE AÇÕES chamando as ferramentas certas na ordem correta.
+const SYSTEM_INSTRUCTION = `Você é o orquestrador IARA OS da Marcenapp.
+Sua função é interpretar a intenção do usuário e produzir um PLANO DE AÇÕES chamando somente as ferramentas disponíveis.
 
-Regras:
-- Sempre responda em português brasileiro, tom direto e técnico.
-- Se a solicitação envolver múltiplas ações (ex: "crie cliente, projeto, orçamento e contrato"), retorne TODAS as chamadas na sequência lógica correta.
-- Se faltar informação obrigatória (ex: nome do cliente), peça esclarecimento em texto SEM chamar ferramentas.
-- Não invente dados. Se o usuário disse "cozinha" sem dimensões, use padrões razoáveis (3.0 x 2.6 x 0.6).
-- Ordem lógica típica: createCliente → createProjeto → gerarRender → calcularOrcamento → gerarContrato.
-- Se a intenção for pura conversa/dúvida, responda em texto sem chamar ferramentas.`;
+Regras obrigatórias:
+- Responda em português brasileiro, de forma direta e técnica.
+- Nunca invente medidas, preços, materiais, clientes ou condições de instalação.
+- Para createProjeto, confirmado só pode ser true quando o usuário tiver confirmado explicitamente largura, altura e profundidade. Se qualquer dimensão estiver ausente ou não confirmada, NÃO chame createProjeto; peça a informação/confirmacão mínima necessária.
+- Nunca aplique medidas padrão silenciosamente.
+- Estimativas devem ser identificadas como estimativas e não podem liberar produção, compra, corte ou orçamento final sozinhas.
+- Se faltar informação obrigatória, peça esclarecimento sem chamar ferramenta.
+- Para múltiplas ações, retorne as chamadas na ordem lógica e segura.
+- Para conversa ou dúvida sem ação, responda apenas em texto.`;
 
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  if (req.method !== "POST") return jsonResponse(corsHeaders, { error: "Method not allowed" }, 405);
 
-  // Autenticação + rate limit por usuário (20 planos/min).
   const guard = await guardRequest(req, corsHeaders, { fn: "ai-orchestrator", limit: 20, windowSeconds: 60 });
   if (!guard.ok) return guard.response;
 
   try {
     const GEMINI_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-    if (!GEMINI_KEY) {
-      console.error("ai-orchestrator: GOOGLE_GEMINI_API_KEY não configurada");
-      return new Response(JSON.stringify({ error: "Serviço de IA não configurado." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!GEMINI_KEY) return jsonResponse(corsHeaders, { error: "Serviço de IA não configurado.", code: "provider_not_configured" }, 500);
 
     const read = await readJsonBody(req, MAX_BODY_BYTES);
-    if (!read.ok) {
-      return new Response(
-        JSON.stringify({ error: read.reason === "too_large" ? "Corpo da requisição muito grande." : "JSON inválido." }),
-        { status: read.reason === "too_large" ? 413 : 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    if (!read.ok) return jsonResponse(corsHeaders, { error: read.reason === "too_large" ? "Corpo da requisição muito grande." : "JSON inválido." }, read.reason === "too_large" ? 413 : 400);
+
     const parsed = BodySchema.safeParse(read.body);
-    if (!parsed.success) {
-      return new Response(
-        JSON.stringify({ error: "Validation failed", fields: parsed.error.flatten().fieldErrors }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    if (!parsed.success) return jsonResponse(corsHeaders, { error: "Validation failed", fields: parsed.error.flatten().fieldErrors }, 400);
 
     const { userPrompt, context } = parsed.data;
+    const contextBlock = context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(context, null, 2)}` : "";
+    const model = "gemini-3.6-flash";
 
-    const contextBlock = context
-      ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(context, null, 2)}`
-      : "";
-
-    const model = "gemini-2.0-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
-
-    const body = {
-      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-      contents: [{ role: "user", parts: [{ text: userPrompt + contextBlock }] }],
-      tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-      toolConfig: { functionCallingConfig: { mode: "AUTO" } },
-    };
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_KEY)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+          contents: [{ role: "user", parts: [{ text: userPrompt + contextBlock }] }],
+          tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+          toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+        }),
+      },
+    );
 
     if (!response.ok) {
-      console.error("Gemini orchestrator error:", response.status, await response.text());
-      const limited = response.status === 429;
-      return new Response(
-        JSON.stringify({
-          error: limited
-            ? "Limite do provedor de IA atingido. Tente novamente em alguns segundos."
-            : "O serviço de IA está indisponível no momento.",
-          code: limited ? "rate_limited" : "upstream_error",
-        }),
-        {
-          status: limited ? 429 : 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json", ...(limited ? { "Retry-After": "10" } : {}) },
-        },
+      const status = response.status;
+      const limited = status === 429;
+      console.error("Gemini orchestrator error:", status, await response.text());
+      return jsonResponse(
+        corsHeaders,
+        { error: limited ? "Limite do provedor de IA atingido." : "O serviço de IA está indisponível.", code: limited ? "rate_limited" : "upstream_error" },
+        limited ? 429 : 502,
+        limited ? { "Retry-After": "10" } : {},
       );
     }
 
     const data = await response.json();
     const parts = data.candidates?.[0]?.content?.parts ?? [];
-
-    const plan: Array<{ tool: string; args: Record<string, any> }> = [];
+    const plan: Array<{ tool: string; args: Record<string, unknown> }> = [];
     let summary = "";
 
     for (const part of parts) {
-      if (part.functionCall) {
-        plan.push({ tool: part.functionCall.name, args: part.functionCall.args ?? {} });
-      } else if (part.text) {
-        summary += part.text;
-      }
+      if (part.functionCall) plan.push({ tool: part.functionCall.name, args: part.functionCall.args ?? {} });
+      else if (part.text) summary += part.text;
     }
 
-    return new Response(
-      JSON.stringify({ plan, summary: summary.trim(), model }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return jsonResponse(corsHeaders, { plan, summary: summary.trim(), model });
   } catch (e) {
     console.error("ai-orchestrator error:", e);
-    return new Response(
-      JSON.stringify({ error: "Erro interno no orquestrador.", code: "internal_error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return jsonResponse(corsHeaders, { error: "Erro interno no orquestrador.", code: "internal_error" }, 500);
   }
 });
