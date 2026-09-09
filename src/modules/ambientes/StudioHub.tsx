@@ -46,12 +46,12 @@ export const StudioHub = (props: StudioHubProps) => {
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Projeto atual</p>
-          <h3 className="mt-1 truncate text-base font-extrabold text-slate-900">Estúdio</h3>
-          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">Organize o ambiente, crie a apresentação visual e prepare a documentação do projeto.</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">MARCENA · apresentação visual</p>
+          <h3 className="mt-1 truncate text-base font-extrabold text-slate-900">Do rascunho ao 3D em minutos</h3>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">Transforme a ideia do cliente em uma apresentação visual profissional. A IARA ajuda a interpretar o ambiente e o briefing; o MARCENA prepara o projeto para apresentar.</p>
         </div>
-        <div className="shrink-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-right">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Dimensões atuais</p>
+        <div className="shrink-0 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-right">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Ambiente do projeto</p>
           <p className="mt-0.5 text-sm font-extrabold text-slate-700">{budgetProject?.width} × {budgetProject?.height} × {budgetProject?.depth} m</p>
         </div>
       </div>
@@ -59,12 +59,12 @@ export const StudioHub = (props: StudioHubProps) => {
       <div className="mt-4">
         <label htmlFor="studio-description" className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">Briefing do projeto</label>
         <textarea id="studio-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva o que precisa ser criado. Ex.: cozinha com ilha, painel de TV ou armário planejado..." className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400" />
-        <p className="mt-1.5 text-[10px] text-slate-400">Este briefing fica associado ao projeto e ajuda a orientar a próxima etapa.</p>
+        <p className="mt-1.5 text-[10px] text-slate-400">O briefing fica associado ao projeto e orienta a criação da apresentação.</p>
       </div>
     </section>
 
     <Studio {...studioProps} projectId={projectId} />
-    <p className="px-1 text-[10px] text-slate-400">As imagens são referências visuais. Confira medidas e detalhes técnicos antes de produzir.</p>
+    <p className="px-1 text-[10px] text-slate-400">A apresentação é visual. Confira medidas e detalhes técnicos antes de produzir.</p>
   </div>;
 };
 
