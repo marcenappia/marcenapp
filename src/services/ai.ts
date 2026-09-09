@@ -105,7 +105,7 @@ export const callAIText = async (prompt: string, images?: { mimeType: string; da
   const data = await callAIFunction<{ text: string }>('ai-text', {
     prompt,
     jsonMode,
-    contents: { parts },
+    images: imageParts(images),
   });
   return data.text;
 };
