@@ -2,9 +2,16 @@ import { useMemo } from 'react';
 import { CheckCircle2, Ruler, TriangleAlert } from 'lucide-react';
 import { Button, Card } from '@/components/marcenaria/shared';
 import type { EnvironmentAnalysis, EnvironmentElement } from '../types';
-import { buildEnvironmentGeometry, emptyEnvironmentGeometry, validateEnvironmentGeometry, type EnvironmentGeometry } from '../services/environmentGeometry';
+import { buildEnvironmentGeometry, validateEnvironmentGeometry, type EnvironmentGeometry } from '../services/environmentGeometry';
 
 const num = (value: string) => value === '' ? null : Number(value);
+type MeasurementKey = 'roomWidthM' | 'roomHeightM' | 'roomDepthM' | 'ceilingHeightM';
+const measurementFields: Array<[MeasurementKey, string]> = [
+  ['roomWidthM', 'Largura do ambiente'],
+  ['roomHeightM', 'Altura da área'],
+  ['roomDepthM', 'Profundidade'],
+  ['ceilingHeightM', 'Pé-direito'],
+];
 
 export function EnvironmentGeometryPanel({ analysis, onChange }: { analysis: EnvironmentAnalysis; onChange: (analysis: EnvironmentAnalysis) => void }) {
   const geometry = analysis.geometry || buildEnvironmentGeometry(analysis);
@@ -13,7 +20,12 @@ export function EnvironmentGeometryPanel({ analysis, onChange }: { analysis: Env
   const openings = analysis.elements.filter((item) => item.type === 'window' || item.type === 'door');
 
   const patch = (next: Partial<EnvironmentGeometry>) => onChange({ ...analysis, geometry: { ...geometry, ...next }, confirmedByIara: false });
-  const patchWall = (id: string, value: number | null) => patch({ wallWidthsM: { ...geometry.wallWidthsM, ...(value == null ? (() => { const copy = { ...geometry.wallWidthsM }; delete copy[id]; return copy; })() : { [id]: value }) } });
+  const patchWall = (id: string, value: number | null) => {
+    const wallWidthsM = { ...geometry.wallWidthsM };
+    if (value == null) delete wallWidthsM[id];
+    else wallWidthsM[id] = value;
+    patch({ wallWidthsM });
+  };
   const openingData = (id: string) => geometry.openings.find((item) => item.elementId === id) || { elementId: id, wallElementId: null, offsetFromWallStartM: null, sillHeightM: null };
   const patchOpening = (id: string, next: Partial<EnvironmentGeometry['openings'][number]>) => patch({ openings: geometry.openings.map((item) => item.elementId === id ? { ...item, ...next } : item).concat(geometry.openings.some((item) => item.elementId === id) ? [] : [{ ...openingData(id), ...next }]) });
 
@@ -25,7 +37,7 @@ export function EnvironmentGeometryPanel({ analysis, onChange }: { analysis: Env
     </div>
 
     <div className="grid grid-cols-2 gap-2 mt-3">
-      {[['roomWidthM','Largura do ambiente'],['roomHeightM','Altura da área'],['roomDepthM','Profundidade'],['ceilingHeightM','Pé-direito']].map(([key,label]) => <label key={key} className="text-[10px] text-slate-500">{label}<input type="number" min="0" step="0.01" value={(geometry as any)[key] ?? ''} onChange={(e) => patch({ [key]: num(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs" placeholder="m"/></label>)}
+      {measurementFields.map(([key, label]) => <label key={key} className="text-[10px] text-slate-500">{label}<input type="number" min="0" step="0.01" value={geometry[key] ?? ''} onChange={(e) => patch({ [key]: num(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs" placeholder="m"/></label>)}
     </div>
 
     {walls.length > 0 && <div className="mt-4"><div className="text-xs font-semibold text-slate-800 mb-2">Largura das paredes</div><div className="space-y-2">{walls.map((wall) => <label key={wall.id} className="block text-[10px] text-slate-500">{wall.label}<input type="number" min="0" step="0.01" value={geometry.wallWidthsM[wall.id] ?? wall.widthM ?? ''} onChange={(e) => patchWall(wall.id, num(e.target.value))} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs" placeholder="m"/></label>)}</div></div>}
