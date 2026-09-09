@@ -1,0 +1,10 @@
+# MARCENAPP protected areas — changes require repository owner review.
+# This file is effective only when GitHub branch/ruleset protection requires CODEOWNERS review.
+
+/src/pages/Auth.tsx @marcenappia
+/src/integrations/supabase/client.ts @marcenappia
+/src/integrations/supabase/config.ts @marcenappia
+/src/hooks/useAuth.tsx @marcenappia
+/src/App.tsx @marcenappia
+/supabase/config.toml @marcenappia
+/.github/workflows/ @marcenappia
