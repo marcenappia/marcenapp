@@ -25,14 +25,19 @@ export type AgentSkill = {
   updated_at: string;
 };
 
+type AgentSkillsQuery = {
+  select: (columns: string) => AgentSkillsQuery;
+  order: (column: string, options: { ascending: boolean }) => AgentSkillsQuery;
+  then: Promise<unknown>['then'];
+};
+
 export async function getAgentSkills(): Promise<AgentSkill[]> {
-  const db = supabase as any;
-  const { data, error } = await db
-    .from('agent_skills_registry')
+  const from = supabase.from as unknown as (table: string) => AgentSkillsQuery;
+  const result = await from('agent_skills_registry')
     .select('*')
     .order('priority', { ascending: false })
-    .order('name', { ascending: true });
+    .order('name', { ascending: true }) as unknown as { data: unknown; error: Error | null };
 
-  if (error) throw error;
-  return (data ?? []) as AgentSkill[];
+  if (result.error) throw result.error;
+  return (result.data ?? []) as AgentSkill[];
 }
