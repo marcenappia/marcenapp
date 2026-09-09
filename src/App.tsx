@@ -33,8 +33,9 @@ const ConfigurationNotice = () => <main className="min-h-screen bg-slate-950 px-
 const RequireAuth = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <AppSplash message="Verificando sua sessão…" />;
-  if (!user) return <Navigate to={`/auth?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+  const e2eBypassAuth = import.meta.env.DEV && import.meta.env.VITE_E2E_BYPASS_AUTH === 'true';
+  if (loading && !e2eBypassAuth) return <AppSplash message="Verificando sua sessão…" />;
+  if (!user && !e2eBypassAuth) return <Navigate to={`/auth?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   return <>{children}</>;
 };
 
