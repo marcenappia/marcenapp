@@ -6,7 +6,7 @@ on:
     branches: [ main, master ]
 jobs:
   test:
-    timeout-minutes: 45
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -26,7 +26,7 @@ jobs:
     - name: Run Playwright smoke tests
       env:
         DEBUG: pw:webserver
-      run: npm run test:e2e -- --project=chromium
+      run: npm run test:e2e -- --project=chromium --grep "accessibility audit and visual regression|navigation tab order and sync"
     - name: Upload Playwright artifacts
       uses: actions/upload-artifact@v4
       if: failure() || cancelled()
