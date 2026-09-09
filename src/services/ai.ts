@@ -1,6 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
 
-/** Returns true if user is logged in, false otherwise */
 export const requireAuth = async (): Promise<boolean> => {
   const { data: { session } } = await supabase.auth.getSession();
   return !!session;
@@ -16,10 +15,13 @@ export class AIAuthError extends Error {
   }
 }
 
-/**
- * Cabeçalhos para as Edge Functions de IA: envia o JWT da sessão do usuário
- * (nunca a chave pública). Lança AIAuthError se não houver sessão.
- */
+export class AIProviderConfigError extends Error {
+  constructor(message = 'A IARA está temporariamente indisponível. A configuração do serviço de IA precisa ser concluída pelo administrador.') {
+    super(message);
+    this.name = 'AIProviderConfigError';
+  }
+}
+
 export const aiHeaders = async (): Promise<Record<string, string>> => {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new AIAuthError();
@@ -30,18 +32,14 @@ export const aiHeaders = async (): Promise<Record<string, string>> => {
   };
 };
 
-/** POST autenticado em uma Edge Function; converte erros em mensagens legíveis. */
 export const callAIFunction = async <T = any>(fn: string, body: unknown): Promise<T> => {
   const headers = await aiHeaders();
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, { method: 'POST', headers, body: JSON.stringify(body) });
   let data: any = null;
   try { data = await res.json(); } catch { /* corpo vazio */ }
   if (!res.ok) {
     if (res.status === 401) throw new AIAuthError('Sessão expirada. Faça login novamente.');
+    if (data?.code === 'provider_not_configured') throw new AIProviderConfigError();
     const msg = data?.error || data?.message || `Erro ${res.status}`;
     throw new Error(msg);
   }
