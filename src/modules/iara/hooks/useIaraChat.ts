@@ -164,19 +164,22 @@ export const useIaraChat = (
       let nextMemory = rememberEvent(memory, 'pedido-processado', promptText.slice(0, 180));
       const linhas = run.results.map(({ tool, result }) => {
         if (result.ok === false) return `❌ ${tool}: ${result.error}`;
+        const data = (result.data ?? {}) as Record<string, unknown>;
+        const texto = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '');
+        const numero = (v: unknown) => (v === null || v === undefined || v === '' ? 0 : Number(v));
         switch (tool) {
-          case 'createCliente': return `✅ Cliente **${result.data.nome}** cadastrado.`;
+          case 'createCliente': return `✅ Cliente **${texto(data.nome)}** cadastrado.`;
           case 'createProjeto':
-            if (result.data?.width && result.data?.height && result.data?.depth) {
-              const measurements = { width: Number(result.data.width), height: Number(result.data.height), depth: Number(result.data.depth) };
+            if (data.width && data.height && data.depth) {
+              const measurements = { width: numero(data.width), height: numero(data.height), depth: numero(data.depth) };
               hooks?.onProjectCreated?.(measurements);
               nextMemory = rememberMeasurements(nextMemory, measurements, 'CONFIRMADO', 'usuario');
               nextMemory = rememberEvent(nextMemory, 'medidas-confirmadas', `${measurements.width} × ${measurements.height} × ${measurements.depth} m`);
             }
-            return `✅ Projeto **${result.data.nome}** criado (${result.data.width}×${result.data.height}×${result.data.depth}m).`;
-          case 'gerarRender': return `🎨 Render enfileirado no Estúdio (ref: ${result.data.studioCommandId}). Aviso quando ficar pronto.`;
-          case 'calcularOrcamento': return `💰 Orçamento estimado: **R$ ${result.data.total.toLocaleString('pt-BR')}** (materiais R$ ${result.data.materiais.toLocaleString('pt-BR')} + mão de obra R$ ${result.data.maoDeObra.toLocaleString('pt-BR')}).`;
-          case 'gerarContrato': return `📄 Contrato preparado para **${result.data.cliente}**${result.data.valor ? ` (R$ ${result.data.valor.toLocaleString('pt-BR')})` : ''}. ${result.data.clausulasGeradas} cláusula(s) via IA.`;
+            return `✅ Projeto **${texto(data.nome)}** criado (${texto(data.width)}×${texto(data.height)}×${texto(data.depth)}m).`;
+          case 'gerarRender': return `🎨 Render enfileirado no Estúdio (ref: ${texto(data.studioCommandId)}). Aviso quando ficar pronto.`;
+          case 'calcularOrcamento': return `💰 Orçamento estimado: **R$ ${numero(data.total).toLocaleString('pt-BR')}** (materiais R$ ${numero(data.materiais).toLocaleString('pt-BR')} + mão de obra R$ ${numero(data.maoDeObra).toLocaleString('pt-BR')}).`;
+          case 'gerarContrato': return `📄 Contrato preparado para **${texto(data.cliente)}**${data.valor ? ` (R$ ${numero(data.valor).toLocaleString('pt-BR')})` : ''}. ${texto(data.clausulasGeradas)} cláusula(s) via IA.`;
           default: return `✅ ${tool} executado.`;
         }
       });
