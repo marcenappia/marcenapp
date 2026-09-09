@@ -172,6 +172,7 @@ const calcularOrcamento: ToolDefinition = {
         total: Number(total.toFixed(2)),
         materiais: Number(totalMat.toFixed(2)),
         maoDeObra: Number(labor.toFixed(2)),
+        isEstimate: true,
       },
     };
   },
@@ -180,7 +181,7 @@ const calcularOrcamento: ToolDefinition = {
 const gerarContrato: ToolDefinition = {
   name: 'gerarContrato',
   description: 'Gera documentação contratual assistida por IA; não constitui aconselhamento jurídico',
-  version: '1.1.0',
+  version: '1.2.0',
   inputSchema: z.object({
     clienteNome: z.string().min(1),
     valor: z.number().optional(),
@@ -211,7 +212,7 @@ const gerarContrato: ToolDefinition = {
       data: {
         cliente: args.clienteNome,
         valor: args.valor ?? null,
-        prazoDias: args.prazoDias ?? 45,
+        prazoDias: args.prazoDias ?? null,
         clausulasGeradas: clausulas.length,
       },
     };
