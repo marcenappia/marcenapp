@@ -1,0 +1,66 @@
+name: MARCENAPP Auth Freeze Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+      - 'recovery/**'
+  push:
+    branches:
+      - 'recovery/**'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  auth-freeze:
+    name: Block unapproved auth/deployment changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect protected changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          protected_regex='^(src/pages/Auth\.tsx|src/integrations/supabase/client\.ts|src/integrations/supabase/config\.ts|src/hooks/useAuth\.tsx|src/App\.tsx|supabase/config\.toml|\.github/workflows/.*)$'
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+            changed=$(git diff --name-only "$base" "$head")
+          else
+            before="${{ github.event.before }}"
+            after="${{ github.sha }}"
+            if [[ "$before" == "0000000000000000000000000000000000000000" ]]; then
+              changed=$(git diff-tree --no-commit-id --name-only -r "$after")
+            else
+              changed=$(git diff --name-only "$before" "$after")
+            fi
+          fi
+
+          echo "Changed files:"
+          printf '%s\n' "$changed"
+
+          protected=''
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            if [[ "$file" =~ $protected_regex ]]; then
+              protected+="$file\n"
+            fi
+          done <<< "$changed"
+
+          if [[ -n "$protected" ]]; then
+            echo "Protected MARCENAPP auth/deployment files were changed during the freeze:"
+            printf '%b' "$protected"
+            echo "This guard intentionally fails. Do not modify the authentication or deployment surface during Phase 2 freeze."
+            exit 1
+          fi
+
+          echo "No protected auth/deployment files changed."
