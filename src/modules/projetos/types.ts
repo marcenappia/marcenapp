@@ -19,6 +19,7 @@ export interface JornadaData {
   cliente?: string;
   production?: ProductionSnapshot;
   orcamentoAprovado?: boolean;
+  orcamentoAprovadoEm?: string;
   statusAprovacao?: string;
   valorAprovado?: number;
   [key: string]: unknown;
@@ -32,7 +33,7 @@ export interface ProjectData {
   width: number;
   height: number;
   depth: number;
-  modules?: number;
+  modules: number;
   drawers: number;
   doors: number;
   internalMaterial: string;
