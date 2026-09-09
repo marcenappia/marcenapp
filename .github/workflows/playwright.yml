@@ -1,4 +1,4 @@
-name: Playwright Tests
+name: MARCENAPP Validation
 
 on:
   push:
@@ -18,7 +18,8 @@ env:
   VITE_SUPABASE_PUBLISHABLE_KEY: test-publishable-key
 
 jobs:
-  test:
+  validate:
+    name: Build + unit + agent contract + E2E
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
@@ -28,10 +29,14 @@ jobs:
           node-version: lts/*
       - name: Install dependencies
         run: npm install -g bun && bun install
+      - name: Lint
+        run: bun run lint
+      - name: Build
+        run: bun run build
+      - name: Unit tests and agent contracts
+        run: bun run test
       - name: Install Playwright Browsers
         run: bunx playwright install --with-deps
-      - name: Unit tests
-        run: bun run test
       - name: Run Playwright tests
         run: bun run test:e2e
       - name: Upload Playwright artifacts
