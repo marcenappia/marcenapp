@@ -56,9 +56,14 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inicialId, user?.id]);
 
-  const persistir = (patch: JornadaSalva, extra?: { status?: StatusObra; aprovado?: boolean }) => {
-    if (!projectId) return;
-    salvarJornada(projectId, patch, extra).catch(() => salvarProgresso(projectId, { ...patch, aprovado: extra?.aprovado }));
+  const persistir = async (patch: JornadaSalva, extra?: { status?: StatusObra; aprovado?: boolean }) => {
+    if (!projectId) throw new Error('O projeto ainda não recebeu um identificador.');
+    try {
+      await salvarJornada(projectId, patch, extra);
+    } catch (error) {
+      salvarProgresso(projectId, { ...patch, aprovado: extra?.aprovado });
+      throw error;
+    }
   };
 
   const comAuth = async (acao: () => void) => { const ok = await requireAuth(); if (ok) return acao(); pendente.current = acao; setShowAuth(true); };
@@ -95,7 +100,7 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
         if (!id) throw new Error('O projeto não recebeu um identificador.');
         setBudgetProject((prev) => ({ ...prev, id, name: nome.trim() }));
         salvarProgresso(id, { etapa: 2, nome: nome.trim(), clienteNome: clienteNome.trim() });
-        await salvarJornada(id, { etapa: Math.max(etapa, 2) as EtapaId }).catch(() => undefined);
+        await salvarJornada(id, { etapa: Math.max(etapa, 2) as EtapaId });
         setEtapa(2);
       } catch (e: unknown) {
         setErro(e instanceof Error ? e.message : 'Não deu para salvar a obra. Tente de novo.');
@@ -110,7 +115,7 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
       setLoading('salvando'); setErro(null);
       try {
         if (user && projectId) { const { blob, mime } = dataUrlParaBlob(foto.dataUrl); await enviarFotoAmbiente(user.id, projectId, blob, mime); }
-        persistir({ etapa: 3 }); setEtapa(3);
+        await persistir({ etapa: 3 }); setEtapa(3);
       } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Não deu para guardar a foto. Tente de novo.'); }
       finally { setLoading(null); }
     });
@@ -125,7 +130,7 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
         const limpo = texto.replace(/```json/gi, '').replace(/```/g, '').trim();
         const json = JSON.parse(limpo) as AnaliseIara;
         const resultado: AnaliseIara = { resumo: json.resumo || pedido.trim(), ambiente: json.ambiente, medidas: json.medidas || {}, perguntas: Array.isArray(json.perguntas) ? json.perguntas.slice(0, 4) : [] };
-        setAnalise(resultado); persistir({ etapa: 4, pedido: pedido.trim(), analise: resultado }); setEtapa(4);
+        setAnalise(resultado); await persistir({ etapa: 4, pedido: pedido.trim(), analise: resultado }); setEtapa(4);
       } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'A IARA não conseguiu analisar agora. Tente de novo.'); }
       finally { setLoading(null); }
     });
@@ -147,9 +152,12 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
         const img = await studioService.generateVisual(prompt, [{ mimeType: foto.mime, data: foto.base64 }], 'photorealistic, 8k, architectural photography', 'modern Brazilian carpentry, MDF cabinetry');
         if (!img) throw new Error('Não saiu imagem. Tente de novo.');
         setImagem(img); setGeneratedImage(img); aplicarMedidas();
-        if (user) { const { error } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt }); if (error) throw error; }
+        if (user) {
+          const { error } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt });
+          if (error) throw error;
+        }
         if (user && projectId) { await enviarApresentacao(user.id, projectId, img); }
-        persistir({ etapa: 5, respostas }); setEtapa(5);
+        await persistir({ etapa: 5, respostas }); setEtapa(5);
       } catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Não deu para gerar a apresentação. Tente de novo.'); }
       finally { setLoading(null); }
     });
