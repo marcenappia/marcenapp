@@ -5,45 +5,27 @@ import { useNovoProjeto } from './hooks/useNovoProjeto';
 import { ProgressoObra } from './components/ProgressoObra';
 import { EtapaNome, EtapaFoto, EtapaPedido, EtapaAnalise, EtapaApresentacao, EtapaAprovacao, EtapaOrcamento, EtapaProducao } from './components/Etapas';
 
-interface Props {
-  projectId: string | null;
-  setBudgetProject: React.Dispatch<React.SetStateAction<any>>;
-  navigateTo: (id: string) => void;
-}
+interface Props { projectId: string | null; setBudgetProject: React.Dispatch<React.SetStateAction<any>>; navigateTo: (id: string) => void; }
 
-/** Jornada guiada "Novo Projeto": exatamente 8 etapas, uma ação principal por etapa. */
 export const NovoProjeto = ({ projectId, setBudgetProject, navigateTo }: Props) => {
   const j = useNovoProjeto({ projectId, setBudgetProject });
-
   const renderEtapa = () => {
     switch (j.etapa) {
-      case 1:
-        return <EtapaNome nome={j.nome} setNome={j.setNome} clienteNome={j.clienteNome} setClienteNome={j.setClienteNome} onNext={j.salvarNome} loading={j.loading === 'salvando'} precisaLogin={!j.logado} />;
-      case 2:
-        return <EtapaFoto foto={j.foto?.dataUrl ?? null} onFile={j.escolherFoto} onClear={j.limparFoto} onNext={j.confirmarFoto} loading={j.loading === 'salvando'} />;
-      case 3:
-        return <EtapaPedido pedido={j.pedido} setPedido={j.setPedido} onNext={j.analisar} loading={j.loading === 'analisando'} />;
-      case 4:
-        return j.analise ? <EtapaAnalise analise={j.analise} respostas={j.respostas} setRespostas={j.setRespostas} onNext={j.gerarApresentacao} loading={j.loading === 'gerando'} /> : null;
-      case 5:
-        return <EtapaApresentacao imagem={j.imagem} onNext={j.irParaAprovacao} loading={false} nome={j.nome} />;
-      case 6:
-        return <EtapaAprovacao imagem={j.imagem} onAprovar={j.registrarAprovacao} loading={j.loading === 'salvando'} />;
-      case 7:
-        return <EtapaOrcamento onOrcamento={() => navigateTo('orcamento')} onProducao={j.irParaProducao} />;
-      case 8:
-        return <EtapaProducao onProducao={() => navigateTo('producao')} onInicio={() => navigateTo('dashboard')} />;
-      default:
-        return null;
+      case 1: return <EtapaNome nome={j.nome} setNome={j.setNome} clienteNome={j.clienteNome} setClienteNome={j.setClienteNome} onNext={j.salvarNome} loading={j.loading === 'salvando'} precisaLogin={!j.logado} />;
+      case 2: return <EtapaFoto foto={j.foto?.dataUrl ?? null} onFile={j.escolherFoto} onClear={j.limparFoto} onNext={j.confirmarFoto} loading={j.loading === 'salvando'} />;
+      case 3: return <EtapaPedido pedido={j.pedido} setPedido={j.setPedido} onNext={j.analisar} loading={j.loading === 'analisando'} />;
+      case 4: return j.analise ? <EtapaAnalise analise={j.analise} respostas={j.respostas} setRespostas={j.setRespostas} onNext={j.gerarApresentacao} loading={j.loading === 'gerando'} /> : null;
+      case 5: return <EtapaApresentacao imagem={j.imagem} onNext={j.irParaAprovacao} loading={false} nome={j.nome} />;
+      case 6: return <EtapaAprovacao imagem={j.imagem} onAprovar={j.registrarAprovacao} loading={j.loading === 'salvando'} />;
+      case 7: return <EtapaOrcamento onOrcamento={() => navigateTo('orcamento')} onProducao={j.irParaProducao} />;
+      case 8: return <EtapaProducao onProducao={() => navigateTo('corte')} onInicio={() => navigateTo('dashboard')} />;
+      default: return null;
     }
   };
-
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="flex items-center justify-between mb-4">
-        <button type="button" onClick={j.etapa > 1 && j.etapa <= 8 ? j.voltar : () => navigateTo('dashboard')} className="min-h-[44px] px-3 rounded-xl flex items-center gap-2 text-slate-600 hover:bg-slate-100 font-bold" aria-label={j.etapa > 1 ? 'Voltar um passo' : 'Voltar ao início'}>
-          <ArrowLeft size={20} /> {j.etapa > 1 ? 'Voltar' : 'Início'}
-        </button>
+        <button type="button" onClick={j.etapa > 1 ? j.voltar : () => navigateTo('dashboard')} className="min-h-[44px] px-3 rounded-xl flex items-center gap-2 text-slate-600 hover:bg-slate-100 font-bold" aria-label={j.etapa > 1 ? 'Voltar um passo' : 'Voltar ao início'}><ArrowLeft size={20} /> {j.etapa > 1 ? 'Voltar' : 'Início'}</button>
         {j.nome && <span className="text-sm font-bold text-slate-500 truncate max-w-[50%]">{j.nome}</span>}
       </div>
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 md:p-8 space-y-6">
@@ -55,5 +37,4 @@ export const NovoProjeto = ({ projectId, setBudgetProject, navigateTo }: Props) 
     </div>
   );
 };
-
 export default NovoProjeto;
