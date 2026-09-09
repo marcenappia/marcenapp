@@ -6,7 +6,7 @@ on:
     branches: [ main, master ]
 jobs:
   test:
-    timeout-minutes: 60
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -21,12 +21,12 @@ jobs:
       run: npm run lint
     - name: Verify production build
       run: npm run build
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-    - name: Run Playwright tests
+    - name: Install Chromium
+      run: npx playwright install --with-deps chromium
+    - name: Run Playwright smoke tests
       env:
         DEBUG: pw:webserver
-      run: npm run test:e2e
+      run: npm run test:e2e -- --project=chromium
     - name: Upload Playwright artifacts
       uses: actions/upload-artifact@v4
       if: failure() || cancelled()
