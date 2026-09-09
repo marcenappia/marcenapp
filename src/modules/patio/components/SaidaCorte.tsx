@@ -1,3 +1,4 @@
+import type { ProjectData } from '@/modules/projetos/types';
 import React, { useMemo } from 'react';
 import { CheckCircle2, Download, FileJson, Factory } from 'lucide-react';
 import { Button, Card } from '@/components/marcenaria/shared';

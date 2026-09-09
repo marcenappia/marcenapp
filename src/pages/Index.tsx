@@ -1,3 +1,4 @@
+import type { CutPlanningPart } from '@/core/cutPlanning';
 import React, { useState, useMemo, useEffect } from 'react';
 import { LogOut, User, LogIn, RotateCcw, ChevronRight, BookOpen, Building2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';

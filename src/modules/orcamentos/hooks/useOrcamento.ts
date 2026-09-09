@@ -1,3 +1,4 @@
+import type { ProjectData } from '@/modules/projetos/types';
 import { useMemo, useState } from 'react';
 import { calculateBudget, DEFAULT_PRICES, PriceCatalog, CutSavings } from '@/core/pricing';
 

@@ -1,3 +1,4 @@
+import type { ProjectData } from '@/modules/projetos/types';
 import React from 'react';
 import { ArrowLeft, X, Camera, MessageSquare, Sparkles, Boxes, FileText, Factory, Scissors } from 'lucide-react';
 import AuthDialog from '@/components/marcenaria/AuthDialog';

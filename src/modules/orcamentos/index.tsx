@@ -1,3 +1,6 @@
+import type { ProjectData } from '@/modules/projetos/types';
+import type { CutPlanningPart } from '@/core/cutPlanning';
+import type { Json } from '@/integrations/supabase/types';
 import React, { useMemo, useState } from 'react';
 import { Package, Palette, Printer, Calculator, Sliders, Ruler, Factory, Settings2, RotateCcw, CheckCircle2, Search, ExternalLink, Store } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
