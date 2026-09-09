@@ -55,7 +55,7 @@ const Auth = () => {
     try {
       if (isReset) {
         if (countdown > 0) return;
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth` });
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/password-recovery` });
         if (error) setError(error.message); else { setSuccess('E-mail de recuperação enviado!'); setCountdown(30); }
       } else if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
