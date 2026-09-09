@@ -30,11 +30,18 @@ const Auth = () => {
   const goAfterAuth = useCallback(() => navigate(safeNext, { replace: true }), [navigate, safeNext]);
 
   useEffect(() => {
-    const oauthError = searchParams.get('error_description') || searchParams.get('error');
-    if (oauthError) { setOauthLoading(null); setError(oauthError.replace(/\+/g, ' ')); return; }
+    const queryError = searchParams.get('error_description') || searchParams.get('error');
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const oauthError = queryError || hashParams.get('error_description') || hashParams.get('error');
+    if (oauthError) {
+      setOauthLoading(null);
+      setError(oauthError.replace(/\+/g, ' '));
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      return;
+    }
     if (searchParams.get('code')) setOauthLoading('google');
   }, [searchParams]);
-  useEffect(() => { if (user) goAfterAuth(); }, [user, goAfterAuth]);
+  useEffect(() => { if (user) { setOauthLoading(null); goAfterAuth(); } }, [user, goAfterAuth]);
   useEffect(() => { let timer: ReturnType<typeof setTimeout> | undefined; if (countdown > 0) timer = setTimeout(() => setCountdown(countdown - 1), 1000); return () => { if (timer) clearTimeout(timer); }; }, [countdown]);
   useEffect(() => { setError(''); setSuccess(''); setLoading(false); }, [isLogin, isReset]);
 
