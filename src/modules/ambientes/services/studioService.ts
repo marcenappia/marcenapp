@@ -3,11 +3,11 @@ import { ImageData } from '@/store/useStudioStore';
 
 export type StudioGenerationMode = 'render' | 'environment-project' | 'planned-environment';
 
-const imageSourceToData = async (source: string): Promise<ImageData> => {
+export const imageSourceToData = async (source: string): Promise<ImageData> => {
   const match = source.match(/^data:([^;,]+);base64,(.+)$/);
   if (match) return { mimeType: match[1], data: match[2] };
   const response = await fetch(source);
-  if (!response.ok) throw new Error(`Não foi possível acessar a imagem para refinamento (HTTP ${response.status}).`);
+  if (!response.ok) throw new Error(`Não foi possível acessar a imagem para análise (HTTP ${response.status}).`);
   const blob = await response.blob();
   const mimeType = blob.type || 'image/png';
   const data = await new Promise<string>((resolve, reject) => {
@@ -18,7 +18,7 @@ const imageSourceToData = async (source: string): Promise<ImageData> => {
       if (!base64) reject(new Error('A imagem retornada não contém dados válidos.'));
       else resolve(base64);
     };
-    reader.onerror = () => reject(new Error('Não foi possível ler a imagem para refinamento.'));
+    reader.onerror = () => reject(new Error('Não foi possível ler a imagem para análise.'));
     reader.readAsDataURL(blob);
   });
   return { mimeType, data };
