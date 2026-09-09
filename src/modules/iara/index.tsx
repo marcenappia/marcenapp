@@ -16,6 +16,8 @@ interface IaraModuleProps {
   projectId?: string | null;
 }
 
+type CanvasInputEvent = React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>;
+
 const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescriptionChange, embedded, projectId = null }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [factors, setFactors] = useState({ L: syncProject?.width ?? 2.4, A: syncProject?.height ?? 2.6, P: syncProject?.depth ?? 0.6, E: 0.018, X: 0, Y: 0 });
@@ -52,6 +54,7 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const isDrawingRef = useRef(false);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
   useEffect(() => {
     if (!maskingImage || !canvasRef.current) return;
@@ -59,10 +62,10 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     const ctx = c.getContext('2d');
     if (ctx) { ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'; ctx.lineWidth = 60; ctxRef.current = ctx; }
   }, [maskingImage]);
-  const getCoords = (e: any) => { const rect = canvasRef.current!.getBoundingClientRect(); const sx = 1080 / rect.width; const sy = 1920 / rect.height; const cx = e.touches ? e.touches[0].clientX : e.clientX; const cy = e.touches ? e.touches[0].clientY : e.clientY; return { offsetX: (cx - rect.left) * sx, offsetY: (cy - rect.top) * sy }; };
-  const startDraw = (e: any) => { if (!ctxRef.current) return; ctxRef.current.beginPath(); const c = getCoords(e); ctxRef.current.moveTo(c.offsetX, c.offsetY); (canvasRef.current as any).isDrawing = true; };
-  const moveDraw = (e: any) => { if (!(canvasRef.current as any)?.isDrawing || !ctxRef.current) return; const c = getCoords(e); ctxRef.current.lineTo(c.offsetX, c.offsetY); ctxRef.current.stroke(); };
-  const endDraw = () => { if (canvasRef.current) (canvasRef.current as any).isDrawing = false; };
+  const getCoords = (e: CanvasInputEvent) => { const rect = canvasRef.current!.getBoundingClientRect(); const sx = 1080 / rect.width; const sy = 1920 / rect.height; const point = 'touches' in e ? e.touches[0] : e; const cx = point.clientX; const cy = point.clientY; return { offsetX: (cx - rect.left) * sx, offsetY: (cy - rect.top) * sy }; };
+  const startDraw = (e: CanvasInputEvent) => { if (!ctxRef.current) return; e.preventDefault(); ctxRef.current.beginPath(); const c = getCoords(e); ctxRef.current.moveTo(c.offsetX, c.offsetY); isDrawingRef.current = true; };
+  const moveDraw = (e: CanvasInputEvent) => { if (!isDrawingRef.current || !ctxRef.current) return; e.preventDefault(); const c = getCoords(e); ctxRef.current.lineTo(c.offsetX, c.offsetY); ctxRef.current.stroke(); };
+  const endDraw = () => { isDrawingRef.current = false; };
 
   const confirmMask = async () => {
     if (!maskingImage || !canvasRef.current) return;
@@ -76,6 +79,14 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
     for(let i=0; i<d.length; i+=4) { if(d[i+3]>10) { d[i]=d[i+1]=d[i+2]=255; d[i+3]=255; } else { d[i]=d[i+1]=d[i+2]=0; d[i+3]=255; } }
     ctx.putImageData(idata, 0, 0); const maskRaw = canvas.toDataURL("image/png").split(",")[1];
     setPendingUpload({ base64: baseB64, baseRaw, maskRaw }); setMaskingImage(null);
+  };
+
+  const handleChatInputChange = (value: string | ((previous: string) => string)) => {
+    setChatInput(previous => {
+      const next = typeof value === 'function' ? value(previous) : value;
+      pushDescription(next);
+      return next;
+    });
   };
 
   const memoryLabel = memoryEvidence === 'confirmed' ? 'Medidas confirmadas' : memoryEvidence === 'estimated' ? 'Medidas estimadas' : 'Medidas ainda não conferidas';
@@ -96,8 +107,8 @@ const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescripti
       <div className="px-4 py-2 bg-muted/30 border-b border-border flex items-center gap-2 text-[10px] text-muted-foreground"><ShieldCheck size={14} className="shrink-0 text-primary" /><span><strong className="text-foreground">Modo técnico seguro:</strong> medidas estimadas não viram produção automaticamente. A IARA acompanha o que foi confirmado e sinaliza conflitos antes de uma decisão irreversível.</span></div>
       <IaraReadinessPanel memory={memory} onResolveConflict={resolveMemoryConflict} />
       <ChatMessages messages={messages} isTyping={isTyping} onImageZoom={setActiveImageZoom} messagesEndRef={messagesEndRef} error={error} onRetry={retryLast} onDismissError={dismissError} onSuggestion={(text) => { setChatInput(text); pushDescription(text, true); }} />
-      <ChatInput chatInput={chatInput} setChatInput={(v) => { setChatInput(v); pushDescription(typeof v === 'function' ? (v as any)(chatInput) : v); }} onSend={() => { const sent = chatInput.trim(); if (sent) pushDescription(sent, true); handleSend(); }} onImageSelect={handleImageSelect} toggleRecording={toggleRecording} isListening={isListening} pendingUpload={pendingUpload} setPendingUpload={setPendingUpload} />
-      {maskingImage && <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-300"><div className="w-full max-w-sm aspect-[9/16] relative bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10"><img src={maskingImage.src} className="absolute inset-0 w-full h-full object-contain pointer-events-none" /><canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw} className="absolute inset-0 w-full h-full touch-none cursor-crosshair" /><div className="absolute top-6 left-6 right-6 flex justify-between items-center bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5"><span className="text-white text-xs font-black uppercase tracking-tighter italic">IARA Target Painter</span><button onClick={() => setMaskingImage(null)} className="text-white/60 hover:text-white transition-colors"><X size={20}/></button></div></div><div className="mt-8 flex gap-4 w-full max-w-sm"><button onClick={() => setMaskingImage(null)} className="flex-1 py-4 bg-white/5 text-white/60 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white/10 transition-all">Cancelar</button><button onClick={confirmMask} className="flex-1 py-4 bg-primary text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all">Confirmar Alvo</button></div></div>}
+      <ChatInput chatInput={chatInput} setChatInput={handleChatInputChange} onSend={() => { const sent = chatInput.trim(); if (sent) pushDescription(sent, true); handleSend(); }} onImageSelect={handleImageSelect} toggleRecording={toggleRecording} isListening={isListening} pendingUpload={pendingUpload} setPendingUpload={setPendingUpload} />
+      {maskingImage && <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-300"><div className="w-full max-w-sm aspect-[9/16] relative bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10"><img src={maskingImage.src} className="absolute inset-0 w-full h-full object-contain pointer-events-none" /><canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw} className="absolute inset-0 w-full h-full touch-none cursor-crosshair" /><div className="absolute top-6 left-6 right-6 flex justify-between items-center bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5"><span className="text-white text-xs font-black uppercase tracking-tighter italic">IARA Target Painter</span><button onClick={() => setMaskingImage(null)} className="text-white/60 hover:text-white transition-colors"><X size={20}/></button></div></div><div className="mt-8 flex gap-4 w-full max-w-sm"><button onClick={() => setMaskingImage(null)} className="flex-1 py-4 bg-white/5 text-white/60 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white/10 transition-all">Cancelar</button><button onClick={confirmMask} className="flex-1 py-4 bg-primary text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all">Confirmar Alvo</button></div></div>}
       {activeImageZoom && <div className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4 animate-in zoom-in-95 duration-200" onClick={() => setActiveImageZoom(null)}><div className="relative max-w-4xl w-full" onClick={e => e.stopPropagation()}><img src={activeImageZoom.url} className="w-full h-auto rounded-2xl shadow-2xl" alt="Zoom" /><button onClick={() => setActiveImageZoom(null)} className="absolute -top-4 -right-4 p-3 bg-white text-black rounded-full shadow-2xl hover:scale-110 active:scale-90 transition-all"><X size={24}/></button>{activeImageZoom.budget && <div className="absolute bottom-6 left-6 bg-primary/90 backdrop-blur-lg px-6 py-3 rounded-2xl border border-white/20 shadow-2xl"><span className="text-white font-black italic tracking-tighter text-xl">R$ {activeImageZoom.budget}</span></div>}</div></div>}
       <AuthDialog isOpen={showAuthDialog} onClose={() => setShowAuthDialog(false)} onSuccess={() => setShowAuthDialog(false)} />
     </div>
