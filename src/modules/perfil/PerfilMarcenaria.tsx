@@ -1,10 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, Camera, Check, Copy, ExternalLink, Instagram, Link2, MapPin, Save, Share2, UserRound } from 'lucide-react';
+import { Building2, Copy, ExternalLink, Link2, Save, Share2, UserRound } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 type LinkItem = { label: string; url: string };
 type Form = { name: string; company: string; trade_name: string; cnpj: string; cpf: string; phone: string; bio: string; address: string; city: string; state: string; website_url: string; instagram_url: string; facebook_url: string; whatsapp_url: string; other_links: LinkItem[]; specialties: string[]; public_slug: string; is_public: boolean; avatar_url: string };
+type ProfileRow = Partial<Form> & { user_id?: string; [key: string]: unknown };
+type ProfilesTable = {
+  select: (columns: string) => { eq: (column: string, value: unknown) => { maybeSingle: () => Promise<{ data: ProfileRow | null; error: unknown }> } };
+  update: (payload: Record<string, unknown>) => { eq: (column: string, value: unknown) => Promise<{ error: { code?: string; message?: string } | null }> };
+};
+const profilesTable = () => (supabase.from as unknown as (table: string) => ProfilesTable)('profiles');
 
 const emptyForm: Form = { name: '', company: '', trade_name: '', cnpj: '', cpf: '', phone: '', bio: '', address: '', city: '', state: '', website_url: '', instagram_url: '', facebook_url: '', whatsapp_url: '', other_links: [], specialties: [], public_slug: '', is_public: false, avatar_url: '' };
 const onlyDigits = (v: string) => v.replace(/\D/g, '');
@@ -23,14 +29,14 @@ export default function PerfilMarcenaria() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await (supabase as any).from('profiles').select('*').eq('user_id', user.id).maybeSingle();
-      if (data) setForm({ ...emptyForm, ...data, other_links: Array.isArray(data.other_links) ? data.other_links : [], specialties: Array.isArray(data.specialties) ? data.specialties : [] });
+      const { data } = await profilesTable().select('*').eq('user_id', user.id).maybeSingle();
+      if (data) setForm({ ...emptyForm, ...data, other_links: Array.isArray(data.other_links) ? data.other_links as LinkItem[] : [], specialties: Array.isArray(data.specialties) ? data.specialties as string[] : [] });
       setLoading(false);
     })();
   }, [user]);
 
   const publicUrl = useMemo(() => form.public_slug ? `${window.location.origin}/marceneiro/${form.public_slug}` : '', [form.public_slug]);
-  const set = (key: keyof Form, value: any) => setForm(prev => ({ ...prev, [key]: value }));
+  const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm(prev => ({ ...prev, [key]: value }));
   const addLink = () => { if (!newLink.label.trim() || !newLink.url.trim()) return; set('other_links', [...form.other_links, newLink]); setNewLink({ label: '', url: '' }); };
   const addSpecialty = () => { const v = newSpecialty.trim(); if (!v || form.specialties.includes(v)) return; set('specialties', [...form.specialties, v]); setNewSpecialty(''); };
 
@@ -40,7 +46,7 @@ export default function PerfilMarcenaria() {
     if (!form.company.trim()) { setMessage('Informe o nome da marcenaria.'); return; }
     setSaving(true);
     const payload = { ...form, cnpj: onlyDigits(form.cnpj), cpf: onlyDigits(form.cpf), public_slug: slugify(form.public_slug || form.company || form.name) };
-    const { error } = await (supabase as any).from('profiles').update(payload).eq('user_id', user?.id);
+    const { error } = await profilesTable().update(payload).eq('user_id', user?.id);
     setSaving(false);
     if (error) setMessage(error.code === '23505' ? 'Esse endereço público já está em uso. Escolha outro.' : 'Não foi possível salvar agora.');
     else { setForm(prev => ({ ...prev, public_slug: payload.public_slug })); setMessage('Perfil salvo com sucesso.'); }
