@@ -32,7 +32,7 @@ export const StudioHub = (props: StudioHubProps) => {
         localStorage.removeItem(DIARY_CONTEXT_KEY);
       }
     } catch { /* contexto opcional */ }
-  }, [projectId]);
+  }, [projectId, budgetProject]);
 
   useEffect(() => {
     if (!projectId || !description.trim()) return;
