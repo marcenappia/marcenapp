@@ -4,7 +4,7 @@ import { buildCorsHeaders, guardRequest, readJsonBody, jsonResponse } from "../_
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const LOVABLE_MODEL = "google/gemini-3.7-flash";
+const LOVABLE_MODEL = "openai/gpt-5.5";
 
 const BodySchema = z.object({
   userPrompt: z.string().min(1).max(4000),
@@ -17,49 +17,11 @@ const BodySchema = z.object({
 });
 
 const TOOL_DECLARATIONS = [
-  {
-    name: "createCliente",
-    description: "Cria um novo cliente quando o nome foi informado pelo usuário. Nunca invente dados pessoais.",
-    parameters: { type: "object", properties: {
-      nome: { type: "string", description: "Nome do cliente" },
-      email: { type: "string", description: "Email opcional" },
-      telefone: { type: "string", description: "Telefone opcional" },
-    }, required: ["nome"] },
-  },
-  {
-    name: "createProjeto",
-    description: "Cria projeto de marcenaria somente quando nome e largura, altura e profundidade foram explicitamente confirmados pelo usuário. Nunca use medidas padrão silenciosas.",
-    parameters: { type: "object", properties: {
-      nome: { type: "string", description: "Nome do projeto" },
-      clienteNome: { type: "string", description: "Cliente vinculado, se informado" },
-      width: { type: "number", description: "Largura em metros" },
-      height: { type: "number", description: "Altura em metros" },
-      depth: { type: "number", description: "Profundidade em metros" },
-      tipo: { type: "string", description: "Tipo do móvel" },
-      confirmado: { type: "boolean", description: "Deve ser true somente após confirmação explícita das três dimensões" },
-    }, required: ["nome", "width", "height", "depth", "confirmado"] },
-  },
-  {
-    name: "gerarRender",
-    description: "Solicita materialização visual. Não transforme estimativas visuais em medidas de fabricação.",
-    parameters: { type: "object", properties: {
-      prompt: { type: "string", description: "Descrição do que renderizar" },
-      estilo: { type: "string", description: "Estilo visual" },
-    }, required: ["prompt"] },
-  },
-  {
-    name: "calcularOrcamento",
-    description: "Calcula orçamento a partir dos dados reais do projeto atual. Se faltarem dados críticos, peça confirmação.",
-    parameters: { type: "object", properties: { observacoes: { type: "string" } } },
-  },
-  {
-    name: "gerarContrato",
-    description: "Prepara documentação contratual assistida por IA. Não apresenta o texto como aconselhamento jurídico definitivo.",
-    parameters: { type: "object", properties: {
-      clienteNome: { type: "string" }, valor: { type: "number" }, prazoDias: { type: "number" },
-      clausulasExtras: { type: "array", items: { type: "string" } },
-    }, required: ["clienteNome"] },
-  },
+  { name: "createCliente", description: "Cria um novo cliente quando o nome foi informado pelo usuário. Nunca invente dados pessoais.", parameters: { type: "object", properties: { nome: { type: "string", description: "Nome do cliente" }, email: { type: "string", description: "Email opcional" }, telefone: { type: "string", description: "Telefone opcional" } }, required: ["nome"] } },
+  { name: "createProjeto", description: "Cria projeto de marcenaria somente quando nome e largura, altura e profundidade foram explicitamente confirmados pelo usuário. Nunca use medidas padrão silenciosas.", parameters: { type: "object", properties: { nome: { type: "string", description: "Nome do projeto" }, clienteNome: { type: "string", description: "Cliente vinculado, se informado" }, width: { type: "number", description: "Largura em metros" }, height: { type: "number", description: "Altura em metros" }, depth: { type: "number", description: "Profundidade em metros" }, tipo: { type: "string", description: "Tipo do móvel" }, confirmado: { type: "boolean", description: "Deve ser true somente após confirmação explícita das três dimensões" } }, required: ["nome", "width", "height", "depth", "confirmado"] } },
+  { name: "gerarRender", description: "Solicita materialização visual. Não transforme estimativas visuais em medidas de fabricação.", parameters: { type: "object", properties: { prompt: { type: "string", description: "Descrição do que renderizar" }, estilo: { type: "string", description: "Estilo visual" } }, required: ["prompt"] } },
+  { name: "calcularOrcamento", description: "Calcula orçamento a partir dos dados reais do projeto atual. Se faltarem dados críticos, peça confirmação.", parameters: { type: "object", properties: { observacoes: { type: "string" } } } },
+  { name: "gerarContrato", description: "Prepara documentação contratual assistida por IA. Não apresenta o texto como aconselhamento jurídico definitivo.", parameters: { type: "object", properties: { clienteNome: { type: "string" }, valor: { type: "number" }, prazoDias: { type: "number" }, clausulasExtras: { type: "array", items: { type: "string" } } }, required: ["clienteNome"] } },
 ];
 
 const SYSTEM_INSTRUCTION = `Você é o orquestrador IARA OS da Marcenapp.
