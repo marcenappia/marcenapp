@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/marcenapp-logo.jpeg';
 import Footer from '@/components/ui/Footer';
 import CreditRules from '@/modules/admin/CreditRules';
+import OperationalIntelligence from '@/modules/inteligencia/OperationalIntelligence';
 import Onboarding from '../components/marcenaria/Onboarding';
 import Home from '@/modules/jornada/Home';
 import NovoProjeto from '@/modules/jornada/NovoProjeto';
@@ -43,6 +44,7 @@ const Index = () => {
   const renderModule = () => {
     switch (activeModule) {
       case 'dashboard': return <Home navigateTo={setActiveModule} />;
+      case 'inteligencia': return <OperationalIntelligence />;
       case 'novo': return <NovoProjeto key={projetoParam ?? 'novo'} projectId={projetoParam} setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'clientes': return <ClientesModule />;
       case 'diario': return <DiarioModule navigateTo={setActiveModule} />;
