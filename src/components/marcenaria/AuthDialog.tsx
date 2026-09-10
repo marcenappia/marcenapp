@@ -8,6 +8,17 @@ interface AuthDialogProps {
   onSuccess: () => void;
 }
 
+const PRODUCTION_ORIGIN = 'https://marcenapp.com.br';
+
+const getAppOrigin = () => {
+  const configured = import.meta.env.VITE_PUBLIC_APP_URL?.trim();
+  if (configured) return configured.replace(/\/$/, '');
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return window.location.origin;
+  }
+  return PRODUCTION_ORIGIN;
+};
+
 const AuthDialog = ({ isOpen, onClose, onSuccess }: AuthDialogProps) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -33,7 +44,7 @@ const AuthDialog = ({ isOpen, onClose, onSuccess }: AuthDialogProps) => {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name }, emailRedirectTo: window.location.origin },
+        options: { data: { name }, emailRedirectTo: `${getAppOrigin()}/auth` },
       });
       if (error) setError(error.message);
       else setSuccess('Verifique seu e-mail para confirmar o cadastro.');
