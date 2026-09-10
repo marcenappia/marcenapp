@@ -37,7 +37,14 @@ jobs:
         }
         NODE
     - name: Lint
-      run: npm run lint
+      id: lint
+      continue-on-error: true
+      run: |
+        set +e
+        npm run lint 2>&1 | tee lint.log
+        status=${PIPESTATUS[0]}
+        echo "lint_exit_code=$status" >> "$GITHUB_STEP_SUMMARY"
+        exit "$status"
     # Diagnostics must continue after lint failures, while still stopping if install failed.
     - name: Unit tests
       if: ${{ always() && steps.install.outcome == 'success' }}
@@ -58,7 +65,15 @@ jobs:
         name: diagnostics-${{ github.sha }}-${{ github.run_id }}
         path: |
           npm-audit.json
+          lint.log
           playwright-report/
           test-results/
         if-no-files-found: ignore
         retention-days: 7
+    - name: Enforce lint
+      if: ${{ always() && steps.install.outcome == 'success' }}
+      run: |
+        if [ "${{ steps.lint.outcome }}" != "success" ]; then
+          echo "Lint failed; see uploaded lint.log."
+          exit 1
+        fi
