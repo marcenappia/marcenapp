@@ -59,7 +59,7 @@ serve(async (req) => {
       parts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
     }
 
-    const model = "gemini-2.0-flash";
+    const model = "gemini-3.8-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
 
     const body: Record<string, unknown> = { contents: [{ role: "user", parts }] };
