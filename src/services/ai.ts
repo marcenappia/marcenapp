@@ -32,6 +32,27 @@ export const aiHeaders = async (): Promise<Record<string, string>> => {
 const isAIErrorBody = (value: unknown): value is AIErrorBody =>
   typeof value === 'object' && value !== null && ('error' in value || 'message' in value || 'code' in value);
 
+const normalizeAIError = (status: number, data: unknown): Error => {
+  if (status === 401) return new AIAuthError('Sessão expirada. Faça login novamente.');
+  const body = isAIErrorBody(data) ? data : {};
+  switch (body.code) {
+    case 'missing_api_key':
+      return new Error('Serviço de IA não configurado no servidor. A chave do provedor de imagens precisa ser configurada no Supabase.');
+    case 'commercial_rule_missing':
+      return new Error('Esta ferramenta de IA ainda não está habilitada comercialmente.');
+    case 'insufficient_credits':
+      return new Error('Créditos insuficientes para gerar o render.');
+    case 'rate_limit_unavailable':
+      return new Error('O controle de uso da IA está indisponível. Tente novamente em instantes.');
+    case 'provider_connection_error':
+      return new Error('Não foi possível conectar ao provedor de imagens. Tente novamente.');
+    case 'upstream_error':
+      return new Error('O provedor de imagens está indisponível no momento. Tente novamente.');
+    default:
+      return new Error(body.error || body.message || `Erro ${status}`);
+  }
+};
+
 export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Promise<T> => {
   const headers = await aiHeaders();
   let res: Response;
@@ -51,11 +72,7 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Pr
 
   let data: unknown = null;
   try { data = await res.json(); } catch { /* corpo vazio */ }
-  if (!res.ok) {
-    if (res.status === 401) throw new AIAuthError('Sessão expirada. Faça login novamente.');
-    const msg = isAIErrorBody(data) ? (data.error || data.message) : undefined;
-    throw new Error(msg || `Erro ${res.status}`);
-  }
+  if (!res.ok) throw normalizeAIError(res.status, data);
   return data as T;
 };
 
