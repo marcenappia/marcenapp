@@ -1,6 +1,4 @@
-import {
-  Home, Wand2, Calculator, Package, Scale, Users, BookOpen, Plus, ArrowUpFromLine
-} from 'lucide-react';
+import { Home, Wand2, Calculator, Package, Scale, Users, BookOpen, Plus, ArrowUpFromLine, type LucideProps } from 'lucide-react';
 
 export type ModuleCategory = 'intelligence' | 'portal' | 'studio' | 'finance' | 'production';
 
@@ -8,7 +6,7 @@ export interface ModuleConfig {
   id: string;
   label: string;
   mobileLabel: string;
-  icon: any;
+  icon: React.ComponentType<LucideProps>;
   category: ModuleCategory;
   /** Não aparece nos menus (acessado por botão/ação) */
   hidden?: boolean;
