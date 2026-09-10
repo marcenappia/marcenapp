@@ -25,6 +25,7 @@ export const modules: ModuleConfig[] = [
   { id: 'orcamento', label: 'Estela Financeiro', mobileLabel: 'Estela', icon: Calculator, category: 'finance' },
   { id: 'corte', label: 'Plano de Corte', mobileLabel: 'Corte', icon: Package, category: 'production' },
   { id: 'contrato', label: 'Contratos', mobileLabel: 'Legal', icon: Scale, category: 'production' },
+  { id: 'admin-billing', label: 'Administração de Créditos', mobileLabel: 'Créditos', icon: Scale, category: 'portal', hidden: true },
 ];
 
 export const CATEGORY_LABELS: Record<ModuleCategory, string> = {
