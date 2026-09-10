@@ -7,7 +7,7 @@ import { callAIFunction } from '@/services/ai';
 
 export interface ToolCall {
   tool: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
 }
 
 export interface OrchestratorPlan {
@@ -27,7 +27,7 @@ export interface OrchestratorRun {
 
 export async function planWithLLM(
   userPrompt: string,
-  context?: Record<string, any>,
+  context?: Record<string, unknown>,
 ): Promise<OrchestratorPlan> {
   const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string }>(
     'ai-orchestrator',
@@ -39,9 +39,8 @@ export async function planWithLLM(
 export async function runOrchestrator(
   userPrompt: string,
   ctx: ExecutionContext,
-  context?: Record<string, any>,
+  context?: Record<string, unknown>,
 ): Promise<OrchestratorRun> {
-  // Log inicial (best-effort)
   let runId: string | null = null;
   try {
     const { data } = await supabase
@@ -73,29 +72,28 @@ export async function runOrchestrator(
   for (const call of plan) {
     const r = await executeToolCall(call.tool, call.args, ctx);
     results.push({ tool: call.tool, result: r });
-    // Se uma etapa crítica falhou, paramos (evita cascata de erros)
     if (!r.ok) break;
   }
 
-  // Log final
   if (runId) {
     try {
       await supabase
         .from('orchestrator_runs')
         .update({
-          plan: plan as any,
-          results: results as any,
+          plan,
+          results,
           used_fallback: usedFallback,
           status: results.every(r => r.result.ok) ? 'completed' : 'failed',
         })
         .eq('id', runId);
-    } catch {}
+    } catch (e) {
+      console.warn('Falha ao registrar resultado do orchestrator_run:', e);
+    }
   }
 
   return { runId, plan, summary, results, usedFallback };
 }
 
-// Fallback simples baseado em keywords (comportamento legado)
 function fallbackPlan(prompt: string): ToolCall[] {
   const lower = prompt.toLowerCase();
   if (
