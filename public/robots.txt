@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://marcenap40.lovable.app/sitemap.xml
+Sitemap: https://marcenapp.com.br/sitemap.xml
