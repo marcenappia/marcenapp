@@ -1,2 +1,3 @@
 One-time marker: fetch and version the exact production migration history using the Supabase CLI before the final audit.
 Reconciliation is intentionally sourced from supabase_migrations.schema_migrations via the supported CLI, not fabricated history.
+Triggered after the workflow definition was corrected.
