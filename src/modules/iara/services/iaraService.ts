@@ -29,72 +29,77 @@ export interface ImageAnalysis {
 }
 
 export const iaraService = {
-  /**
-   * CAMADA COGNITIVA: Orquestra a intenção do usuário.
-   * Não executa renderização, apenas decide qual subsistema deve agir.
-   */
   interpretCommand: async (prompt: string): Promise<CommandDecision> => {
     const lower = prompt.toLowerCase();
-    
-    // Identifica se a intenção é visual/materialização
-    if (lower.includes("render") || lower.includes("mostre") || lower.includes("veja") || lower.includes("materializa") || lower.includes("desenhe")) {
-      return { 
-        type: 'RENDER_REQUEST', 
+
+    if (lower.includes('render') || lower.includes('mostre') || lower.includes('veja') || lower.includes('materializa') || lower.includes('desenhe')) {
+      return {
+        type: 'RENDER_REQUEST',
         details: prompt,
         command: {
           target: 'studio',
           action: 'GENERATE_VISUAL',
-          params: { prompt, style: 'realistic' }
-        }
+          params: { prompt, style: 'realistic' },
+        },
       };
     }
-    
-    // Identifica se a intenção é financeira
-    if (lower.includes("quanto") || lower.includes("preço") || lower.includes("orçamento") || lower.includes("valor")) {
-      return { 
-        type: 'BUDGET_REQUEST', 
+
+    if (lower.includes('quanto') || lower.includes('preço') || lower.includes('orçamento') || lower.includes('valor')) {
+      return {
+        type: 'BUDGET_REQUEST',
         details: prompt,
         command: {
           target: 'estela',
           action: 'CALCULATE_BUDGET',
-          params: { prompt }
-        }
+          params: { prompt },
+        },
       };
     }
 
     return { type: 'CHAT', details: prompt };
   },
 
-  /**
-   * Calcula o orçamento inteligente
-   */
   calculateSmartBudget: (prompt: string, factors: ProjectFactors, decorStyle: string): string => {
     let baseVal = 1200;
     const lower = prompt.toLowerCase();
-    if (lower.includes("cozinha")) baseVal = 6000;
-    if (lower.includes("guarda-roupa")) baseVal = 3000;
-    
-    return (baseVal * factors.L * factors.A * (decorStyle === "Luxo" ? 1.5 : 1)).toFixed(2);
+    if (lower.includes('cozinha')) baseVal = 6000;
+    if (lower.includes('guarda-roupa')) baseVal = 3000;
+
+    return (baseVal * factors.L * factors.A * (decorStyle === 'Luxo' ? 1.5 : 1)).toFixed(2);
   },
 
-  /**
-   * Análise técnica de imagem via IA
-   */
   analyzeImage: async (imageBase64: string): Promise<ImageAnalysis> => {
-    const analysisPrompt = `Analyze this furniture strictly. Estimate dims (meters). Return ONLY valid JSON: {"width": 2.0, "height": 2.5, "depth": 0.6, "drawers": 4, "doors": 4}`;
-    
-    // Garante que imageBase64 é string raw (sem prefixo data URL)
+    const analysisPrompt = 'Analyze this furniture strictly. Estimate dims (meters). Return ONLY valid JSON: {"width": 2.0, "height": 2.5, "depth": 0.6, "drawers": 4, "doors": 4}';
     const raw = typeof imageBase64 === 'string' && imageBase64.includes(',')
       ? imageBase64.split(',')[1]
       : imageBase64;
-    
+
     const text = await callAIText(analysisPrompt, [{ mimeType: 'image/png', data: raw }], true);
-    
+    const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+    let parsed: unknown;
     try {
-      return JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-    } catch (e) {
-      console.error("Erro ao parsear análise de imagem:", e);
-      return { width: 2.0, height: 2.5, depth: 0.6, drawers: 2, doors: 2 };
+      parsed = JSON.parse(cleaned);
+    } catch {
+      throw new Error('A IA retornou uma análise de imagem em formato inválido.');
     }
-  }
+
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('A IA retornou uma análise de imagem inválida.');
+    }
+
+    const candidate = parsed as Record<string, unknown>;
+    const fields = ['width', 'height', 'depth', 'drawers', 'doors'] as const;
+    if (fields.some(field => typeof candidate[field] !== 'number' || !Number.isFinite(candidate[field] as number))) {
+      throw new Error('A IA retornou uma análise de imagem incompleta.');
+    }
+
+    return {
+      width: candidate.width as number,
+      height: candidate.height as number,
+      depth: candidate.depth as number,
+      drawers: candidate.drawers as number,
+      doors: candidate.doors as number,
+    };
+  },
 };
