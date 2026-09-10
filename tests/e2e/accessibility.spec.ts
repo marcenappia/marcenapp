@@ -24,6 +24,9 @@ const mobileModules = [
 
 test.describe('Marcenapp production acceptance', () => {
   test.beforeEach(async ({ page }) => {
+    // Desktop navigation assertions must run in a desktop viewport even when
+    // the Playwright project itself emulates a mobile device.
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
     await expect(page.locator('h1').first()).toContainText('Marcenapp OS');
   });
