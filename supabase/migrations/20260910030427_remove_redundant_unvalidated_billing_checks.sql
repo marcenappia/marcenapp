@@ -1,0 +1,2 @@
+alter table public.billing_purchases drop constraint if exists billing_purchases_amount_positive;
+alter table public.billing_purchases drop constraint if exists billing_purchases_credits_nonnegative;
