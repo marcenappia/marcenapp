@@ -32,7 +32,7 @@ const Index = () => {
   const rawModule = searchParams.get('module') || 'dashboard';
   const activeModule = rawModule === 'chat' ? 'studio' : rawModule;
   const projetoParam = searchParams.get('projeto');
-  const setActiveModule = (id: string, params: Record<string, string> = {}) => setSearchParams({ module: id, ...params }, { replace: true });
+  const setActiveModule = (id: string, params: Record<string, string> = {}) => setSearchParams({ module: id, ...params });
   const [budgetProject, setBudgetProject] = useState<ProjectData>(defaultProject);
   const [parts, setParts] = useState<React.ComponentProps<typeof CorteModule>['parts']>([]);
   const [gallery, setGallery] = useState<string[]>([]);
