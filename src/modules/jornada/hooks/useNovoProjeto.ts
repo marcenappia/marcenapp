@@ -38,11 +38,27 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
     if (!user || !nome.trim()) return; setLoading('salvando'); setErro(null);
     try {
       let clienteId: string | null = null;
-      if (clienteNome.trim()) { const { data: existente } = await supabase.from('clientes').select('id').eq('user_id', user.id).ilike('nome', clienteNome.trim()).limit(1); if (existente?.[0]) clienteId = existente[0].id; else { const { data: novo } = await supabase.from('clientes').insert({ user_id: user.id, nome: clienteNome.trim() }).select('id').single(); clienteId = novo?.id ?? null; } }
+      if (clienteNome.trim()) {
+        const { data: existente, error: clienteBuscaError } = await supabase.from('clientes').select('id').eq('user_id', user.id).ilike('nome', clienteNome.trim()).limit(1);
+        if (clienteBuscaError) throw clienteBuscaError;
+        if (existente?.[0]) clienteId = existente[0].id;
+        else {
+          const { data: novo, error: clienteInsertError } = await supabase.from('clientes').insert({ user_id: user.id, nome: clienteNome.trim() }).select('id').single();
+          if (clienteInsertError) throw clienteInsertError;
+          clienteId = novo?.id ?? null;
+        }
+      }
       let id = projectId;
-      if (id) await supabase.from('projects').update({ nome: nome.trim(), name: nome.trim(), cliente_id: clienteId }).eq('id', id);
-      else { const { data, error } = await supabase.from('projects').insert({ user_id: user.id, nome: nome.trim(), name: nome.trim(), cliente_id: clienteId }).select('id').single(); if (error) throw error; id = data.id; setProjectId(id); }
-      if (id) { salvarProgresso(id, { etapa: 2, nome: nome.trim(), clienteNome: clienteNome.trim() }); await salvarJornada(id, { etapa: Math.max(etapa, 2) as EtapaId }).catch(() => undefined); }
+      if (id) {
+        const { error } = await supabase.from('projects').update({ nome: nome.trim(), name: nome.trim(), cliente_id: clienteId }).eq('id', id).eq('user_id', user.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.from('projects').insert({ user_id: user.id, nome: nome.trim(), name: nome.trim(), cliente_id: clienteId }).select('id').single();
+        if (error) throw error;
+        id = data.id;
+        setProjectId(id);
+      }
+      if (id) { salvarProgresso(id, { etapa: 2, nome: nome.trim(), clienteNome: clienteNome.trim() }); await salvarJornada(id, { etapa: Math.max(etapa, 2) as EtapaId }); }
       setEtapa(2);
     } catch (error: unknown) { setErro(error instanceof Error ? error.message : 'Não deu para salvar a obra. Tente de novo.'); } finally { setLoading(null); }
   });
@@ -65,13 +81,8 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
   });
 
   const aplicarMedidas = () => {
-    const confirmed = {
-      width: parseFloat(String(respostas.largura ?? '').replace(',', '.')),
-      height: parseFloat(String(respostas.altura ?? '').replace(',', '.')),
-      depth: parseFloat(String(respostas.profundidade ?? '').replace(',', '.')),
-    };
-    const hasConfirmedDimensions = Object.values(confirmed).every(value => Number.isFinite(value) && value > 0);
-    if (!hasConfirmedDimensions) return;
+    const confirmed = { width: parseFloat(String(respostas.largura ?? '').replace(',', '.')), height: parseFloat(String(respostas.altura ?? '').replace(',', '.')), depth: parseFloat(String(respostas.profundidade ?? '').replace(',', '.')) };
+    if (!Object.values(confirmed).every(value => Number.isFinite(value) && value > 0)) return;
     setBudgetProject(prev => ({ ...prev, id: projectId ?? prev.id, ...confirmed }));
   };
 
@@ -81,13 +92,13 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
       const extras = Object.entries(respostas).filter(([, v]) => v.trim()).map(([k, v]) => `${k}: ${v}`).join('; ');
       const prompt = `Insira móveis planejados de marcenaria neste ambiente real, mantendo paredes, piso, janelas e iluminação da foto. Pedido do cliente: ${pedido}. ${analise?.resumo ?? ''}. Detalhes: ${extras || 'nenhum'}.`;
       const img = await studioService.generateVisual(prompt, [{ mimeType: foto.mime, data: foto.base64 }], 'photorealistic, 8k, architectural photography', 'modern Brazilian carpentry, MDF cabinetry');
-      if (!img) throw new Error('Não saiu imagem. Tente de novo.'); setImagem(img); setGeneratedImage(img); aplicarMedidas(); if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt }); if (user && projectId) await enviarApresentacao(user.id, projectId, img).catch(() => undefined); persistir({ etapa: 5, respostas }); setEtapa(5);
+      if (!img) throw new Error('Não saiu imagem. Tente de novo.'); setImagem(img); setGeneratedImage(img); aplicarMedidas(); if (user) { const { error } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt }); if (error) throw error; } if (user && projectId) await enviarApresentacao(user.id, projectId, img); await persistir({ etapa: 5, respostas }); setEtapa(5);
     } catch (error: unknown) { setErro(error instanceof Error ? error.message : 'Não deu para gerar a apresentação. Tente de novo.'); } finally { setLoading(null); }
   });
 
   const ajustarApresentacao = () => comAuth(async () => {
     if (!imagem || !ajuste.trim()) return; setLoading('ajustando'); setErro(null);
-    try { const img = await studioService.refineVisual(imagem, ajuste.trim()); if (!img) throw new Error('Não saiu imagem. Tente de novo.'); setImagem(img); setGeneratedImage(img); setAjuste(''); if (user) await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt: ajuste.trim() }); if (user && projectId) await enviarApresentacao(user.id, projectId, img).catch(() => undefined); }
+    try { const img = await studioService.refineVisual(imagem, ajuste.trim()); if (!img) throw new Error('Não saiu imagem. Tente de novo.'); setImagem(img); setGeneratedImage(img); setAjuste(''); if (user) { const { error } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: img, prompt: ajuste.trim() }); if (error) throw error; } if (user && projectId) await enviarApresentacao(user.id, projectId, img); }
     catch (error: unknown) { setErro(error instanceof Error ? error.message : 'Não deu para ajustar. Tente de novo.'); } finally { setLoading(null); }
   });
 
