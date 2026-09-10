@@ -5,6 +5,7 @@ on:
   pull_request:
     branches: [ main, master ]
 
+# Validation runs on every production push so GitHub remains the source of truth.
 concurrency:
   group: marcenapp-validation-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
