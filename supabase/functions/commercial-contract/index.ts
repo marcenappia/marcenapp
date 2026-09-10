@@ -15,7 +15,7 @@ const cors = (req: Request) => {
       const extras = [Deno.env.get("ALLOWED_ORIGINS") ?? "", Deno.env.get("APP_URL") ?? "", Deno.env.get("PUBLIC_APP_URL") ?? ""].flatMap(v => v.split(",")).map(v => v.trim().replace(/\/$/, "")).filter(Boolean);
       if (u.hostname === "localhost" || u.hostname === "127.0.0.1" || extras.includes(origin.replace(/\/$/, "")) || (u.protocol === "https:" && allowedSuffixes.some(s => u.hostname.endsWith(s)))) allowed = origin;
     }
-  } catch {}
+  } catch { /* Ignore malformed Origin headers and keep CORS disabled. */ }
   return { "Access-Control-Allow-Origin": allowed, "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS", Vary: "Origin" };
 };
 const json = (h: Record<string,string>, body: unknown, status = 200, extra: Record<string,string> = {}) => new Response(JSON.stringify(body), { status, headers: { ...h, ...extra, "Content-Type": "application/json" } });
@@ -67,7 +67,7 @@ serve(async req => {
     const key = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     if (!key) { await refund(guard.userId, idempotencyKey); return json(h, { error: "Serviço de IA não configurado.", code: "missing_api_key" }, 500); }
     const model = "gemini-3.8-flash";
-    const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `Prepare uma cláusula contratual curta e objetiva para um contrato de marcenaria sobre: \"${prompt}\". Use português formal. Não apresente aconselhamento jurídico e não afirme que o texto substitui revisão profissional.` }] }] }) });
+    const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `Prepare uma cláusula contratual curta e objetiva para um contrato de marcenaria sobre: "${prompt}". Use português formal. Não apresente aconselhamento jurídico e não afirme que o texto substitui revisão profissional.` }] }] }) });
     if (!upstream.ok) { await refund(guard.userId, idempotencyKey); return json(h, { error: upstream.status === 429 ? "Limite do provedor de IA atingido." : "O serviço de IA está indisponível.", code: upstream.status === 429 ? "rate_limited" : "upstream_error" }, upstream.status === 429 ? 429 : 502); }
     const data = await upstream.json();
     const text = data.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("").trim() ?? "";
