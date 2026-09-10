@@ -36,11 +36,11 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
     }
   }, [userId, hasProfile, profileStep, profileReduceMotion, profileCompletedKey]);
 
-  const updateProfilePreferences = async (updates: ProfileUpdates) => {
+  const updateProfilePreferences = useCallback(async (updates: ProfileUpdates) => {
     if (!user || isUpdating.current) return; isUpdating.current = true;
     try { const { error } = await supabase.from('profiles').update(updates).eq('user_id', user.id); if (error) throw error; await refreshProfile(); }
     finally { isUpdating.current = false; }
-  };
+  }, [user, refreshProfile]);
 
   const updateHighlight = useCallback(() => {
     const step = steps[currentStep]; if (step.targetId && !reduceMotion) { const element = document.getElementById(step.targetId); if (element) { const rect = element.getBoundingClientRect(); setHighlightStyle({ top: rect.top - 8, left: rect.left - 8, width: rect.width + 16, height: rect.height + 16, opacity: 1, pointerEvents: 'none' }); element.scrollIntoView({ behavior: 'smooth', block: 'center' }); } else setHighlightStyle({ opacity: 0 }); } else setHighlightStyle({ opacity: 0 });
@@ -53,7 +53,7 @@ const Onboarding = ({ onNavigate, activeModule }: OnboardingProps) => {
     localStorage.setItem('marcenapp_onboarding_step', currentStep.toString()); localStorage.setItem('marcenapp_onboarding_seen', 'false');
     const timeoutId = setTimeout(updateHighlight, 350); window.addEventListener('resize', updateHighlight); if (modalRef.current) modalRef.current.focus();
     return () => { clearTimeout(timeoutId); window.removeEventListener('resize', updateHighlight); };
-  }, [currentStep, isOpen, activeModule, onNavigate, updateHighlight, user, profileStep, completedSteps]);
+  }, [currentStep, isOpen, activeModule, onNavigate, updateHighlight, user, profileStep, completedSteps, updateProfilePreferences]);
 
   const toggleReduceMotion = () => { const newVal = !reduceMotion; setReduceMotion(newVal); localStorage.setItem('marcenapp_reduce_motion', newVal.toString()); if (user) void updateProfilePreferences({ reduce_motion: newVal }); };
   const handleNext = () => { if (currentStep < steps.length - 1) setCurrentStep(currentStep + 1); else finishOnboarding(); };
