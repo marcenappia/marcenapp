@@ -17,6 +17,10 @@ jobs:
     - name: Install dependencies
       id: install
       run: npm ci
+    - name: Dependency audit
+      if: ${{ always() && steps.install.outcome == 'success' }}
+      continue-on-error: true
+      run: npm audit --json > npm-audit.json
     - name: Lint
       run: npm run lint
     # Diagnostics must continue after lint failures, while still stopping if install failed.
@@ -32,12 +36,14 @@ jobs:
     - name: Run Playwright tests
       if: ${{ always() && steps.install.outcome == 'success' }}
       run: npm run test:e2e
-    - name: Upload Playwright artifacts
+    - name: Upload diagnostics
       uses: actions/upload-artifact@v4
-      if: failure() || cancelled()
+      if: always() && steps.install.outcome == 'success'
       with:
-        name: playwright-report-${{ github.sha }}-${{ github.run_id }}
+        name: diagnostics-${{ github.sha }}-${{ github.run_id }}
         path: |
+          npm-audit.json
           playwright-report/
           test-results/
+        if-no-files-found: ignore
         retention-days: 7
