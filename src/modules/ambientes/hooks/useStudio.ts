@@ -55,7 +55,10 @@ export const useStudio = (
         if (!generatedImage) setGeneratedImage(urls[0]);
       }
     });
-  }, [user, generatedImage, setGallery, setGeneratedImage]);
+    // Hydrate once per authenticated user. Newly generated images are added locally below.
+    // This avoids refetching the entire gallery whenever the selected image changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
     if (!user) return;
