@@ -8,6 +8,7 @@ const SUPABASE_ANON_KEY =
   Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
 
 const FN_URL = `${SUPABASE_URL}/functions/v1/ai-image`;
+type ApiJson = { code?: string; fields?: Record<string, unknown> };
 
 async function call(body: BodyInit, headers: Record<string, string> = {}) {
   const res = await fetch(FN_URL, {
@@ -21,8 +22,8 @@ async function call(body: BodyInit, headers: Record<string, string> = {}) {
     body,
   });
   const text = await res.text();
-  let json: any = null;
-  try { json = JSON.parse(text); } catch { /* keep null */ }
+  let json: ApiJson = {};
+  try { json = JSON.parse(text) as ApiJson; } catch { /* keep empty response object */ }
   return { status: res.status, json, text };
 }
 
