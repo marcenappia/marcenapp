@@ -5,10 +5,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { requireAuth, DecorOption } from '@/components/marcenaria/shared';
 import { useStudioStore, ImageData } from '@/store/useStudioStore';
 import { studioService } from '../services/studioService';
-import { iaraService } from '@/modules/iara/services/iaraService';
 import type { ProjectData } from '@/modules/projetos/types';
 
-interface StudioStyle { id: string; label: string; prompt: string; }
+type StudioStyle = { id: string; label: string; prompt: string };
 const styles: StudioStyle[] = [
   { id: 'realistic', label: 'Fotorealismo', prompt: 'photorealistic, 8k, architectural photography' },
   { id: 'minimalist', label: 'Minimalista', prompt: 'minimalist interior design, soft lighting, clean lines' },
@@ -56,11 +55,12 @@ export const useStudio = (
         if (!generatedImage) setGeneratedImage(urls[0]);
       }
     });
-  }, [user]);
+  }, [user, generatedImage, setGallery, setGeneratedImage]);
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
     if (!user) return;
-    await supabase.from('gallery_images').insert({ user_id: user.id, image_url: imageUrl, prompt: promptText });
+    const { error: saveError } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: imageUrl, prompt: promptText });
+    if (saveError) console.error('[studio] gallery save failed', saveError);
   };
 
   const generate = async () => {
@@ -92,13 +92,13 @@ export const useStudio = (
     if (!authed) { setPendingAction(() => () => analyzeForBudget()); setShowAuthDialog(true); return; }
     setAnalyzing(true);
     try {
-      const imageBase64 = generatedImage.split(',')[1];
-      const est = await iaraService.analyzeImage(imageBase64);
-      setBudgetProject(prev => ({ ...prev, width: est.width || 2, height: est.height || 2.5, depth: est.depth || 0.6, drawers: est.drawers || 2, doors: est.doors || 2 }));
-      setShowModal(false); navigateTo('orcamento');
-    } catch {
-      alert('Não foi possível analisar. Redirecionando...'); navigateTo('orcamento');
-    } finally { setAnalyzing(false); }
+      // A visualização da IA nunca é convertida automaticamente em medida de fabricação.
+      // O orçamento real deve usar somente dimensões e custos confirmados pelo usuário/backend.
+      setShowModal(false);
+      navigateTo('orcamento');
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   return { prompt, setPrompt, sketchImage, setSketchImage, envImage, setEnvImage, generatedImage, setGeneratedImage, loading, analyzing, selectedDecor, setSelectedDecor, isRefining, setIsRefining, error, setError, showModal, setShowModal, isRecording, setIsRecording, selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction, generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime };
