@@ -1,0 +1,12 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="marcenappGradient" x1="18" y1="18" x2="110" y2="110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="30" fill="url(#marcenappGradient)"/>
+  <path d="M31 91V38L49 38L64 65L79 38H97V91H81V63L69 84H59L47 63V91H31Z" fill="white"/>
+  <path d="M99 20L102.5 28.5L111 32L102.5 35.5L99 44L95.5 35.5L87 32L95.5 28.5L99 20Z" fill="#F59E0B"/>
+  <circle cx="106" cy="53" r="3" fill="#F59E0B" opacity="0.9"/>
+</svg>
