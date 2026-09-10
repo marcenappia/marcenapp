@@ -7,11 +7,11 @@ import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { callAIContractClause } from '@/services/ai';
 
-export type ToolResult<T = any> =
+export type ToolResult<T = unknown> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
-export interface ToolDefinition<TArgs = any, TResult = any> {
+export interface ToolDefinition<TArgs extends object, TResult = unknown> {
   name: string;
   description: string;
   version: string;
@@ -26,7 +26,19 @@ export interface ExecutionContext {
   lastImageMask?: string;
 }
 
-const createCliente: ToolDefinition = {
+type CreateClienteArgs = { nome: string; email?: string; telefone?: string };
+type CreateProjetoArgs = { nome: string; clienteNome?: string; width: number; height: number; depth: number; tipo?: string; confirmado: true };
+type GerarRenderArgs = { prompt: string; estilo?: string };
+type CalcularOrcamentoArgs = { observacoes?: string };
+type GerarContratoArgs = { clienteNome: string; valor?: number; prazoDias?: number; clausulasExtras?: string[] };
+
+type ClienteData = { id: string; nome: string };
+type ProjetoData = { id: string; nome: string; width: number; height: number; depth: number };
+type RenderData = { studioCommandId: string; status: string };
+type OrcamentoData = { projetoId: string; nome: string; total: number; materiais: number; maoDeObra: number; isEstimate: boolean };
+type ContratoData = { cliente: string; valor: number | null; prazoDias: number | null; clausulasGeradas: number; clausulas: string[] };
+
+const createCliente: ToolDefinition<CreateClienteArgs, ClienteData> = {
   name: 'createCliente', description: 'Cria um novo cliente', version: '1.0.0',
   inputSchema: z.object({ nome: z.string().min(1), email: z.string().email().optional().or(z.literal('')), telefone: z.string().optional() }),
   async execute(args, ctx) {
@@ -35,7 +47,7 @@ const createCliente: ToolDefinition = {
   },
 };
 
-const createProjeto: ToolDefinition = {
+const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = {
   name: 'createProjeto', description: 'Cria projeto de marcenaria somente após confirmação explícita das três dimensões', version: '1.1.0',
   inputSchema: z.object({ nome: z.string().min(1), clienteNome: z.string().optional(), width: z.number().positive(), height: z.number().positive(), depth: z.number().positive(), tipo: z.string().optional(), confirmado: z.literal(true) }),
   async execute(args, ctx) {
@@ -46,7 +58,7 @@ const createProjeto: ToolDefinition = {
   },
 };
 
-const gerarRender: ToolDefinition = {
+const gerarRender: ToolDefinition<GerarRenderArgs, RenderData> = {
   name: 'gerarRender', description: 'Enfileira render no Estúdio via Command Bus', version: '1.0.0',
   inputSchema: z.object({ prompt: z.string().min(1), estilo: z.string().optional() }),
   async execute(args, ctx) {
@@ -58,7 +70,7 @@ const gerarRender: ToolDefinition = {
   },
 };
 
-const calcularOrcamento: ToolDefinition = {
+const calcularOrcamento: ToolDefinition<CalcularOrcamentoArgs, OrcamentoData> = {
   name: 'calcularOrcamento', description: 'Calcula orçamento estimado do projeto atual', version: '1.0.0', inputSchema: z.object({ observacoes: z.string().optional() }),
   async execute(_args, ctx) {
     const { data: proj, error } = await supabase.from('projects').select('*').eq('user_id', ctx.userId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
@@ -71,7 +83,7 @@ const calcularOrcamento: ToolDefinition = {
   },
 };
 
-const gerarContrato: ToolDefinition = {
+const gerarContrato: ToolDefinition<GerarContratoArgs, ContratoData> = {
   name: 'gerarContrato', description: 'Gera documentação contratual assistida por IA; não constitui aconselhamento jurídico', version: '1.4.0',
   inputSchema: z.object({ clienteNome: z.string().min(1), valor: z.number().optional(), prazoDias: z.number().optional(), clausulasExtras: z.array(z.string()).optional() }),
   async execute(args, _ctx) {
@@ -89,12 +101,19 @@ const gerarContrato: ToolDefinition = {
   },
 };
 
-const TOOLS: Record<string, ToolDefinition> = { createCliente, createProjeto, gerarRender, calcularOrcamento, gerarContrato };
-export function getTool(name: string): ToolDefinition | undefined { return TOOLS[name]; }
-export function listTools(): ToolDefinition[] { return Object.values(TOOLS); }
-export async function executeToolCall(name: string, args: unknown, ctx: ExecutionContext): Promise<ToolResult> {
-  const tool = getTool(name); if (!tool) return { ok: false, error: `Ferramenta desconhecida: ${name}` };
+const TOOLS = { createCliente, createProjeto, gerarRender, calcularOrcamento, gerarContrato };
+type ToolName = keyof typeof TOOLS;
+type ErasedTool = { inputSchema: z.ZodType<Record<string, unknown>>; execute: (args: Record<string, unknown>, ctx: ExecutionContext) => Promise<ToolResult<unknown>> };
+export function getTool(name: string): ToolDefinition<object, unknown> | undefined { return TOOLS[name as ToolName] as unknown as ToolDefinition<object, unknown> | undefined; }
+export function listTools(): ToolDefinition<object, unknown>[] { return Object.values(TOOLS) as unknown as ToolDefinition<object, unknown>[]; }
+export async function executeToolCall(name: string, args: unknown, ctx: ExecutionContext): Promise<ToolResult<unknown>> {
+  const tool = getTool(name);
+  if (!tool) return { ok: false, error: `Ferramenta desconhecida: ${name}` };
   const parsed = tool.inputSchema.safeParse(args);
   if (!parsed.success) return { ok: false, error: `Argumentos inválidos para ${name}: ${JSON.stringify(parsed.error.flatten().fieldErrors)}` };
-  try { return await tool.execute(parsed.data, ctx); } catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Erro desconhecido' }; }
+  try {
+    return await (tool as unknown as ErasedTool).execute(parsed.data, ctx);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };
+  }
 }
