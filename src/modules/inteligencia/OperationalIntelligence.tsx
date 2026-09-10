@@ -1,95 +1,51 @@
-import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CircleAlert, Settings2, Sparkles } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, CircleAlert, Save, Settings2, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-type DNA = {
-  user_id: string;
-  standard_mdf_thickness_mm: number | null;
-  back_thickness_mm: number | null;
-  minimum_margin_pct: number | null;
-};
-
+type DNA = { user_id: string; standard_mdf_thickness_mm: number | null; back_thickness_mm: number | null; minimum_margin_pct: number | null };
 type Project = { id: string; nome: string | null; name: string; profit_margin: number | null; external_material: string | null };
+type Cost = { sale_price: number | null; material_cost: number | null; hardware_cost: number | null; labor_cost: number | null; other_cost: number | null };
 type AlertRow = { id: string; alert_type: string; severity: 'INFO' | 'ATENCAO' | 'ERRO' | 'CRITICO'; message: string; evidence: Record<string, unknown>; suggested_action: string | null };
-
+const emptyCost: Cost = { sale_price: null, material_cost: null, hardware_cost: null, labor_cost: null, other_cost: null };
 const severityIcon = (severity: AlertRow['severity']) => severity === 'INFO' ? <CheckCircle2 size={18} /> : severity === 'CRITICO' ? <CircleAlert size={18} /> : <AlertTriangle size={18} />;
 
 export default function OperationalIntelligence() {
   const { user } = useAuth();
-  const [dna, setDna] = useState<DNA | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [alerts, setAlerts] = useState<AlertRow[]>([]);
-  const [margin, setMargin] = useState('');
-  const [thickness, setThickness] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [dna, setDna] = useState<DNA | null>(null); const [projects, setProjects] = useState<Project[]>([]); const [alerts, setAlerts] = useState<AlertRow[]>([]); const [costs, setCosts] = useState<Record<string, Cost>>({});
+  const [margin, setMargin] = useState(''); const [thickness, setThickness] = useState(''); const [selectedProject, setSelectedProject] = useState(''); const [saving, setSaving] = useState(false); const [message, setMessage] = useState<string | null>(null);
+  const selectedCost = costs[selectedProject] ?? emptyCost;
+  const currentMargin = useMemo(() => { const c = selectedCost; if (c.sale_price == null || c.sale_price <= 0 || c.material_cost == null || c.hardware_cost == null || c.labor_cost == null) return null; const total = c.material_cost + c.hardware_cost + c.labor_cost + (c.other_cost ?? 0); return ((c.sale_price - total) / c.sale_price) * 100; }, [selectedCost]);
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [{ data: dnaRow }, { data: projectRows }, { data: alertRows }] = await Promise.all([
-      supabase.from('marcenaria_dna').select('user_id, standard_mdf_thickness_mm, back_thickness_mm, minimum_margin_pct').eq('user_id', user.id).maybeSingle(),
+    const [{ data: dnaRow }, { data: projectRows }, { data: alertRows }, { data: costRows }] = await Promise.all([
+      supabase.from('marcenaria_dna').select('user_id,standard_mdf_thickness_mm,back_thickness_mm,minimum_margin_pct').eq('user_id', user.id).maybeSingle(),
       supabase.from('projects').select('id,nome,name,profit_margin,external_material').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(12),
       supabase.from('operational_alerts').select('id,alert_type,severity,message,evidence,suggested_action').eq('user_id', user.id).eq('status', 'open').order('created_at', { ascending: false }).limit(30),
+      supabase.from('project_cost_snapshots').select('project_id,sale_price,material_cost,hardware_cost,labor_cost,other_cost').eq('user_id', user.id),
     ]);
-    const nextDna = dnaRow as DNA | null;
-    setDna(nextDna);
-    setMargin(nextDna?.minimum_margin_pct?.toString() ?? '');
-    setThickness(nextDna?.standard_mdf_thickness_mm?.toString() ?? '');
-    setProjects((projectRows ?? []) as Project[]);
+    const nextDna = dnaRow as DNA | null; setDna(nextDna); setMargin(nextDna?.minimum_margin_pct?.toString() ?? ''); setThickness(nextDna?.standard_mdf_thickness_mm?.toString() ?? '');
+    const nextProjects = (projectRows ?? []) as Project[]; setProjects(nextProjects); if (!selectedProject && nextProjects[0]) setSelectedProject(nextProjects[0].id);
     setAlerts((alertRows ?? []) as AlertRow[]);
-  }, [user]);
-
+    const nextCosts: Record<string, Cost> = {}; for (const row of (costRows ?? []) as Array<Cost & { project_id: string }>) nextCosts[row.project_id] = row; setCosts(nextCosts);
+  }, [user, selectedProject]);
   useEffect(() => { void load(); }, [load]);
 
-  const saveDNA = async () => {
-    if (!user) return;
-    setSaving(true); setMessage(null);
-    const payload = {
-      user_id: user.id,
-      minimum_margin_pct: margin.trim() === '' ? null : Number(margin),
-      standard_mdf_thickness_mm: thickness.trim() === '' ? null : Number(thickness),
-    };
-    const { error } = await supabase.from('marcenaria_dna').upsert(payload, { onConflict: 'user_id' });
-    setSaving(false);
-    if (error) { setMessage(error.message); return; }
-    setMessage('DNA atualizado. Nenhum valor comercial foi inventado.');
-    await load();
-  };
+  const saveDNA = async () => { if (!user) return; setSaving(true); setMessage(null); const payload = { user_id: user.id, minimum_margin_pct: margin.trim() === '' ? null : Number(margin), standard_mdf_thickness_mm: thickness.trim() === '' ? null : Number(thickness) }; const { error } = await supabase.from('marcenaria_dna').upsert(payload, { onConflict: 'user_id' }); setSaving(false); if (error) { setMessage(error.message); return; } setMessage('DNA atualizado. Nenhum valor comercial foi inventado.'); await load(); };
 
-  const analyze = async (projectId: string) => {
-    const { error } = await supabase.rpc('refresh_project_operational_alerts', { p_project_id: projectId });
-    if (error) { setMessage(error.message); return; }
-    setMessage('Projeto analisado com dados reais do banco.');
-    await load();
-  };
+  const updateCost = (field: keyof Cost, value: string) => setCosts(prev => ({ ...prev, [selectedProject]: { ...(prev[selectedProject] ?? emptyCost), [field]: value === '' ? null : Number(value) } }));
+  const saveCost = async () => { if (!user || !selectedProject) return; setSaving(true); setMessage(null); const c = costs[selectedProject] ?? emptyCost; const { error } = await supabase.from('project_cost_snapshots').upsert({ user_id: user.id, project_id: selectedProject, ...c, source: 'manual' }, { onConflict: 'user_id,project_id' }); setSaving(false); if (error) { setMessage(error.message); return; } await analyze(selectedProject); };
+  const analyze = async (projectId: string) => { const { error } = await supabase.rpc('refresh_project_operational_alerts', { p_project_id: projectId }); if (error) { setMessage(error.message); return; } setMessage('Projeto analisado com dados reais do banco.'); await load(); };
 
   if (!user) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Entre na sua conta para acessar a inteligência operacional.</div>;
-
   return <div className="space-y-6">
-    <section className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div><div className="flex items-center gap-2 text-indigo-600 font-bold text-sm"><Sparkles size={18} /> Inteligência Operacional</div><h2 className="text-2xl font-black text-slate-900 mt-1">Encontrei {alerts.filter(a => a.severity !== 'INFO').length} pontos que precisam da sua atenção.</h2><p className="text-sm text-slate-500 mt-2">As análises abaixo usam somente dados e regras configurados no Marcenapp.</p></div>
-      </div>
-      {message && <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600">{message}</div>}
-    </section>
+    <section className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm"><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-indigo-600 font-bold text-sm"><Sparkles size={18} /> Inteligência Operacional</div><h2 className="text-2xl font-black text-slate-900 mt-1">Encontrei {alerts.filter(a => a.severity !== 'INFO').length} pontos que precisam da sua atenção.</h2><p className="text-sm text-slate-500 mt-2">Dados reais do Marcenapp, comparados com regras que você configurou.</p></div></div>{message && <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600">{message}</div>}</section>
 
-    <section className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm">
-      <div className="flex items-center gap-2 mb-4"><Settings2 size={18} className="text-indigo-600" /><h3 className="font-black text-slate-900">DNA da Marcenaria</h3></div>
-      <p className="text-sm text-slate-500 mb-4">Configure somente regras que representam a sua operação. Campos vazios significam “Regra não configurada”.</p>
-      <div className="grid md:grid-cols-2 gap-4">
-        <label className="text-sm font-semibold text-slate-700">Margem mínima (%)<input value={margin} onChange={e => setMargin(e.target.value)} type="number" min="0" step="0.1" placeholder="Regra não configurada" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>
-        <label className="text-sm font-semibold text-slate-700">MDF padrão externo (mm)<input value={thickness} onChange={e => setThickness(e.target.value)} type="number" min="0" step="1" placeholder="Regra não configurada" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>
-      </div>
-      <button disabled={saving} onClick={() => void saveDNA()} className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-white font-bold disabled:opacity-50">{saving ? 'Salvando...' : 'Salvar DNA'}</button>
-      {dna && <p className="text-xs text-slate-400 mt-3">Regras persistidas por usuário/empresa lógica. RLS impede acesso cruzado entre usuários.</p>}
-    </section>
+    <section className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm"><div className="flex items-center gap-2 mb-4"><Settings2 size={18} className="text-indigo-600" /><h3 className="font-black text-slate-900">DNA da Marcenaria</h3></div><p className="text-sm text-slate-500 mb-4">Campos vazios significam “Regra não configurada”.</p><div className="grid md:grid-cols-2 gap-4"><label className="text-sm font-semibold text-slate-700">Margem mínima (%)<input value={margin} onChange={e => setMargin(e.target.value)} type="number" min="0" step="0.1" placeholder="Regra não configurada" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><label className="text-sm font-semibold text-slate-700">MDF padrão externo (mm)<input value={thickness} onChange={e => setThickness(e.target.value)} type="number" min="0" step="1" placeholder="Regra não configurada" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label></div><button disabled={saving} onClick={() => void saveDNA()} className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-white font-bold disabled:opacity-50">{saving ? 'Salvando...' : 'Salvar DNA'}</button><p className="text-xs text-slate-400 mt-3">O DNA é isolado por usuário; RLS impede acesso cruzado.</p></section>
 
-    <section className="space-y-3">
-      {alerts.length === 0 && <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Nenhum alerta aberto. Analise um projeto para gerar evidências.</div>}
-      {alerts.map(alert => <article key={alert.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex gap-3"><div className="text-amber-500 mt-0.5">{severityIcon(alert.severity)}</div><div className="flex-1"><div className="flex items-center gap-2"><span className="text-xs font-black uppercase tracking-wider text-slate-400">{alert.severity}</span><span className="text-xs text-slate-400">{alert.alert_type}</span></div><p className="font-bold text-slate-800 mt-1">{alert.message}</p>{Object.keys(alert.evidence).length > 0 && <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-600">{JSON.stringify(alert.evidence, null, 2)}</pre>}<p className="text-sm text-slate-500 mt-3">Ação sugerida: {alert.suggested_action ?? 'Nenhuma ação configurada.'}</p></div></div></article>)}
-    </section>
+    <section className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm"><h3 className="font-black text-slate-900 mb-4">Primeira vertical: custo → margem → alerta</h3>{projects.length > 0 ? <><select value={selectedProject} onChange={e => setSelectedProject(e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mb-4">{projects.map(p => <option key={p.id} value={p.id}>{p.nome || p.name}</option>)}</select><div className="grid md:grid-cols-2 lg:grid-cols-5 gap-3">{([['sale_price','Preço de venda'],['material_cost','Materiais'],['hardware_cost','Ferragens'],['labor_cost','Mão de obra'],['other_cost','Outros']] as Array<[keyof Cost,string]>).map(([field,label]) => <label key={field} className="text-xs font-bold text-slate-600">{label}<input value={selectedCost[field] ?? ''} onChange={e => updateCost(field,e.target.value)} type="number" min="0" step="0.01" placeholder="Não informado" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" /></label>)}</div><div className="mt-4 flex flex-wrap items-center gap-4"><div className="rounded-xl bg-slate-50 px-4 py-3"><span className="text-xs text-slate-500">Margem atual</span><strong className="block text-lg text-slate-900">{currentMargin == null ? 'Dados insuficientes' : `${currentMargin.toFixed(2)}%`}</strong></div>{dna?.minimum_margin_pct != null && currentMargin != null && <div className={currentMargin < dna.minimum_margin_pct ? 'rounded-xl bg-amber-50 px-4 py-3 text-amber-800' : 'rounded-xl bg-emerald-50 px-4 py-3 text-emerald-800'}><span className="text-xs">Mínimo do DNA</span><strong className="block text-lg">{dna.minimum_margin_pct}%</strong></div>}<button disabled={saving || !selectedProject} onClick={() => void saveCost()} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-white font-bold disabled:opacity-50"><Save size={16} />Salvar e analisar</button></div></> : <p className="text-sm text-slate-500">Nenhum projeto disponível.</p>}</section>
 
-    <section className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm"><h3 className="font-black text-slate-900 mb-4">Projetos para análise</h3><div className="space-y-2">{projects.map(project => <div key={project.id} className="flex items-center justify-between gap-4 border border-slate-100 rounded-xl p-3"><div><p className="font-bold text-sm text-slate-800">{project.nome || project.name}</p><p className="text-xs text-slate-500">Margem cadastrada: {project.profit_margin == null ? 'não configurada' : `${project.profit_margin}%`}</p></div><button onClick={() => void analyze(project.id)} className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50">Analisar operação</button></div>)}{projects.length === 0 && <p className="text-sm text-slate-500">Nenhum projeto disponível.</p>}</div></section>
+    <section className="space-y-3">{alerts.length === 0 && <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Nenhum alerta aberto. Analise um projeto para gerar evidências.</div>}{alerts.map(alert => <article key={alert.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex gap-3"><div className="text-amber-500 mt-0.5">{severityIcon(alert.severity)}</div><div className="flex-1"><div className="flex items-center gap-2"><span className="text-xs font-black uppercase tracking-wider text-slate-400">{alert.severity}</span><span className="text-xs text-slate-400">{alert.alert_type}</span></div><p className="font-bold text-slate-800 mt-1">{alert.message}</p>{Object.keys(alert.evidence).length > 0 && <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-600">{JSON.stringify(alert.evidence, null, 2)}</pre>}<p className="text-sm text-slate-500 mt-3">Ação sugerida: {alert.suggested_action ?? 'Nenhuma ação configurada.'}</p></div></div></article>)}</section>
   </div>;
 }
