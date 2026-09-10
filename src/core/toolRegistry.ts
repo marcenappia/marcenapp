@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
-import { callAIText } from '@/services/ai';
+import { callAIContractClause } from '@/services/ai';
 
 export type ToolResult<T = any> =
   | { ok: true; data: T }
@@ -72,22 +72,20 @@ const calcularOrcamento: ToolDefinition = {
 };
 
 const gerarContrato: ToolDefinition = {
-  name: 'gerarContrato', description: 'Gera documentação contratual assistida por IA; não constitui aconselhamento jurídico', version: '1.3.0',
+  name: 'gerarContrato', description: 'Gera documentação contratual assistida por IA; não constitui aconselhamento jurídico', version: '1.4.0',
   inputSchema: z.object({ clienteNome: z.string().min(1), valor: z.number().optional(), prazoDias: z.number().optional(), clausulasExtras: z.array(z.string()).optional() }),
-  async execute(args, ctx) {
+  async execute(args, _ctx) {
     const clausulas: string[] = [];
     for (const desc of args.clausulasExtras ?? []) {
       try {
-        const text = await callAIText(`Prepare uma cláusula contratual curta e objetiva para um contrato de marcenaria sobre: "${desc}". Use português formal. Não apresente aconselhamento jurídico e não afirme que o texto substitui revisão profissional.`);
-        if (!text) return { ok: false, error: `A IA não retornou uma cláusula para: ${desc}` };
-        const { error: insertError } = await supabase.from('custom_clauses').insert({ user_id: ctx.userId, clause_text: text, prompt: desc });
-        if (insertError) return { ok: false, error: `Não foi possível persistir a cláusula: ${insertError.message}` };
-        clausulas.push(text);
+        const result = await callAIContractClause(desc);
+        if (!result.text) return { ok: false, error: `A IA não retornou uma cláusula para: ${desc}` };
+        clausulas.push(result.text);
       } catch (e) {
         return { ok: false, error: `Falha ao gerar cláusula "${desc}": ${e instanceof Error ? e.message : 'erro desconhecido'}` };
       }
     }
-    return { ok: true, data: { cliente: args.clienteNome, valor: args.valor ?? null, prazoDias: args.prazoDias ?? null, clausulasGeradas: clausulas.length } };
+    return { ok: true, data: { cliente: args.clienteNome, valor: args.valor ?? null, prazoDias: args.prazoDias ?? null, clausulasGeradas: clausulas.length, clausulas } };
   },
 };
 
