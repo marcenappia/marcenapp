@@ -49,7 +49,6 @@ export const callAIFunction = async <T = any>(fn: string, body: unknown): Promis
 };
 
 export const callAIImage = async (prompt: string, images?: { mimeType: string; data: string }[]) => {
-  // Validação defensiva: normaliza imagens que chegarem como string base64 crua
   const normalizedImages = images?.map(img => {
     if (typeof img === 'string') {
       const raw = img.includes(',') ? img.split(',')[1] : img;
@@ -57,11 +56,23 @@ export const callAIImage = async (prompt: string, images?: { mimeType: string; d
     }
     return img;
   });
-  const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', { prompt, images: normalizedImages });
+  const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', {
+    prompt,
+    images: normalizedImages,
+    idempotencyKey: crypto.randomUUID(),
+  });
   return data.imageUrl ?? null;
 };
 
 export const callAIText = async (prompt: string, images?: { mimeType: string; data: string }[], jsonMode = false) => {
   const data = await callAIFunction<{ text: string }>('ai-text', { prompt, images, jsonMode });
   return data.text;
+};
+
+export const callAIContractClause = async (prompt: string) => {
+  const data = await callAIFunction<{ id: string; text: string; model: string; operationType: string }>('commercial-contract', {
+    prompt,
+    idempotencyKey: crypto.randomUUID(),
+  });
+  return data;
 };
