@@ -22,7 +22,7 @@ const styles: StudioStyle[] = [
 
 const errorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message ? error.message : fallback;
 
-export const useStudio = <TBudget extends Record<string, unknown>>(
+export const useStudio = <TBudget extends object>(
   setBudgetProject: React.Dispatch<React.SetStateAction<TBudget>>,
   navigateTo: (route: string) => void,
   gallery: string[],
