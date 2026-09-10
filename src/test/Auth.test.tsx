@@ -3,11 +3,11 @@ import { BrowserRouter } from 'react-router-dom';
 import Auth from '../pages/Auth';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-// Mock Supabase
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: {
       signInWithPassword: vi.fn(),
+      signInWithOAuth: vi.fn(),
       signUp: vi.fn(),
       resetPasswordForEmail: vi.fn(),
       getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
@@ -16,18 +16,11 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 
-// Mock useAuth hook
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: null }),
 }));
 
-const renderAuth = () => {
-  return render(
-    <BrowserRouter>
-      <Auth />
-    </BrowserRouter>
-  );
-};
+const renderAuth = () => render(<BrowserRouter><Auth /></BrowserRouter>);
 
 describe('Auth Page - Reset Password Flow', () => {
   beforeEach(() => {
@@ -36,52 +29,38 @@ describe('Auth Page - Reset Password Flow', () => {
     vi.stubEnv('VITE_SUPPORT_WHATSAPP_LINK', 'https://example.com/support');
   });
 
-  it('shows loading state and triggers countdown on success', async () => {
+  it('shows success state and countdown after a successful reset request', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
     (supabase.auth.resetPasswordForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {}, error: null });
 
     renderAuth();
-
     fireEvent.click(screen.getByText(/Esqueceu a senha?/i));
-
-    const emailInput = screen.getByPlaceholderText(/E-mail/i);
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-
-    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação/i });
+    fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
 
     await act(async () => {
-      fireEvent.click(submitButton);
+      fireEvent.click(screen.getByRole('button', { name: /Enviar Recuperação/i }));
     });
 
-    const successMsg = await screen.findByText(/E-mail de recuperação enviado!/i);
-    expect(successMsg).toBeInTheDocument();
+    expect(await screen.findByText(/E-mail de recuperação enviado!/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Aguarde 30s/i })).toBeDisabled();
 
-    const resendButton = await screen.findByText(/Tente novamente em 30s/i);
-    expect(resendButton).toBeDisabled();
+    await act(async () => {
+      vi.advanceTimersByTime(30000);
+    });
 
-    for (let i = 0; i < 30; i++) {
-      await act(async () => {
-        vi.advanceTimersByTime(1000);
-      });
-    }
-
-    const resendEnabled = await screen.findByText(/Não recebeu\? Reenviar/i);
-    expect(resendEnabled).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
   });
 
-  it('shows support link when error occurs during reset', async () => {
+  it('shows support link when an error occurs during reset', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
     (supabase.auth.resetPasswordForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: null,
-      error: { message: 'Failed to send' }
+      error: { message: 'Failed to send' },
     });
 
     renderAuth();
-
     fireEvent.click(screen.getByText(/Esqueceu a senha?/i));
-
-    const emailInput = screen.getByPlaceholderText(/E-mail/i);
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Enviar Recuperação/i }));
