@@ -81,12 +81,13 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       if (run.plan.length === 0) { await saveMessage({ sender: 'iara', text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.' }); lastFailedRef.current = null; return; }
       const linhas = run.results.map(({ tool, result }) => {
         if (result.ok === false) return `❌ ${tool}: ${result.error}`;
+        const data = result.data as Record<string, unknown>;
         switch (tool) {
-          case 'createCliente': return `✅ Cliente **${result.data.nome}** cadastrado.`;
-          case 'createProjeto': if (result.data?.width && result.data?.height && result.data?.depth) hooks?.onProjectCreated?.({ width: Number(result.data.width), height: Number(result.data.height), depth: Number(result.data.depth) }); return `✅ Projeto **${result.data.nome}** criado (${result.data.width}×${result.data.height}×${result.data.depth}m).`;
-          case 'gerarRender': return `🎨 Render enfileirado no Estúdio (ref: ${result.data.studioCommandId}). Aviso quando ficar pronto.`;
-          case 'calcularOrcamento': return `💰 Orçamento real: **R$ ${result.data.precoVenda.toLocaleString('pt-BR')}** (custos R$ ${result.data.materiais.toLocaleString('pt-BR')} + ferragens R$ ${result.data.ferragens.toLocaleString('pt-BR')} + mão de obra R$ ${result.data.maoDeObra.toLocaleString('pt-BR')} + outros R$ ${result.data.outros.toLocaleString('pt-BR')}). Lucro: R$ ${result.data.lucro.toLocaleString('pt-BR')} (${result.data.margemPct.toLocaleString('pt-BR')}%).`;
-          case 'gerarContrato': return `📄 Contrato preparado para **${result.data.cliente}**${result.data.valor ? ` (R$ ${result.data.valor.toLocaleString('pt-BR')})` : ''}. ${result.data.clausulasGeradas} cláusula(s) via IA.`;
+          case 'createCliente': return `✅ Cliente **${String(data.nome ?? 'sem nome')}** cadastrado.`;
+          case 'createProjeto': { const width = Number(data.width); const height = Number(data.height); const depth = Number(data.depth); if (Number.isFinite(width) && Number.isFinite(height) && Number.isFinite(depth)) hooks?.onProjectCreated?.({ width, height, depth }); return `✅ Projeto **${String(data.nome ?? 'Projeto')}** criado (${width}×${height}×${depth}m).`; }
+          case 'gerarRender': return `🎨 Render enfileirado no Estúdio (ref: ${String(data.studioCommandId ?? '')}). Aviso quando ficar pronto.`;
+          case 'calcularOrcamento': { const precoVenda = Number(data.precoVenda); const materiais = Number(data.materiais); const ferragens = Number(data.ferragens); const maoDeObra = Number(data.maoDeObra); const outros = Number(data.outros); const lucro = Number(data.lucro); const margemPct = Number(data.margemPct); return `💰 Orçamento real: **R$ ${precoVenda.toLocaleString('pt-BR')}** (custos R$ ${materiais.toLocaleString('pt-BR')} + ferragens R$ ${ferragens.toLocaleString('pt-BR')} + mão de obra R$ ${maoDeObra.toLocaleString('pt-BR')} + outros R$ ${outros.toLocaleString('pt-BR')}). Lucro: R$ ${lucro.toLocaleString('pt-BR')} (${margemPct.toLocaleString('pt-BR')}%).`; }
+          case 'gerarContrato': return `📄 Contrato preparado para **${String(data.cliente ?? 'cliente')}**${data.valor ? ` (R$ ${Number(data.valor).toLocaleString('pt-BR')})` : ''}. ${Number(data.clausulasGeradas ?? 0)} cláusula(s) via IA.`;
           default: return `✅ ${tool} executado.`;
         }
       });
@@ -100,29 +101,11 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     } finally { setIsTyping(false); }
   };
 
-  const handleSend = async () => {
-    if (!chatInput.trim() && !pendingUpload) return;
-    if (!user) { setShowAuthDialog(true); return; }
-    const promptText = chatInput.trim(); const upload = pendingUpload;
-    setChatInput(''); setPendingUpload(null); await sendPrompt(promptText, upload);
-  };
+  const handleSend = async () => { if (!chatInput.trim() && !pendingUpload) return; if (!user) { setShowAuthDialog(true); return; } const promptText = chatInput.trim(); const upload = pendingUpload; setChatInput(''); setPendingUpload(null); await sendPrompt(promptText, upload); };
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload); };
   const dismissError = () => setError(null);
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; };
-    reader.readAsDataURL(file);
-  };
-
-  useEffect(() => {
-    const browserWindow = window as BrowserWithSpeechRecognition;
-    const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-    const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`); recognitionRef.current = r;
-  }, []);
-
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; }; reader.readAsDataURL(file); };
+  useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`); recognitionRef.current = r; }, []);
   const toggleRecording = () => { if (isListening) recognitionRef.current?.stop(); else recognitionRef.current?.start(); };
   return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError };
 };
