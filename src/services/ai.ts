@@ -3,7 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 type AIImageInput = string | { mimeType: string; data: string };
 type AIErrorBody = { error?: string; message?: string };
 
-/** Returns true if user is logged in, false otherwise */
 export const requireAuth = async (): Promise<boolean> => {
   const { data: { session } } = await supabase.auth.getSession();
   return !!session;
@@ -32,7 +31,6 @@ export const aiHeaders = async (): Promise<Record<string, string>> => {
 const isAIErrorBody = (value: unknown): value is AIErrorBody =>
   typeof value === 'object' && value !== null && ('error' in value || 'message' in value);
 
-/** POST autenticado em uma Edge Function; converte erros em mensagens legíveis. */
 export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Promise<T> => {
   const headers = await aiHeaders();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
@@ -50,7 +48,11 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Pr
   return data as T;
 };
 
-export const callAIImage = async (prompt: string, images?: AIImageInput[]) => {
+export const callAIImage = async (
+  prompt: string,
+  images?: AIImageInput[],
+  idempotencyKey = crypto.randomUUID(),
+) => {
   const normalizedImages = images?.map(img => {
     if (typeof img === 'string') {
       const raw = img.includes(',') ? img.split(',')[1] : img;
@@ -61,7 +63,7 @@ export const callAIImage = async (prompt: string, images?: AIImageInput[]) => {
   const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', {
     prompt,
     images: normalizedImages,
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey,
   });
   return data.imageUrl ?? null;
 };
@@ -71,10 +73,10 @@ export const callAIText = async (prompt: string, images?: { mimeType: string; da
   return data.text;
 };
 
-export const callAIContractClause = async (prompt: string) => {
+export const callAIContractClause = async (prompt: string, idempotencyKey = crypto.randomUUID()) => {
   const data = await callAIFunction<{ id: string; text: string; model: string; operationType: string }>('commercial-contract', {
     prompt,
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey,
   });
   return data;
 };
