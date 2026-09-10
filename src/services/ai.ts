@@ -37,17 +37,22 @@ const normalizeAIError = (status: number, data: unknown): Error => {
   const body = isAIErrorBody(data) ? data : {};
   switch (body.code) {
     case 'missing_api_key':
-      return new Error('Serviço de IA não configurado no servidor. A chave do provedor de imagens precisa ser configurada no Supabase.');
+    case 'provider_not_configured':
+      return new Error('Nenhum provedor de IA configurado para esta operação. Ative Lovable AI no Admin ou configure o Google Gemini.');
     case 'commercial_rule_missing':
       return new Error('Esta ferramenta de IA ainda não está habilitada comercialmente.');
     case 'insufficient_credits':
-      return new Error('Créditos insuficientes para gerar o render.');
+      return new Error('Créditos Marcenapp insuficientes para gerar o render.');
+    case 'provider_credits_exhausted':
+      return new Error('Os créditos do provedor de IA acabaram. Você pode trocar o provedor no Admin ou adicionar saldo ao provedor atual.');
     case 'rate_limit_unavailable':
       return new Error('O controle de uso da IA está indisponível. Tente novamente em instantes.');
     case 'provider_connection_error':
       return new Error('Não foi possível conectar ao provedor de imagens. Tente novamente.');
     case 'upstream_error':
       return new Error('O provedor de imagens está indisponível no momento. Tente novamente.');
+    case 'rate_limited':
+      return new Error('O limite do provedor de IA foi atingido. Tente novamente em alguns segundos.');
     default:
       return new Error(body.error || body.message || `Erro ${status}`);
   }
