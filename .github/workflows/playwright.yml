@@ -45,8 +45,8 @@ jobs:
         exit "$status"
     - name: Typecheck diagnostics
       id: typecheck
-      if: ${{ always() && steps.install.outcome == 'success' }}
       continue-on-error: true
+      if: ${{ always() && steps.install.outcome == 'success' }}
       run: |
         set +e
         npx tsc -p tsconfig.app.json --noEmit 2>&1 | tee typecheck.log
@@ -78,10 +78,16 @@ jobs:
           test-results/
         if-no-files-found: ignore
         retention-days: 7
-    - name: Enforce lint
+    - name: Enforce validation gates
       if: ${{ always() && steps.install.outcome == 'success' }}
       run: |
+        failed=0
         if [ "${{ steps.lint.outcome }}" != "success" ]; then
           echo "Lint failed; see uploaded lint.log."
-          exit 1
+          failed=1
         fi
+        if [ "${{ steps.typecheck.outcome }}" != "success" ]; then
+          echo "Typecheck failed; see uploaded typecheck.log."
+          failed=1
+        fi
+        exit "$failed"
