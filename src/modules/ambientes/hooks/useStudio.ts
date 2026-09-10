@@ -22,7 +22,7 @@ const styles: StudioStyle[] = [
 
 const errorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message ? error.message : fallback;
 
-export const useStudio = <TBudget extends Record<string, unknown>>(
+export const useStudio = <TBudget extends object>(
   setBudgetProject: React.Dispatch<React.SetStateAction<TBudget>>,
   navigateTo: (route: string) => void,
   gallery: string[],
@@ -91,7 +91,7 @@ export const useStudio = <TBudget extends Record<string, unknown>>(
     try {
       const image = await imageSourceToData(generatedImage);
       const est = await iaraService.analyzeImage(image.data);
-      setBudgetProject((prev) => ({ ...prev, width: plannedDimensions.width || est.width || prev.width, height: plannedDimensions.height || est.height || prev.height, depth: plannedDimensions.depth || est.depth || prev.depth, drawers: est.drawers || 2, doors: est.doors || 2 }));
+      setBudgetProject((prevRaw) => { const prev = prevRaw as TBudget & { width?: number; height?: number; depth?: number; drawers?: number; doors?: number }; return ({ ...prev, width: plannedDimensions.width || est.width || prev.width, height: plannedDimensions.height || est.height || prev.height, depth: plannedDimensions.depth || est.depth || prev.depth, drawers: est.drawers || 2, doors: est.doors || 2 }); });
       if (projectId) registrarEventoSistema(projectId, 'estimativa-enviada-orcamento', generationMode === 'planned-environment' ? 'IARA preparou uma estimativa visual para o orçamento; medidas do ambiente foram informadas como referência e ainda exigem conferência final.' : 'IARA preparou a estimativa visual para o orçamento.', 'iara');
       setShowModal(false); navigateTo('orcamento');
     } catch (error) { setError(errorMessage(error, 'Não foi possível analisar a imagem para o orçamento. Tente novamente.')); } finally { setAnalyzing(false); }

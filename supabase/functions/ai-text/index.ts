@@ -7,8 +7,7 @@ const MAX_PROMPT_CHARS = 12000;
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BASE64 = 15 * 1024 * 1024;
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const LOVABLE_MODEL = "google/gemini-3.7-flash";
-const GEMINI_MODEL = "gemini-3.7-flash";
+const DEFAULT_MODEL = "openai/gpt-6-astra";
 
 const BodySchema = z.object({
   prompt: z.string().trim().min(1, "prompt is required").max(MAX_PROMPT_CHARS),
@@ -17,20 +16,22 @@ const BodySchema = z.object({
     data: z.string().min(1).max(MAX_IMAGE_BASE64),
   })).max(MAX_IMAGES).optional(),
   jsonMode: z.boolean().optional().default(false),
+  // Mantido por compatibilidade com clientes antigos; a IARA usa sempre o Lovable AI Gateway.
   provider: z.enum(["automatic", "gemini", "lovable"]).optional().default("automatic"),
 });
 
 type Input = z.infer<typeof BodySchema>;
 
-const callLovable = async (input: Input, apiKey: string) => {
+const callGateway = async (input: Input, apiKey: string) => {
   const content: Array<Record<string, unknown>> = [{ type: "text", text: input.prompt }];
   for (const img of input.images ?? []) {
     content.push({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.data}` } });
   }
 
   const body: Record<string, unknown> = {
-    model: LOVABLE_MODEL,
+    model: DEFAULT_MODEL,
     messages: [{ role: "user", content }],
+    reasoning_effort: "low",
   };
   if (input.jsonMode) body.response_format = { type: "json_object" };
 
@@ -38,7 +39,6 @@ const callLovable = async (input: Input, apiKey: string) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
       "Lovable-API-Key": apiKey,
     },
     body: JSON.stringify(body),
@@ -47,7 +47,15 @@ const callLovable = async (input: Input, apiKey: string) => {
   if (!response.ok) {
     const status = response.status;
     console.error("Lovable AI Gateway error:", status, await response.text());
-    const error = new Error(status === 402 ? "Créditos do Lovable AI esgotados." : "O serviço Lovable AI está indisponível no momento.");
+    const error = new Error(
+      status === 402
+        ? "Créditos de IA esgotados. Adicione créditos para continuar usando a IARA."
+        : status === 403
+          ? "O uso de IA está bloqueado para este espaço de trabalho."
+          : status === 429
+            ? "Limite de uso da IA atingido. Tente novamente em alguns segundos."
+            : "O serviço de IA está indisponível no momento.",
+    );
     (error as Error & { status?: number }).status = status;
     throw error;
   }
@@ -57,50 +65,7 @@ const callLovable = async (input: Input, apiKey: string) => {
   const text = Array.isArray(message)
     ? message.map((part: { type?: string; text?: string }) => part?.text ?? "").join("")
     : (message ?? "");
-  return { text, model: data.model ?? LOVABLE_MODEL, provider: "lovable" };
-};
-
-const callGemini = async (input: Input, apiKey: string) => {
-  const parts: Array<Record<string, unknown>> = [{ text: input.prompt }];
-  for (const img of input.images ?? []) {
-    parts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-  const body: Record<string, unknown> = { contents: [{ role: "user", parts }] };
-  if (input.jsonMode) body.generationConfig = { responseMimeType: "application/json" };
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const status = response.status;
-    const raw = await response.text();
-    console.error("Gemini API error:", status, raw);
-    const error = new Error(
-      status === 400
-        ? "A solicitação para o Gemini foi rejeitada. Verifique o modelo, os dados enviados e o modo JSON."
-        : status === 401 || status === 403
-          ? "A chave Gemini foi rejeitada. Verifique se a chave de autorização está ativa e restrita à Gemini API."
-          : status === 404
-            ? "O modelo Gemini configurado não está disponível nesta API."
-            : status === 429
-              ? "Limite do provedor de IA atingido. Tente novamente em alguns segundos."
-              : "O serviço Gemini está indisponível no momento."
-    );
-    (error as Error & { status?: number }).status = status;
-    throw error;
-  }
-
-  const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part?.text ?? "").join("") ?? "";
-  return { text, model: GEMINI_MODEL, provider: "gemini" };
+  return { text, model: data.model ?? DEFAULT_MODEL, provider: "lovable" };
 };
 
 serve(async (req) => {
@@ -124,39 +89,20 @@ serve(async (req) => {
       return jsonResponse(cors, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
     }
 
-    const input = parsed.data;
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    const geminiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-
-    if (input.provider === "lovable") {
-      if (!lovableKey) return jsonResponse(cors, { error: "Serviço Lovable AI não configurado.", code: "provider_not_configured", provider: "lovable" }, 500);
-      return jsonResponse(cors, await callLovable(input, lovableKey));
+    if (!lovableKey) {
+      return jsonResponse(cors, { error: "Serviço de IA não configurado.", code: "provider_not_configured", provider: "lovable" }, 500);
     }
 
-    if (input.provider === "gemini") {
-      if (!geminiKey) return jsonResponse(cors, { error: "Serviço Gemini não configurado.", code: "provider_not_configured", provider: "gemini" }, 500);
-      return jsonResponse(cors, await callGemini(input, geminiKey));
-    }
-
-    // Automático: não deixa uma chave ausente de um provedor derrubar a IA inteira.
-    if (lovableKey) {
-      try {
-        return jsonResponse(cors, await callLovable(input, lovableKey));
-      } catch (error) {
-        const status = (error as Error & { status?: number }).status;
-        if (!geminiKey || (status !== 402 && status !== 429 && status !== 500 && status !== 502 && status !== 503)) throw error;
-        console.warn("ai-text: Lovable indisponível; usando Gemini como fallback automático.");
-      }
-    }
-
-    if (geminiKey) return jsonResponse(cors, await callGemini(input, geminiKey));
-
-    return jsonResponse(cors, { error: "Nenhum provedor de IA está configurado no servidor.", code: "provider_not_configured" }, 500);
+    return jsonResponse(cors, await callGateway(parsed.data, lovableKey));
   } catch (e) {
     const status = (e as Error & { status?: number }).status;
-    if (status === 429) return jsonResponse(cors, { error: "Limite do provedor de IA atingido. Tente novamente em alguns segundos.", code: "rate_limited" }, 429, { "Retry-After": "10" });
-    if (status === 402) return jsonResponse(cors, { error: "Créditos do provedor de IA esgotados.", code: "credits_exhausted" }, 402);
+    const message = e instanceof Error ? e.message : "Erro interno ao processar texto.";
+    if (status === 429) return jsonResponse(cors, { error: message, code: "rate_limited" }, 429, { "Retry-After": "10" });
+    if (status === 402) return jsonResponse(cors, { error: message, code: "credits_exhausted" }, 402);
+    if (status === 403) return jsonResponse(cors, { error: message, code: "forbidden" }, 403);
+    if (status && status >= 500) return jsonResponse(cors, { error: message, code: "upstream_error" }, 502);
     console.error("ai-text error:", e);
-    return jsonResponse(cors, { error: e instanceof Error ? e.message : "Erro interno ao processar texto.", code: "internal_error" }, 500);
+    return jsonResponse(cors, { error: message, code: "internal_error" }, 500);
   }
 });

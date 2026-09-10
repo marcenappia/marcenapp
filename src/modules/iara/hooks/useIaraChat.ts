@@ -10,6 +10,8 @@ import { createIaraMemory, getConfirmedMeasurements, getMeasurementEvidence, Iar
 import { syncIaraOperationalMemory } from '@/core/iaraOperationalMemory';
 import { carregarDiario } from '@/modules/projetos/services/diarioStorage';
 
+const toJson = <T,>(value: T) => JSON.parse(JSON.stringify(value));
+
 interface SpeechRecognitionResultLike { transcript: string; }
 interface SpeechRecognitionEventLike { results: ArrayLike<ArrayLike<SpeechRecognitionResultLike>>; }
 interface SpeechRecognitionLike {
@@ -96,7 +98,7 @@ export const useIaraChat = (
         const synced = syncIaraOperationalMemory(rawMemory, project, diary);
         setMemory(synced);
         if (synced.updatedAt !== rawMemory.updatedAt || synced.lastEvent?.type !== rawMemory.lastEvent?.type) {
-          supabase.from('projects').update({ jornada: { ...jornadaData, iaraMemory: synced } }).eq('id', projectId).eq('user_id', user.id);
+          supabase.from('projects').update({ jornada: toJson({ ...jornadaData, iaraMemory: synced }) }).eq('id', projectId).eq('user_id', user.id);
         }
       });
     }
@@ -110,7 +112,7 @@ export const useIaraChat = (
 
   const saveMessage = async (msg: Partial<ChatMessage>) => {
     if (!user) return;
-    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: user.id, project_id: projectId, ...msg, metadata: msg.metadata ?? null });
+    const { error: insertError } = await supabase.from('chat_messages').insert(toJson({ user_id: user.id, project_id: projectId, ...msg, metadata: msg.metadata ?? null }));
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
   };
 
@@ -120,7 +122,7 @@ export const useIaraChat = (
     const { data } = await supabase.from('projects').select('jornada').eq('id', targetProjectId).eq('user_id', user.id).maybeSingle();
     if (!data) return;
     const jornada = (data.jornada ?? {}) as Record<string, unknown>;
-    await supabase.from('projects').update({ jornada: { ...jornada, iaraMemory: next } }).eq('id', targetProjectId).eq('user_id', user.id);
+    await supabase.from('projects').update({ jornada: toJson({ ...jornada, iaraMemory: next }) }).eq('id', targetProjectId).eq('user_id', user.id);
   };
 
   const targetFromPrompt = (prompt: string): IaraJourneyTarget | null => {
