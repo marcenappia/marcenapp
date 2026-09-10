@@ -8,7 +8,7 @@ import logo from '@/assets/marcenapp-logo.svg';
 const getAppOrigin = () => {
   const configured = import.meta.env.VITE_PUBLIC_APP_URL?.trim();
   if (configured) return configured.replace(/\/$/, '');
-  if (window.location.hostname.endsWith('.lovable.app')) return 'https://marcenapp40.vercel.app';
+  if (window.location.hostname.endsWith('.lovable.app')) return 'https://marcenapp.vercel.app';
   return window.location.origin;
 };
 
