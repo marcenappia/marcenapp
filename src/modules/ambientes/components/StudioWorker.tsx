@@ -5,19 +5,11 @@ import { studioService } from '../services/studioService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-/**
- * Componente "Headless" que processa comandos do estúdio em segundo plano seguindo uma fila.
- * Fonte de verdade da fila: núcleo OS (useMarcenappOS). Os dados de render (prompt, imagens)
- * vivem em useStudioStore, referenciados por payload.studioCommandId.
- */
 export const StudioWorker = () => {
   const { user } = useAuth();
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const updateOSStatus = useMarcenappOS(state => state.updateCommandStatus);
-  const commandQueue = useMemo(
-    () => commandHistory.filter(cmd => cmd.target === 'studio'),
-    [commandHistory]
-  );
+  const commandQueue = useMemo(() => commandHistory.filter(cmd => cmd.target === 'studio'), [commandHistory]);
   const isRendering = useStudioStore(state => state.isRendering);
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
@@ -33,11 +25,7 @@ export const StudioWorker = () => {
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
     if (!user) return;
-    const { error } = await supabase.from('gallery_images').insert({
-      user_id: user.id,
-      image_url: imageUrl,
-      prompt: promptText,
-    });
+    const { error } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: imageUrl, prompt: promptText });
     if (error) console.error('Erro ao salvar na galeria:', error.message);
   };
 
@@ -59,7 +47,6 @@ export const StudioWorker = () => {
 
     const { command, studioCommandId } = resolveRenderCommand(osCommand);
     const storeCommandId = studioCommandId ?? osCommand.id;
-
     const fail = (message: string) => {
       failCommand(storeCommandId, message);
       updateOSStatus(osCommand.id, 'failed', undefined, message);
@@ -79,17 +66,16 @@ export const StudioWorker = () => {
         command.prompt,
         command.images,
         command.style,
-        command.decor
+        command.decor,
+        osCommand.id,
       );
-
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
-
       completeCommand(storeCommandId, result);
       updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
       await saveToGallery(result, command.prompt);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('StudioWorker Error:', error);
-      fail(error?.message || 'Erro desconhecido na geração.');
+      fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
     } finally {
       currentlyProcessing.current = null;
     }
