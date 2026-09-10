@@ -82,7 +82,13 @@ export const iaraService = {
    */
   analyzeImage: async (imageBase64: string): Promise<ImageAnalysis> => {
     const analysisPrompt = `Analyze this furniture strictly. Estimate dims (meters). Return ONLY valid JSON: {"width": 2.0, "height": 2.5, "depth": 0.6, "drawers": 4, "doors": 4}`;
-    const text = await callAIText(analysisPrompt, [{ mimeType: 'image/png', data: imageBase64 }], true);
+    
+    // Garante que imageBase64 é string raw (sem prefixo data URL)
+    const raw = typeof imageBase64 === 'string' && imageBase64.includes(',')
+      ? imageBase64.split(',')[1]
+      : imageBase64;
+    
+    const text = await callAIText(analysisPrompt, [{ mimeType: 'image/png', data: raw }], true);
     
     try {
       return JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
