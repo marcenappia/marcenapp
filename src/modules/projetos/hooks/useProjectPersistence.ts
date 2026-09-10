@@ -54,7 +54,7 @@ export const useProjectPersistence = (
       hydratedUserId.current = user.id;
     };
 
-    loadProject();
+    void loadProject();
     return () => {
       cancelled = true;
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
@@ -62,7 +62,7 @@ export const useProjectPersistence = (
   }, [user, setBudgetProject]);
 
   useEffect(() => {
-    if (!user || hydratedUserId.current !== user.id) return;
+    if (!user || hydratedUserId.current !== user.id || !budgetProject.id) return;
 
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(async () => {
@@ -82,51 +82,17 @@ export const useProjectPersistence = (
         labor_rate: budgetProject.laborRate,
       };
 
-      let targetId = budgetProject.id;
-      if (!targetId) {
-        const { data: existing, error: lookupError } = await supabase
-          .from('projects')
-          .select('id')
-          .eq('user_id', user.id)
-          .order('updated_at', { ascending: false })
-          .limit(1);
+      const { error } = await supabase
+        .from('projects')
+        .update(projectRow)
+        .eq('id', budgetProject.id)
+        .eq('user_id', user.id);
 
-        if (lookupError) {
-          console.error('[project-persistence] lookup failed', lookupError);
-          return;
-        }
-        targetId = existing?.[0]?.id;
-      }
-
-      if (targetId) {
-        const { error } = await supabase
-          .from('projects')
-          .update(projectRow)
-          .eq('id', targetId)
-          .eq('user_id', user.id);
-
-        if (error) {
-          console.error('[project-persistence] update failed', error);
-          return;
-        }
-        if (!budgetProject.id) setBudgetProject(prev => ({ ...prev, id: targetId }));
-      } else {
-        const { data: inserted, error } = await supabase
-          .from('projects')
-          .insert(projectRow)
-          .select('id')
-          .single();
-
-        if (error) {
-          console.error('[project-persistence] insert failed', error);
-          return;
-        }
-        if (inserted?.id) setBudgetProject(prev => ({ ...prev, id: inserted.id }));
-      }
+      if (error) console.error('[project-persistence] update failed', error);
     }, 2000);
 
     return () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
     };
-  }, [user, budgetProject, setBudgetProject]);
+  }, [user, budgetProject]);
 };
