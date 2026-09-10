@@ -1,0 +1,1 @@
+create index if not exists idx_project_hardware_requirements_project_fk on public.project_hardware_requirements(project_id);
