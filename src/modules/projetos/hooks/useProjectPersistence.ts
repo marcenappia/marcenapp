@@ -34,21 +34,30 @@ export const useProjectPersistence = (
 
       if (data?.[0]) {
         const p = data[0];
-        setBudgetProject({
-          id: p.id,
-          width: Number(p.width) || 2.4,
-          height: Number(p.height) || 2.6,
-          depth: Number(p.depth) || 0.6,
-          modules: Number(p.modules) || 3,
-          drawers: Number(p.drawers) || 4,
-          doors: Number(p.doors) || 6,
-          internalMaterial: p.internal_material || 'mdf15_white',
-          externalMaterial: p.external_material || 'mdf18_white',
-          backMaterial: p.back_material || 'mdf6_white',
-          handleType: p.handle_type || 'external',
-          profitMargin: Number(p.profit_margin) || 35,
-          laborRate: Number(p.labor_rate) || 100,
-        });
+        const requiredNumeric = [p.width, p.height, p.depth, p.modules, p.drawers, p.doors, p.profit_margin, p.labor_rate];
+        const requiredText = [p.internal_material, p.external_material, p.back_material, p.handle_type];
+        const hasCompleteProjectData = requiredNumeric.every(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
+          && requiredText.every(value => typeof value === 'string' && value.trim().length > 0);
+
+        if (!hasCompleteProjectData) {
+          console.error('[project-persistence] persisted project has incomplete data; refusing to invent defaults', { projectId: p.id });
+        } else {
+          setBudgetProject({
+            id: p.id,
+            width: Number(p.width),
+            height: Number(p.height),
+            depth: Number(p.depth),
+            modules: Number(p.modules),
+            drawers: Number(p.drawers),
+            doors: Number(p.doors),
+            internalMaterial: p.internal_material,
+            externalMaterial: p.external_material,
+            backMaterial: p.back_material,
+            handleType: p.handle_type,
+            profitMargin: Number(p.profit_margin),
+            laborRate: Number(p.labor_rate),
+          });
+        }
       }
 
       hydratedUserId.current = user.id;
