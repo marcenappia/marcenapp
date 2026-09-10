@@ -22,14 +22,10 @@ const mobileModules = [
   { id: 'corte', label: 'Plano de Corte' },
 ];
 
-const waitForShell = async (page: Parameters<Parameters<typeof test>[1]>[0]['page']) => {
-  await expect(page.locator('h1').first()).toContainText('Marcenapp OS');
-};
-
 test.describe('Marcenapp production acceptance', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await waitForShell(page);
+    await expect(page.locator('h1').first()).toContainText('Marcenapp OS');
   });
 
   test('auth entry renders login and registration controls', async ({ page }) => {
@@ -150,7 +146,7 @@ test.describe('Marcenapp production acceptance', () => {
     await expect(page.locator('#nav-studio')).toHaveAttribute('aria-current', 'page');
   });
 
-  test('logout control is present for authenticated users without exposing a fake session', async ({ page }) => {
+  test('auth page does not expose a fake authenticated session', async ({ page }) => {
     await page.goto('/auth');
     await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Cadastre-se/i })).toBeVisible();
