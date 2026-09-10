@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/marcenapp-logo.svg';
 import CreditRules from '@/modules/admin/CreditRules';
+import BillingPortal from '@/modules/billing/BillingPortal';
 import OperationalIntelligence from '@/modules/inteligencia/OperationalIntelligence';
 import Onboarding from '../components/marcenaria/Onboarding';
 import Home from '@/modules/jornada/Home';
@@ -61,6 +62,7 @@ const Index = () => {
       case 'novo': return <NovoProjeto key={projetoParam ?? 'novo'} projectId={projetoParam} setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'clientes': return <ClientesModule />;
       case 'diario': return <DiarioModule navigateTo={setActiveModule} />;
+      case 'billing': return <BillingPortal />;
       case 'studio': return <StudioHub setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} budgetProject={budgetProject} />;
       case 'elevator': return <Elevator setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'orcamento': return <OrcamentoModule project={budgetProject} setProject={setBudgetProject} />;
