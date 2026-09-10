@@ -2,6 +2,8 @@ name: Dependency Refresh
 on:
   push:
     branches: [main]
+permissions:
+  contents: write
 jobs:
   refresh:
     runs-on: ubuntu-latest
@@ -12,9 +14,15 @@ jobs:
           node-version: lts/*
           cache: npm
       - run: npm install --package-lock-only --ignore-scripts vite@6.4.3 vitest@4.1.11 react-router-dom@6.30.6 postcss@8.5.28
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dependency-refresh
-          path: |
-            package.json
-            package-lock.json
+      - name: Commit dependency refresh and remove one-off workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/dependency-refresh.yml
+          git add package.json package-lock.json .github/workflows/dependency-refresh.yml
+          if git diff --cached --quiet; then
+            echo "No dependency changes required."
+            exit 0
+          fi
+          git commit -m "chore(deps): refresh vulnerable build dependencies"
+          git push
