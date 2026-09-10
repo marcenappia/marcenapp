@@ -20,7 +20,17 @@ jobs:
     - name: Dependency audit
       if: ${{ always() && steps.install.outcome == 'success' }}
       continue-on-error: true
-      run: npm audit --json > npm-audit.json
+      run: |
+        npm audit --json > npm-audit.json || true
+        node - <<'NODE'
+        const fs = require('fs');
+        const audit = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
+        const meta = audit.metadata?.vulnerabilities ?? {};
+        console.log('AUDIT SUMMARY', JSON.stringify(meta));
+        for (const [name, info] of Object.entries(audit.vulnerabilities ?? {})) {
+          console.log(JSON.stringify({ package: name, severity: info.severity, isDirect: info.isDirect, via: info.via?.map(v => typeof v === 'string' ? v : v.name), range: info.range, fixAvailable: info.fixAvailable }));
+        }
+        NODE
     - name: Lint
       run: npm run lint
     # Diagnostics must continue after lint failures, while still stopping if install failed.
