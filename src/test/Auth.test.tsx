@@ -33,35 +33,32 @@ describe('Auth Page - Reset Password Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubEnv('VITE_SUPPORT_WHATSAPP_LINK', 'https://example.com/support');
   });
 
   it('shows loading state and triggers countdown on success', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
-    (supabase.auth.resetPasswordForEmail as any).mockResolvedValue({ data: {}, error: null });
+    (supabase.auth.resetPasswordForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {}, error: null });
 
     renderAuth();
 
-    // Go to reset mode
     fireEvent.click(screen.getByText(/Esqueceu a senha?/i));
 
     const emailInput = screen.getByPlaceholderText(/E-mail/i);
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
 
     const submitButton = screen.getByRole('button', { name: /Enviar Recuperação/i });
-    
-    // Wrap in act for state updates
+
     await act(async () => {
       fireEvent.click(submitButton);
     });
 
-    // Check success message and countdown
     const successMsg = await screen.findByText(/E-mail de recuperação enviado!/i);
     expect(successMsg).toBeInTheDocument();
-    
+
     const resendButton = await screen.findByText(/Tente novamente em 30s/i);
     expect(resendButton).toBeDisabled();
 
-    // Fast forward time - need multiple acts because of 1s intervals
     for (let i = 0; i < 30; i++) {
       await act(async () => {
         vi.advanceTimersByTime(1000);
@@ -74,15 +71,15 @@ describe('Auth Page - Reset Password Flow', () => {
 
   it('shows support link when error occurs during reset', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
-    (supabase.auth.resetPasswordForEmail as any).mockResolvedValue({ 
-      data: null, 
-      error: { message: 'Failed to send' } 
+    (supabase.auth.resetPasswordForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: null,
+      error: { message: 'Failed to send' }
     });
 
     renderAuth();
 
     fireEvent.click(screen.getByText(/Esqueceu a senha?/i));
-    
+
     const emailInput = screen.getByPlaceholderText(/E-mail/i);
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
 
