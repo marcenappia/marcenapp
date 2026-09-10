@@ -19,18 +19,18 @@ jobs:
       run: npm ci
     - name: Lint
       run: npm run lint
-    # Continue diagnostics after lint failures so CI exposes unit/build/E2E regressions too.
+    # Diagnostics must continue after lint failures, while still stopping if install failed.
     - name: Unit tests
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ always() && steps.install.outcome == 'success' }}
       run: npm run test
     - name: Production build
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ always() && steps.install.outcome == 'success' }}
       run: npm run build
     - name: Install Playwright Browsers
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ always() && steps.install.outcome == 'success' }}
       run: npx playwright install --with-deps
     - name: Run Playwright tests
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ always() && steps.install.outcome == 'success' }}
       run: npm run test:e2e
     - name: Upload Playwright artifacts
       uses: actions/upload-artifact@v4
