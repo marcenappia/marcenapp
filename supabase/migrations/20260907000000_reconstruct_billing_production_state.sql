@@ -93,17 +93,23 @@ alter table public.billing_purchases enable row level security;
 alter table public.billing_subscriptions enable row level security;
 alter table public.asaas_webhook_events enable row level security;
 
--- These owner-read policies are part of the verified current runtime contract.
 -- Billing-customer policies are intentionally left to the later tenant-hardening
 -- migration because that migration owns their final policy names and definitions.
-create policy if not exists "account_trials_select_own" on public.account_trials
-  for select to authenticated using ((select auth.uid()) = user_id);
-create policy if not exists "billing_purchases_select_own" on public.billing_purchases
-  for select to authenticated using ((select auth.uid()) = user_id);
-create policy if not exists "billing_subscriptions_select_own" on public.billing_subscriptions
-  for select to authenticated using ((select auth.uid()) = user_id);
-create policy if not exists "billing_wallets_select_own" on public.billing_wallets
-  for select to authenticated using ((select auth.uid()) = user_id);
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='account_trials' and policyname='account_trials_select_own') then
+    create policy "account_trials_select_own" on public.account_trials for select to authenticated using ((select auth.uid()) = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='billing_purchases' and policyname='billing_purchases_select_own') then
+    create policy "billing_purchases_select_own" on public.billing_purchases for select to authenticated using ((select auth.uid()) = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='billing_subscriptions' and policyname='billing_subscriptions_select_own') then
+    create policy "billing_subscriptions_select_own" on public.billing_subscriptions for select to authenticated using ((select auth.uid()) = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='billing_wallets' and policyname='billing_wallets_select_own') then
+    create policy "billing_wallets_select_own" on public.billing_wallets for select to authenticated using ((select auth.uid()) = user_id);
+  end if;
+end $$;
 
 revoke all on public.account_trials, public.billing_customers, public.billing_wallets,
   public.billing_purchases, public.billing_subscriptions, public.asaas_webhook_events
