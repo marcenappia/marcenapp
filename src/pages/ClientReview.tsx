@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, FileText, Lock, MessageSquare, Send, ShieldCheck } from "lucide-react";
+import { CheckCircle2, FileText, Lock, MessageSquare, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,10 @@ type ReviewData = {
   client_budget_summary?: Record<string, unknown> | null;
 };
 
+type RpcResponse = { data: unknown; error: { message: string } | null };
+const rpc = (fn: string, args: Record<string, unknown>) =>
+  (supabase.rpc as unknown as (name: string, params: Record<string, unknown>) => Promise<RpcResponse>)(fn, args);
+
 const ClientReview = () => {
   const token = new URLSearchParams(window.location.search).get("token") || "";
   const [review, setReview] = useState<ReviewData | null>(null);
@@ -34,7 +38,7 @@ const ClientReview = () => {
       setLoading(false);
       return;
     }
-    const { data, error } = await (supabase as any).rpc("client_review_project", { p_token: token });
+    const { data, error } = await rpc("client_review_project", { p_token: token });
     setReview(error ? { ok: false, error: error.message } : (data as ReviewData));
     setLoading(false);
   };
@@ -43,13 +47,14 @@ const ClientReview = () => {
 
   const approve = async () => {
     setStatus("Registrando aprovação…");
-    const { data, error } = await (supabase as any).rpc("client_approve_project", {
+    const { data, error } = await rpc("client_approve_project", {
       p_token: token,
       p_client_name: clientName.trim(),
       p_client_email: clientEmail.trim() || null,
       p_evidence: { user_agent: navigator.userAgent, screen: `${window.innerWidth}x${window.innerHeight}` },
     });
-    if (error || !data?.ok) setStatus(error?.message || "Não foi possível aprovar esta versão.");
+    const result = data as { ok?: boolean } | null;
+    if (error || !result?.ok) setStatus(error?.message || "Não foi possível aprovar esta versão.");
     else setStatus("Projeto aprovado. A próxima etapa é preparar os dados do contrato.");
     await loadReview();
   };
@@ -57,7 +62,7 @@ const ClientReview = () => {
   const requestChange = async () => {
     if (!changeText.trim()) return;
     setStatus("Enviando solicitação…");
-    const { data, error } = await (supabase as any).rpc("client_request_project_change", {
+    const { data, error } = await rpc("client_request_project_change", {
       p_token: token,
       p_client_name: clientName.trim() || "Cliente",
       p_client_email: clientEmail.trim() || null,
@@ -65,7 +70,8 @@ const ClientReview = () => {
       p_message_type: "text",
       p_body: changeText.trim(),
     });
-    if (error || !data?.ok) setStatus(error?.message || "Não foi possível enviar a alteração.");
+    const result = data as { ok?: boolean } | null;
+    if (error || !result?.ok) setStatus(error?.message || "Não foi possível enviar a alteração.");
     else { setChangeText(""); setStatus("Solicitação enviada ao profissional."); }
   };
 

@@ -85,6 +85,9 @@ export async function readJsonBody(req: Request, maxBytes: number) {
   if (declared > maxBytes) return { ok: false as const, reason: "too_large" as const };
   const text = await req.text();
   if (text.length > maxBytes) return { ok: false as const, reason: "too_large" as const };
-  try { return { ok: true as const, body: JSON.parse(text) }; }
-  catch { return { ok: false as const, reason: "invalid_json" as const };
+  try {
+    return { ok: true as const, body: JSON.parse(text) };
+  } catch {
+    return { ok: false as const, reason: "invalid_json" as const };
+  }
 }
