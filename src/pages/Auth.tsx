@@ -19,7 +19,7 @@ const Auth = () => {
   const [success, setSuccess] = useState('');
   const [countdown, setCountdown] = useState(0);
 
-  const SUPPORT_LINK = import.meta.env.VITE_SUPPORT_WHATSAPP_LINK || "https://wa.me/5511999999999";
+  const SUPPORT_LINK = import.meta.env.VITE_SUPPORT_WHATSAPP_LINK?.trim();
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -134,7 +134,7 @@ const Auth = () => {
 
           {isLogin && !isReset && <div className="text-right"><button type="button" onClick={() => setIsReset(true)} className="text-xs text-[hsl(var(--sidebar-text))] hover:text-[hsl(var(--sidebar-active))] transition-colors">Esqueceu a senha?</button></div>}
           {isReset && success && <div className="text-center"><button type="button" onClick={handleSubmit} disabled={loading || countdown > 0} className="text-xs text-[hsl(var(--sidebar-active))] hover:underline transition-colors font-medium disabled:opacity-50 disabled:no-underline">{loading ? 'Enviando...' : countdown > 0 ? `Tente novamente em ${countdown}s` : 'Não recebeu? Reenviar link de redefinição'}</button></div>}
-          {error && <div className="space-y-2"><p className="text-red-400 text-sm bg-red-950/50 p-3 rounded-lg">{error}</p>{isReset && <p className="text-center"><a href={SUPPORT_LINK} target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(var(--sidebar-text))] hover:text-white underline">Não resolveu? Fale com o suporte</a></p>}</div>}
+          {error && <div className="space-y-2"><p className="text-red-400 text-sm bg-red-950/50 p-3 rounded-lg">{error}</p>{isReset && SUPPORT_LINK && <p className="text-center"><a href={SUPPORT_LINK} target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(var(--sidebar-text))] hover:text-white underline">Não resolveu? Fale com o suporte</a></p>}</div>}
           {success && <p className="text-emerald-400 text-sm bg-emerald-950/50 p-3 rounded-lg">{success}</p>}
 
           <button type="submit" disabled={loading || googleLoading} className="w-full py-3 rounded-xl bg-[hsl(var(--sidebar-active))] text-white font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
