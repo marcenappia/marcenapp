@@ -19,7 +19,7 @@ jobs:
     - name: Lint
       run: npm run lint
     - name: Unit tests
-      run: npm run test -- --runInBand
+      run: npm run test
     - name: Production build
       run: npm run build
     - name: Install Playwright Browsers
