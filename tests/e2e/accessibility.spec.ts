@@ -24,8 +24,6 @@ const mobileModules = [
 
 test.describe('Marcenapp production acceptance', () => {
   test.beforeEach(async ({ page }) => {
-    // Desktop navigation assertions must run in a desktop viewport even when
-    // the Playwright project itself emulates a mobile device.
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
     await expect(page.locator('h1').first()).toContainText('Marcenapp OS');
@@ -48,7 +46,7 @@ test.describe('Marcenapp production acceptance', () => {
       await expect(button).toHaveAccessibleName(mod.label);
       await button.click();
       await expect(page).toHaveURL(new RegExp(`module=${mod.id}`));
-      await expect(page.getByRole('heading', { name: new RegExp(mod.label, 'i') }).first()).toBeVisible();
+      await expect(page.locator('header h2').filter({ hasText: mod.label })).toBeVisible();
       await expect(button).toHaveAttribute('aria-current', 'page');
     }
   });
@@ -95,7 +93,7 @@ test.describe('Marcenapp production acceptance', () => {
   });
 
   test('mobile navigation remains usable at narrow and tablet widths', async ({ page }) => {
-    for (const width of [320, 375, 768]) {
+    for (const width of [320, 375, 767]) {
       await page.setViewportSize({ width, height: 800 });
       const nav = page.locator('nav.md\\:hidden');
       await expect(nav).toBeVisible();
@@ -105,12 +103,16 @@ test.describe('Marcenapp production acceptance', () => {
       expect(widths.length).toBeGreaterThan(0);
       expect(Math.min(...widths)).toBeGreaterThan(40);
     }
+
+    await page.setViewportSize({ width: 768, height: 800 });
+    await expect(page.locator('nav.md\\:hidden')).toBeHidden();
+    await expect(page.locator('aside')).toBeVisible();
   });
 
   test('IARA and operational intelligence are reachable without inventing runtime data', async ({ page }) => {
     await page.locator('#nav-studio').click();
     await expect(page).toHaveURL(/module=studio/);
-    await expect(page.getByRole('heading', { name: /Estúdio \+ IARA/i }).first()).toBeVisible();
+    await expect(page.locator('header h2').filter({ hasText: 'Estúdio + IARA' })).toBeVisible();
 
     await page.locator('#nav-inteligencia').click();
     await expect(page).toHaveURL(/module=inteligencia/);
@@ -131,7 +133,7 @@ test.describe('Marcenapp production acceptance', () => {
     for (const mod of modules) {
       await page.locator(`#nav-${mod.id}`).click();
       await expect(page).toHaveURL(new RegExp(`module=${mod.id}`));
-      await expect(page.getByRole('heading', { name: new RegExp(mod.label, 'i') }).first()).toBeVisible();
+      await expect(page.locator('header h2').filter({ hasText: mod.label })).toBeVisible();
     }
   });
 
