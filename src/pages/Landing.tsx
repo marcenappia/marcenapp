@@ -10,6 +10,13 @@ const features = [
   { icon: FileText, title: 'Do projeto ao contrato', text: 'Aprovação do cliente, alterações, contrato e assinatura fazem parte da mesma jornada.' },
 ];
 
+const stages = [
+  ['Projetos', 'Organize seus projetos em um só lugar.'],
+  ['Orçamentos', 'Conecte projeto e dados comerciais confirmados.'],
+  ['Produção', 'Acompanhe a operação até a instalação.'],
+  ['Clientes', 'Mantenha aprovação, comunicação e histórico conectados.'],
+];
+
 const Landing = () => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -51,7 +58,7 @@ const Landing = () => {
               <div className="relative rounded-[2rem] border border-white/10 bg-white/[.06] p-4 shadow-2xl backdrop-blur-xl">
                 <div className="rounded-[1.5rem] border border-white/10 bg-slate-900 p-5">
                   <div className="mb-6 flex items-center justify-between"><div><div className="text-xs font-bold uppercase tracking-widest text-slate-500">Painel da marcenaria</div><div className="mt-1 text-xl font-black">Tudo em uma jornada</div></div><div className="rounded-xl bg-indigo-500/15 p-3 text-indigo-300"><Cuboid size={24} /></div></div>
-                  <div className="grid grid-cols-2 gap-3">{['Projetos', 'Orçamentos', 'Produção', 'Clientes'].map((item, i) => <div key={item} className="rounded-2xl border border-white/10 bg-white/[.04] p-4"><div className="text-xs font-semibold text-slate-500">{item}</div><div className="mt-2 text-2xl font-black">{['12','08','05','24'][i]}</div><div className="mt-1 text-[10px] font-bold text-emerald-400">+{[18,12,9,21][i]}% este mês</div></div>)}</div>
+                  <div className="grid grid-cols-2 gap-3">{stages.map(([title, text]) => <div key={title} className="rounded-2xl border border-white/10 bg-white/[.04] p-4"><div className="text-xs font-semibold text-slate-500">{title}</div><div className="mt-2 text-sm font-bold text-slate-200">Conectado à jornada</div><div className="mt-1 text-[10px] leading-4 text-slate-500">{text}</div></div>)}</div>
                   <div className="mt-3 rounded-2xl border border-white/10 bg-gradient-to-r from-indigo-500/15 to-sky-500/10 p-5"><div className="flex items-center gap-3"><Sparkles className="text-indigo-300" size={20} /><div><div className="font-bold">IARA está pronta para ajudar</div><div className="mt-1 text-xs text-slate-400">Organize o próximo passo do seu projeto.</div></div></div></div>
                 </div>
               </div>
