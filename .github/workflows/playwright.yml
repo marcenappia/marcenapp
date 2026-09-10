@@ -4,12 +4,9 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-
-# Validation runs on every production push so GitHub remains the source of truth.
 concurrency:
   group: marcenapp-validation-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   test:
     timeout-minutes: 60
@@ -46,10 +43,16 @@ jobs:
         status=${PIPESTATUS[0]}
         echo "lint_exit_code=$status" >> "$GITHUB_STEP_SUMMARY"
         exit "$status"
-    - name: Typecheck
+    - name: Typecheck diagnostics
+      id: typecheck
       if: ${{ always() && steps.install.outcome == 'success' }}
-      run: npx tsc -p tsconfig.app.json --noEmit
-    # Diagnostics must continue after lint failures, while still stopping if install failed.
+      continue-on-error: true
+      run: |
+        set +e
+        npx tsc -p tsconfig.app.json --noEmit 2>&1 | tee typecheck.log
+        status=${PIPESTATUS[0]}
+        echo "typecheck_exit_code=$status" >> "$GITHUB_STEP_SUMMARY"
+        exit "$status"
     - name: Unit tests
       if: ${{ always() && steps.install.outcome == 'success' }}
       run: npm run test
@@ -70,6 +73,7 @@ jobs:
         path: |
           npm-audit.json
           lint.log
+          typecheck.log
           playwright-report/
           test-results/
         if-no-files-found: ignore
