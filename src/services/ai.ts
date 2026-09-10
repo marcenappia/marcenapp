@@ -49,7 +49,15 @@ export const callAIFunction = async <T = any>(fn: string, body: unknown): Promis
 };
 
 export const callAIImage = async (prompt: string, images?: { mimeType: string; data: string }[]) => {
-  const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', { prompt, images });
+  // Validação defensiva: normaliza imagens que chegarem como string base64 crua
+  const normalizedImages = images?.map(img => {
+    if (typeof img === 'string') {
+      const raw = img.includes(',') ? img.split(',')[1] : img;
+      return { mimeType: 'image/png', data: raw };
+    }
+    return img;
+  });
+  const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', { prompt, images: normalizedImages });
   return data.imageUrl ?? null;
 };
 
