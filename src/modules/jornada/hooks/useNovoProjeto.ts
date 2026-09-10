@@ -65,10 +65,14 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
   });
 
   const aplicarMedidas = () => {
-    const m = analise?.medidas;
-    const num = (v: unknown, chave: string) => { const r = parseFloat(String(respostas[chave] ?? '').replace(',', '.')); return Number.isFinite(r) && r > 0 ? r : typeof v === 'number' && v > 0 ? v : undefined; };
-    const w = num(m?.width, 'largura'); const h = num(m?.height, 'altura'); const d = num(m?.depth, 'profundidade');
-    setBudgetProject(prev => ({ ...prev, id: projectId ?? prev.id, width: w ?? prev.width, height: h ?? prev.height, depth: d ?? prev.depth }));
+    const confirmed = {
+      width: parseFloat(String(respostas.largura ?? '').replace(',', '.')),
+      height: parseFloat(String(respostas.altura ?? '').replace(',', '.')),
+      depth: parseFloat(String(respostas.profundidade ?? '').replace(',', '.')),
+    };
+    const hasConfirmedDimensions = Object.values(confirmed).every(value => Number.isFinite(value) && value > 0);
+    if (!hasConfirmedDimensions) return;
+    setBudgetProject(prev => ({ ...prev, id: projectId ?? prev.id, ...confirmed }));
   };
 
   const gerarApresentacao = () => comAuth(async () => {
