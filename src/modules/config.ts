@@ -1,4 +1,4 @@
-import { Home, Wand2, Calculator, Package, Scale, Users, BookOpen, Plus, ArrowUpFromLine, type LucideProps } from 'lucide-react';
+import { Home, Wand2, Calculator, Package, Scale, Users, BookOpen, Plus, ArrowUpFromLine, Sparkles, type LucideProps } from 'lucide-react';
 
 export type ModuleCategory = 'intelligence' | 'portal' | 'studio' | 'finance' | 'production';
 
@@ -12,11 +12,11 @@ export interface ModuleConfig {
   hidden?: boolean;
 }
 
-/** Itens do menu inferior no celular (ordem importa) */
 export const MOBILE_NAV_IDS = ['dashboard', 'novo', 'studio', 'orcamento', 'diario', 'corte'];
 
 export const modules: ModuleConfig[] = [
   { id: 'dashboard', label: 'Início', mobileLabel: 'Início', icon: Home, category: 'portal' },
+  { id: 'inteligencia', label: 'Inteligência Operacional', mobileLabel: 'IARA', icon: Sparkles, category: 'intelligence' },
   { id: 'novo', label: 'Novo Projeto', mobileLabel: 'Novo', icon: Plus, category: 'portal', hidden: true },
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: Users, category: 'portal' },
   { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
