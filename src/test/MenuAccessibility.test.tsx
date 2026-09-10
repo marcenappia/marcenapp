@@ -31,7 +31,7 @@ vi.mock('@/hooks/useAuth', () => ({
 }));
 
 vi.mock('@/modules/ambientes/components/StudioWorker', () => ({ StudioWorker: () => null }));
-vi.mock('@/assets/marcenapp-logo.jpeg', () => ({ default: '' }));
+vi.mock('@/assets/marcenapp-logo.svg', () => ({ default: '' }));
 vi.mock('@/modules/iara', () => ({ default: () => <div data-testid="chat">Chat</div> }));
 vi.mock('@/modules/jornada/Home', () => ({ default: () => <div data-testid="home">Home</div> }));
 

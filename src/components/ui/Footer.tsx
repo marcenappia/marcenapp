@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Hammer, Calculator, FileText, Instagram, Linkedin, Github } from 'lucide-react';
-import logo from '@/assets/marcenapp-logo.jpeg';
+import logo from '@/assets/marcenapp-logo.svg';
 
 const FOOTER_LINKS = {
   produto: [
