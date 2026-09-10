@@ -59,12 +59,17 @@ export async function runOrchestrator(
 
   try {
     const result = await planWithLLM(userPrompt, context);
-    plan = result.plan;
+    plan = result.plan.map(call => {
+      if ((call.tool === 'calcularOrcamento' || call.tool === 'operationalIntelligence') && !call.args.projetoId && ctx.projectId) {
+        return { ...call, args: { ...call.args, projetoId: ctx.projectId } };
+      }
+      return call;
+    });
     summary = result.summary;
   } catch (e) {
     console.error('Orchestrator LLM falhou, ativando fallback keyword:', e);
     usedFallback = true;
-    plan = fallbackPlan(userPrompt);
+    plan = fallbackPlan(userPrompt, ctx.projectId);
     summary = 'Interpretação por fallback (keyword matching).';
   }
 
@@ -94,7 +99,7 @@ export async function runOrchestrator(
   return { runId, plan, summary, results, usedFallback };
 }
 
-function fallbackPlan(prompt: string): ToolCall[] {
+function fallbackPlan(prompt: string, projectId?: string): ToolCall[] {
   const lower = prompt.toLowerCase();
   if (
     lower.includes('render') ||
@@ -110,7 +115,7 @@ function fallbackPlan(prompt: string): ToolCall[] {
     lower.includes('orçamento') ||
     lower.includes('valor')
   ) {
-    return [{ tool: 'calcularOrcamento', args: {} }];
+    return [{ tool: 'calcularOrcamento', args: projectId ? { projetoId: projectId } : {} }];
   }
   return [];
 }

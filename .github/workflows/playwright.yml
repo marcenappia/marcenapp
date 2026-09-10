@@ -46,6 +46,9 @@ jobs:
         status=${PIPESTATUS[0]}
         echo "lint_exit_code=$status" >> "$GITHUB_STEP_SUMMARY"
         exit "$status"
+    - name: Typecheck
+      if: ${{ always() && steps.install.outcome == 'success' }}
+      run: npx tsc -p tsconfig.app.json --noEmit
     # Diagnostics must continue after lint failures, while still stopping if install failed.
     - name: Unit tests
       if: ${{ always() && steps.install.outcome == 'success' }}

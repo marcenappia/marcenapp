@@ -1,15 +1,16 @@
 import { supabase } from '@/integrations/supabase/client';
 
 type AIImageInput = string | { mimeType: string; data: string };
-type AIErrorBody = { error?: string; message?: string };
+type AIErrorBody = { error?: string; message?: string; code?: string };
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://uzhqhieqlcyncelltfjw.supabase.co';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_o9A9xyvRYXt-Rl9MZfdArA_SdYOAySX';
+const AI_TIMEOUT_MS = 90_000;
 
 export const requireAuth = async (): Promise<boolean> => {
   const { data: { session } } = await supabase.auth.getSession();
   return !!session;
 };
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 export class AIAuthError extends Error {
   constructor(message = 'Faça login para usar os recursos de IA.') {
@@ -29,15 +30,25 @@ export const aiHeaders = async (): Promise<Record<string, string>> => {
 };
 
 const isAIErrorBody = (value: unknown): value is AIErrorBody =>
-  typeof value === 'object' && value !== null && ('error' in value || 'message' in value);
+  typeof value === 'object' && value !== null && ('error' in value || 'message' in value || 'code' in value);
 
 export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Promise<T> => {
   const headers = await aiHeaders();
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new Error('A IA demorou mais que o limite esperado. Tente novamente.');
+    }
+    throw new Error('Não foi possível conectar ao serviço de IA. Verifique sua conexão e tente novamente.');
+  }
+
   let data: unknown = null;
   try { data = await res.json(); } catch { /* corpo vazio */ }
   if (!res.ok) {

@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ALLOWED_ORIGIN_SUFFIXES = [".lovable.app", ".lovableproject.com", ".lovable.dev"];
+const ALLOWED_ORIGIN_SUFFIXES = [".lovable.app", ".lovableproject.com", ".lovable.dev", ".vercel.app"];
 const EXTRA_ORIGINS = [
   ...(Deno.env.get("ALLOWED_ORIGINS") ?? "").split(","),
   Deno.env.get("APP_URL") ?? "",
@@ -85,5 +85,5 @@ export async function readJsonBody(req: Request, maxBytes: number) {
   const text = await req.text();
   if (text.length > maxBytes) return { ok: false as const, reason: "too_large" as const };
   try { return { ok: true as const, body: JSON.parse(text) }; }
-  catch { return { ok: false as const, reason: "invalid_json" as const }; }
+  catch { return { ok: false as const, reason: "invalid_json" as const };
 }
