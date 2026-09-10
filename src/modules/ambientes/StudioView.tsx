@@ -193,3 +193,5 @@ export const StudioView = ({ setBudgetProject, navigateTo, gallery, setGallery, 
     </>
   );
 };
+
+export const Studio = StudioView;
