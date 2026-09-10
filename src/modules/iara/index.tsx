@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Maximize2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput } from './components/ChatInput';
 import AuthDialog from '../../components/marcenaria/AuthDialog';
@@ -11,102 +11,30 @@ const LogoHex = ({ size = 40, className = "" }: { size?: number; className?: str
   </div>
 );
 
-interface IaraModuleProps {
-  syncProject?: { width?: number; height?: number; depth?: number } | null;
-  onProjectChange?: (p: { width: number; height: number; depth: number }) => void;
-  syncDescription?: string;
-  onDescriptionChange?: (text: string) => void;
-  embedded?: boolean;
-  projectId?: string | null;
-}
+interface IaraModuleProps { syncProject?: { width?: number; height?: number; depth?: number } | null; onProjectChange?: (p: { width: number; height: number; depth: number }) => void; syncDescription?: string; onDescriptionChange?: (text: string) => void; embedded?: boolean; projectId?: string | null; }
 
 const IaraModule = ({ syncProject, onProjectChange, syncDescription, onDescriptionChange, embedded, projectId = null }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [factors, setFactors] = useState({ L: syncProject?.width ?? 2.4, A: syncProject?.height ?? 2.6, P: syncProject?.depth ?? 0.6, E: 0.018, X: 0, Y: 0 });
   const [decorStyle, setDecorStyle] = useState("Limpo");
   const [activeImageZoom, setActiveImageZoom] = useState<{ url: string; budget?: string | null } | null>(null);
-
-  useEffect(() => {
-    if (!syncProject) return;
-    setFactors(prev => {
-      const next = { ...prev, L: syncProject.width ?? prev.L, A: syncProject.height ?? prev.A, P: syncProject.depth ?? prev.P };
-      if (next.L === prev.L && next.A === prev.A && next.P === prev.P) return prev;
-      return next;
-    });
-  }, [syncProject?.width, syncProject?.height, syncProject?.depth]);
-
-  useEffect(() => {
-    if (!onProjectChange) return;
-    const sameAsStudio = syncProject?.width === factors.L && syncProject?.height === factors.A && syncProject?.depth === factors.P;
-    if (sameAsStudio) return;
-    onProjectChange({ width: factors.L, height: factors.A, depth: factors.P });
-  }, [factors.L, factors.A, factors.P, onProjectChange, syncProject?.width, syncProject?.height, syncProject?.depth]);
-
-  const { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError } = useIaraChat(factors, decorStyle, setShowAuthDialog, {
-    onProjectCreated: (p) => setFactors(prev => ({ ...prev, L: p.width ?? prev.L, A: p.height ?? prev.A, P: p.depth ?? prev.P })),
-  }, projectId);
-
-  const lastPushedRef = useRef<string | null>(null);
-  const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isDrawingRef = useRef(false);
-  const pushDescription = (text: string, immediate = false) => {
-    if (!onDescriptionChange) return;
-    if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
-    const doPush = () => { lastPushedRef.current = text; onDescriptionChange(text); };
-    if (immediate) doPush(); else pushTimerRef.current = setTimeout(doPush, 300);
-  };
+  useEffect(() => { if (!syncProject) return; setFactors(prev => { const next = { ...prev, L: syncProject.width ?? prev.L, A: syncProject.height ?? prev.A, P: syncProject.depth ?? prev.P }; if (next.L === prev.L && next.A === prev.A && next.P === prev.P) return prev; return next; }); }, [syncProject?.width, syncProject?.height, syncProject?.depth]);
+  useEffect(() => { if (!onProjectChange) return; const sameAsStudio = syncProject?.width === factors.L && syncProject?.height === factors.A && syncProject?.depth === factors.P; if (sameAsStudio) return; onProjectChange({ width: factors.L, height: factors.A, depth: factors.P }); }, [factors.L, factors.A, factors.P, onProjectChange, syncProject?.width, syncProject?.height, syncProject?.depth]);
+  const { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError } = useIaraChat(factors, decorStyle, setShowAuthDialog, { onProjectCreated: (p) => setFactors(prev => ({ ...prev, L: p.width ?? prev.L, A: p.height ?? prev.A, P: p.depth ?? prev.P })) }, projectId);
+  const lastPushedRef = useRef<string | null>(null); const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); const isDrawingRef = useRef(false);
+  const pushDescription = (text: string, immediate = false) => { if (!onDescriptionChange) return; if (pushTimerRef.current) clearTimeout(pushTimerRef.current); const doPush = () => { lastPushedRef.current = text; onDescriptionChange(text); }; if (immediate) doPush(); else pushTimerRef.current = setTimeout(doPush, 300); };
   useEffect(() => () => { if (pushTimerRef.current) clearTimeout(pushTimerRef.current); }, []);
-  useEffect(() => {
-    if (syncDescription === undefined) return;
-    if (syncDescription === lastPushedRef.current) return;
-    if (syncDescription !== chatInput) setChatInput(syncDescription);
-  }, [syncDescription, chatInput, setChatInput]);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  useEffect(() => { if (syncDescription === undefined) return; if (syncDescription === lastPushedRef.current) return; if (syncDescription !== chatInput) setChatInput(syncDescription); }, [syncDescription, chatInput, setChatInput]);
+  const messagesEndRef = useRef<HTMLDivElement>(null); const canvasRef = useRef<HTMLCanvasElement>(null); const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
   useEffect(() => { if (maskingImage && canvasRef.current) { const c = canvasRef.current; c.width = 1080; c.height = 1920; const ctx = c.getContext('2d'); if (ctx) { ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'; ctx.lineWidth = 60; ctxRef.current = ctx; } } }, [maskingImage]);
-
   type CanvasPointerEvent = React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>;
-  const getCoords = (e: CanvasPointerEvent) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return null;
-    const sx = 1080 / rect.width; const sy = 1920 / rect.height;
-    const point = 'touches' in e ? e.touches[0] : e;
-    if (!point) return null;
-    return { offsetX: (point.clientX - rect.left) * sx, offsetY: (point.clientY - rect.top) * sy };
-  };
+  const getCoords = (e: CanvasPointerEvent) => { const rect = canvasRef.current?.getBoundingClientRect(); if (!rect) return null; const sx = 1080 / rect.width; const sy = 1920 / rect.height; const point = 'touches' in e ? e.touches[0] : e; if (!point) return null; return { offsetX: (point.clientX - rect.left) * sx, offsetY: (point.clientY - rect.top) * sy }; };
   const startDraw = (e: CanvasPointerEvent) => { if (!ctxRef.current) return; const c = getCoords(e); if (!c) return; ctxRef.current.beginPath(); ctxRef.current.moveTo(c.offsetX, c.offsetY); isDrawingRef.current = true; };
   const moveDraw = (e: CanvasPointerEvent) => { if (!isDrawingRef.current || !ctxRef.current) return; const c = getCoords(e); if (!c) return; ctxRef.current.lineTo(c.offsetX, c.offsetY); ctxRef.current.stroke(); };
   const endDraw = () => { isDrawingRef.current = false; };
-
-  const confirmMask = async () => {
-    if (!maskingImage || !canvasRef.current) return;
-    const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1920;
-    const ctx = canvas.getContext("2d"); if (!ctx) return;
-    ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, 1080, 1920);
-    const ratio = Math.min(1080 / maskingImage.img.width, 1920 / maskingImage.img.height); const dw = maskingImage.img.width * ratio; const dh = maskingImage.img.height * ratio;
-    ctx.drawImage(maskingImage.img, (1080 - dw)/2, (1920 - dh)/2, dw, dh);
-    const baseB64 = canvas.toDataURL("image/jpeg", 0.7); const baseRaw = baseB64.split(",")[1];
-    ctx.clearRect(0,0,1080,1920); ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, 1080, 1920); ctx.drawImage(canvasRef.current, 0, 0);
-    const idata = ctx.getImageData(0,0,1080,1920); const d = idata.data;
-    for(let i=0; i<d.length; i+=4) { if(d[i+3]>10) { d[i]=d[i+1]=d[i+2]=255; d[i+3]=255; } else { d[i]=d[i+1]=d[i+2]=0; d[i+3]=255; } }
-    ctx.putImageData(idata, 0, 0); const maskRaw = canvas.toDataURL("image/png").split(",")[1]; setPendingUpload({ base64: baseB64, baseRaw, maskRaw }); setMaskingImage(null);
-  };
-
+  const confirmMask = async () => { if (!maskingImage || !canvasRef.current) return; const canvas = document.createElement("canvas"); canvas.width = 1080; canvas.height = 1920; const ctx = canvas.getContext("2d"); if (!ctx) return; ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, 1080, 1920); const ratio = Math.min(1080 / maskingImage.img.width, 1920 / maskingImage.img.height); const dw = maskingImage.img.width * ratio; const dh = maskingImage.img.height * ratio; ctx.drawImage(maskingImage.img, (1080 - dw)/2, (1920 - dh)/2, dw, dh); const baseB64 = canvas.toDataURL("image/jpeg", 0.7); const baseRaw = baseB64.split(",")[1]; ctx.clearRect(0,0,1080,1920); ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, 1080, 1920); ctx.drawImage(canvasRef.current, 0, 0); const idata = ctx.getImageData(0,0,1080,1920); const d = idata.data; for(let i=0; i<d.length; i+=4) { if(d[i+3]>10) { d[i]=d[i+1]=d[i+2]=255; d[i+3]=255; } else { d[i]=d[i+1]=d[i+2]=0; d[i+3]=255; } } ctx.putImageData(idata, 0, 0); const maskRaw = canvas.toDataURL("image/png").split(",")[1]; setPendingUpload({ base64: baseB64, baseRaw, maskRaw }); setMaskingImage(null); };
   const handleChatInputChange = (value: React.SetStateAction<string>) => { const next = typeof value === 'function' ? value(chatInput) : value; setChatInput(value); pushDescription(next); };
-
-  return (
-    <div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
-      <header className="px-4 py-3 bg-card border-b border-border flex items-center justify-between shrink-0"><div className="flex items-center gap-3"><LogoHex size={36} /><div><h2 className="text-sm font-black text-foreground leading-none uppercase italic tracking-tight">IARA.ai</h2><div className="flex items-center gap-1.5 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /><span className="text-[9px] text-green-600 uppercase font-bold tracking-widest">Online</span></div></div></div></header>
-      <ChatMessages messages={messages} isTyping={isTyping} onImageZoom={setActiveImageZoom} messagesEndRef={messagesEndRef} error={error} onRetry={retryLast} onDismissError={dismissError} onSuggestion={(text) => { setChatInput(text); pushDescription(text, true); }} />
-      <ChatInput chatInput={chatInput} setChatInput={handleChatInputChange} onSend={() => { const sent = chatInput.trim(); if (sent) pushDescription(sent, true); handleSend(); }} onImageSelect={handleImageSelect} toggleRecording={toggleRecording} isListening={isListening} pendingUpload={pendingUpload} setPendingUpload={setPendingUpload} />
-      {maskingImage && <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-300"><div className="w-full max-w-sm aspect-[9/16] relative bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10"><img src={maskingImage.src} className="absolute inset-0 w-full h-full object-contain pointer-events-none" /><canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw} className="absolute inset-0 w-full h-full touch-none cursor-crosshair" /><div className="absolute top-6 left-6 right-6 flex justify-between items-center bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5"><span className="text-white text-xs font-black uppercase tracking-tighter italic">IARA Target Painter</span><button onClick={() => setMaskingImage(null)} className="text-white/60 hover:text-white transition-colors"><X size={20}/></button></div></div><div className="mt-8 flex gap-4 w-full max-w-sm"><button onClick={() => setMaskingImage(null)} className="flex-1 py-4 bg-white/5 text-white/60 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white/10 transition-all">Cancelar</button><button onClick={confirmMask} className="flex-1 py-4 bg-primary text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all">Confirmar Alvo</button></div></div>}
-      {activeImageZoom && <div className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4 animate-in zoom-in-95 duration-200" onClick={() => setActiveImageZoom(null)}><div className="relative max-w-4xl w-full" onClick={e => e.stopPropagation()}><img src={activeImageZoom.url} className="w-full h-auto rounded-2xl shadow-2xl" alt="Zoom" /><button onClick={() => setActiveImageZoom(null)} className="absolute -top-4 -right-4 p-3 bg-white text-black rounded-full shadow-2xl hover:scale-110 active:scale-90 transition-all"><X size={24}/></button>{activeImageZoom.budget && <div className="absolute bottom-6 left-6 bg-primary/90 backdrop-blur-lg px-6 py-3 rounded-2xl border border-white/20 shadow-2xl"><span className="text-white font-black italic tracking-tighter text-xl">R$ {activeImageZoom.budget}</span></div>}</div></div>}
-      <AuthDialog isOpen={showAuthDialog} onClose={() => setShowAuthDialog(false)} onSuccess={() => setShowAuthDialog(false)} />
-    </div>
-  );
+  return (<div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}><header className="px-4 py-3 bg-card border-b border-border flex items-center justify-between shrink-0"><div className="flex items-center gap-3"><LogoHex size={36} /><div><h2 className="text-sm font-black text-foreground leading-none uppercase italic tracking-tight">IARA.ai</h2><div className="flex items-center gap-1.5 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /><span className="text-[9px] text-green-600 uppercase font-bold tracking-widest">Online</span></div></div></div></header><ChatMessages messages={messages} isTyping={isTyping} onImageZoom={setActiveImageZoom} messagesEndRef={messagesEndRef} error={error} onRetry={retryLast} onDismissError={dismissError} onSuggestion={(text) => { setChatInput(text); pushDescription(text, true); }} /><ChatInput chatInput={chatInput} setChatInput={handleChatInputChange} onSend={() => { const sent = chatInput.trim(); if (sent) pushDescription(sent, true); handleSend(); }} onImageSelect={handleImageSelect} toggleRecording={toggleRecording} isListening={isListening} pendingUpload={pendingUpload} setPendingUpload={setPendingUpload} />{maskingImage && <div className="fixed inset-0 z-[300] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in duration-300"><div className="w-full max-w-sm aspect-[9/16] relative bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10"><img src={maskingImage.src} className="absolute inset-0 w-full h-full object-contain pointer-events-none" /><canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw} className="absolute inset-0 w-full h-full touch-none cursor-crosshair" /><div className="absolute top-6 left-6 right-6 flex justify-between items-center bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/5"><span className="text-white text-xs font-black uppercase tracking-tighter italic">IARA Target Painter</span><button onClick={() => setMaskingImage(null)} className="text-white/60 hover:text-white transition-colors"><X size={20}/></button></div></div><div className="mt-8 flex gap-4 w-full max-w-sm"><button onClick={() => setMaskingImage(null)} className="flex-1 py-4 bg-white/5 text-white/60 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white/10 transition-all">Cancelar</button><button onClick={confirmMask} className="flex-1 py-4 bg-primary text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all">Confirmar Alvo</button></div></div>}{activeImageZoom && <div className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4 animate-in zoom-in-95 duration-200" onClick={() => setActiveImageZoom(null)}><div className="relative max-w-4xl w-full" onClick={e => e.stopPropagation()}><img src={activeImageZoom.url} className="w-full h-auto rounded-2xl shadow-2xl" alt="Zoom" /><button onClick={() => setActiveImageZoom(null)} className="absolute -top-4 -right-4 p-3 bg-white text-black rounded-full shadow-2xl hover:scale-110 active:scale-90 transition-all"><X size={24}/></button>{activeImageZoom.budget && <div className="absolute bottom-6 left-6 bg-primary/90 backdrop-blur-lg px-6 py-3 rounded-2xl border border-white/20 shadow-2xl"><span className="text-white font-black italic tracking-tighter text-xl">R$ {activeImageZoom.budget}</span></div>}</div></div>}<AuthDialog isOpen={showAuthDialog} onClose={() => setShowAuthDialog(false)} onSuccess={() => setShowAuthDialog(false)} /></div>);
 };
-
 export default IaraModule;
