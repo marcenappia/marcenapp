@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ALLOWED_ORIGIN_SUFFIXES = [".lovable.app", ".lovableproject.com", ".lovable.dev", ".vercel.app"];
+const ALLOWED_ORIGIN_SUFFIXES = [".vercel.app"];
 const EXTRA_ORIGINS = [
+  "https://marcenapp.com.br",
   ...(Deno.env.get("ALLOWED_ORIGINS") ?? "").split(","),
   Deno.env.get("APP_URL") ?? "",
   Deno.env.get("PUBLIC_APP_URL") ?? "",
