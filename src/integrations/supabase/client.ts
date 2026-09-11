@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from './types';
+import type { Database } from './runtime-types';
 
 // Production Supabase client: no Lovable preview bridge, no editor messaging,
 // and no legacy preview storage. Authentication belongs entirely to Marcenapp.
