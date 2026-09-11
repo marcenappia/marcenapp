@@ -14,10 +14,12 @@ function upsertMeta(name: string, content: string) {
 }
 
 export default function SeoRoute() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   useEffect(() => {
-    const isPublic = PUBLIC_PATHS.has(pathname);
+    const params = new URLSearchParams(search);
+    const hasInternalQuery = params.has('module') || params.has('projeto');
+    const isPublic = PUBLIC_PATHS.has(pathname) && !hasInternalQuery;
 
     if (isPublic) {
       document.title = 'Marcenapp — Do projeto à produção, tudo no lugar.';
@@ -42,7 +44,7 @@ export default function SeoRoute() {
 
     document.title = privateTitles[pathname] ?? 'Marcenapp';
     upsertMeta('robots', 'noindex, nofollow, noarchive');
-  }, [pathname]);
+  }, [pathname, search]);
 
   return null;
 }
