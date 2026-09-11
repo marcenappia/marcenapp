@@ -127,8 +127,15 @@ serve(async (req) => {
     if (!parsed.success) return jsonResponse(corsHeaders, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
 
     const contextBlock = parsed.data.context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(parsed.data.context, null, 2)}` : "";
-    const { primary, fallback } = await resolveProvider(guard.userId);
-    const providers: Provider[] = fallback ? [primary, fallback] : [primary];
+    let resolution: { primary: Provider; fallback: Provider | null };
+    try {
+      resolution = await resolveProvider(guard.userId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message === "provider_settings_unavailable") return jsonResponse(corsHeaders, { error: "Não foi possível ler a configuração do provedor de IA.", code: "provider_configuration_error" }, 503);
+      throw error;
+    }
+    const providers: Provider[] = resolution.fallback ? [resolution.primary, resolution.fallback] : [resolution.primary];
     let lastError: unknown = null;
 
     for (const provider of providers) {
@@ -144,7 +151,6 @@ serve(async (req) => {
 
     const message = lastError instanceof Error ? lastError.message : String(lastError);
     if (message.startsWith("provider_not_configured")) return jsonResponse(corsHeaders, { error: "Nenhum provedor de IA de texto está configurado. Ative um provedor no Admin.", code: "provider_not_configured" }, 500);
-    if (message === "provider_settings_unavailable") return jsonResponse(corsHeaders, { error: "Não foi possível ler a configuração do provedor de IA.", code: "provider_configuration_error" }, 503);
     if (message.includes("provider_http:402")) return jsonResponse(corsHeaders, { error: "Os créditos do provedor de IA acabaram.", code: "provider_credits_exhausted" }, 402);
     if (message.includes("provider_http:429")) return jsonResponse(corsHeaders, { error: "O limite do provedor de IA foi atingido. Tente novamente em alguns segundos.", code: "rate_limited" }, 429, { "Retry-After": "10" });
     if (message === "provider_timeout") return jsonResponse(corsHeaders, { error: "O provedor de IA demorou além do limite esperado.", code: "provider_timeout" }, 504);
