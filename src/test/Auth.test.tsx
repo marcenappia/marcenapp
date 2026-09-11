@@ -7,7 +7,6 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: {
       signInWithPassword: vi.fn(),
-      signInWithOAuth: vi.fn(),
       signUp: vi.fn(),
       resetPasswordForEmail: vi.fn(),
       getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
@@ -41,7 +40,7 @@ describe('Auth Page - Reset Password Flow', () => {
       fireEvent.click(screen.getByRole('button', { name: /Enviar Recuperação/i }));
     });
 
-    expect(await screen.findByText(/E-mail de recuperação enviado!/i)).toBeInTheDocument();
+    expect(await screen.findByText(/E-mail de recuperação enviado\. Verifique também o spam\./i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Aguarde 30s/i })).toBeDisabled();
 
     await act(async () => {
