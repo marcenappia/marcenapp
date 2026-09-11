@@ -10,9 +10,9 @@ interface AuthDialogProps {
 
 const PRODUCTION_ORIGIN = 'https://marcenapp.com.br';
 
+// Keep production authentication callbacks on the official domain.
+// Do not allow legacy Lovable environment variables to change the callback target.
 const getAppOrigin = () => {
-  const configured = import.meta.env.VITE_PUBLIC_APP_URL?.trim();
-  if (configured) return configured.replace(/\/$/, '');
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return window.location.origin;
   }
