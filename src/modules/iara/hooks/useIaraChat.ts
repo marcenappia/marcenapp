@@ -77,7 +77,11 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; }
     try {
       await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
-      const run = await runOrchestrator(promptText, { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A } });
+      const conversation = [...messages, { sender: 'user', text: promptText }]
+        .filter(message => typeof message.text === 'string' && message.text.trim())
+        .slice(-12)
+        .map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
+      const run = await runOrchestrator(promptText, { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, conversation });
       if (run.plan.length === 0) { await saveMessage({ sender: 'iara', text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.' }); lastFailedRef.current = null; return; }
       const linhas = run.results.map(({ tool, result }) => {
         if (result.ok === false) return `❌ ${tool}: ${result.error}`;
