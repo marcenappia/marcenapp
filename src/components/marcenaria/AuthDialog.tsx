@@ -8,10 +8,10 @@ interface AuthDialogProps {
   onSuccess: () => void;
 }
 
-const PRODUCTION_ORIGIN = 'https://marcenapp.com.br';
+const PRODUCTION_ORIGIN = 'https://www.marcenapp.com.br';
 
 // Keep production authentication callbacks on the official domain.
-// Do not allow legacy Lovable environment variables to change the callback target.
+// Do not allow legacy preview environment variables to change the callback target.
 const getAppOrigin = () => {
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return window.location.origin;
@@ -36,20 +36,25 @@ const AuthDialog = ({ isOpen, onClose, onSuccess }: AuthDialogProps) => {
     setError('');
     setSuccess('');
 
-    if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-      else { onSuccess(); onClose(); }
-    } else {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name }, emailRedirectTo: `${getAppOrigin()}/auth` },
-      });
-      if (error) setError(error.message);
-      else setSuccess('Verifique seu e-mail para confirmar o cadastro.');
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) setError(error.message);
+        else { onSuccess(); onClose(); }
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { name }, emailRedirectTo: `${getAppOrigin()}/auth` },
+        });
+        if (error) setError(error.message);
+        else setSuccess('Verifique seu e-mail para confirmar o cadastro.');
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Ocorreu um erro inesperado.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -60,7 +65,7 @@ const AuthDialog = ({ isOpen, onClose, onSuccess }: AuthDialogProps) => {
             <LogIn size={18} className="text-[hsl(var(--sidebar-active))]" />
             {isLogin ? 'Entrar' : 'Cadastrar'}
           </h3>
-          <button onClick={onClose} className="p-2 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground transition-colors">
+          <button type="button" onClick={onClose} aria-label="Fechar" className="p-2 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -68,16 +73,16 @@ const AuthDialog = ({ isOpen, onClose, onSuccess }: AuthDialogProps) => {
           <p className="text-sm text-muted-foreground">Para usar recursos de IA, faça login ou cadastre-se.</p>
           {!isLogin && (
             <input
-              type="text" placeholder="Nome completo" value={name} onChange={e => setName(e.target.value)} required
+              type="text" placeholder="Nome completo" value={name} onChange={e => setName(e.target.value)} required autoComplete="name"
               className="w-full px-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] text-sm"
             />
           )}
           <input
-            type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} required
+            type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email"
             className="w-full px-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] text-sm"
           />
           <input
-            type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+            type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} autoComplete={isLogin ? 'current-password' : 'new-password'}
             className="w-full px-4 py-3 rounded-xl bg-muted border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] text-sm"
           />
           {error && <p className="text-red-400 text-sm bg-red-950/50 p-3 rounded-lg">{error}</p>}
