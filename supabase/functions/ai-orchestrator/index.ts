@@ -16,6 +16,7 @@ const BodySchema = z.object({
     lastImage: z.string().optional(),
     decorStyle: z.string().optional(),
     recentClients: z.array(z.object({ id: z.string(), nome: z.string() })).optional(),
+    conversation: z.array(z.object({ sender: z.enum(["user", "iara"]), text: z.string().min(1).max(4000) })).max(12).optional(),
   }).partial().optional(),
 });
 
@@ -32,6 +33,7 @@ Sua função é interpretar a intenção do usuário e produzir um PLANO DE AÇ�
 
 Regras obrigatórias:
 - Responda em português brasileiro, de forma direta e técnica.
+- Use o CONTEXTO DA CONVERSA quando fornecido para manter continuidade entre mensagens.
 - Nunca invente medidas, preços, materiais, clientes ou condições de instalação.
 - Para createProjeto, confirmado só pode ser true quando o usuário tiver confirmado explicitamente largura, altura e profundidade. Se qualquer dimensão estiver ausente ou não confirmada, NÃO chame createProjeto; peça a informação/confirmação mínima necessária.
 - Nunca aplique medidas padrão silenciosamente.
