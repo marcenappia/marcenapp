@@ -1,6 +1,28 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+const FORBIDDEN_LEGACY_HOSTS = /(^|\.)lovable\.app$|(^|\.)lovableproject\.com$|(^|\.)lovable\.dev$/i;
+
+const assertNoLovableNavigation = (page: import('@playwright/test').Page) => {
+  const seen: string[] = [];
+  const check = (url: string) => {
+    try {
+      const hostname = new URL(url).hostname;
+      if (FORBIDDEN_LEGACY_HOSTS.test(hostname)) seen.push(url);
+    } catch {
+      // Ignore non-URL values.
+    }
+  };
+
+  page.on('request', request => check(request.url()));
+  page.on('framenavigated', frame => check(frame.url()));
+  page.on('response', response => check(response.url()));
+
+  return () => {
+    expect(seen, `Legacy Lovable navigation detected: ${seen.join(', ')}`).toEqual([]);
+  };
+};
+
 test.describe('Marcenapp public production acceptance', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -21,6 +43,7 @@ test.describe('Marcenapp public production acceptance', () => {
   });
 
   test('auth entry renders the email/password flow without legacy Google entry point', async ({ page }) => {
+    const assertClean = assertNoLovableNavigation(page);
     await page.goto('/auth');
     await expect(page.getByRole('heading', { name: /MARCENAPP/i })).toBeVisible();
     await expect(page.getByText(/Acesso seguro por e-mail/i)).toBeVisible();
@@ -29,6 +52,18 @@ test.describe('Marcenapp public production acceptance', () => {
     await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Cadastre-se/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Continuar com Google/i })).toHaveCount(0);
+    assertClean();
+  });
+
+  test('auth navigation never reaches a Lovable legacy host', async ({ page }) => {
+    const assertClean = assertNoLovableNavigation(page);
+    await page.goto('/auth');
+    await page.getByRole('button', { name: /Esqueceu a senha/i }).click();
+    await expect(page.getByRole('button', { name: /Enviar Recuperação/i })).toBeVisible();
+    await page.getByRole('button', { name: /Voltar para o login/i }).click();
+    await page.getByRole('button', { name: /Cadastre-se/i }).click();
+    await expect(page.getByPlaceholder('Nome completo')).toBeVisible();
+    assertClean();
   });
 
   test('auth route exposes password recovery and registration states', async ({ page }) => {
