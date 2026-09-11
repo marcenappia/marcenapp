@@ -1,6 +1,5 @@
 // IARA OS v1 — Client-side orchestrator wrapper
 // Chama ai-orchestrator (Function Calling) e executa o plano via toolRegistry.
-// Fallback: se orchestrator falhar tecnicamente, cai no interpretador antigo (iaraService).
 import { supabase } from '@/integrations/supabase/client';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
 import { callAIFunction } from '@/services/ai';
@@ -14,6 +13,7 @@ export interface OrchestratorPlan {
   plan: ToolCall[];
   summary: string;
   model?: string;
+  provider?: 'lovable' | 'gemini';
 }
 
 export interface OrchestratorRun {
@@ -22,6 +22,7 @@ export interface OrchestratorRun {
   summary: string;
   results: Array<{ tool: string; result: ToolResult }>;
   usedFallback: boolean;
+  provider?: 'lovable' | 'gemini';
   error?: string;
 }
 
@@ -29,11 +30,11 @@ export async function planWithLLM(
   userPrompt: string,
   context?: Record<string, unknown>,
 ): Promise<OrchestratorPlan> {
-  const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string }>(
+  const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string; provider?: 'lovable' | 'gemini' }>(
     'ai-orchestrator',
     { userPrompt, context },
   );
-  return { plan: data.plan ?? [], summary: data.summary ?? '', model: data.model };
+  return { plan: data.plan ?? [], summary: data.summary ?? '', model: data.model, provider: data.provider };
 }
 
 export async function runOrchestrator(
@@ -53,25 +54,14 @@ export async function runOrchestrator(
     console.warn('Falha ao registrar orchestrator_run:', e);
   }
 
-  let plan: ToolCall[] = [];
-  let summary = '';
-  let usedFallback = false;
-
-  try {
-    const result = await planWithLLM(userPrompt, context);
-    plan = result.plan.map(call => {
-      if ((call.tool === 'calcularOrcamento' || call.tool === 'operationalIntelligence') && !call.args.projetoId && ctx.projectId) {
-        return { ...call, args: { ...call.args, projetoId: ctx.projectId } };
-      }
-      return call;
-    });
-    summary = result.summary;
-  } catch (e) {
-    console.error('Orchestrator LLM falhou, ativando fallback keyword:', e);
-    usedFallback = true;
-    plan = fallbackPlan(userPrompt, ctx.projectId);
-    summary = 'Interpretação por fallback (keyword matching).';
-  }
+  const result = await planWithLLM(userPrompt, context);
+  const plan = result.plan.map(call => {
+    if ((call.tool === 'calcularOrcamento' || call.tool === 'operationalIntelligence') && !call.args.projetoId && ctx.projectId) {
+      return { ...call, args: { ...call.args, projetoId: ctx.projectId } };
+    }
+    return call;
+  });
+  const summary = result.summary;
 
   const results: Array<{ tool: string; result: ToolResult }> = [];
   for (const call of plan) {
@@ -87,7 +77,7 @@ export async function runOrchestrator(
         .update({
           plan,
           results,
-          used_fallback: usedFallback,
+          used_fallback: false,
           status: results.every(r => r.result.ok) ? 'completed' : 'failed',
         })
         .eq('id', runId);
@@ -96,26 +86,5 @@ export async function runOrchestrator(
     }
   }
 
-  return { runId, plan, summary, results, usedFallback };
-}
-
-function fallbackPlan(prompt: string, projectId?: string): ToolCall[] {
-  const lower = prompt.toLowerCase();
-  if (
-    lower.includes('render') ||
-    lower.includes('mostre') ||
-    lower.includes('materializa') ||
-    lower.includes('desenhe')
-  ) {
-    return [{ tool: 'gerarRender', args: { prompt } }];
-  }
-  if (
-    lower.includes('quanto') ||
-    lower.includes('preço') ||
-    lower.includes('orçamento') ||
-    lower.includes('valor')
-  ) {
-    return [{ tool: 'calcularOrcamento', args: projectId ? { projetoId: projectId } : {} }];
-  }
-  return [];
+  return { runId, plan, summary, results, usedFallback: false, provider: result.provider };
 }
