@@ -7,9 +7,9 @@ import logo from '@/assets/marcenapp-logo.svg';
 
 const PRODUCTION_ORIGIN = 'https://marcenapp.com.br';
 
+// Authentication must never inherit an old Lovable URL from an environment variable.
+// The production callback is intentionally pinned to the official Marcenapp domain.
 const getAppOrigin = () => {
-  const configured = import.meta.env.VITE_PUBLIC_APP_URL?.trim();
-  if (configured) return configured.replace(/\/$/, '');
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return window.location.origin;
   }
