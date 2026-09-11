@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { TechnicalRenderPackage } from '@/lib/agents/renderContract';
 
 export type CommandStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export interface ImageData { mimeType: string; data: string; }
-export interface RenderCommand { id: string; prompt: string; images?: ImageData[]; style?: string; decor?: string; status: CommandStatus; error?: string; resultUrl?: string; timestamp: number; idempotencyKey?: string; metadata?: { origin: 'iara' | 'manual'; originalPrompt?: string; targetModule?: string; }; }
+export interface RenderCommand { id: string; prompt: string; images?: ImageData[]; style?: string; decor?: string; status: CommandStatus; error?: string; resultUrl?: string; timestamp: number; idempotencyKey?: string; metadata?: { origin: 'iara' | 'manual'; originalPrompt?: string; targetModule?: string; technicalPackage?: TechnicalRenderPackage; }; }
 export interface StudioState { commandQueue: RenderCommand[]; lastResult: string | null; generatedImage: string | null; isRendering: boolean; enqueueCommand: (command: Omit<RenderCommand, 'id' | 'status' | 'timestamp'>) => string; startProcessing: (id: string) => void; completeCommand: (id: string, resultUrl: string) => void; failCommand: (id: string, error: string) => void; cancelCommand: (id: string) => void; setGeneratedImage: (url: string | null) => void; clearQueue: () => void; removeFromQueue: (id: string) => void; }
 
 type PersistedStudioState = Partial<StudioState>;
@@ -32,9 +33,7 @@ export const useStudioStore = create<StudioState>()(
       removeFromQueue: (id) => set(state => ({ commandQueue: state.commandQueue.filter(cmd => cmd.id !== id) })),
     }),
     {
-      name: 'marcenapp-studio-storage',
-      version: 2,
-      storage: createJSONStorage(() => localStorage),
+      name: 'marcenapp-studio-storage', version: 2, storage: createJSONStorage(() => localStorage),
       migrate: (persistedState: unknown, version: number) => {
         const state = asPersistedState(persistedState);
         if (version === 0) return { ...state, commandQueue: [] };
