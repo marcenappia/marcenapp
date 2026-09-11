@@ -1,7 +1,6 @@
 import {
   ArrowRight,
   Box,
-  Check,
   ChevronDown,
   CircleDollarSign,
   ClipboardList,
@@ -35,7 +34,7 @@ const faqs = [
   ['Como começo?', 'Clique em Começar agora para entrar no fluxo de acesso da plataforma e conhecer as condições atuais.'],
 ];
 
-const cabinetryImage = 'https://upload.wikimedia.org/wikipedia/commons/3/3f/Kitchen_cabinets_at_a_store_in_NJ_7.jpg';
+const cabinetryImage = 'https://upload.wikimedia.org/wikipedia/commons/3/35/Newly_renovated_kitchen_with_cabinets_refrigerator_stove_and_hardwood_floor.jpg';
 
 function ProductPreview() {
   return (
@@ -44,13 +43,7 @@ function ProductPreview() {
       <div className="absolute -right-10 bottom-8 h-40 w-40 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
       <div className="relative overflow-hidden rounded-[28px] border border-white/15 bg-slate-950 p-2 shadow-2xl shadow-slate-950/30">
         <div className="relative overflow-hidden rounded-[22px] border border-white/10 bg-slate-900">
-          <img
-            src={cabinetryImage}
-            alt="Projeto de marcenaria com módulos e gavetas de cozinha"
-            className="h-[430px] w-full object-cover object-center sm:h-[500px]"
-            loading="eager"
-            referrerPolicy="no-referrer"
-          />
+          <img src={cabinetryImage} alt="Cozinha renovada com armários planejados" className="h-[430px] w-full object-cover object-center sm:h-[500px]" loading="eager" referrerPolicy="no-referrer" />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/10 to-transparent" aria-hidden="true" />
           <div className="absolute inset-x-0 top-0 flex items-center gap-2 border-b border-white/10 bg-slate-950/55 px-5 py-4 backdrop-blur-md">
             <span className="h-2.5 w-2.5 rounded-full bg-white/25" />
@@ -98,7 +91,7 @@ export default function Landing() {
             <a href="#produto" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Produto</a>
             <a href="#recursos" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Recursos</a>
             <a href="#yara" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Yara</a>
-            <a href="#faq" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Dúvidas</a>
+            <a href="#faq" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Dúvidas</a>
             <button onClick={go} className="rounded-xl px-3 py-2 text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Entrar</button>
             <button onClick={go} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-black text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Começar agora</button>
           </nav>
