@@ -1,51 +1,46 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Hammer, Calculator, FileText, Instagram, Linkedin, Github } from 'lucide-react';
+import { ArrowRight, FileText, Hammer, Instagram, Linkedin, WalletCards } from 'lucide-react';
 import logo from '@/assets/marcenapp-logo.svg';
 
 const FOOTER_LINKS = {
   produto: [
-    { label: 'Novo Projeto', to: '/?module=novo' },
+    { label: 'Novo projeto', to: '/?module=novo' },
     { label: 'Estúdio 3D', to: '/?module=studio' },
     { label: 'Orçamento', to: '/?module=orcamento' },
-    { label: 'Plano de Corte', to: '/?module=corte' },
+    { label: 'Plano de corte', to: '/?module=corte' },
   ],
-  empresa: [
+  ecossistema: [
+    { label: 'Parceiros', to: '/?module=dashboard&section=parceiros' },
+    { label: 'Distribuidores', to: '/?module=dashboard&section=distribuidores' },
     { label: 'Contratos', to: '/?module=contrato' },
     { label: 'Clientes', to: '/?module=clientes' },
-    { label: 'Diário de Obra', to: '/?module=diario' },
   ],
-  suporte: [
-    { label: 'Autenticar', to: '/auth' },
-    { label: 'Início', to: '/?module=dashboard' },
+  acesso: [
+    { label: 'Central de uso', to: '/?module=billing' },
+    { label: 'Entrar', to: '/auth' },
+    { label: 'Começar agora', to: '/auth' },
   ],
 };
 
 export const Footer = () => (
-  <footer className="hidden md:block bg-slate-900 border-t border-slate-800 text-slate-400" role="contentinfo">
-    <div className="max-w-7xl mx-auto px-8 pt-12 pb-8">
-      <div className="grid grid-cols-4 gap-8 mb-10">
-        <div className="col-span-1">
-          <div className="flex items-center gap-2.5 mb-3">
-            <img src={logo} alt="Marcenapp" className="w-9 h-9 rounded-full border-2 border-indigo-500" />
-            <span className="text-white font-black tracking-tight text-sm">
-              MARCENA<span className="text-indigo-400">PP</span>
-            </span>
+  <footer className="hidden border-t border-slate-800 bg-slate-950 text-slate-300 md:block" role="contentinfo">
+    <div className="mx-auto max-w-7xl px-8 py-12">
+      <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
+        <div>
+          <div className="flex items-center gap-3">
+            <img src={logo} alt="Marcenapp" className="h-9 w-9 rounded-xl" />
+            <div><p className="font-black text-white">MARCENAPP</p><p className="text-xs text-slate-500">Do projeto à produção, tudo no lugar.</p></div>
           </div>
-          <p className="text-[13px] leading-relaxed">
-            Plataforma 4.0 para marcenarias. Orçamento, projeto 3D, plano de corte e contratos — tudo em um só lugar.
-          </p>
-          <div className="flex gap-3 mt-4">
-            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-white/5 hover:bg-indigo-500/20 hover:text-indigo-400 flex items-center justify-center transition-all" aria-label="Instagram"><Instagram size={14} /></a>
-            <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-white/5 hover:bg-indigo-500/20 hover:text-indigo-400 flex items-center justify-center transition-all" aria-label="LinkedIn"><Linkedin size={14} /></a>
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-white/5 hover:bg-indigo-500/20 hover:text-indigo-400 flex items-center justify-center transition-all" aria-label="GitHub"><Github size={14} /></a>
-          </div>
+          <p className="mt-5 max-w-sm text-sm leading-6 text-slate-400">Plataforma para profissionais que projetam e produzem móveis sob medida.</p>
+          <Link to="/auth" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-indigo-600/20">Começar agora <ArrowRight size={15} /></Link>
+          <div className="mt-5 flex gap-2"><a href="https://instagram.com" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"><Instagram size={14} /></a><a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"><Linkedin size={14} /></a></div>
         </div>
-        <div><h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-1.5"><Hammer size={10} /> Produto</h3><ul className="space-y-2.5">{FOOTER_LINKS.produto.map(l => <li key={l.label}><Link to={l.to} className="text-[13px] hover:text-white transition-colors">{l.label}</Link></li>)}</ul></div>
-        <div><h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-1.5"><FileText size={10} /> Empresa</h3><ul className="space-y-2.5">{FOOTER_LINKS.empresa.map(l => <li key={l.label}><Link to={l.to} className="text-[13px] hover:text-white transition-colors">{l.label}</Link></li>)}</ul></div>
-        <div><h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-1.5"><Calculator size={10} /> Suporte</h3><ul className="space-y-2.5">{FOOTER_LINKS.suporte.map(l => <li key={l.label}><Link to={l.to} className="text-[13px] hover:text-white transition-colors">{l.label}</Link></li>)}</ul></div>
+        <div><p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[.18em] text-slate-500"><Hammer size={11} /> Produto</p><ul className="mt-4 space-y-3 text-sm font-semibold">{FOOTER_LINKS.produto.map(link => <li key={link.label}><Link to={link.to} className="hover:text-white">{link.label}</Link></li>)}</ul></div>
+        <div><p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[.18em] text-slate-500"><FileText size={11} /> Ecossistema</p><ul className="mt-4 space-y-3 text-sm font-semibold">{FOOTER_LINKS.ecossistema.map(link => <li key={link.label}><Link to={link.to} className="hover:text-white">{link.label}</Link></li>)}</ul></div>
+        <div><p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[.18em] text-slate-500"><WalletCards size={11} /> Acesso</p><ul className="mt-4 space-y-3 text-sm font-semibold">{FOOTER_LINKS.acesso.map(link => <li key={link.label}><Link to={link.to} className="hover:text-white">{link.label}</Link></li>)}</ul></div>
       </div>
-      <div className="border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3"><p className="text-[11px]">© {new Date().getFullYear()} Marcenapp OS. Todos os direitos reservados.</p><p className="text-[11px] text-slate-600">Feito para marceneiros que não param de crescer.</p></div>
+      <div className="mt-10 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between"><p>© {new Date().getFullYear()} Marcenapp. Todos os direitos reservados.</p><p>Do projeto à produção, tudo no lugar.</p></div>
     </div>
   </footer>
 );
