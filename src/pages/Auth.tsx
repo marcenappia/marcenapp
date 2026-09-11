@@ -13,15 +13,24 @@ const getAppOrigin = () => {
   return PRODUCTION_ORIGIN;
 };
 
-const describeAuthError = (authError: { message?: string; status?: number } | null) => {
+const describeAuthError = (authError: { code?: string; message?: string; status?: number } | null) => {
   if (!authError) return '';
   const raw = authError.message?.trim() || '';
+  const code = authError.code?.trim().toLowerCase() || '';
   const message = raw.toLowerCase();
+
+  if (code === 'redirect_to_not_allowed' || message.includes('redirect') && message.includes('not allowed')) {
+    return `O endereço de confirmação ${AUTH_CALLBACK} não está autorizado no Supabase Auth. A configuração de URLs de autenticação precisa incluir esse endereço.`;
+  }
+  if (code === 'signup_disabled' || message.includes('signups not allowed')) return 'O cadastro de novos usuários está desativado no Supabase Auth.';
+  if (code === 'email_address_invalid' || message.includes('invalid email')) return 'O endereço de e-mail informado é inválido.';
+  if (code === 'email_provider_disabled' || message.includes('email provider') && message.includes('disabled')) return 'O provedor de e-mail do Supabase Auth está desativado.';
   if (message.includes('invalid login credentials')) return 'E-mail ou senha incorretos.';
   if (message.includes('email not confirmed') || message.includes('email_not_confirmed')) return 'Seu e-mail ainda não foi confirmado. Verifique a caixa de entrada e o spam.';
   if (message.includes('user already registered') || message.includes('already been registered')) return 'Este e-mail já possui uma conta. Entre com sua senha ou use “Esqueceu a senha?”.';
-  if (message.includes('rate limit') || message.includes('too many requests') || authError.status === 429) return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+  if (message.includes('rate limit') || message.includes('too many requests') || code.includes('rate_limit') || authError.status === 429) return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
   if (message.includes('failed to fetch') || message.includes('network') || message.includes('fetch')) return 'Não foi possível conectar ao servidor de autenticação. Verifique sua internet e tente novamente.';
+  if (message.includes('captcha')) return 'A validação de segurança do cadastro falhou. Recarregue a página e tente novamente.';
   if (authError.status && authError.status >= 500) return `O servidor de autenticação apresentou um erro (${authError.status}). Tente novamente em instantes.`;
   return raw || `Falha na autenticação${authError.status ? ` (HTTP ${authError.status})` : ''}.`;
 };
