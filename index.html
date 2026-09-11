@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Marcenapp — Do projeto à produção, tudo no lugar.</title>
     <meta name="description" content="O Marcenapp reúne projeto, dimensionamento, visualização, materiais, ferragens, lista de corte e orçamento em um único fluxo de trabalho para marcenaria." />
-    <meta name="keywords" content="Marcenapp, marcenaria, projeto de móveis, dimensionamento, lista de corte, ferragens, orçamento, móveis sob medida" />
-    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="author" content="Marcenapp" />
     <meta name="theme-color" content="#f8f7f4" />
     <link rel="canonical" href="https://www.marcenapp.com.br/" />
@@ -14,14 +13,13 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.marcenapp.com.br/" />
     <meta property="og:title" content="Marcenapp — Do projeto à produção, tudo no lugar." />
-    <meta property="og:description" content="Projeto, dimensionamento, visualização, materiais, ferragens, lista de corte e orçamento em um único fluxo de trabalho." />
+    <meta property="og:description" content="Desenvolva projetos de marcenaria e organize medidas, materiais, ferragens, lista de corte e orçamento em um único fluxo de trabalho." />
     <meta property="og:image" content="https://www.marcenapp.com.br/marcenapp-logo.svg" />
     <meta property="og:image:alt" content="Logo Marcenapp" />
     <meta property="og:site_name" content="Marcenapp" />
     <meta property="og:locale" content="pt_BR" />
 
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:url" content="https://www.marcenapp.com.br/" />
     <meta name="twitter:title" content="Marcenapp — Do projeto à produção, tudo no lugar." />
     <meta name="twitter:description" content="Uma plataforma pensada para quem projeta e produz móveis sob medida." />
     <meta name="twitter:image" content="https://www.marcenapp.com.br/marcenapp-logo.svg" />
@@ -32,13 +30,33 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Marcenapp",
-      "alternateName": "Marcenapp Marcenaria",
-      "description": "Plataforma para profissionais de marcenaria que reúne projeto, dimensionamento, visualização, materiais, ferragens, lista de corte e orçamento em um único fluxo de trabalho.",
-      "url": "https://www.marcenapp.com.br/",
-      "applicationCategory": "BusinessApplication",
-      "operatingSystem": "Web"
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://www.marcenapp.com.br/#organization",
+          "name": "Marcenapp",
+          "url": "https://www.marcenapp.com.br/",
+          "logo": "https://www.marcenapp.com.br/marcenapp-logo.svg"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://www.marcenapp.com.br/#website",
+          "name": "Marcenapp",
+          "url": "https://www.marcenapp.com.br/",
+          "inLanguage": "pt-BR",
+          "publisher": { "@id": "https://www.marcenapp.com.br/#organization" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://www.marcenapp.com.br/#software",
+          "name": "Marcenapp",
+          "description": "Plataforma para profissionais de marcenaria que reúne projeto, dimensionamento, visualização, materiais, ferragens, lista de corte e orçamento em um único fluxo de trabalho.",
+          "url": "https://www.marcenapp.com.br/",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "publisher": { "@id": "https://www.marcenapp.com.br/#organization" }
+        }
+      ]
     }
     </script>
   </head>
