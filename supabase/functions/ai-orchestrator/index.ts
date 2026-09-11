@@ -1,3 +1,4 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 import { buildCorsHeaders, guardRequest, readJsonBody, jsonResponse } from "../_shared/guard.ts";
@@ -5,6 +6,8 @@ import { buildCorsHeaders, guardRequest, readJsonBody, jsonResponse } from "../_
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_MODEL = "openai/gpt-5.5";
+const GEMINI_MODEL = Deno.env.get("GEMINI_TEXT_MODEL") ?? "gemini-3.7-flash";
+type Provider = "lovable" | "gemini";
 
 const BodySchema = z.object({
   userPrompt: z.string().min(1).max(4000),
@@ -37,65 +40,132 @@ Regras obrigatórias:
 - Para múltiplas ações, retorne as chamadas na ordem lógica e segura.
 - Para conversa ou dúvida sem ação, responda apenas em texto.`;
 
+const adminClient = () => {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) throw new Error("server_config_incomplete");
+  return createClient(url, key, { auth: { persistSession: false } });
+};
+
+async function resolveProvider(userId: string): Promise<{ primary: Provider; fallback: Provider | null }> {
+  const { data } = await adminClient().from("ai_provider_settings").select("provider").eq("user_id", userId).maybeSingle();
+  const configured = data?.provider as string | undefined;
+  const lovableAvailable = Boolean(Deno.env.get("LOVABLE_API_KEY"));
+  const geminiAvailable = Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY"));
+  if (configured === "lovable") return { primary: "lovable", fallback: geminiAvailable ? "gemini" : null };
+  if (configured === "gemini") return { primary: "gemini", fallback: lovableAvailable ? "lovable" : null };
+  return { primary: lovableAvailable ? "lovable" : "gemini", fallback: lovableAvailable && geminiAvailable ? "gemini" : null };
+}
+
+function toGeminiSchema(value: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...value };
+  if (typeof result.type === "string") result.type = result.type.toUpperCase();
+  if (result.properties && typeof result.properties === "object") {
+    const props = result.properties as Record<string, Record<string, unknown>>;
+    result.properties = Object.fromEntries(Object.entries(props).map(([key, schema]) => [key, toGeminiSchema(schema)]));
+  }
+  if (Array.isArray(result.items)) result.items = result.items.map(item => toGeminiSchema(item as Record<string, unknown>));
+  else if (result.items && typeof result.items === "object") result.items = toGeminiSchema(result.items as Record<string, unknown>);
+  return result;
+}
+
+function geminiTools() {
+  return [{ functionDeclarations: TOOL_DECLARATIONS.map(tool => ({ name: tool.name, description: tool.description, parameters: toGeminiSchema(tool.parameters) })) }];
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 90_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try { return await fetch(url, { ...init, signal: controller.signal }); }
+  catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("provider_timeout");
+    throw new Error("provider_connection_error");
+  }
+  finally { clearTimeout(timer); }
+}
+
+async function callLovable(userPrompt: string, contextBlock: string) {
+  const key = Deno.env.get("LOVABLE_API_KEY");
+  if (!key) throw new Error("provider_not_configured:lovable");
+  const response = await fetchWithTimeout(LOVABLE_GATEWAY_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "Lovable-API-Key": key }, body: JSON.stringify({ model: LOVABLE_MODEL, messages: [{ role: "system", content: SYSTEM_INSTRUCTION }, { role: "user", content: userPrompt + contextBlock }], tools: TOOL_DECLARATIONS, tool_choice: "auto" }) });
+  if (!response.ok) throw new Error(`provider_http:${response.status}`);
+  return await response.json();
+}
+
+async function callGemini(userPrompt: string, contextBlock: string) {
+  const key = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+  if (!key) throw new Error("provider_not_configured:gemini");
+  const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }, contents: [{ role: "user", parts: [{ text: userPrompt + contextBlock }] }], tools: geminiTools(), toolConfig: { functionCallingConfig: { mode: "AUTO" } } }) });
+  if (!response.ok) throw new Error(`provider_http:${response.status}`);
+  return await response.json();
+}
+
+function parseProviderResponse(provider: Provider, data: Record<string, unknown>) {
+  const plan: Array<{ tool: string; args: Record<string, unknown> }> = [];
+  let summary = "";
+  if (provider === "lovable") {
+    const message = (data.choices as Array<Record<string, unknown>> | undefined)?.[0]?.message as Record<string, unknown> | undefined;
+    for (const call of (message?.tool_calls as Array<Record<string, unknown>> | undefined) ?? []) {
+      const fn = call.function as Record<string, unknown> | undefined;
+      const name = fn?.name;
+      if (!name) continue;
+      let args: Record<string, unknown> = {};
+      try { args = JSON.parse(String(fn?.arguments ?? "{}")); } catch { args = {}; }
+      plan.push({ tool: String(name), args });
+    }
+    const content = message?.content;
+    if (typeof content === "string") summary = content;
+    else if (Array.isArray(content)) summary = content.map((part: { text?: string }) => part?.text ?? "").join("");
+    return { plan, summary: summary.trim(), model: String(data.model ?? LOVABLE_MODEL) };
+  }
+
+  const candidate = (data.candidates as Array<Record<string, unknown>> | undefined)?.[0];
+  const parts = ((candidate?.content as Record<string, unknown> | undefined)?.parts as Array<Record<string, unknown>> | undefined) ?? [];
+  for (const part of parts) {
+    const functionCall = part.functionCall as Record<string, unknown> | undefined;
+    if (functionCall?.name) plan.push({ tool: String(functionCall.name), args: (functionCall.args as Record<string, unknown>) ?? {} });
+    if (typeof part.text === "string") summary += part.text;
+  }
+  return { plan, summary: summary.trim(), model: GEMINI_MODEL };
+}
+
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") return jsonResponse(corsHeaders, { error: "Method not allowed" }, 405);
+  if (req.method !== "POST") return jsonResponse(corsHeaders, { error: "Method not allowed", code: "method_not_allowed" }, 405);
 
   const guard = await guardRequest(req, corsHeaders, { fn: "ai-orchestrator", limit: 20, windowSeconds: 60 });
   if (!guard.ok) return guard.response;
 
   try {
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) return jsonResponse(corsHeaders, { error: "Serviço Lovable AI não configurado.", code: "provider_not_configured", provider: "lovable" }, 500);
-
     const read = await readJsonBody(req, MAX_BODY_BYTES);
-    if (!read.ok) return jsonResponse(corsHeaders, { error: read.reason === "too_large" ? "Corpo da requisição muito grande." : "JSON inválido." }, read.reason === "too_large" ? 413 : 400);
-
+    if (!read.ok) return jsonResponse(corsHeaders, { error: read.reason === "too_large" ? "Corpo da requisição muito grande." : "JSON inválido.", code: read.reason === "too_large" ? "payload_too_large" : "invalid_json" }, read.reason === "too_large" ? 413 : 400);
     const parsed = BodySchema.safeParse(read.body);
-    if (!parsed.success) return jsonResponse(corsHeaders, { error: "Validation failed", fields: parsed.error.flatten().fieldErrors }, 400);
+    if (!parsed.success) return jsonResponse(corsHeaders, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
 
-    const { userPrompt, context } = parsed.data;
-    const contextBlock = context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(context, null, 2)}` : "";
-    const response = await fetch(LOVABLE_GATEWAY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${lovableKey}`, "Lovable-API-Key": lovableKey },
-      body: JSON.stringify({
-        model: LOVABLE_MODEL,
-        messages: [{ role: "system", content: SYSTEM_INSTRUCTION }, { role: "user", content: userPrompt + contextBlock }],
-        tools: TOOL_DECLARATIONS,
-        tool_choice: "auto",
-      }),
-    });
+    const contextBlock = parsed.data.context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(parsed.data.context, null, 2)}` : "";
+    const { primary, fallback } = await resolveProvider(guard.userId);
+    const providers: Provider[] = fallback ? [primary, fallback] : [primary];
+    let lastError: unknown = null;
 
-    if (!response.ok) {
-      const status = response.status;
-      const limited = status === 429;
-      const credits = status === 402;
-      console.error("Lovable orchestrator error:", status, await response.text());
-      return jsonResponse(corsHeaders, {
-        error: credits ? "Créditos do Lovable AI esgotados." : limited ? "Limite do Lovable AI atingido." : "O serviço Lovable AI está indisponível.",
-        code: credits ? "credits_exhausted" : limited ? "rate_limited" : "upstream_error",
-      }, credits ? 402 : limited ? 429 : 502, limited ? { "Retry-After": "10" } : {});
+    for (const provider of providers) {
+      try {
+        const data = provider === "lovable" ? await callLovable(parsed.data.userPrompt, contextBlock) : await callGemini(parsed.data.userPrompt, contextBlock);
+        const result = parseProviderResponse(provider, data);
+        return jsonResponse(corsHeaders, { ...result, provider });
+      } catch (error) {
+        lastError = error;
+        console.error(`AI orchestrator provider ${provider} failed`, error);
+      }
     }
 
-    const data = await response.json();
-    const message = data.choices?.[0]?.message;
-    const plan: Array<{ tool: string; args: Record<string, unknown> }> = [];
-    let summary = "";
-
-    for (const call of message?.tool_calls ?? []) {
-      const name = call.function?.name;
-      if (!name) continue;
-      let args: Record<string, unknown> = {};
-      try { args = JSON.parse(call.function?.arguments ?? "{}"); } catch { args = {}; }
-      plan.push({ tool: name, args });
-    }
-
-    if (typeof message?.content === "string") summary = message.content;
-    else if (Array.isArray(message?.content)) summary = message.content.map((part: { text?: string }) => part?.text ?? "").join("");
-
-    return jsonResponse(corsHeaders, { plan, summary: summary.trim(), model: data.model ?? LOVABLE_MODEL, provider: "lovable" });
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    if (message.startsWith("provider_not_configured")) return jsonResponse(corsHeaders, { error: "Nenhum provedor de IA de texto está configurado. Ative um provedor no Admin.", code: "provider_not_configured" }, 500);
+    if (message.includes("provider_http:402")) return jsonResponse(corsHeaders, { error: "Os créditos do provedor de IA acabaram.", code: "provider_credits_exhausted" }, 402);
+    if (message.includes("provider_http:429")) return jsonResponse(corsHeaders, { error: "O limite do provedor de IA foi atingido. Tente novamente em alguns segundos.", code: "rate_limited" }, 429, { "Retry-After": "10" });
+    if (message === "provider_timeout") return jsonResponse(corsHeaders, { error: "O provedor de IA demorou além do limite esperado.", code: "provider_timeout" }, 504);
+    if (message === "provider_connection_error") return jsonResponse(corsHeaders, { error: "Não foi possível comunicar com o provedor de IA.", code: "provider_connection_error" }, 502);
+    return jsonResponse(corsHeaders, { error: "O provedor de IA está indisponível no momento.", code: "upstream_error" }, 502);
   } catch (e) {
     console.error("ai-orchestrator error:", e);
     return jsonResponse(corsHeaders, { error: "Erro interno no orquestrador.", code: "internal_error" }, 500);
