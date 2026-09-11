@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html'], ['list']],
   webServer: {
-    command: 'VITE_SUPABASE_URL=https://uzhqhieqlcyncelltfjw.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=e2e-placeholder npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
+    command: 'VITE_SUPABASE_URL=https://uzhqhieqlcyncelltfjw npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
