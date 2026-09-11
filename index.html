@@ -9,6 +9,9 @@
     <meta name="author" content="Marcenapp" />
     <meta name="theme-color" content="#2563EB" />
     <link rel="canonical" href="https://www.marcenapp.com.br/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.marcenapp.com.br/" />
@@ -18,12 +21,10 @@
     <meta property="og:image:alt" content="Logo Marcenapp" />
     <meta property="og:site_name" content="Marcenapp" />
     <meta property="og:locale" content="pt_BR" />
-
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Marcenapp — Do projeto à produção, tudo no lugar." />
     <meta name="twitter:description" content="Uma plataforma pensada para quem projeta e produz móveis sob medida." />
     <meta name="twitter:image" content="https://www.marcenapp.com.br/marcenapp-logo.svg" />
-
     <link rel="icon" type="image/svg+xml" href="/marcenapp-logo.svg" />
     <link rel="apple-touch-icon" href="/marcenapp-logo.svg" />
 
@@ -31,37 +32,12 @@
     {
       "@context": "https://schema.org",
       "@graph": [
-        {
-          "@type": "Organization",
-          "@id": "https://www.marcenapp.com.br/#organization",
-          "name": "Marcenapp",
-          "url": "https://www.marcenapp.com.br/",
-          "logo": "https://www.marcenapp.com.br/marcenapp-logo.svg"
-        },
-        {
-          "@type": "WebSite",
-          "@id": "https://www.marcenapp.com.br/#website",
-          "name": "Marcenapp",
-          "url": "https://www.marcenapp.com.br/",
-          "inLanguage": "pt-BR",
-          "publisher": { "@id": "https://www.marcenapp.com.br/#organization" }
-        },
-        {
-          "@type": "SoftwareApplication",
-          "@id": "https://www.marcenapp.com.br/#software",
-          "name": "Marcenapp",
-          "description": "Plataforma para profissionais de marcenaria que reúne projeto, dimensionamento, visualização, materiais, ferragens, lista de corte e orçamento em um único fluxo de trabalho.",
-          "url": "https://www.marcenapp.com.br/",
-          "applicationCategory": "BusinessApplication",
-          "operatingSystem": "Web",
-          "publisher": { "@id": "https://www.marcenapp.com.br/#organization" }
-        }
+        {"@type":"Organization","@id":"https://www.marcenapp.com.br/#organization","name":"Marcenapp","url":"https://www.marcenapp.com.br/","logo":"https://www.marcenapp.com.br/marcenapp-logo.svg"},
+        {"@type":"WebSite","@id":"https://www.marcenapp.com.br/#website","name":"Marcenapp","url":"https://www.marcenapp.com.br/","inLanguage":"pt-BR","publisher":{"@id":"https://www.marcenapp.com.br/#organization"}},
+        {"@type":"SoftwareApplication","@id":"https://www.marcenapp.com.br/#software","name":"Marcenapp","description":"Plataforma para profissionais de marcenaria que reúne projeto, dimensionamento, visualização, materiais, ferragens, lista de corte e orçamento em um único fluxo de trabalho.","url":"https://www.marcenapp.com.br/","applicationCategory":"BusinessApplication","operatingSystem":"Web","publisher":{"@id":"https://www.marcenapp.com.br/#organization"}}
       ]
     }
     </script>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
 </html>
