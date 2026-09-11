@@ -39,12 +39,9 @@ const PageTransition = ({
   className = '',
 }: PageTransitionProps) => {
   const location = useLocation();
-
-  // Acessibilidade: respeitar preferência reduced-motion do sistema
   const reducedMotion =
     typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
   const v = variants[effect];
 
   return (
@@ -52,11 +49,11 @@ const PageTransition = ({
       <motion.div
         key={location.pathname}
         initial={reducedMotion ? false : v.initial}
-        animate={reducedMotion ? false : v.animate}
+        animate={v.animate}
         exit={reducedMotion ? false : v.exit}
         transition={{
           duration: reducedMotion ? 0 : duration,
-          ease: [0.22, 1, 0.36, 1], // custom easing: cepat no início, lento no fim
+          ease: [0.22, 1, 0.36, 1],
         }}
         className={className}
       >
