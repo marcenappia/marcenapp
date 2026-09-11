@@ -17,7 +17,7 @@ test.describe('YARA → AI → provider', () => {
 
     const prompt = 'Quero conversar com a IARA sobre meu projeto de marcenaria.';
     await input.fill(prompt);
-    await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
+    await page.getByRole('button', { name: 'Enviar mensagem' }).click();
 
     const request = await requestPromise;
     expect(request.headers().authorization).toMatch(/^Bearer\s+\S+/);
