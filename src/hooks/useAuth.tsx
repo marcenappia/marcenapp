@@ -31,13 +31,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .select('name, company, phone, avatar_url, onboarding_completed, reduce_motion, onboarding_step')
         .eq('user_id', userId)
         .maybeSingle();
-      
+
       if (error) {
         console.error('Error fetching profile:', error);
         return;
       }
-      
-      if (data) setProfile(data);
+
+      setProfile(data ?? null);
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
     }
@@ -48,31 +48,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          setTimeout(() => fetchProfile(session.user.id), 0);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
-      }
-    );
+    let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      setLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      if (!nextSession?.user) setProfile(null);
     });
 
-    return () => subscription.unsubscribe();
+    const initialize = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      if (error) {
+        console.error('Error restoring auth session:', error);
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      } else {
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+      }
+      setLoading(false);
+    };
+
+    void initialize();
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      setProfile(null);
+      return;
+    }
+    void fetchProfile(user.id);
+  }, [user]);
+
   const signOut = async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) console.error('Error signing out:', error);
     setUser(null);
     setSession(null);
     setProfile(null);
