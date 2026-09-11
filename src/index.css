@@ -45,13 +45,39 @@
 }
 
 @layer base {
-  * {
+  *,
+  *::before,
+  *::after {
     @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+  }
+
+  html {
+    overflow-x: hidden;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'DM Sans', 'Epilogue', sans-serif;
+    overflow-x: hidden;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+  }
+
+  button,
+  [role='button'],
+  a {
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
@@ -70,5 +96,11 @@
   }
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+  }
+
+  @media (max-width: 767px) {
+    .pb-safe {
+      padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+    }
   }
 }
