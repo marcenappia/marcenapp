@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   generate:
-    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'fix(types): synchronize Supabase generated types') }}
+    if: "${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'fix(types): synchronize Supabase generated types') }}"
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
