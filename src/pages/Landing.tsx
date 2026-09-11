@@ -35,6 +35,8 @@ const faqs = [
 ];
 
 const cabinetryImage = 'https://upload.wikimedia.org/wikipedia/commons/3/35/Newly_renovated_kitchen_with_cabinets_refrigerator_stove_and_hardwood_floor.jpg';
+const clientImage = 'https://images.unsplash.com/photo-1542302760-b1db9d8c64e6?auto=format&fit=crop&fm=jpg&q=80&w=1400';
+const deskImage = 'https://images.unsplash.com/photo-1781871522095-3bb9439f3bbe?auto=format&fit=crop&fm=jpg&q=80&w=1400';
 
 function ProductPreview() {
   return (
@@ -73,6 +75,28 @@ function ProductPreview() {
   );
 }
 
+function PhonePreview() {
+  return (
+    <div className="absolute bottom-5 right-5 w-[112px] rounded-[22px] border-[5px] border-slate-900 bg-white p-1 shadow-2xl sm:w-[132px]">
+      <div className="overflow-hidden rounded-[15px] bg-background">
+        <div className="flex items-center justify-between border-b border-border px-2 py-2"><span className="text-[7px] font-black text-foreground">MARCENAPP</span><span className="h-1.5 w-1.5 rounded-full bg-primary" /></div>
+        <div className="p-2"><div className="h-12 rounded-lg bg-primary/10 p-2"><p className="text-[6px] font-black text-primary">Projeto ativo</p><p className="mt-1 text-[7px] font-bold">Cozinha</p></div><div className="mt-2 grid grid-cols-2 gap-1"><div className="rounded-md bg-secondary p-1"><p className="text-[5px] text-muted-foreground">Medidas</p><p className="text-[6px] font-bold">3,20 m</p></div><div className="rounded-md bg-secondary p-1"><p className="text-[5px] text-muted-foreground">Ambiente</p><p className="text-[6px] font-bold">Cozinha</p></div></div></div>
+      </div>
+    </div>
+  );
+}
+
+function LaptopPreview() {
+  return (
+    <div className="absolute bottom-4 left-1/2 w-[72%] -translate-x-1/2 rounded-t-[10px] border-[5px] border-slate-900 bg-slate-900 p-1 shadow-2xl sm:w-[68%]">
+      <div className="rounded-[5px] bg-background p-2">
+        <div className="flex items-center justify-between border-b border-border pb-1"><span className="text-[6px] font-black">MARCENAPP / 3D</span><span className="text-[5px] font-bold text-primary">Projeto</span></div>
+        <div className="mt-2 grid grid-cols-[.7fr_1.3fr] gap-2"><div className="space-y-1"><div className="h-2 rounded bg-secondary" /><div className="h-2 rounded bg-secondary" /><div className="h-2 w-3/4 rounded bg-secondary" /></div><div className="rounded bg-primary/10 p-2"><div className="h-12 rounded border border-primary/20 bg-white" /><div className="mt-1 h-1.5 w-2/3 rounded bg-primary/20" /></div></div>
+      </div>
+    </div>
+  );
+}
+
 export default function Landing() {
   const navigate = useNavigate();
   const [menu, setMenu] = useState(false);
@@ -90,6 +114,7 @@ export default function Landing() {
           <nav className="hidden items-center gap-7 md:flex" aria-label="Navegação principal">
             <a href="#produto" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Produto</a>
             <a href="#recursos" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Recursos</a>
+            <a href="#jornada" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Como funciona</a>
             <a href="#yara" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Yara</a>
             <a href="#faq" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Dúvidas</a>
             <button onClick={go} className="rounded-xl px-3 py-2 text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Entrar</button>
@@ -97,21 +122,41 @@ export default function Landing() {
           </nav>
           <button className="rounded-xl p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden" onClick={() => setMenu(!menu)} aria-label={menu ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menu} aria-controls="mobile-navigation">{menu ? <X /> : <Menu />}</button>
         </div>
-        {menu && <div id="mobile-navigation" className="border-t border-border bg-background px-5 py-4 md:hidden"><div className="flex flex-col gap-1">{['produto', 'recursos', 'yara', 'faq'].map((item) => <a key={item} href={`#${item}`} onClick={() => setMenu(false)} className="rounded-xl px-3 py-3 font-semibold text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{item === 'faq' ? 'Dúvidas' : item[0].toUpperCase() + item.slice(1)}</a>)}<button onClick={go} className="mt-2 rounded-xl bg-primary px-4 py-3 font-black text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Começar agora</button></div></div>}
+        {menu && <div id="mobile-navigation" className="border-t border-border bg-background px-5 py-4 md:hidden"><div className="flex flex-col gap-1">{['produto', 'recursos', 'jornada', 'yara', 'faq'].map((item) => <a key={item} href={`#${item}`} onClick={() => setMenu(false)} className="rounded-xl px-3 py-3 font-semibold text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{item === 'faq' ? 'Dúvidas' : item === 'jornada' ? 'Como funciona' : item[0].toUpperCase() + item.slice(1)}</a>)}<button onClick={go} className="mt-2 rounded-xl bg-primary px-4 py-3 font-black text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Começar agora</button></div></div>}
       </header>
 
       <main>
         <section className="relative overflow-hidden bg-slate-950 px-5 pb-20 pt-32 text-white lg:px-8 lg:pb-28 lg:pt-40">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_35%,rgba(59,130,246,.18),transparent_32%),radial-gradient(circle_at_90%_90%,rgba(59,130,246,.08),transparent_28%)]" aria-hidden="true" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_35%,rgba(59,130,246,.18),transparent_32%),radial-gradient(circle_at_90%_90%,rgba(245,158,11,.08),transparent_28%)]" aria-hidden="true" />
           <div className="relative mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[.86fr_1.14fr]">
             <div>
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[.05] px-3 py-1.5 text-xs font-bold text-slate-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Feito para quem projeta e produz móveis sob medida</div>
               <h1 className="max-w-2xl text-5xl font-black leading-[.96] tracking-[-.05em] sm:text-6xl lg:text-7xl">Do projeto à produção, <span className="text-primary">tudo no lugar.</span></h1>
               <p className="mt-7 max-w-xl text-lg leading-8 text-slate-300 sm:text-xl">Desenvolva seus projetos de marcenaria, visualize em 2D e 3D e organize medidas, materiais, ferragens, lista de corte e orçamento em um único fluxo de trabalho.</p>
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row"><button onClick={go} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-7 py-4 font-black text-white shadow-xl shadow-primary/20 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Começar agora <ArrowRight size={18} /></button><a href="#produto" className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[.04] px-7 py-4 font-bold text-white transition hover:bg-white/[.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Conhecer o Marcenapp</a></div>
-              <p className="mt-7 text-xs font-semibold text-slate-400">Feito para quem projeta e produz móveis sob medida.</p>
+              <div className="mt-9 flex flex-col gap-3 sm:flex-row"><button onClick={go} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-7 py-4 font-black text-white shadow-xl shadow-primary/20 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Começar agora <ArrowRight size={18} /></button><a href="#jornada" className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[.04] px-7 py-4 font-bold text-white transition hover:bg-white/[.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Conhecer o fluxo</a></div>
+              <p className="mt-7 text-xs font-semibold text-slate-400">Tecnologia no produto. Naturalidade na comunicação.</p>
             </div>
             <ProductPreview />
+          </div>
+        </section>
+
+        <section id="jornada" className="scroll-mt-24 border-b border-border bg-card px-5 py-20 lg:px-8 lg:py-28">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-3xl"><p className="text-sm font-black uppercase tracking-[.18em] text-primary">A jornada real</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">O projeto começa na casa do cliente. E continua até a produção.</h2><p className="mt-5 text-lg leading-8 text-muted-foreground">A ideia é simples: registrar o que está no ambiente, desenvolver o móvel e chegar à produção com as informações organizadas.</p></div>
+            <div className="mt-12 grid gap-5 lg:grid-cols-3">
+              <article className="group overflow-hidden rounded-[28px] border border-border bg-background shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+                <div className="relative h-72 overflow-hidden"><img src={clientImage} alt="Profissional registrando informações de um ambiente com o celular" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" referrerPolicy="no-referrer" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" /><PhonePreview /><div className="absolute bottom-4 left-4 rounded-full border border-white/15 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black text-white backdrop-blur">01 · CASA DO CLIENTE</div></div>
+                <div className="p-6"><h3 className="text-xl font-black">Foto, medida e contexto.</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">Registre o ambiente e tenha as informações do projeto à mão desde a primeira visita.</p></div>
+              </article>
+              <article className="group overflow-hidden rounded-[28px] border border-border bg-background shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+                <div className="relative h-72 overflow-hidden"><img src={deskImage} alt="Computador com projeto sendo desenvolvido" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" referrerPolicy="no-referrer" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" /><LaptopPreview /><div className="absolute bottom-4 left-4 rounded-full border border-white/15 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black text-white backdrop-blur">02 · DESENVOLVIMENTO</div></div>
+                <div className="p-6"><h3 className="text-xl font-black">Do dado ao projeto.</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">Trabalhe com medidas, módulos e visualização 2D e 3D antes de produzir.</p></div>
+              </article>
+              <article className="group overflow-hidden rounded-[28px] border border-border bg-background shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+                <div className="relative h-72 overflow-hidden"><img src={cabinetryImage} alt="Ambiente finalizado com marcenaria planejada" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" referrerPolicy="no-referrer" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-transparent to-transparent" /><div className="absolute bottom-4 left-4 rounded-full border border-white/15 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black text-white backdrop-blur">03 · RESULTADO</div><div className="absolute right-4 top-4 rounded-2xl bg-primary px-3 py-2 text-[10px] font-black text-white shadow-lg">PROJETO → PRODUÇÃO</div></div>
+                <div className="p-6"><h3 className="text-xl font-black">O mesmo projeto, pronto para seguir.</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">Materiais, ferragens, lista de corte e orçamento acompanham o fluxo de trabalho.</p></div>
+              </article>
+            </div>
           </div>
         </section>
 
@@ -141,7 +186,7 @@ export default function Landing() {
         <section className="px-5 py-20 lg:px-8 lg:py-28"><div className="mx-auto max-w-7xl overflow-hidden rounded-[32px] bg-slate-950 px-7 py-14 text-center text-white sm:px-12 sm:py-20"><p className="text-sm font-black uppercase tracking-[.18em] text-primary">Próximo projeto</p><h2 className="mx-auto mt-4 max-w-3xl text-4xl font-black tracking-tight sm:text-6xl">Seu próximo projeto pode começar aqui.</h2><p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-300">Organize o projeto, desenvolva o móvel e reúna as informações necessárias para seguir para a produção.</p><button onClick={go} className="mt-9 inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-4 font-black text-white shadow-xl shadow-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Começar agora <ArrowRight size={18} /></button></div></section>
       </main>
 
-      <footer className="border-t border-border px-5 py-10 lg:px-8"><div className="mx-auto flex max-w-7xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><img src={logo} alt="Marcenapp" className="h-8 w-8 rounded-lg" /><div><p className="font-black">MARCENAPP</p><p className="text-xs text-muted-foreground">Do projeto à produção, tudo no lugar.</p></div></div><div className="flex flex-wrap gap-5 text-sm font-semibold text-muted-foreground"><a href="#produto" className="hover:text-foreground">Produto</a><a href="#recursos" className="hover:text-foreground">Recursos</a><a href="#yara" className="hover:text-foreground">Yara</a><a href="#faq" className="hover:text-foreground">Dúvidas</a></div></div></footer>
+      <footer className="border-t border-border px-5 py-10 lg:px-8"><div className="mx-auto flex max-w-7xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><img src={logo} alt="Marcenapp" className="h-8 w-8 rounded-lg" /><div><p className="font-black">MARCENAPP</p><p className="text-xs text-muted-foreground">Do projeto à produção, tudo no lugar.</p></div></div><div className="flex flex-wrap gap-5 text-sm font-semibold text-muted-foreground"><a href="#produto" className="hover:text-foreground">Produto</a><a href="#recursos" className="hover:text-foreground">Recursos</a><a href="#jornada" className="hover:text-foreground">Como funciona</a><a href="#yara" className="hover:text-foreground">Yara</a><a href="#faq" className="hover:text-foreground">Dúvidas</a></div></div></footer>
     </div>
   );
 }
