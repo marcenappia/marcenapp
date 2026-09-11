@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Landing from "./pages/Landing";
 import ClientReview from "./pages/ClientReview";
+import AdminAgents from "./pages/AdminAgents";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/forgot-password" element={<Auth />} />
             <Route path="/reset-password" element={<Auth />} />
             <Route path="/cliente/revisao" element={<ClientReview />} />
+            <Route path="/admin/agentes" element={<AdminAgents />} />
             <Route path="/" element={<HomeRoute />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
