@@ -35,52 +35,45 @@ const faqs = [
   ['Como começo?', 'Clique em Começar agora para entrar no fluxo de acesso da plataforma e conhecer as condições atuais.'],
 ];
 
+const cabinetryImage = 'https://upload.wikimedia.org/wikipedia/commons/3/3f/Kitchen_cabinets_at_a_store_in_NJ_7.jpg';
+
 function ProductPreview() {
   return (
     <div className="relative mx-auto w-full max-w-[680px]">
       <div className="absolute -left-8 top-20 hidden h-32 w-32 rounded-full bg-primary/15 blur-3xl sm:block" aria-hidden="true" />
       <div className="absolute -right-10 bottom-8 h-40 w-40 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
-      <div className="relative overflow-hidden rounded-[28px] border border-white/15 bg-slate-950 shadow-2xl shadow-slate-950/20">
-        <div className="flex items-center gap-2 border-b border-white/10 px-5 py-4">
-          <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
-          <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
-          <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
-          <span className="ml-3 text-xs font-bold text-slate-400">Marcenapp / Projeto</span>
+      <div className="relative overflow-hidden rounded-[28px] border border-white/15 bg-slate-950 p-2 shadow-2xl shadow-slate-950/30">
+        <div className="relative overflow-hidden rounded-[22px] border border-white/10 bg-slate-900">
+          <img
+            src={cabinetryImage}
+            alt="Projeto de marcenaria com módulos e gavetas de cozinha"
+            className="h-[430px] w-full object-cover object-center sm:h-[500px]"
+            loading="eager"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/10 to-transparent" aria-hidden="true" />
+          <div className="absolute inset-x-0 top-0 flex items-center gap-2 border-b border-white/10 bg-slate-950/55 px-5 py-4 backdrop-blur-md">
+            <span className="h-2.5 w-2.5 rounded-full bg-white/25" />
+            <span className="h-2.5 w-2.5 rounded-full bg-white/25" />
+            <span className="h-2.5 w-2.5 rounded-full bg-white/25" />
+            <span className="ml-3 text-xs font-bold text-white/75">Marcenapp / Projeto</span>
+          </div>
+          <div className="absolute bottom-5 left-5 right-5 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[.18em] text-primary">Projeto ativo</p>
+              <p className="mt-1 text-2xl font-black text-white">Cozinha — Residencial</p>
+              <p className="mt-1 text-sm text-slate-300">Visualização do móvel antes da produção.</p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-slate-950/80 px-4 py-3 backdrop-blur-md">
+              <div className="flex items-center gap-2 text-primary"><Sparkles size={13} /><span className="text-[10px] font-black">Yara</span></div>
+              <p className="mt-1 text-[10px] text-slate-300">Você continua no controle.</p>
+            </div>
+          </div>
         </div>
-        <div className="grid min-h-[390px] grid-cols-[88px_1fr] sm:grid-cols-[104px_1fr]">
-          <div className="border-r border-white/10 bg-white/[.025] p-3">
-            <div className="mb-7 flex h-10 items-center justify-center rounded-xl bg-primary text-xs font-black text-white">M</div>
-            {['Projeto', 'Ambiente', 'Medidas', 'Materiais', 'Produção'].map((item, index) => (
-              <div key={item} className={`mb-2 rounded-lg px-2 py-2 text-[10px] font-bold ${index === 0 ? 'bg-white/10 text-white' : 'text-slate-500'}`}>
-                {item}
-              </div>
-            ))}
-          </div>
-          <div className="p-4 sm:p-7">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[.16em] text-primary">Projeto ativo</p>
-                <p className="mt-1 text-lg font-black text-white">Cozinha — Residencial</p>
-              </div>
-              <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold text-slate-300">Projeto organizado</span>
-            </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-[1.2fr_.8fr]">
-              <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4">
-                <div className="flex h-44 items-end justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 p-4">
-                  <div className="h-28 w-16 rounded-t-lg border border-white/10 bg-slate-700/80" />
-                  <div className="h-36 w-24 rounded-t-lg border border-white/10 bg-slate-600/80" />
-                  <div className="h-24 w-14 rounded-t-lg border border-white/10 bg-slate-700/80" />
-                  <div className="absolute mt-52 h-2 w-44 rounded-full bg-slate-600" />
-                </div>
-                <div className="mt-3 flex items-center justify-between text-[10px] font-bold text-slate-400"><span>Visualização 3D</span><span className="text-white">Ver projeto →</span></div>
-              </div>
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4"><p className="text-[10px] text-slate-500">Medidas</p><p className="mt-1 text-sm font-black text-white">Organizadas no projeto</p></div>
-                <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4"><p className="text-[10px] text-slate-500">Materiais e ferragens</p><p className="mt-1 text-sm font-black text-white">Associados ao trabalho</p></div>
-                <div className="rounded-2xl border border-primary/20 bg-primary/[.06] p-4"><div className="flex items-center gap-2 text-primary"><Sparkles size={13} /><span className="text-[10px] font-black">Yara</span></div><p className="mt-2 text-[10px] leading-4 text-slate-300">Você continua no controle. A Yara ajuda no processo.</p></div>
-              </div>
-            </div>
-          </div>
+        <div className="grid grid-cols-3 gap-2 px-1 pb-1 pt-2">
+          <div className="rounded-xl bg-white/[.04] px-3 py-2 text-center"><p className="text-[9px] text-slate-500">Medidas</p><p className="text-[10px] font-black text-white">Organizadas</p></div>
+          <div className="rounded-xl bg-white/[.04] px-3 py-2 text-center"><p className="text-[9px] text-slate-500">Materiais</p><p className="text-[10px] font-black text-white">Associados</p></div>
+          <div className="rounded-xl bg-white/[.04] px-3 py-2 text-center"><p className="text-[9px] text-slate-500">Produção</p><p className="text-[10px] font-black text-white">Preparada</p></div>
         </div>
       </div>
     </div>
@@ -105,7 +98,7 @@ export default function Landing() {
             <a href="#produto" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Produto</a>
             <a href="#recursos" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Recursos</a>
             <a href="#yara" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Yara</a>
-            <a href="#faq" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Dúvidas</a>
+            <a href="#faq" className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 className="rounded-lg text-sm font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Dúvidas</a>
             <button onClick={go} className="rounded-xl px-3 py-2 text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Entrar</button>
             <button onClick={go} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-black text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Começar agora</button>
           </nav>
