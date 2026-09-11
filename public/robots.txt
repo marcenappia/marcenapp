@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://marcenapp.com.br/sitemap.xml
+Sitemap: https://www.marcenapp.com.br/sitemap.xml

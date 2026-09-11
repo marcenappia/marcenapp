@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import logo from '@/assets/marcenapp-logo.svg';
 
-const PRODUCTION_ORIGIN = 'https://marcenapp.com.br';
+const PRODUCTION_ORIGIN = 'https://www.marcenapp.com.br';
 const AUTH_CALLBACK = `${PRODUCTION_ORIGIN}/auth`;
 
 const getAppOrigin = () => {
