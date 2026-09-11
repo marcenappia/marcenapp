@@ -9,7 +9,7 @@ import { callAIContractClause } from '@/services/ai';
 
 const db = supabase as unknown as SupabaseClient;
 export type ToolResult<T = unknown> = | { ok: true; data: T } | { ok: false; error: string };
-export interface ToolDefinition<TArgs extends object, TResult = unknown> { name: string; description: string; version: string; inputSchema: z.ZodType<TArgs>; execute: (args: TArgs, ctx: ExecutionContext) => Promise<ToolResult<TResult>>; }
+export interface ToolDefinition<TArgs extends object, TResult = unknown> { name: string; description: string; version: string; inputSchema: z.ZodTypeAny; execute: (args: TArgs, ctx: ExecutionContext) => Promise<ToolResult<TResult>>; }
 export interface ExecutionContext { userId: string; projectId?: string; decorStyle?: string; lastImageBase?: string; lastImageMask?: string; }
 
 type CreateClienteArgs = { nome: string; email?: string; telefone?: string };
@@ -35,7 +35,7 @@ const gerarContrato: ToolDefinition<GerarContratoArgs, ContratoData> = { name: '
 
 const TOOLS = { createCliente, createProjeto, gerarRender, calcularOrcamento, operationalIntelligence, gerarContrato };
 type ToolName = keyof typeof TOOLS;
-type ErasedTool = { inputSchema: z.ZodType<Record<string, unknown>>; execute: (args: Record<string, unknown>, ctx: ExecutionContext) => Promise<ToolResult<unknown>> };
+type ErasedTool = { inputSchema: z.ZodTypeAny; execute: (args: Record<string, unknown>, ctx: ExecutionContext) => Promise<ToolResult<unknown>> };
 export function getTool(name: string): ToolDefinition<object, unknown> | undefined { return TOOLS[name as ToolName] as unknown as ToolDefinition<object, unknown> | undefined; }
 export function listTools(): ToolDefinition<object, unknown>[] { return Object.values(TOOLS) as unknown as ToolDefinition<object, unknown>[]; }
-export async function executeToolCall(name: string, args: unknown, ctx: ExecutionContext): Promise<ToolResult<unknown>> { const tool = getTool(name); if (!tool) return { ok: false, error: `Ferramenta desconhecida: ${name}` }; const parsed = tool.inputSchema.safeParse(args); if (!parsed.success) return { ok: false, error: `Argumentos inválidos para ${name}: ${JSON.stringify(parsed.error.flatten().fieldErrors)}` }; try { return await (tool as unknown as ErasedTool).execute(parsed.data, ctx); } catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Erro desconhecido' }; } }
+export async function executeToolCall(name: string, args: unknown, ctx: ExecutionContext): Promise<ToolResult<unknown>> { const tool = getTool(name); if (!tool) return { ok: false, error: `Ferramenta desconhecida: ${name}` }; const parsed = tool.inputSchema.safeParse(args); if (!parsed.success) return { ok: false, error: `Argumentos inválidos para ${name}: ${JSON.stringify(parsed.error.flatten().fieldErrors)}` }; try { return await (tool as unknown as ErasedTool).execute(parsed.data as Record<string, unknown>, ctx); } catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Erro desconhecido' }; } }
