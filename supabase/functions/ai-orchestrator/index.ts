@@ -6,7 +6,7 @@ import { resolveProvider, type AIProvider } from "../_shared/provider.ts";
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_MODEL = "openai/gpt-5.5";
-const GEMINI_MODEL = Deno.env.get("GEMINI_TEXT_MODEL") ?? "gemini-3.7-flash";
+const GEMINI_MODEL = "gemini-3.6-flash";
 type Provider = AIProvider;
 
 const BodySchema = z.object({
