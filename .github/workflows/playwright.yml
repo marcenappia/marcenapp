@@ -1,4 +1,5 @@
 name: Playwright Tests
+# Validation trigger kept on main so the complete IARA E2E gate runs for the current commit.
 on:
   push:
     branches: [ main, master ]
