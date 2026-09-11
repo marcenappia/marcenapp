@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    /* Marcenapp Design System — foundations */
     --background: 220 20% 97%;
     --foreground: 222 47% 11%;
 
@@ -34,11 +35,21 @@
 
     --radius: 0.75rem;
 
-    --sidebar-bg: 222 47% 11%;
+    /* Canonical sidebar tokens. Keep legacy aliases for compatibility. */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 28% 17%;
+    --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 215 28% 17%;
-    --sidebar-text: 215 20% 65%;
-    --sidebar-active: 217 91% 60%;
+    --sidebar-ring: 217 91% 60%;
 
+    --sidebar-bg: var(--sidebar-background);
+    --sidebar-text: var(--sidebar-foreground);
+    --sidebar-active: var(--sidebar-primary);
+
+    /* Reserved for existing product surfaces; do not use for new UI patterns. */
     --magic-from: 38 92% 50%;
     --magic-to: 20 90% 58%;
   }
@@ -52,6 +63,11 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'DM Sans', 'Epilogue', sans-serif;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
