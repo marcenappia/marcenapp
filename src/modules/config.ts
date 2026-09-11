@@ -21,18 +21,18 @@ export const modules: ModuleConfig[] = [
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: Users, category: 'portal' },
   { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
   { id: 'billing', label: 'Planos e Créditos', mobileLabel: 'Créditos', icon: CreditCard, category: 'portal' },
-  { id: 'studio', label: 'Estúdio + IARA', mobileLabel: 'Studio', icon: Wand2, category: 'studio' },
-  { id: 'elevator', label: 'Elevador Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine, category: 'studio' },
-  { id: 'orcamento', label: 'Estela Financeiro', mobileLabel: 'Estela', icon: Calculator, category: 'finance' },
-  { id: 'corte', label: 'Plano de Corte', mobileLabel: 'Corte', icon: Package, category: 'production' },
-  { id: 'contrato', label: 'Contratos', mobileLabel: 'Legal', icon: Scale, category: 'production' },
+  { id: 'studio', label: 'Estúdio', mobileLabel: 'Estúdio', icon: Wand2, category: 'studio' },
+  { id: 'elevator', label: 'Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine, category: 'studio' },
+  { id: 'orcamento', label: 'Orçamento', mobileLabel: 'Orçamento', icon: Calculator, category: 'finance' },
+  { id: 'corte', label: 'Lista de Corte', mobileLabel: 'Corte', icon: Package, category: 'production' },
+  { id: 'contrato', label: 'Contratos', mobileLabel: 'Contratos', icon: Scale, category: 'production' },
   { id: 'admin-billing', label: 'Administração de Créditos', mobileLabel: 'Admin', icon: Scale, category: 'portal' },
 ];
 
 export const CATEGORY_LABELS: Record<ModuleCategory, string> = {
-  intelligence: 'IARA — Cognição',
-  portal: 'Portal — Operacional',
-  studio: 'Estúdio + IARA — Materialização',
-  finance: 'Estela — Financeiro',
-  production: 'Produção — Logística'
+  intelligence: 'Inteligência',
+  portal: 'Projeto',
+  studio: 'Visualização',
+  finance: 'Orçamento',
+  production: 'Produção'
 };
