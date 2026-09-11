@@ -6,69 +6,51 @@
   :root {
     --background: 220 20% 97%;
     --foreground: 222 47% 11%;
-
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 11%;
-
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
-
     --accent: 210 40% 96%;
     --accent-foreground: 222 47% 11%;
-
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 217 91% 60%;
-
-    --radius: 0.75rem;
-
+    --radius: 0.8rem;
     --sidebar-bg: 222 47% 11%;
     --sidebar-border: 215 28% 17%;
     --sidebar-text: 215 20% 65%;
     --sidebar-active: 217 91% 60%;
-
-    --magic-from: 38 92% 50%;
-    --magic-to: 20 90% 58%;
+    --magic-from: 217 91% 60%;
+    --magic-to: 221 83% 53%;
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
+  * { @apply border-border; }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'DM Sans', 'Epilogue', sans-serif;
+    font-family: 'Manrope', 'Inter', 'DM Sans', system-ui, sans-serif;
+    font-feature-settings: 'cv11' 1, 'ss01' 1;
   }
+  button, a, input, textarea, select { font-family: inherit; }
 }
 
 @layer utilities {
-  .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(215 28% 17%) transparent;
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: hsl(215 28% 17%) transparent; }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(215 28% 25%); border-radius: 4px; }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0.5rem); }
+  .brand-grid {
+    background-image: linear-gradient(to right, hsl(214 32% 91% / .55) 1px, transparent 1px), linear-gradient(to bottom, hsl(214 32% 91% / .55) 1px, transparent 1px);
+    background-size: 28px 28px;
   }
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
-  }
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: hsl(215 28% 25%);
-    border-radius: 4px;
-  }
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 0.5rem);
-  }
+  .brand-panel-shadow { box-shadow: 0 24px 60px hsl(222 47% 11% / .12); }
 }
