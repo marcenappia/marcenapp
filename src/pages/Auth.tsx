@@ -49,6 +49,7 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [countdown, setCountdown] = useState(0);
@@ -87,9 +88,31 @@ const Auth = () => {
     return isLogin ? 'Entrar no Marcenapp' : 'Criar conta';
   }, [isLogin, isReset, isRecoveryPath]);
 
+  const handleGoogleLogin = async () => {
+    if (googleLoading || loading || !isLogin || isReset || isRecoveryPath) return;
+    setGoogleLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: AUTH_CALLBACK,
+        },
+      });
+
+      if (authError) setError(describeAuthError(authError));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Não foi possível iniciar o login com Google.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (loading) return;
+    if (loading || googleLoading) return;
     setLoading(true);
     setError('');
     setSuccess('');
@@ -208,6 +231,25 @@ const Auth = () => {
           <div className="h-px flex-1 bg-white/15" />
         </div>
 
+        {isLogin && !isReset && !isRecoveryPath && (
+          <>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading || googleLoading}
+              className="w-full py-3 rounded-xl bg-white text-gray-900 font-semibold hover:bg-gray-100 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+            >
+              {googleLoading ? <Loader2 className="animate-spin" size={18} /> : <span className="text-lg font-bold">G</span>}
+              {googleLoading ? 'Conectando ao Google...' : 'Continuar com Google'}
+            </button>
+            <div className="flex items-center gap-3 text-white/30 text-xs">
+              <div className="h-px flex-1 bg-white/10" />
+              <span>ou entre com e-mail</span>
+              <div className="h-px flex-1 bg-white/10" />
+            </div>
+          </>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && !isReset && !isRecoveryPath && <input type="text" placeholder="Nome completo" value={name} onChange={(event) => setName(event.target.value)} required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] focus:border-transparent" />}
           {!isRecoveryPath && <input type="email" placeholder="E-mail" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] focus:border-transparent" />}
@@ -215,7 +257,7 @@ const Auth = () => {
           {isLogin && !isReset && !isRecoveryPath && <div className="text-right"><button type="button" onClick={() => navigate('/forgot-password')} className="text-xs text-[hsl(var(--sidebar-text))] hover:text-[hsl(var(--sidebar-active))] transition-colors">Esqueceu a senha?</button></div>}
           {error && <div className="space-y-2"><p className="text-red-400 text-sm bg-red-950/50 p-3 rounded-lg">{error}</p>{isReset && supportLink && <p className="text-center"><a href={supportLink} target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(var(--sidebar-text))] hover:text-white underline">Não resolveu? Fale com o suporte</a></p>}</div>}
           {success && <p className="text-emerald-400 text-sm bg-emerald-950/50 p-3 rounded-lg">{success}</p>}
-          <button type="submit" disabled={loading || (isReset && countdown > 0)} className="w-full py-3 rounded-xl bg-[hsl(var(--sidebar-active))] text-white font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+          <button type="submit" disabled={loading || googleLoading || (isReset && countdown > 0)} className="w-full py-3 rounded-xl bg-[hsl(var(--sidebar-active))] text-white font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
             {loading && <Loader2 className="animate-spin" size={18} />}
             {isRecoveryPath ? 'Atualizar senha' : isReset ? (countdown > 0 ? `Aguarde ${countdown}s` : 'Enviar Recuperação') : isLogin ? 'Entrar' : 'Cadastrar'}
           </button>
