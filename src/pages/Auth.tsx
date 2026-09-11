@@ -13,6 +13,19 @@ const getAppOrigin = () => {
   return PRODUCTION_ORIGIN;
 };
 
+const describeAuthError = (authError: { message?: string; status?: number } | null) => {
+  if (!authError) return '';
+  const raw = authError.message?.trim() || '';
+  const message = raw.toLowerCase();
+  if (message.includes('invalid login credentials')) return 'E-mail ou senha incorretos.';
+  if (message.includes('email not confirmed') || message.includes('email_not_confirmed')) return 'Seu e-mail ainda não foi confirmado. Verifique a caixa de entrada e o spam.';
+  if (message.includes('user already registered') || message.includes('already been registered')) return 'Este e-mail já possui uma conta. Entre com sua senha ou use “Esqueceu a senha?”.';
+  if (message.includes('rate limit') || message.includes('too many requests') || authError.status === 429) return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+  if (message.includes('failed to fetch') || message.includes('network') || message.includes('fetch')) return 'Não foi possível conectar ao servidor de autenticação. Verifique sua internet e tente novamente.';
+  if (authError.status && authError.status >= 500) return `O servidor de autenticação apresentou um erro (${authError.status}). Tente novamente em instantes.`;
+  return raw || `Falha na autenticação${authError.status ? ` (HTTP ${authError.status})` : ''}.`;
+};
+
 const Auth = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -67,6 +80,7 @@ const Auth = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError('');
     setSuccess('');
@@ -83,7 +97,7 @@ const Auth = () => {
         }
         const { error: authError } = await supabase.auth.updateUser({ password });
         if (authError) {
-          setError(authError.message);
+          setError(describeAuthError(authError));
           return;
         }
         setSuccess('Senha atualizada com sucesso. Entrando no Marcenapp...');
@@ -92,42 +106,79 @@ const Auth = () => {
       }
 
       if (isReset) {
+        if (!email.trim()) {
+          setError('Informe um e-mail válido.');
+          return;
+        }
         if (countdown > 0) return;
-        const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
+        const { error: authError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
           redirectTo: `${PRODUCTION_ORIGIN}/reset-password`,
         });
-        if (authError) setError(authError.message);
+        if (authError) setError(describeAuthError(authError));
         else {
-          setSuccess('E-mail de recuperação enviado. Verifique também o spam.');
+          setSuccess('Se o e-mail estiver cadastrado, enviaremos a recuperação. Verifique também o spam.');
           setCountdown(30);
         }
         return;
       }
 
+      if (!email.trim()) {
+        setError('Informe seu e-mail.');
+        return;
+      }
+      if (password.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres.');
+        return;
+      }
+
       if (isLogin) {
-        const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (authError) {
-          setError(authError.message);
+          setError(describeAuthError(authError));
           return;
         }
-        if (data.session) navigate('/', { replace: true });
+        if (data.user && data.session) {
+          navigate('/', { replace: true });
+          return;
+        }
+        setError('A autenticação não retornou uma sessão. Tente novamente.');
+        return;
+      }
+
+      if (!name.trim()) {
+        setError('Informe seu nome.');
         return;
       }
 
       const { data, error: authError } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
-        options: { data: { name }, emailRedirectTo: AUTH_CALLBACK },
+        options: { data: { name: name.trim() }, emailRedirectTo: AUTH_CALLBACK },
       });
 
       if (authError) {
-        setError(authError.message);
+        setError(describeAuthError(authError));
         return;
       }
-      if (data.session) navigate('/', { replace: true });
-      else setSuccess('Cadastro criado. Confirme o e-mail para liberar o primeiro acesso.');
+
+      if (data.session && data.user) {
+        navigate('/', { replace: true });
+        return;
+      }
+
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setError('Este e-mail já possui uma conta. Entre com sua senha ou use “Esqueceu a senha?”.');
+        return;
+      }
+
+      if (data.user) {
+        setSuccess('Cadastro recebido. Confirme o e-mail enviado para liberar o primeiro acesso.');
+        return;
+      }
+
+      setError('O servidor não confirmou a criação da conta. Tente novamente.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Ocorreu um erro inesperado.');
+      setError(caught instanceof Error ? caught.message : 'Ocorreu um erro inesperado durante a autenticação.');
     } finally {
       setLoading(false);
     }
