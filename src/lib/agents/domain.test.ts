@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agents } from './registry';
+import { agents, getAgent } from './registry';
 import { domainAgents, domainAgentRegistry, resolveDomain, runIara } from './domain';
 import { runProjectJourney } from './orchestrator';
 
@@ -61,6 +61,12 @@ describe('IARA/YARA domain orchestration', () => {
     expect(resolveDomain({ input: { message: 'quanto devo cobrar neste móvel?' } })).toBe('business');
     expect(resolveDomain({ input: { message: 'preciso instalar e entregar' } })).toBe('execution');
     expect(resolveDomain({ input: { message: 'analise as fotos da cozinha' } })).toBe('project');
+  });
+
+  it('preserva as dependências registradas dos especialistas', () => {
+    expect(getAgent('materials').dependencies).toEqual(['furniture_engineering']);
+    expect(getAgent('cut_audit').dependencies).toEqual(['cut_optimization']);
+    expect(getAgent('budget').dependencies).toEqual(['materials', 'inventory', 'production', 'approval']);
   });
 
   it('propaga correlationId, evidências e bloqueadores pelo contrato existente', async () => {
