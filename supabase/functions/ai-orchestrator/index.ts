@@ -1,13 +1,13 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 import { buildCorsHeaders, guardRequest, readJsonBody, jsonResponse } from "../_shared/guard.ts";
+import { resolveProvider, type AIProvider } from "../_shared/provider.ts";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_MODEL = "openai/gpt-5.5";
 const GEMINI_MODEL = Deno.env.get("GEMINI_TEXT_MODEL") ?? "gemini-3.7-flash";
-type Provider = "lovable" | "gemini";
+type Provider = AIProvider;
 
 const BodySchema = z.object({
   userPrompt: z.string().min(1).max(4000),
@@ -39,23 +39,6 @@ Regras obrigatórias:
 - Se faltar informação obrigatória, peça esclarecimento sem chamar ferramenta.
 - Para múltiplas ações, retorne as chamadas na ordem lógica e segura.
 - Para conversa ou dúvida sem ação, responda apenas em texto.`;
-
-const adminClient = () => {
-  const url = Deno.env.get("SUPABASE_URL");
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) throw new Error("server_config_incomplete");
-  return createClient(url, key, { auth: { persistSession: false } });
-};
-
-async function resolveProvider(userId: string): Promise<{ primary: Provider; fallback: Provider | null }> {
-  const { data } = await adminClient().from("ai_provider_settings").select("provider").eq("user_id", userId).maybeSingle();
-  const configured = data?.provider as string | undefined;
-  const lovableAvailable = Boolean(Deno.env.get("LOVABLE_API_KEY"));
-  const geminiAvailable = Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY"));
-  if (configured === "lovable") return { primary: "lovable", fallback: geminiAvailable ? "gemini" : null };
-  if (configured === "gemini") return { primary: "gemini", fallback: lovableAvailable ? "lovable" : null };
-  return { primary: lovableAvailable ? "lovable" : "gemini", fallback: lovableAvailable && geminiAvailable ? "gemini" : null };
-}
 
 function toGeminiSchema(value: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = { ...value };
@@ -161,6 +144,7 @@ serve(async (req) => {
 
     const message = lastError instanceof Error ? lastError.message : String(lastError);
     if (message.startsWith("provider_not_configured")) return jsonResponse(corsHeaders, { error: "Nenhum provedor de IA de texto está configurado. Ative um provedor no Admin.", code: "provider_not_configured" }, 500);
+    if (message === "provider_settings_unavailable") return jsonResponse(corsHeaders, { error: "Não foi possível ler a configuração do provedor de IA.", code: "provider_configuration_error" }, 503);
     if (message.includes("provider_http:402")) return jsonResponse(corsHeaders, { error: "Os créditos do provedor de IA acabaram.", code: "provider_credits_exhausted" }, 402);
     if (message.includes("provider_http:429")) return jsonResponse(corsHeaders, { error: "O limite do provedor de IA foi atingido. Tente novamente em alguns segundos.", code: "rate_limited" }, 429, { "Retry-After": "10" });
     if (message === "provider_timeout") return jsonResponse(corsHeaders, { error: "O provedor de IA demorou além do limite esperado.", code: "provider_timeout" }, 504);
