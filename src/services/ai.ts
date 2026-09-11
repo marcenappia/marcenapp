@@ -38,19 +38,22 @@ const normalizeAIError = (status: number, data: unknown): Error => {
   switch (body.code) {
     case 'missing_api_key':
     case 'provider_not_configured':
-      return new Error('Nenhum provedor de IA configurado para esta operação. Ative Lovable AI no Admin ou configure o Google Gemini.');
+      return new Error('Nenhum provedor de IA está configurado para esta operação. Verifique a configuração no Admin.');
     case 'commercial_rule_missing':
       return new Error('Esta ferramenta de IA ainda não está habilitada comercialmente.');
     case 'insufficient_credits':
       return new Error('Créditos Marcenapp insuficientes para gerar o render.');
     case 'provider_credits_exhausted':
-      return new Error('Os créditos do provedor de IA acabaram. Você pode trocar o provedor no Admin ou adicionar saldo ao provedor atual.');
+    case 'credits_exhausted':
+      return new Error('Os créditos do provedor de IA acabaram. Verifique o provedor configurado no Admin.');
     case 'rate_limit_unavailable':
       return new Error('O controle de uso da IA está indisponível. Tente novamente em instantes.');
     case 'provider_connection_error':
-      return new Error('Não foi possível conectar ao provedor de imagens. Tente novamente.');
+      return new Error('Não foi possível comunicar com o provedor de IA. Tente novamente.');
+    case 'provider_timeout':
+      return new Error('O provedor de IA demorou além do limite esperado. Tente novamente.');
     case 'upstream_error':
-      return new Error('O provedor de imagens está indisponível no momento. Tente novamente.');
+      return new Error('O provedor de IA está indisponível no momento. Tente novamente.');
     case 'rate_limited':
       return new Error('O limite do provedor de IA foi atingido. Tente novamente em alguns segundos.');
     default:
@@ -70,9 +73,9 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Pr
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error('A IA demorou mais que o limite esperado. Tente novamente.');
+      throw new Error('A comunicação com o serviço de IA excedeu o tempo limite. Tente novamente.');
     }
-    throw new Error('Não foi possível conectar ao serviço de IA. Verifique sua conexão e tente novamente.');
+    throw new Error('Não foi possível comunicar com o serviço de IA. Verifique sua conexão e tente novamente.');
   }
 
   let data: unknown = null;
