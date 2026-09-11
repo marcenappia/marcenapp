@@ -3,6 +3,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
 import { callAIFunction } from '@/services/ai';
+import type { Json } from '@/integrations/supabase/runtime-types';
 
 export interface ToolCall {
   tool: string;
@@ -75,8 +76,8 @@ export async function runOrchestrator(
       await supabase
         .from('orchestrator_runs')
         .update({
-          plan,
-          results,
+          plan: plan as unknown as Json,
+          results: results as unknown as Json,
           used_fallback: false,
           status: results.every(r => r.result.ok) ? 'completed' : 'failed',
         })
