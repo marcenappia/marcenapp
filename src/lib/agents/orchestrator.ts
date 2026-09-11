@@ -1,5 +1,6 @@
 import { getAgent } from './registry';
 import type { AgentId, AgentResult, AgentTask, Evidence } from './types';
+import { buildTechnicalRenderPackage } from './renderContract';
 
 export type AgentPlanStep = {
   id: string;
@@ -12,6 +13,7 @@ export type AgentPlanResult = {
   correlationId: string;
   results: AgentResult[];
   status: 'completed' | 'needs_input' | 'failed';
+  technicalPackage?: ReturnType<typeof buildTechnicalRenderPackage>;
 };
 
 function uuid(): string {
@@ -62,12 +64,8 @@ export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid(
   return { correlationId, results, status: 'completed' };
 }
 
-/**
- * Jornada comercial canônica. A interface existente permanece intacta;
- * os especialistas executam por baixo dela e compartilham a mesma evidência.
- */
 export async function runProjectJourney(input: Record<string, unknown>): Promise<AgentPlanResult> {
-  return runAgentPlan([
+  const result = await runAgentPlan([
     { id: 'customer', agentId: 'customer', type: 'customer.validate', input },
     { id: 'project', agentId: 'project', type: 'project.prepare', input },
     { id: 'vision', agentId: 'vision', type: 'vision.environment.analyze', input },
@@ -89,4 +87,12 @@ export async function runProjectJourney(input: Record<string, unknown>): Promise
     { id: 'documents', agentId: 'documents', type: 'document.prepare', input },
     { id: 'order', agentId: 'order', type: 'order.prepare', input },
   ]);
+
+  const renderResult = result.results.find(item => item.agentId === 'render' && item.status === 'completed');
+  const dependencyResults = result.results.filter(item => ['furniture_engineering', 'materials'].includes(item.agentId));
+  const technicalPackage = renderResult
+    ? buildTechnicalRenderPackage(input, dependencyResults)
+    : undefined;
+
+  return { ...result, technicalPackage };
 }
