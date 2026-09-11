@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/login.php",
+      "destination": "/auth",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
