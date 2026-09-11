@@ -15,6 +15,7 @@ const getAppOrigin = () => {
   return PRODUCTION_ORIGIN;
 };
 
+// Rebuilt auth surface: no Google OAuth entry point and no Lovable callback path.
 const Auth = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
