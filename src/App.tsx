@@ -27,6 +27,12 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/callback" element={<Auth />} />
+            <Route path="/login" element={<Auth />} />
+            <Route path="/signup" element={<Auth />} />
+            <Route path="/register" element={<Auth />} />
+            <Route path="/forgot-password" element={<Auth />} />
+            <Route path="/reset-password" element={<Auth />} />
             <Route path="/cliente/revisao" element={<ClientReview />} />
             <Route path="/" element={<HomeRoute />} />
             <Route path="*" element={<NotFound />} />
