@@ -17,7 +17,12 @@ export async function planWithLLM(userPrompt: string, context?: Record<string, u
 export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext, context?: Record<string, unknown>): Promise<OrchestratorRun> {
   let runId: string | null = null;
   try {
-    const { data } = await supabase.from('orchestrator_runs').insert({ user_id: ctx.userId, user_prompt: userPrompt, status: 'planning' }).select('id').single();
+    const { data } = await supabase.from('orchestrator_runs').insert({
+      user_id: ctx.userId,
+      project_id: ctx.projectId ?? null,
+      user_prompt: userPrompt,
+      status: 'planning',
+    }).select('id').single();
     runId = data?.id ?? null;
   } catch (e) { console.warn('Falha ao registrar orchestrator_run:', e); }
 

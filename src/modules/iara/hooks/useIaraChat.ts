@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runIaraConversation } from '@/lib/agents/domain';
+import { loadIaraProjectContext, mergeIaraProjectContext, saveIaraProjectContext, type IaraProjectContext } from '../services/iaraProjectContext';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
@@ -34,6 +35,7 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement } | null>(null);
   const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
+  const [projectContext, setProjectContext] = useState<IaraProjectContext | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload; smartAction?: SmartAction } | null>(null);
   const commandHistory = useMarcenappOS(state => state.commandHistory);
@@ -58,16 +60,23 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   }, [commandHistory]);
 
   useEffect(() => {
-    if (!user) { setMessages([]); return; }
+    if (!user) { setMessages([]); setProjectContext(null); return; }
     let cancelled = false;
-    setMessages([]); setError(null);
-    let query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
-    query = projectId ? query.eq('project_id', projectId) : query.is('project_id', null);
-    query.order('created_at', { ascending: true }).then(({ data, error: loadError }) => {
+    setMessages([]); setProjectContext(null); setError(null);
+    const load = async () => {
+      const messageQuery = projectId
+        ? supabase.from('chat_messages').select('*').eq('user_id', user.id).eq('project_id', projectId)
+        : supabase.from('chat_messages').select('*').eq('user_id', user.id).is('project_id', null);
+      const [{ data, error: loadError }, contextResult] = await Promise.all([
+        messageQuery.order('created_at', { ascending: true }),
+        projectId ? loadIaraProjectContext(projectId) : Promise.resolve(null),
+      ]);
       if (cancelled) return;
       if (loadError) { setError('Não foi possível carregar o histórico. Verifique sua conexão.'); return; }
       if (data) setMessages(data as ChatMessage[]);
-    });
+      setProjectContext(contextResult);
+    };
+    void load().catch((loadError: unknown) => { if (!cancelled) setError(humanizeError(loadError)); });
     const channel = supabase.channel(`chat_messages_${projectId ?? 'none'}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
       const msg = payload.new as ChatMessage;
       if ((msg.project_id ?? null) !== (projectId ?? null)) return;
@@ -95,7 +104,7 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       const intentInput = { message: promptText, projectId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
       await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, status: 'requested' } : { correlationId, status: 'requested' } });
       const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
-      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: projectId ?? undefined, correlationId, execution: { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, conversation } });
+      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: projectId ?? undefined, correlationId, execution: { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, projectIaraContext: projectContext, conversation } });
       const lines = response.run.results.map(({ tool, result }) => {
         if (result.ok === false) return toolFailureMessage(tool, result.error);
         const data = result.data as Record<string, unknown>;
@@ -114,6 +123,21 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       const header = response.run.status === 'needs_input' ? 'Preciso confirmar uma informação antes de continuar.' : response.run.status === 'failed' ? 'Não foi possível concluir esta ação.' : 'Pronto.';
       const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?';
       await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, metadata });
+
+      if (projectId) {
+        const nextContext = mergeIaraProjectContext(projectContext, {
+          summary: body.slice(0, 1000),
+          decisions: [{ action: response.action, domain: response.domain, agent: response.domainAgent, correlationId: response.correlationId, at: new Date().toISOString() }],
+          artifacts: response.artifacts,
+          lastCorrelationId: response.correlationId,
+        });
+        try {
+          await saveIaraProjectContext(user.id, projectId, nextContext);
+          setProjectContext({ projectId, summary: nextContext.summary ?? null, decisions: nextContext.decisions, artifacts: nextContext.artifacts, lastCorrelationId: nextContext.lastCorrelationId ?? null });
+        } catch (contextError) {
+          console.warn('[iara-project-context] persistence failed', contextError);
+        }
+      }
       lastFailedRef.current = null;
     } catch (error: unknown) {
       lastFailedRef.current = { text: promptText, upload, smartAction };
