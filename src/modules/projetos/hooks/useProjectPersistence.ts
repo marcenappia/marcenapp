@@ -19,7 +19,7 @@ export const useProjectPersistence = (
     const loadProject = async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select('*, clientes(nome)')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false })
         .limit(1);
@@ -44,6 +44,9 @@ export const useProjectPersistence = (
         } else {
           setBudgetProject({
             id: p.id,
+            name: p.nome?.trim() || p.name?.trim() || undefined,
+            clientName: p.clientes?.nome?.trim() || undefined,
+            status: p.status || undefined,
             width: Number(p.width),
             height: Number(p.height),
             depth: Number(p.depth),
