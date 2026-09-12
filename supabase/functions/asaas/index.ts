@@ -45,10 +45,51 @@ async function asaasJson(path: string, init: RequestInit = {}) {
   if (!r.ok) throw Object.assign(new Error("asaas_upstream_error"), { status: r.status, body: b });
   return b;
 }
+
 async function ownsCustomer(userId: string, customerId: string) {
   const { data, error } = await admin().from("billing_customers").select("asaas_customer_id").eq("user_id", userId).eq("asaas_customer_id", customerId).maybeSingle();
   if (error) throw Object.assign(new Error("billing_customer_lookup_failed"), { status: 500 });
   return Boolean(data);
+}
+
+async function ownedCustomer(userId: string) {
+  const { data, error } = await admin().from("billing_customers").select("asaas_customer_id,external_reference").eq("user_id", userId).order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw Object.assign(new Error("billing_customer_lookup_failed"), { status: 500 });
+  return data;
+}
+
+async function reconcileCustomer(userId: string, externalReference: string) {
+  const found = await asaasJson(`/customers?externalReference=${encodeURIComponent(externalReference)}&limit=10`);
+  const customer = Array.isArray(found?.data) ? found.data.find((item: { externalReference?: string }) => item?.externalReference === externalReference) : null;
+  if (!customer?.id) return null;
+
+  const { data: existingOwner, error: ownerError } = await admin().from("billing_customers").select("user_id").eq("asaas_customer_id", String(customer.id)).maybeSingle();
+  if (ownerError) throw Object.assign(new Error("billing_customer_lookup_failed"), { status: 500 });
+  if (existingOwner && existingOwner.user_id !== userId) throw Object.assign(new Error("billing_customer_ownership_conflict"), { status: 409 });
+
+  const { error } = await admin().from("billing_customers").upsert({ user_id: userId, asaas_customer_id: String(customer.id), external_reference: externalReference }, { onConflict: "asaas_customer_id" });
+  if (error) throw Object.assign(new Error("billing_customer_persistence_failed"), { status: 502 });
+  return customer;
+}
+
+async function ensureCustomer(userId: string, name: string, email?: string) {
+  const local = await ownedCustomer(userId);
+  if (local?.asaas_customer_id) return { id: local.asaas_customer_id, reused: true };
+
+  const externalReference = `marcenapp:customer:${userId}`;
+  const reconciled = await reconcileCustomer(userId, externalReference);
+  if (reconciled?.id) return { id: String(reconciled.id), reused: true };
+
+  const created = await asaasJson("/customers", { method: "POST", body: JSON.stringify({ name, email: email || undefined, externalReference }) });
+  if (!created?.id) throw Object.assign(new Error("asaas_customer_missing_id"), { status: 502 });
+
+  const { error } = await admin().from("billing_customers").insert({ user_id: userId, asaas_customer_id: String(created.id), external_reference: externalReference });
+  if (error) {
+    // The Asaas resource remains discoverable by externalReference. A later retry
+    // deterministically reconciles it instead of creating another customer.
+    throw Object.assign(new Error("billing_customer_persistence_failed"), { status: 502 });
+  }
+  return { id: String(created.id), reused: false };
 }
 
 const products = {
@@ -56,8 +97,6 @@ const products = {
   contract_unit: { name: "Crédito de Contrato", creditType: "contract", credits: 1, amount: 29.9 },
   cut_plan_unit: { name: "Crédito de Plano de Corte", creditType: "cut_plan", credits: 1, amount: 39.9 },
 } as const;
-
-const validPlans = ["essencial", "profissional", "empresa", "pro_factory"] as const;
 
 serve(async (req) => {
   const h = cors(req);
@@ -76,7 +115,10 @@ serve(async (req) => {
       const { error } = await a.from("asaas_webhook_events").insert({ event_id: event.id, event_type: event.event, payment_id: payment.id ?? null, customer_id: payment.customer ?? event.customer?.id ?? null, subscription_id: subscriptionId, payload: event });
       const duplicate = Boolean(error && (String(error.code ?? "") === "23505" || String(error.message).toLowerCase().includes("duplicate")));
       if (error && !duplicate) return json(h, { error: "Não foi possível registrar o webhook." }, 500);
-      if (event.subscription?.id && event.subscription?.status) await a.from("billing_subscriptions").update({ status: String(event.subscription.status), updated_at: new Date().toISOString() }).eq("asaas_subscription_id", String(event.subscription.id));
+      if (event.subscription?.id) {
+        const status = String(event.subscription.status ?? (event.event === "SUBSCRIPTION_DELETED" ? "DELETED" : "ACTIVE"));
+        await a.from("billing_subscriptions").update({ status, updated_at: new Date().toISOString() }).eq("asaas_subscription_id", String(event.subscription.id));
+      }
       if (payment.id) {
         const status = String(payment.status ?? event.event ?? "PENDING");
         const receivedStatus = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(status) || event.event === "PAYMENT_RECEIVED";
@@ -97,14 +139,11 @@ serve(async (req) => {
     }
 
     if (action === "create_customer") {
-      const customer = { name: String(body.name ?? "").trim(), cpfCnpj: body.cpfCnpj ? String(body.cpfCnpj).replace(/\D/g, "") : undefined, email: body.email ? String(body.email).trim() : undefined, mobilePhone: body.mobilePhone ? String(body.mobilePhone).replace(/\D/g, "") : undefined };
-      if (!customer.name) return json(h, { error: "Nome do cliente é obrigatório." }, 400);
-      const reference = `marcenapp:${user.id}:${crypto.randomUUID()}`;
-      const created = await asaasJson("/customers", { method: "POST", body: JSON.stringify({ ...customer, externalReference: reference }) });
-      if (!created?.id) return json(h, { error: "Asaas não retornou o ID do cliente." }, 502);
-      const { error } = await admin().from("billing_customers").insert({ user_id: user.id, asaas_customer_id: String(created.id), external_reference: reference });
-      if (error) return json(h, { error: "Cliente criado no Asaas, mas não foi possível vincular ao MARCENAPP." }, 502);
-      return json(h, { customer: created, reused: false });
+      const name = String(body.name ?? "").trim();
+      if (!name) return json(h, { error: "Nome do cliente é obrigatório." }, 400);
+      const customer = await ensureCustomer(user.id, name, body.email ? String(body.email).trim() : undefined);
+      const asaasCustomer = await asaasJson(`/customers/${encodeURIComponent(customer.id)}`);
+      return json(h, { customer: asaasCustomer, reused: customer.reused });
     }
 
     if (action === "create_product_payment") {
@@ -114,11 +153,30 @@ serve(async (req) => {
       if (!customer || !await ownsCustomer(user.id, customer)) return json(h, { error: "Cliente de cobrança inválido." }, 403);
       const billingType = String(body.billingType ?? "UNDEFINED");
       if (!["UNDEFINED", "BOLETO", "CREDIT_CARD", "PIX"].includes(billingType)) return json(h, { error: "Forma de pagamento inválida." }, 400);
-      const externalReference = `marcenapp:product:${key}:${user.id}:${crypto.randomUUID()}`;
+      const requestId = String(body.idempotencyKey ?? "").trim();
+      if (!requestId || requestId.length > 128) return json(h, { error: "idempotencyKey é obrigatório." }, 400);
+      const externalReference = `marcenapp:product:${user.id}:${key}:${requestId}`;
+      const a = admin();
+      const { data: existing, error: existingError } = await a.from("billing_purchases").select("id,product_key,product_name,credit_type,credits,amount,asaas_customer_id,asaas_payment_id,status,credits_granted_at").eq("external_reference", externalReference).eq("user_id", user.id).maybeSingle();
+      if (existingError) return json(h, { error: "Não foi possível verificar a compra existente." }, 500);
+      if (existing?.asaas_payment_id) {
+        const payment = await asaasJson(`/payments/${encodeURIComponent(existing.asaas_payment_id)}`);
+        return json(h, { payment, product, reused: true });
+      }
+      if (existing && !existing.asaas_payment_id) {
+        const found = await asaasJson(`/payments?externalReference=${encodeURIComponent(externalReference)}&limit=10`);
+        const payment = Array.isArray(found?.data) ? found.data.find((item: { customer?: string }) => String(item?.customer ?? "") === customer) : null;
+        if (payment?.id) {
+          await a.from("billing_purchases").update({ asaas_payment_id: String(payment.id), status: String(payment.status ?? "PENDING"), updated_at: new Date().toISOString() }).eq("id", existing.id);
+          return json(h, { payment, product, reused: true });
+        }
+      }
+      const intent = existing ?? (await a.from("billing_purchases").insert({ user_id: user.id, product_key: key, product_name: product.name, credit_type: product.creditType, credits: product.credits, amount: product.amount, asaas_customer_id: customer, external_reference: externalReference, status: "CREATING" }).select("id").single()).data;
+      if (!intent?.id) return json(h, { error: "Não foi possível registrar a intenção de cobrança." }, 502);
       const payment = await asaasJson("/payments", { method: "POST", body: JSON.stringify({ customer, billingType, value: product.amount, dueDate: body.dueDate ?? new Date().toISOString().slice(0, 10), description: product.name, externalReference, callback: { successUrl: "https://www.marcenapp.com.br/?module=billing&payment=success", autoRedirect: true } }) });
-      const { error } = await admin().from("billing_purchases").insert({ user_id: user.id, product_key: key, product_name: product.name, credit_type: product.creditType, credits: product.credits, amount: product.amount, asaas_customer_id: customer, asaas_payment_id: String(payment.id), status: String(payment.status ?? "PENDING") });
-      if (error) return json(h, { error: "Cobrança criada, mas não foi possível registrar a compra no MARCENAPP." }, 502);
-      return json(h, { payment, product });
+      const { error: persistError } = await a.from("billing_purchases").update({ asaas_payment_id: String(payment.id), status: String(payment.status ?? "PENDING"), updated_at: new Date().toISOString() }).eq("id", intent.id).eq("user_id", user.id);
+      if (persistError) return json(h, { error: "Cobrança criada no Asaas, mas a reconciliação local falhou; a cobrança permanece recuperável pelo identificador de idempotência." }, 502);
+      return json(h, { payment, product, reused: false });
     }
 
     if (action === "get_wallet") {
@@ -129,19 +187,66 @@ serve(async (req) => {
 
     if (action === "create_subscription") {
       const customer = String(body.customerId ?? "").trim(), plan = String(body.plan ?? "").toLowerCase();
-      if (!customer || !validPlans.includes(plan as typeof validPlans[number])) return json(h, { error: "Cliente e plano válidos são obrigatórios." }, 400);
+      if (!customer || !plan) return json(h, { error: "Cliente e plano são obrigatórios." }, 400);
       if (!await ownsCustomer(user.id, customer)) return json(h, { error: "Cliente de cobrança não pertence à sua conta." }, 403);
       const billingType = String(body.billingType ?? "UNDEFINED");
       if (!["UNDEFINED", "BOLETO", "CREDIT_CARD", "PIX"].includes(billingType)) return json(h, { error: "Forma de pagamento inválida." }, 400);
       const { data: planRow, error: planError } = await admin().from("billing_plans").select("code,name,monthly_price_cents,status,features").eq("code", plan).eq("status", "active").maybeSingle();
       if (planError || !planRow?.monthly_price_cents) return json(h, { error: "Plano não está disponível para compra." }, 409);
+
+      const a = admin();
+      const stableReference = `marcenapp:subscription:${user.id}:${plan}`;
+      const { data: activeExisting } = await a.from("billing_subscriptions").select("id,plan,asaas_customer_id,asaas_subscription_id,status,trial_ends_at,external_reference").eq("user_id", user.id).eq("plan", plan).in("status", ["ACTIVE", "PENDING", "CREATING"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (activeExisting?.asaas_subscription_id) {
+        const subscription = await asaasJson(`/subscriptions/${encodeURIComponent(activeExisting.asaas_subscription_id)}`);
+        return json(h, { subscription, plan: planRow, reused: true });
+      }
+
+      let externalReference = stableReference;
+      let { data: intent } = await a.from("billing_subscriptions").select("id,plan,asaas_customer_id,asaas_subscription_id,status,trial_ends_at,external_reference").eq("user_id", user.id).eq("external_reference", stableReference).maybeSingle();
+      if (intent?.asaas_subscription_id) {
+        const subscription = await asaasJson(`/subscriptions/${encodeURIComponent(intent.asaas_subscription_id)}`);
+        return json(h, { subscription, plan: planRow, reused: true });
+      }
+      if (intent && ["CANCELLED", "DELETED", "EXPIRED", "INACTIVE"].includes(String(intent.status))) {
+        externalReference = `${stableReference}:${crypto.randomUUID()}`;
+        intent = null;
+      }
+
+      if (!intent) {
+        const nextDueDate = String(body.nextDueDate ?? new Date().toISOString().slice(0, 10));
+        const { data: inserted, error: insertError } = await a.from("billing_subscriptions").insert({ user_id: user.id, plan, asaas_customer_id: customer, asaas_subscription_id: null, external_reference: externalReference, status: "CREATING", trial_ends_at: nextDueDate }).select("id,plan,asaas_customer_id,asaas_subscription_id,status,trial_ends_at,external_reference").single();
+        if (insertError) {
+          const { data: concurrent } = await a.from("billing_subscriptions").select("id,plan,asaas_customer_id,asaas_subscription_id,status,trial_ends_at,external_reference").eq("user_id", user.id).eq("external_reference", externalReference).maybeSingle();
+          if (concurrent) intent = concurrent;
+          else return json(h, { error: "Não foi possível registrar a intenção da assinatura." }, 502);
+        } else intent = inserted;
+      }
+
+      const reconciled = await asaasJson(`/subscriptions?externalReference=${encodeURIComponent(externalReference)}&limit=10`);
+      const found = Array.isArray(reconciled?.data) ? reconciled.data.find((item: { customer?: string }) => String(item?.customer ?? "") === customer) : null;
+      if (found?.id) {
+        await a.from("billing_subscriptions").update({ asaas_subscription_id: String(found.id), status: String(found.status ?? "ACTIVE"), updated_at: new Date().toISOString() }).eq("id", intent.id);
+        return json(h, { subscription: found, plan: planRow, reused: true });
+      }
+
       const value = Number(planRow.monthly_price_cents) / 100;
-      const nextDueDate = String(body.nextDueDate ?? new Date().toISOString().slice(0, 10));
-      const externalReference = `marcenapp:subscription:${user.id}:${plan}:${crypto.randomUUID()}`;
+      const nextDueDate = String(intent.trial_ends_at ?? body.nextDueDate ?? new Date().toISOString().slice(0, 10));
       const subscription = await asaasJson("/subscriptions", { method: "POST", body: JSON.stringify({ customer, billingType, value, cycle: "MONTHLY", nextDueDate, description: String(planRow.name).slice(0, 500), externalReference, callback: { successUrl: "https://www.marcenapp.com.br/?module=billing&payment=success", autoRedirect: true } }) });
-      const { error } = await admin().from("billing_subscriptions").insert({ user_id: user.id, plan, asaas_customer_id: customer, asaas_subscription_id: String(subscription.id), status: String(subscription.status ?? "ACTIVE"), trial_ends_at: nextDueDate });
-      if (error) return json(h, { error: "Assinatura criada no Asaas, mas não foi possível registrar no MARCENAPP." }, 502);
-      return json(h, { subscription, plan: planRow });
+      const { error: persistError } = await a.from("billing_subscriptions").update({ asaas_subscription_id: String(subscription.id), status: String(subscription.status ?? "ACTIVE"), updated_at: new Date().toISOString() }).eq("id", intent.id).eq("user_id", user.id);
+      if (persistError) return json(h, { error: "Assinatura criada no Asaas, mas a reconciliação local falhou; ela permanece recuperável pela referência de idempotência." }, 502);
+      return json(h, { subscription, plan: planRow, reused: false });
+    }
+
+    if (action === "cancel_subscription") {
+      const subscriptionId = String(body.subscriptionId ?? "").trim();
+      if (!subscriptionId) return json(h, { error: "subscriptionId é obrigatório." }, 400);
+      const { data: local, error } = await admin().from("billing_subscriptions").select("id,asaas_subscription_id,status").eq("user_id", user.id).eq("asaas_subscription_id", subscriptionId).maybeSingle();
+      if (error) return json(h, { error: "Não foi possível validar a assinatura." }, 500);
+      if (!local) return json(h, { error: "Assinatura não pertence à sua conta." }, 403);
+      await asaasJson(`/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: "DELETE" });
+      await admin().from("billing_subscriptions").update({ status: "CANCELLED", updated_at: new Date().toISOString() }).eq("id", local.id);
+      return json(h, { cancelled: true, subscriptionId });
     }
 
     if (action === "get_payment" || action === "get_pix_qr") {
