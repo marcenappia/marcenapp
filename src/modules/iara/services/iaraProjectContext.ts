@@ -56,19 +56,41 @@ export async function loadIaraProjectContext(projectId: string): Promise<IaraPro
   };
 }
 
+/**
+ * Persist only the delta produced by one IARA execution.
+ * The database RPC merges that delta against the current row, so two concurrent
+ * executions cannot overwrite each other's decisions/artifacts from stale reads.
+ */
 export async function saveIaraProjectContext(
   userId: string,
   projectId: string,
   snapshot: IaraProjectContextSnapshot,
-): Promise<void> {
-  const { error } = await supabase.from('project_iara_contexts').upsert({
-    user_id: userId,
-    project_id: projectId,
-    summary: snapshot.summary ?? null,
-    decisions: snapshot.decisions as unknown as Json,
-    artifacts: snapshot.artifacts as unknown as Json,
-    last_correlation_id: snapshot.lastCorrelationId ?? null,
-  }, { onConflict: 'project_id' });
+): Promise<IaraProjectContext> {
+  const { data, error } = await supabase.rpc('merge_iara_project_context', {
+    p_user_id: userId,
+    p_project_id: projectId,
+    p_summary: snapshot.summary ?? null,
+    p_decisions: snapshot.decisions as unknown as Json,
+    p_artifacts: snapshot.artifacts as unknown as Json,
+    p_last_correlation_id: snapshot.lastCorrelationId ?? null,
+  });
 
   if (error) throw error;
+  if (!data) throw new Error('A IARA não retornou o contexto persistido do projeto.');
+
+  const row = data as unknown as {
+    project_id: string;
+    summary: string | null;
+    decisions: Json;
+    artifacts: Json;
+    last_correlation_id: string | null;
+  };
+
+  return {
+    projectId: row.project_id,
+    summary: row.summary,
+    decisions: Array.isArray(row.decisions) ? row.decisions as unknown as IaraProjectDecision[] : [],
+    artifacts: Array.isArray(row.artifacts) ? row.artifacts as unknown as IaraProjectArtifact[] : [],
+    lastCorrelationId: row.last_correlation_id,
+  };
 }
