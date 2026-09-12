@@ -4,6 +4,7 @@ import { OSCommand, useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import type { TechnicalRenderPackage } from '@/lib/agents/renderContract';
 
 export const StudioWorker = () => {
   const { user } = useAuth();
@@ -18,9 +19,7 @@ export const StudioWorker = () => {
 
   useEffect(() => {
     const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
-    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) {
-      void processCommand(nextCommand);
-    }
+    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
   }, [commandQueue, isRendering]);
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
@@ -31,7 +30,7 @@ export const StudioWorker = () => {
 
   const resolveRenderCommand = (osCommand: OSCommand) => {
     const payload = osCommand.payload ?? {};
-    const studioCommandId: string | undefined = payload.studioCommandId;
+    const studioCommandId: string | undefined = payload.studioCommandId as string | undefined;
     if (studioCommandId) {
       const studioCmd = useStudioStore.getState().commandQueue.find(c => c.id === studioCommandId);
       if (studioCmd) return { command: studioCmd, studioCommandId };
@@ -40,35 +39,21 @@ export const StudioWorker = () => {
   };
 
   const processCommand = async (osCommand: OSCommand) => {
-    if (osCommand.status === 'cancelled') {
-      currentlyProcessing.current = null;
-      return;
-    }
-
+    if (osCommand.status === 'cancelled') { currentlyProcessing.current = null; return; }
     const { command, studioCommandId } = resolveRenderCommand(osCommand);
     const storeCommandId = studioCommandId ?? osCommand.id;
-    const fail = (message: string) => {
-      failCommand(storeCommandId, message);
-      updateOSStatus(osCommand.id, 'failed', undefined, message);
-    };
-
-    if (!command.prompt || (!command.images?.length && command.metadata?.origin === 'iara')) {
-      fail('Comando inválido: Faltam parâmetros obrigatórios ou contexto visual.');
+    const technicalPackage = command.metadata?.technicalPackage as TechnicalRenderPackage | undefined;
+    const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
+    const hasRenderSource = Boolean(command.images?.length || technicalPackage);
+    if (!command.prompt || (command.metadata?.origin === 'iara' && !hasRenderSource)) {
+      fail('Comando inválido: faltam parâmetros obrigatórios ou um pacote técnico/visual válido.');
       return;
     }
-
     currentlyProcessing.current = osCommand.id;
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
-
     try {
-      const result = await studioService.generateVisual(
-        command.prompt,
-        command.images,
-        command.style,
-        command.decor,
-        osCommand.id,
-      );
+      const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, osCommand.id, technicalPackage);
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
       completeCommand(storeCommandId, result);
       updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
@@ -76,9 +61,7 @@ export const StudioWorker = () => {
     } catch (error: unknown) {
       console.error('StudioWorker Error:', error);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
-    } finally {
-      currentlyProcessing.current = null;
-    }
+    } finally { currentlyProcessing.current = null; }
   };
 
   return null;
