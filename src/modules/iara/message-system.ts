@@ -1,50 +1,14 @@
 export type IaraMessageRole = 'user' | 'iara' | 'system';
 export type IaraMessageStatus = 'processing' | 'success' | 'error';
-
-export type IaraMessageAction = {
-  id: string;
-  label: string;
-  kind: 'smart-action' | 'artifact' | 'navigation';
-  domain?: 'project' | 'production' | 'business' | 'execution';
-  intent?: string;
-  artifactType?: string;
-};
-
-export type IaraMessageArtifact = {
-  type: string;
-  id?: string;
-  title?: string;
-};
-
-export type IaraMessage = {
-  id: string;
-  role: IaraMessageRole;
-  text?: string;
-  images?: string[];
-  files?: string[];
-  actions?: IaraMessageAction[];
-  artifacts?: IaraMessageArtifact[];
-  domain?: 'project' | 'production' | 'business' | 'execution';
-  tool?: string;
-  correlationId?: string;
-  projectId?: string;
-  status?: IaraMessageStatus;
-  progress?: number;
-  error?: string;
-};
-
-export type IaraSmartAction = {
-  id: string;
-  label: string;
-  description: string;
-  domain: 'project' | 'production' | 'business' | 'execution';
-  intent: string;
-};
-
+export type IaraMessageAction = { id: string; label: string; kind: 'smart-action' | 'artifact' | 'navigation'; domain?: 'project' | 'production' | 'business' | 'execution'; intent?: string; artifactType?: string; };
+export type IaraMessageArtifact = { type: string; id?: string; title?: string; };
+export type IaraMessage = { id: string; role: IaraMessageRole; text?: string; images?: string[]; files?: string[]; actions?: IaraMessageAction[]; artifacts?: IaraMessageArtifact[]; domain?: 'project' | 'production' | 'business' | 'execution'; tool?: string; correlationId?: string; projectId?: string; status?: IaraMessageStatus; progress?: number; error?: string; };
+export type IaraSmartAction = { id: string; label: string; description: string; domain: 'project' | 'production' | 'business' | 'execution'; intent: string; };
 export const IARA_SMART_ACTIONS: IaraSmartAction[] = [
   { id: 'project.analyze', label: 'Analisar ambiente', description: 'Leitura e inteligência do projeto', domain: 'project', intent: 'analisar ambiente' },
   { id: 'project.create', label: 'Criar projeto', description: 'Criar o projeto com as informações disponíveis', domain: 'project', intent: 'criar projeto' },
   { id: 'project.measurements', label: 'Conferir medidas', description: 'Validar medidas do projeto', domain: 'project', intent: 'conferir medidas' },
+  { id: 'project.elevation', label: 'Fazer elevação', description: 'Enviar uma planta e criar a elevação do ambiente', domain: 'project', intent: 'fazer elevação da planta' },
   { id: 'project.render', label: 'Gerar render', description: 'Preparar e gerar render técnico', domain: 'project', intent: 'gerar render' },
   { id: 'project.review', label: 'Revisar projeto', description: 'Revisão de qualidade do projeto', domain: 'project', intent: 'revisar projeto' },
   { id: 'production.materials', label: 'Materiais', description: 'Materiais e componentes do projeto', domain: 'production', intent: 'listar materiais' },
@@ -60,7 +24,4 @@ export const IARA_SMART_ACTIONS: IaraSmartAction[] = [
   { id: 'execution.checklist', label: 'Checklist', description: 'Checklist de execução', domain: 'execution', intent: 'checklist de execução' },
   { id: 'execution.delivery', label: 'Entrega', description: 'Organizar entrega', domain: 'execution', intent: 'entrega' },
 ];
-
-export function createSmartActionInput(action: IaraSmartAction, projectId?: string): Record<string, unknown> {
-  return { domain: action.domain, intent: action.intent, ...(projectId ? { projectId } : {}) };
-}
+export function createSmartActionInput(action: IaraSmartAction, projectId?: string): Record<string, unknown> { return { domain: action.domain, intent: action.intent, ...(projectId ? { projectId } : {}) }; }
