@@ -22,7 +22,15 @@ alter table public.billing_subscriptions add constraint billing_subscriptions_cu
 revoke all on table public.billing_purchases, public.billing_subscriptions, public.billing_wallets from anon, authenticated;
 grant select on table public.billing_purchases, public.billing_subscriptions, public.billing_wallets to authenticated;
 revoke all on table public.ai_rate_limits, public.asaas_webhook_events from anon, authenticated;
-revoke all on table public.agent_skills_registry from anon;
+
+do $$
+begin
+  if to_regclass('public.agent_skills_registry') is not null then
+    revoke all on table public.agent_skills_registry from anon;
+  end if;
+end;
+$$;
+
 revoke all on table public.profiles, public.projects, public.gallery_images, public.custom_clauses, public.clientes, public.user_roles, public.chat_messages, public.diario_entradas, public.ai_provider_settings, public.orchestrator_runs, public.account_trials, public.billing_customers from anon;
 
 drop policy if exists "Users can insert own projects" on public.projects;

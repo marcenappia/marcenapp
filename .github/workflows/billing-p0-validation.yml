@@ -1,0 +1,232 @@
+name: Billing P0 Validation
+
+on:
+  push:
+    branches:
+      - fix/billing-p0-validation-blockers-20260912
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: billing-p0-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  billing-p0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ASAAS_API_KEY: ${{ secrets.ASAAS_API_KEY }}
+      ASAAS_WEBHOOK_TOKEN: ${{ secrets.ASAAS_WEBHOOK_TOKEN }}
+      BILLING_E2E_SANDBOX_URL: ${{ secrets.BILLING_E2E_SANDBOX_URL }}
+      BILLING_E2E_SANDBOX_ENVIRONMENT: sandbox
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: npm ci
+        run: npm ci
+
+      - name: lint
+        id: lint
+        continue-on-error: true
+        run: npm run lint
+
+      - name: typecheck
+        id: typecheck
+        continue-on-error: true
+        run: npm run typecheck
+
+      - name: npm test
+        id: unit
+        continue-on-error: true
+        run: npm test
+
+      - name: build
+        id: build
+        continue-on-error: true
+        run: npm run build
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Supabase start
+        id: supabase_start
+        run: supabase start
+
+      - name: Supabase db reset — complete migration chain
+        id: migration_reset
+        run: supabase db reset --local
+
+      - name: Supabase schema lint
+        id: migration_lint
+        run: supabase db lint --local --fail-on error
+
+      - name: Verify Billing P0 migration, AI rate limit, RLS and grants
+        id: migration_verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            v_return_type text;
+            v_rls boolean;
+            v_migration_count integer;
+          begin
+            select pg_get_function_result(p.oid)
+              into v_return_type
+            from pg_proc p
+            join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'public'
+              and p.proname = 'consume_ai_rate_limit'
+              and pg_get_function_identity_arguments(p.oid) = '_user_id uuid, _fn text, _limit integer, _window_seconds integer';
+            if v_return_type <> 'TABLE(allowed boolean, retry_after_seconds integer)' then
+              raise exception 'unexpected consume_ai_rate_limit return type: %', v_return_type;
+            end if;
+
+            if not has_function_privilege('service_role', 'public.consume_ai_rate_limit(uuid,text,integer,integer)', 'EXECUTE') then
+              raise exception 'service_role execute grant missing on consume_ai_rate_limit';
+            end if;
+            if has_function_privilege('anon', 'public.consume_ai_rate_limit(uuid,text,integer,integer)', 'EXECUTE') then
+              raise exception 'anon execute grant unexpectedly present on consume_ai_rate_limit';
+            end if;
+            if has_function_privilege('authenticated', 'public.consume_ai_rate_limit(uuid,text,integer,integer)', 'EXECUTE') then
+              raise exception 'authenticated execute grant unexpectedly present on consume_ai_rate_limit';
+            end if;
+
+            select relrowsecurity into v_rls from pg_class where oid = 'public.billing_customers'::regclass;
+            if not v_rls then raise exception 'billing_customers RLS is disabled'; end if;
+            select relrowsecurity into v_rls from pg_class where oid = 'public.billing_wallets'::regclass;
+            if not v_rls then raise exception 'billing_wallets RLS is disabled'; end if;
+            select relrowsecurity into v_rls from pg_class where oid = 'public.billing_purchases'::regclass;
+            if not v_rls then raise exception 'billing_purchases RLS is disabled'; end if;
+            select relrowsecurity into v_rls from pg_class where oid = 'public.billing_subscriptions'::regclass;
+            if not v_rls then raise exception 'billing_subscriptions RLS is disabled'; end if;
+
+            select count(*) into v_migration_count
+            from supabase_migrations.schema_migrations
+            where version in ('20260908124900', '20260912160000');
+            if v_migration_count <> 2 then
+              raise exception 'expected AI rate-limit and Billing P0 migrations in local history';
+            end if;
+          end $$;
+          SQL
+
+      - name: Create isolated local E2E user
+        id: e2e_user
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          E2E_EMAIL="billing-p0-e2e-${GITHUB_RUN_ID}@localhost.test"
+          E2E_PASSWORD="$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32)A9!"
+          export E2E_EMAIL E2E_PASSWORD
+          node <<'NODE' | curl -fsS "$API_URL/auth/v1/admin/users" \
+            -H "apikey: $SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            --data-binary @-
+          const body = {
+            email: process.env.E2E_EMAIL,
+            password: process.env.E2E_PASSWORD,
+            email_confirm: true,
+          };
+          process.stdout.write(JSON.stringify(body));
+          NODE
+          {
+            echo "E2E_EMAIL=$E2E_EMAIL"
+            echo "E2E_PASSWORD=$E2E_PASSWORD"
+            echo "E2E_SUPABASE_URL=$API_URL"
+            echo "E2E_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY"
+          } >> "$GITHUB_ENV"
+
+          cat > /tmp/billing-p0-functions.env <<EOF
+          SUPABASE_URL=$API_URL
+          SUPABASE_ANON_KEY=$ANON_KEY
+          SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY
+          ASAAS_ENVIRONMENT=sandbox
+          EOF
+
+      - name: Serve local Edge Functions
+        id: functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions serve --env-file /tmp/billing-p0-functions.env > /tmp/billing-p0-functions.log 2>&1 &
+          echo $! > /tmp/billing-p0-functions.pid
+          for _ in $(seq 1 60); do
+            if curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:54321/functions/v1/asaas | grep -Eq '401|405'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/billing-p0-functions.log
+          exit 1
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: npm run test:e2e — Billing P0
+        id: e2e
+        run: npm run test:e2e -- tests/e2e/billing.spec.ts --project=chromium
+
+      - name: ASAAS Sandbox gate
+        id: asaas
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [ -n "$ASAAS_API_KEY" ] && [ -n "$ASAAS_WEBHOOK_TOKEN" ] && [ -n "$BILLING_E2E_SANDBOX_URL" ]; then
+            echo "ASAAS SANDBOX = CONFIGURED" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ASAAS SANDBOX = BLOCKED — required sandbox secrets are not configured" >> "$GITHUB_STEP_SUMMARY"
+            echo "Required: ASAAS_API_KEY, ASAAS_WEBHOOK_TOKEN, BILLING_E2E_SANDBOX_URL" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Validation summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -u
+          {
+            echo "### Billing P0 validation"
+            echo "- lint: ${{ steps.lint.outcome }}"
+            echo "- typecheck: ${{ steps.typecheck.outcome }}"
+            echo "- npm test: ${{ steps.unit.outcome }}"
+            echo "- build: ${{ steps.build.outcome }}"
+            echo "- Supabase start: ${{ steps.supabase_start.outcome }}"
+            echo "- migration reset: ${{ steps.migration_reset.outcome }}"
+            echo "- migration lint: ${{ steps.migration_lint.outcome }}"
+            echo "- migration/RLS/grants verification: ${{ steps.migration_verify.outcome }}"
+            echo "- Billing E2E: ${{ steps.e2e.outcome }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          for status in "${{ steps.lint.outcome }}" "${{ steps.typecheck.outcome }}" "${{ steps.unit.outcome }}" "${{ steps.build.outcome }}" "${{ steps.supabase_start.outcome }}" "${{ steps.migration_reset.outcome }}" "${{ steps.migration_lint.outcome }}" "${{ steps.migration_verify.outcome }}" "${{ steps.e2e.outcome }}"; do
+            if [ "$status" != "success" ]; then failed=1; fi
+          done
+          exit "$failed"
+
+      - name: Upload E2E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-p0-e2e-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+            /tmp/billing-p0-functions.log
+          if-no-files-found: ignore
+          retention-days: 7

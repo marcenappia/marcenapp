@@ -18,7 +18,8 @@ test.describe('Billing P0 acceptance', () => {
     });
     expect(authToken).toMatch(/^ey[A-Za-z0-9_-]+\./);
 
-    const response = await page.request.post('https://uzhqhieqlcyncelltfjw.supabase.co/functions/v1/asaas', {
+    const supabaseUrl = process.env.E2E_SUPABASE_URL ?? 'https://uzhqhieqlcyncelltfjw.supabase.co';
+    const response = await page.request.post(`${supabaseUrl}/functions/v1/asaas`, {
       headers: { Authorization: `Bearer ${authToken}` },
       data: { action: 'get_wallet' },
     });

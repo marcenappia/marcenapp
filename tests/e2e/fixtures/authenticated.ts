@@ -9,7 +9,7 @@ export const test = base.extend<AuthenticatedFixtures>({
     const email = process.env.E2E_EMAIL?.trim();
     const password = process.env.E2E_PASSWORD;
     if (!email || !password) {
-      throw new Error('E2E authenticated gate requires E2E_EMAIL and E2E_PASSWORD GitHub Actions secrets.');
+      throw new Error('E2E authenticated gate requires E2E_EMAIL and E2E_PASSWORD.');
     }
 
     const context = await browser.newContext({ baseURL });
