@@ -43,6 +43,7 @@ export type IaraSmartAction = {
 
 export const IARA_SMART_ACTIONS: IaraSmartAction[] = [
   { id: 'project.analyze', label: 'Analisar ambiente', description: 'Leitura e inteligência do projeto', domain: 'project', intent: 'analisar ambiente' },
+  { id: 'project.create', label: 'Criar projeto', description: 'Criar o projeto com as informações disponíveis', domain: 'project', intent: 'criar projeto' },
   { id: 'project.measurements', label: 'Conferir medidas', description: 'Validar medidas do projeto', domain: 'project', intent: 'conferir medidas' },
   { id: 'project.render', label: 'Gerar render', description: 'Preparar e gerar render técnico', domain: 'project', intent: 'gerar render' },
   { id: 'project.review', label: 'Revisar projeto', description: 'Revisão de qualidade do projeto', domain: 'project', intent: 'revisar projeto' },
