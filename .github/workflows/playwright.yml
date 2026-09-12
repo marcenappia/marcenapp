@@ -86,6 +86,7 @@ jobs:
           typecheck.log
           playwright-report/
           test-results/
+          gemini-e2e-evidence/
         if-no-files-found: ignore
         retention-days: 7
     - name: Enforce validation gates
