@@ -1,39 +1,45 @@
 import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ProjectData } from '../types';
 
+const emptyProject: ProjectData = { width: 0, height: 0, depth: 0, modules: 0, drawers: 0, doors: 0, internalMaterial: '', externalMaterial: '', backMaterial: '', handleType: '', profitMargin: 0, laborRate: 0 };
+
 export const useProjectPersistence = (
   budgetProject: ProjectData,
-  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>
+  setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>,
+  selectedProjectId: string | null = null,
 ) => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const routeProjectId = searchParams.get('projeto');
+  const effectiveProjectId = selectedProjectId ?? routeProjectId;
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hydratedUserId = useRef<string | null>(null);
 
   useEffect(() => {
     hydratedUserId.current = null;
+    setBudgetProject(emptyProject);
     if (!user) return;
 
     let cancelled = false;
     const loadProject = async () => {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-        .limit(1);
+      let query = supabase.from('projects').select('*').eq('user_id', user.id);
+      query = effectiveProjectId
+        ? query.eq('id', effectiveProjectId)
+        : query.order('updated_at', { ascending: false }).limit(1);
 
+      const { data, error } = await query;
       if (cancelled) return;
-
       if (error) {
         console.error('[project-persistence] load failed', error);
         hydratedUserId.current = user.id;
         return;
       }
 
-      if (data?.[0]) {
-        const p = data[0];
+      const p = data?.[0];
+      if (p) {
         const requiredNumeric = [p.width, p.height, p.depth, p.modules, p.drawers, p.doors, p.profit_margin, p.labor_rate];
         const requiredText = [p.internal_material, p.external_material, p.back_material, p.handle_type];
         const hasCompleteProjectData = requiredNumeric.every(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
@@ -68,7 +74,7 @@ export const useProjectPersistence = (
       cancelled = true;
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
     };
-  }, [user, setBudgetProject]);
+  }, [user, effectiveProjectId, setBudgetProject]);
 
   useEffect(() => {
     if (!user || hydratedUserId.current !== user.id || !budgetProject.id) return;
@@ -91,12 +97,7 @@ export const useProjectPersistence = (
         labor_rate: budgetProject.laborRate,
       };
 
-      const { error } = await supabase
-        .from('projects')
-        .update(projectRow)
-        .eq('id', budgetProject.id)
-        .eq('user_id', user.id);
-
+      const { error } = await supabase.from('projects').update(projectRow).eq('id', budgetProject.id).eq('user_id', user.id);
       if (error) console.error('[project-persistence] update failed', error);
     }, 2000);
 
