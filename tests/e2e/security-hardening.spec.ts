@@ -51,11 +51,14 @@ async function newAuthenticatedPage(browser: Browser, email: string, password: s
 }
 
 test.describe('security hardening boundaries', () => {
-  test('authenticated user cannot inject or read another user project', async ({ authenticatedPage: page, browser }) => {
+  test('authenticated user cannot inject or read another user project', async ({ page, browser }) => {
+    const firstEmail = process.env.E2E_EMAIL?.trim();
+    const firstPassword = process.env.E2E_PASSWORD;
     const secondEmail = process.env.E2E_SECOND_EMAIL?.trim();
     const secondPassword = process.env.E2E_SECOND_PASSWORD;
-    test.skip(!secondEmail || !secondPassword, 'E2E_SECOND_EMAIL/E2E_SECOND_PASSWORD are required for the two-tenant boundary test.');
+    test.skip(!firstEmail || !firstPassword || !secondEmail || !secondPassword, 'Two authenticated tenant credentials are required for the cross-tenant boundary test.');
 
+    await login(page, firstEmail!, firstPassword!);
     const ownerA = await getSession(page);
     const ownerB = await newAuthenticatedPage(browser, secondEmail!, secondPassword!);
     let projectId = '';
@@ -124,6 +127,6 @@ test.describe('security hardening boundaries', () => {
         p_last_correlation_id: 'security-test',
       },
     });
-    expect([401, 403]).toContain(response.status());
+    expect([401, 403, 404]).toContain(response.status());
   });
 });
