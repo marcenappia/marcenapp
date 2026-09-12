@@ -43,27 +43,12 @@ export async function renameProjectEnvironment(environmentId: string, name: stri
 }
 
 export async function confirmPlanEnvironmentSuggestion(suggestionId: string, name?: string): Promise<ProjectEnvironment> {
-  const { data: suggestion, error: suggestionError } = await supabase
-    .from('project_plan_environment_suggestions')
-    .select('id,project_id,name,type,position,status')
-    .eq('id', suggestionId)
-    .single();
-  if (suggestionError) throw suggestionError;
-  if (suggestion.status === 'rejected') throw new Error('Esta sugestão de ambiente foi rejeitada.');
-
-  const environment = await createProjectEnvironment({
-    projectId: suggestion.project_id,
-    name: name?.trim() || suggestion.name,
-    type: suggestion.type,
-    position: suggestion.position,
+  const { data, error } = await supabase.rpc('confirm_project_plan_environment_suggestion', {
+    p_suggestion_id: suggestionId,
+    p_name: name?.trim() || null,
   });
-
-  const { error: updateError } = await supabase
-    .from('project_plan_environment_suggestions')
-    .update({ status: name && name.trim() !== suggestion.name ? 'renamed' : 'confirmed', confirmed_environment_id: environment.id })
-    .eq('id', suggestionId);
-  if (updateError) throw updateError;
-  return environment;
+  if (error) throw error;
+  return data as unknown as ProjectEnvironment;
 }
 
 export async function rejectPlanEnvironmentSuggestion(suggestionId: string): Promise<void> {
