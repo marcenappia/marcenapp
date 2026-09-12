@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scissors, PackageCheck, Calculator, FileText, ShoppingCart, Wrench, Truck, ListChecks, Camera, Paperclip, PencilLine } from 'lucide-react';
+import { Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scissors, PackageCheck, Calculator, FileText, ShoppingCart, Wrench, Truck, ListChecks, Camera, PencilLine, Plus } from 'lucide-react';
 import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
 
 type PendingUpload = { base64: string; baseRaw?: string; maskRaw?: string };
@@ -31,7 +31,6 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   const referenceInputRef = useRef<HTMLInputElement>(null);
   const sketchInputRef = useRef<HTMLInputElement>(null);
   const planInputRef = useRef<HTMLInputElement>(null);
-  const generalImageInputRef = useRef<HTMLInputElement>(null);
 
   const selectImage = (ref: React.RefObject<HTMLInputElement | null>) => {
     setOpen(false);
@@ -63,11 +62,10 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       <input ref={referenceInputRef} type="file" className="hidden" accept="image/*" onChange={onImageSelect} />
       <input ref={sketchInputRef} type="file" className="hidden" accept="image/*" onChange={onImageSelect} />
       <input ref={planInputRef} type="file" className="hidden" accept="image/*" onChange={onImageSelect} />
-      <input ref={generalImageInputRef} type="file" className="hidden" accept="image/*" onChange={onImageSelect} />
 
       <div className="flex items-end gap-2">
         <div className="flex gap-1 bg-muted p-1 rounded-2xl border border-border shrink-0">
-          <button type="button" aria-label="Adicionar foto, referência ou planta" aria-expanded={open} onClick={() => setOpen(v => !v)} className={`p-2.5 min-w-11 min-h-11 rounded-xl transition-all ${open ? 'bg-background text-primary' : 'text-muted-foreground hover:text-primary'}`}><Command size={18} aria-hidden="true" /></button>
+          <button type="button" aria-label="Adicionar foto, referência ou planta" aria-expanded={open} onClick={() => setOpen(v => !v)} className={`p-2.5 min-w-11 min-h-11 rounded-xl transition-all ${open ? 'bg-background text-primary' : 'text-muted-foreground hover:text-primary'}`}><Plus size={20} aria-hidden="true" /></button>
           <button type="button" aria-label={isListening ? 'Parar gravação' : 'Iniciar gravação'} onClick={toggleRecording} className={`p-2.5 min-w-11 min-h-11 rounded-xl transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-muted-foreground hover:text-primary'}`}>{isListening ? <MicOff size={18} aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}</button>
         </div>
         <div className="flex-1 relative group"><textarea aria-label="Mensagem para a IARA" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }} placeholder={isListening ? 'IARA está ouvindo...' : 'Descreva o que você quer fazer...'} className="w-full bg-muted border border-border rounded-2xl py-3 px-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none max-h-32 scrollbar-none min-h-11" rows={1} /><button type="button" aria-label="Enviar mensagem" onClick={onSend} className="absolute right-2 bottom-1.5 min-w-9 min-h-9 p-2 bg-primary text-primary-foreground rounded-xl shadow-sm hover:opacity-90 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Send size={18}/></button></div>
