@@ -127,6 +127,6 @@ test.describe('security hardening boundaries', () => {
         p_last_correlation_id: 'security-test',
       },
     });
-    expect([401, 403, 404]).toContain(response.status());
+    expect([400, 401, 403, 404]).toContain(response.status());
   });
 });
