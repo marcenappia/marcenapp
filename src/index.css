@@ -4,54 +4,86 @@
 
 @layer base {
   :root {
+    /* Marcenapp Design System — foundations */
     --background: 220 20% 97%;
     --foreground: 222 47% 11%;
-
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 11%;
-
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
-
     --accent: 210 40% 96%;
     --accent-foreground: 222 47% 11%;
-
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 217 91% 60%;
-
     --radius: 0.75rem;
 
-    --sidebar-bg: 222 47% 11%;
+    /* Canonical sidebar tokens; legacy aliases remain for compatibility. */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 28% 17%;
+    --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 215 28% 17%;
-    --sidebar-text: 215 20% 65%;
-    --sidebar-active: 217 91% 60%;
+    --sidebar-ring: 217 91% 60%;
+    --sidebar-bg: var(--sidebar-background);
+    --sidebar-text: var(--sidebar-foreground);
+    --sidebar-active: var(--sidebar-primary);
 
+    /* Reserved legacy tokens; do not use for new UI. */
     --magic-from: 38 92% 50%;
     --magic-to: 20 90% 58%;
   }
 }
 
 @layer base {
-  * {
+  *,
+  *::before,
+  *::after {
     @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+  }
+
+  html,
+  body {
+    overflow-x: hidden;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'DM Sans', 'Epilogue', sans-serif;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+  }
+
+  button,
+  [role='button'],
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
@@ -70,5 +102,10 @@
   }
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+  }
+  @media (max-width: 767px) {
+    .pb-safe {
+      padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+    }
   }
 }
