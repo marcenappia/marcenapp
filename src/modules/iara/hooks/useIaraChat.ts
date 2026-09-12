@@ -11,13 +11,24 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
 
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
-
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
 
+function rawErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '';
+}
+
 function humanizeError(error: unknown): string {
-  const message = error instanceof Error ? error.message : '';
+  const message = rawErrorMessage(error);
   if (/supabase|provider|gemini|http|stack|function|exception|rpc|postgres/i.test(message)) return 'Não foi possível concluir esta ação. Revise as informações do projeto e tente novamente.';
   return message || 'Não foi possível concluir esta ação. Tente novamente.';
+}
+
+function toolFailureMessage(tool: string, error: unknown): string {
+  const message = rawErrorMessage(error);
+  if (tool === 'gerarRender' || /nenhuma imagem base|imagem base|máscara|mascara/i.test(message)) {
+    return 'Para gerar esse render, preciso de uma foto do ambiente. Pode enviar uma foto aqui e eu continuo.';
+  }
+  return humanizeError(error);
 }
 
 export const useIaraChat = (factors: { L: number; A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void }, projectId: string | null = null) => {
@@ -103,7 +114,7 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       });
 
       const lines = response.run.results.map(({ tool, result }) => {
-        if (result.ok === false) return `Não foi possível concluir ${tool}. ${humanizeError(result.error)}`;
+        if (result.ok === false) return toolFailureMessage(tool, result.error);
         const data = result.data as Record<string, unknown>;
         switch (tool) {
           case 'createCliente': return `Cliente **${String(data.nome ?? 'sem nome')}** cadastrado.`;
