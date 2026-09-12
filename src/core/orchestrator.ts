@@ -1,5 +1,4 @@
 // IARA OS v1 — Client-side orchestrator wrapper
-// Chama ai-orchestrator (Function Calling) e executa o plano via toolRegistry.
 import { supabase } from '@/integrations/supabase/client';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
 import { callAIFunction } from '@/services/ai';
@@ -22,6 +21,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       project_id: ctx.projectId ?? null,
       user_prompt: userPrompt,
       status: 'planning',
+      metadata: { clientId: ctx.clientId ?? null, environmentId: ctx.environmentId ?? null, versionId: ctx.versionId ?? null },
     }).select('id').single();
     runId = data?.id ?? null;
   } catch (e) { console.warn('Falha ao registrar orchestrator_run:', e); }
@@ -49,7 +49,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
 
   if (runId) {
     try { await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status: results.every(r => r.result.ok) ? 'completed' : 'failed' }).eq('id', runId); }
-    catch (e) { console.warn('Falha ao registrar resultado do orchestrator_run:', e); }
+    catch (e) { console.warn('Falha ao registrar resultado do orchestrator:', e); }
   }
   return { runId, plan, summary, results, usedFallback: false, provider: result.provider };
 }
