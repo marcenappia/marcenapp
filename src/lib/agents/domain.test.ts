@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { agents, getAgent } from './registry';
-import { createDomainIntent, domainAgents, domainAgentRegistry, resolveDomain, runIara } from './domain';
+import { createDomainIntent, domainAgents, domainAgentRegistry, parseCreateProjectInput, resolveDomain, runIara } from './domain';
 import { runProjectJourney } from './orchestrator';
 
 const baseInput = {
@@ -68,6 +68,20 @@ describe('IARA/YARA domain orchestration', () => {
     expect(createDomainIntent({ domain: 'production', action: 'production.hardware' }, 'listar ferragens')).toEqual({ domain: 'production', action: 'materials', agent: 'BENTO' });
     expect(createDomainIntent({ domain: 'business', action: 'business.budget' }, 'gerar orçamento')).toEqual({ domain: 'business', action: 'budget', agent: 'ESTELA' });
     expect(createDomainIntent({ domain: 'execution', action: 'execution.delivery' }, 'entrega')).toEqual({ domain: 'execution', action: 'execution', agent: 'JUCA' });
+  });
+
+  it('reconhece criação de projeto somente por texto e normaliza metros para milímetros', () => {
+    expect(createDomainIntent({ message: 'Crie um armário de 2,40m x 2,20m x 0,60m com 4 portas e 3 gavetas' })).toEqual({ domain: 'project', action: 'create_project', agent: 'IARA' });
+    expect(parseCreateProjectInput({ message: 'Crie um armário de 2,40m x 2,20m x 0,60m com 4 portas e 3 gavetas' })).toMatchObject({
+      width: 2400,
+      height: 2200,
+      depth: 600,
+      confirmado: true,
+    });
+  });
+
+  it('não cria projeto sem as três dimensões explícitas', () => {
+    expect(parseCreateProjectInput({ message: 'Crie um armário de 2,40m de largura' })).toBeUndefined();
   });
 
   it('preserva as dependências registradas dos especialistas', () => {
