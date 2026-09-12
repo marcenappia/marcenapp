@@ -13,7 +13,7 @@ export interface ModuleConfig {
 }
 
 // No celular, a navegação primária fica reduzida ao que sustenta a rotina diária:
-// IARA, Diário e Início. Os demais módulos continuam acessíveis pelo menu secundário.
+// IARA, Diário e Início. Os demais módulos continuam acessíveis por ações contextuais.
 export const MOBILE_NAV_IDS = ['studio', 'diario', 'dashboard'];
 
 export const modules: ModuleConfig[] = [
@@ -22,13 +22,14 @@ export const modules: ModuleConfig[] = [
   { id: 'novo', label: 'Novo Projeto', mobileLabel: 'Novo', icon: Plus, category: 'portal', hidden: true },
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: Users, category: 'portal' },
   { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
-  { id: 'billing', label: 'Planos e Créditos', mobileLabel: 'Créditos', icon: CreditCard, category: 'portal' },
+  { id: 'billing', label: 'Créditos e Planos', mobileLabel: 'Créditos', icon: CreditCard, category: 'portal' },
   { id: 'studio', label: 'Estúdio', mobileLabel: 'IARA', icon: Wand2, category: 'studio' },
   { id: 'elevator', label: 'Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine, category: 'studio' },
   { id: 'orcamento', label: 'Orçamento', mobileLabel: 'Orçamento', icon: Calculator, category: 'finance' },
   { id: 'corte', label: 'Lista de Corte', mobileLabel: 'Corte', icon: Package, category: 'production' },
   { id: 'contrato', label: 'Contratos', mobileLabel: 'Contratos', icon: Scale, category: 'production' },
-  { id: 'admin-billing', label: 'Administração de Créditos', mobileLabel: 'Admin', icon: Scale, category: 'portal' },
+  // Área interna da operação: não deve aparecer para o marceneiro no menu do produto.
+  { id: 'admin-billing', label: 'Administração de Créditos', mobileLabel: 'Admin', icon: Scale, category: 'portal', hidden: true },
 ];
 
 export const CATEGORY_LABELS: Record<ModuleCategory, string> = {
