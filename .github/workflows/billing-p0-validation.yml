@@ -23,8 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout exact PR head commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Node (project standard)
         uses: actions/setup-node@v4
@@ -61,7 +63,7 @@ jobs:
         continue-on-error: true
         run: npm run build
 
-      - name: Install Playwright Browsers (project mechanism)
+      - name: Install Playwright Browsers
         id: playwright_install
         if: always()
         continue-on-error: true
@@ -140,8 +142,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout exact PR head commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Verify target migration
         run: test -f supabase/migrations/20260912160000_billing_p0_reconciliation_and_idempotency.sql
@@ -159,7 +163,7 @@ jobs:
       - name: Record migration prerequisite blocker
         if: steps.supabase_start.outcome != 'success'
         run: |
-          echo 'MIGRATION = BLOCKED — isolated Supabase could not start because an earlier repository migration fails before the Billing P0 migration is reached.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'MIGRATION = BLOCKED — isolated Supabase could not start.' >> "$GITHUB_STEP_SUMMARY"
           exit 2
 
       - name: Apply migrations to isolated local DB
@@ -171,7 +175,7 @@ jobs:
       - name: Record migration prerequisite failure
         if: steps.migration_reset.outcome != 'success'
         run: |
-          echo 'MIGRATION = BLOCKED — full migration chain did not reach 20260912160000 because a prior repository migration failed. The target migration was not represented as PASS.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'MIGRATION = BLOCKED — full migration chain did not reach 20260912160000; target migration was not represented as PASS.' >> "$GITHUB_STEP_SUMMARY"
           exit 2
 
       - name: Validate Billing P0 schema objects
@@ -187,8 +191,7 @@ jobs:
 
       - name: Migration evidence summary
         if: always()
-        run: |
-          echo 'Production database was not targeted.' >> "$GITHUB_STEP_SUMMARY"
+        run: echo 'Production database was not targeted.' >> "$GITHUB_STEP_SUMMARY"
 
   asaas-sandbox:
     name: Asaas Sandbox gate
@@ -211,5 +214,5 @@ jobs:
             echo 'ASAAS SANDBOX = BLOCKED / UNAVAILABLE' >> "$GITHUB_STEP_SUMMARY"
             exit 2
           fi
-          echo 'Sandbox credentials/configuration exist, but no authorized real financial harness is defined by this workflow; refusing to simulate a transaction.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Sandbox configuration exists, but no authorized real financial harness is defined by this workflow; refusing to simulate a transaction.' >> "$GITHUB_STEP_SUMMARY"
           exit 2
