@@ -205,3 +205,87 @@ using (
     )
   )
 );
+
+-- Atomic context merge. The client sends only the delta from one execution; this
+-- function merges it against the row as it exists at write time, preventing
+-- read/merge/upsert lost updates from concurrent IARA requests.
+create or replace function public.merge_iara_project_context(
+  p_user_id uuid,
+  p_project_id uuid,
+  p_summary text,
+  p_decisions jsonb,
+  p_artifacts jsonb,
+  p_last_correlation_id text
+)
+returns public.project_iara_contexts
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  result public.project_iara_contexts;
+begin
+  if p_user_id is null or p_project_id is null or auth.uid() is null or p_user_id <> auth.uid() then
+    raise exception 'Unauthorized IARA project context write';
+  end if;
+
+  if not exists (
+    select 1
+    from public.projects p
+    where p.id = p_project_id
+      and p.user_id = auth.uid()
+  ) then
+    raise exception 'Project does not belong to authenticated user';
+  end if;
+
+  insert into public.project_iara_contexts (
+    user_id, project_id, summary, decisions, artifacts, last_correlation_id, updated_at
+  ) values (
+    p_user_id,
+    p_project_id,
+    p_summary,
+    case when jsonb_typeof(coalesce(p_decisions, '[]'::jsonb)) = 'array' then coalesce(p_decisions, '[]'::jsonb) else '[]'::jsonb end,
+    case when jsonb_typeof(coalesce(p_artifacts, '[]'::jsonb)) = 'array' then coalesce(p_artifacts, '[]'::jsonb) else '[]'::jsonb end,
+    p_last_correlation_id,
+    now()
+  )
+  on conflict (project_id) do update
+  set
+    user_id = excluded.user_id,
+    summary = coalesce(excluded.summary, public.project_iara_contexts.summary),
+    decisions = (
+      select coalesce(jsonb_agg(value order by ord), '[]'::jsonb)
+      from (
+        select value, ord
+        from jsonb_array_elements(coalesce(public.project_iara_contexts.decisions, '[]'::jsonb) || coalesce(excluded.decisions, '[]'::jsonb)) with ordinality as elements(value, ord)
+        order by ord desc
+        limit 50
+      ) bounded
+    ),
+    artifacts = (
+      select coalesce(jsonb_agg(value order by ord), '[]'::jsonb)
+      from (
+        select value, ord
+        from (
+          select value, ord,
+                 row_number() over (
+                   partition by coalesce(value->>'type',''), coalesce(value->>'id','')
+                   order by ord desc
+                 ) as rn
+          from jsonb_array_elements(coalesce(public.project_iara_contexts.artifacts, '[]'::jsonb) || coalesce(excluded.artifacts, '[]'::jsonb)) with ordinality as elements(value, ord)
+        ) ranked
+        where rn = 1
+        order by ord desc
+        limit 100
+      ) bounded
+    ),
+    last_correlation_id = coalesce(excluded.last_correlation_id, public.project_iara_contexts.last_correlation_id),
+    updated_at = now()
+  returning * into result;
+
+  return result;
+end;
+$$;
+
+revoke all on function public.merge_iara_project_context(uuid, uuid, text, jsonb, jsonb, text) from public;
+grant execute on function public.merge_iara_project_context(uuid, uuid, text, jsonb, jsonb, text) to authenticated;
