@@ -9,25 +9,19 @@ interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ tran
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
-
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
 
-function rawErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '';
-}
-
+function rawErrorMessage(error: unknown): string { return error instanceof Error ? error.message : ''; }
 function humanizeError(error: unknown): string {
   const message = rawErrorMessage(error);
-  if (/supabase|provider|gemini|http|stack|function|exception|rpc|postgres/i.test(message)) return 'Não foi possível concluir esta ação. Revise as informações do projeto e tente novamente.';
+  if (/nenhuma imagem base|imagem base|máscara|mascara/i.test(message)) return 'Para gerar esse render, preciso de uma foto do ambiente. Pode enviar uma foto aqui e eu continuo.';
+  if (/supabase|provider|gemini|http|stack|function|exception|rpc|postgres|edge function|failed to fetch/i.test(message)) return 'Não foi possível concluir esta ação. Revise as informações do projeto e tente novamente.';
   return message || 'Não foi possível concluir esta ação. Tente novamente.';
 }
-
 function toolFailureMessage(tool: string, error: unknown): string {
   const message = rawErrorMessage(error);
-  if (tool === 'gerarRender' || /nenhuma imagem base|imagem base|máscara|mascara/i.test(message)) {
-    return 'Para gerar esse render, preciso de uma foto do ambiente. Pode enviar uma foto aqui e eu continuo.';
-  }
+  if (tool === 'gerarRender' || /nenhuma imagem base|imagem base|máscara|mascara/i.test(message)) return 'Para gerar esse render, preciso de uma foto do ambiente. Pode enviar uma foto aqui e eu continuo.';
   return humanizeError(error);
 }
 
@@ -100,52 +94,23 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       const correlationId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const intentInput = { message: promptText, projectId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
       await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, status: 'requested' } : { correlationId, status: 'requested' } });
-      const conversation = [...messages, { sender: 'user', text: promptText }]
-        .filter(message => typeof message.text === 'string' && message.text.trim())
-        .slice(-12)
-        .map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
-      const response = await runIaraConversation({
-        input: intentInput,
-        intent: promptText,
-        projectId: projectId ?? undefined,
-        correlationId,
-        execution: { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined },
-        context: { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, conversation },
-      });
-
+      const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
+      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: projectId ?? undefined, correlationId, execution: { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, conversation } });
       const lines = response.run.results.map(({ tool, result }) => {
         if (result.ok === false) return toolFailureMessage(tool, result.error);
         const data = result.data as Record<string, unknown>;
         switch (tool) {
           case 'createCliente': return `Cliente **${String(data.nome ?? 'sem nome')}** cadastrado.`;
-          case 'createProjeto': {
-            const width = Number(data.width); const height = Number(data.height); const depth = Number(data.depth);
-            if (Number.isFinite(width) && Number.isFinite(height) && Number.isFinite(depth)) hooks?.onProjectCreated?.({ width, height, depth });
-            return `Projeto **${String(data.nome ?? 'Projeto')}** criado.`;
-          }
+          case 'createProjeto': { const width = Number(data.width); const height = Number(data.height); const depth = Number(data.depth); if (Number.isFinite(width) && Number.isFinite(height) && Number.isFinite(depth)) hooks?.onProjectCreated?.({ width, height, depth }); return `Projeto **${String(data.nome ?? 'Projeto')}** criado.`; }
           case 'gerarRender': return 'Estou preparando o render. Aviso quando estiver pronto.';
-          case 'calcularOrcamento': {
-            const precoVenda = Number(data.precoVenda); const materiais = Number(data.materiais); const ferragens = Number(data.ferragens); const maoDeObra = Number(data.maoDeObra); const outros = Number(data.outros); const lucro = Number(data.lucro); const margemPct = Number(data.margemPct);
-            return `Orçamento atualizado: **R$ ${precoVenda.toLocaleString('pt-BR')}**. Custos: R$ ${materiais.toLocaleString('pt-BR')} em materiais, R$ ${ferragens.toLocaleString('pt-BR')} em ferragens, R$ ${maoDeObra.toLocaleString('pt-BR')} de mão de obra e R$ ${outros.toLocaleString('pt-BR')} em outros custos. Lucro: R$ ${lucro.toLocaleString('pt-BR')} (${margemPct.toLocaleString('pt-BR')}%).`;
-          }
+          case 'calcularOrcamento': { const precoVenda = Number(data.precoVenda); const materiais = Number(data.materiais); const ferragens = Number(data.ferragens); const maoDeObra = Number(data.maoDeObra); const outros = Number(data.outros); const lucro = Number(data.lucro); const margemPct = Number(data.margemPct); return `Orçamento atualizado: **R$ ${precoVenda.toLocaleString('pt-BR')}**. Custos: R$ ${materiais.toLocaleString('pt-BR')} em materiais, R$ ${ferragens.toLocaleString('pt-BR')} em ferragens, R$ ${maoDeObra.toLocaleString('pt-BR')} de mão de obra e R$ ${outros.toLocaleString('pt-BR')} em outros custos. Lucro: R$ ${lucro.toLocaleString('pt-BR')} (${margemPct.toLocaleString('pt-BR')}%).`; }
           case 'gerarContrato': return `Documento preparado para **${String(data.cliente ?? 'cliente')}**.`;
           case 'operationalIntelligence': return 'Informações operacionais do projeto atualizadas.';
           default: return 'Ação concluída.';
         }
       });
-
       const artifact = response.artifacts[0];
-      const metadata: MessageMetadata = {
-        domain: response.domain,
-        action: response.action,
-        agent: response.domainAgent,
-        correlationId: response.correlationId,
-        status: response.run.status === 'completed' ? 'ready' : response.run.status,
-        artifacts: response.artifacts,
-        panel: response.panel,
-        ...(artifact ? { artifact: { type: artifact.type, id: artifact.id } } : {}),
-        ...(artifact ? { actions: [{ id: 'open', label: artifact.type === 'render' ? 'Abrir render' : 'Abrir artefato', kind: 'open-panel' }] } : {}),
-      };
+      const metadata: MessageMetadata = { domain: response.domain, action: response.action, agent: response.domainAgent, correlationId: response.correlationId, status: response.run.status === 'completed' ? 'ready' : response.run.status, artifacts: response.artifacts, panel: response.panel, ...(artifact ? { artifact: { type: artifact.type, id: artifact.id } } : {}), ...(artifact ? { actions: [{ id: 'open', label: artifact.type === 'render' ? 'Abrir render' : 'Abrir artefato', kind: 'open-panel' }] } : {}) };
       const header = response.run.status === 'needs_input' ? 'Preciso confirmar uma informação antes de continuar.' : response.run.status === 'failed' ? 'Não foi possível concluir esta ação.' : 'Pronto.';
       const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?';
       await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, metadata });
