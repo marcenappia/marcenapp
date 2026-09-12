@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MessageCircle, PanelRight, Sparkles } from 'lucide-react';
+import { X, MessageCircle, PanelRight } from 'lucide-react';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput, type SmartAction } from './components/ChatInput';
 import { ContextPanel, type ContextPanelData } from './components/ContextPanel';
@@ -22,7 +22,7 @@ const IaraModule = ({ syncProject, onProjectChange, embedded, projectId = null }
   useEffect(() => { if (!syncProject) return; setFactors(prev => { const next = { ...prev, L: syncProject.width ?? prev.L, A: syncProject.height ?? prev.A, P: syncProject.depth ?? prev.P }; return next.L === prev.L && next.A === prev.A && next.P === prev.P ? prev : next; }); }, [syncProject?.width, syncProject?.height, syncProject?.depth]);
   useEffect(() => { if (!onProjectChange) return; const sameAsStudio = syncProject?.width === factors.L && syncProject?.height === factors.A && syncProject?.depth === factors.P; if (sameAsStudio) return; onProjectChange({ width: factors.L, height: factors.A, depth: factors.P }); }, [factors.L, factors.A, factors.P, onProjectChange, syncProject?.width, syncProject?.height, syncProject?.depth]);
   const { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError } = useIaraChat(factors, decorStyle, setShowAuthDialog, { onProjectCreated: (p) => setFactors(prev => ({ ...prev, L: p.width ?? prev.L, A: p.height ?? prev.A, P: p.depth ?? prev.P })) }, projectId);
-  const lastPushedRef = useRef<string | null>(null); const isDrawingRef = useRef(false);
+  const isDrawingRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null); const canvasRef = useRef<HTMLCanvasElement>(null); const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isTyping]);
   useEffect(() => { if (maskingImage && canvasRef.current) { const c = canvasRef.current; c.width = 1080; c.height = 1920; const ctx = c.getContext('2d'); if (ctx) { ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'; ctx.lineWidth = 60; ctxRef.current = ctx; } } }, [maskingImage]);
