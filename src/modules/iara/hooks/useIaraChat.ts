@@ -4,11 +4,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runOrchestrator } from '@/core/orchestrator';
+import { createDomainIntent } from '@/lib/agents/domain';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
+
+type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
 
 export const useIaraChat = (factors: { L: number; A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void }, projectId: string | null = null) => {
   const { user } = useAuth();
@@ -32,7 +35,7 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
       if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
-        await saveMessage({ sender: 'iara', text: `A materialização foi concluída com sucesso no Estúdio! (Ref: ${lastCommand.id})`, image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl } });
+        await saveMessage({ sender: 'iara', text: `A materialização foi concluída com sucesso no Estúdio! (Ref: ${lastCommand.id})`, image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }] } });
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
         await saveMessage({ sender: 'iara', text: `Desculpe, o Estúdio encontrou um problema ao processar sua solicitação: ${lastCommand.error}.` });
@@ -67,7 +70,7 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
   };
 
-  const sendPrompt = async (promptText: string, upload: typeof pendingUpload) => {
+  const sendPrompt = async (promptText: string, upload: typeof pendingUpload, smartAction?: SmartAction) => {
     if (!user) return;
     setIsTyping(true); setError(null);
     let currentBaseRaw: string | null = null;
@@ -76,13 +79,14 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw }); }
     else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; }
     try {
-      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg });
+      const domainIntent = createDomainIntent({ ...({ message: promptText, projectId } as Record<string, unknown>), ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) }, promptText);
+      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: domainIntent.domain, action: smartAction.id, agent: domainIntent.agent } } : undefined });
       const conversation = [...messages, { sender: 'user', text: promptText }]
         .filter(message => typeof message.text === 'string' && message.text.trim())
         .slice(-12)
         .map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
-      const run = await runOrchestrator(promptText, { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, conversation });
-      if (run.plan.length === 0) { await saveMessage({ sender: 'iara', text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.' }); lastFailedRef.current = null; return; }
+      const run = await runOrchestrator(promptText, { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, conversation, iara: { orchestrator: 'IARA', domain: domainIntent.domain, domainAgent: domainIntent.agent, action: smartAction?.id ?? domainIntent.action, ...(smartAction ? { capability: smartAction.label } : {}) } });
+      if (run.plan.length === 0) { await saveMessage({ sender: 'iara', text: run.summary || 'Pode detalhar melhor? Não identifiquei uma ação a executar.', metadata: { domain: domainIntent.domain, action: domainIntent.action, agent: domainIntent.agent } }); lastFailedRef.current = null; return; }
       const linhas = run.results.map(({ tool, result }) => {
         if (result.ok === false) return `❌ ${tool}: ${result.error}`;
         const data = result.data as Record<string, unknown>;
@@ -97,7 +101,9 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       });
       const footer = run.usedFallback ? '\n\n_(interpretação por fallback keyword)_' : '';
       const header = run.summary ? `${run.summary}\n\n` : '';
-      await saveMessage({ sender: 'iara', text: `${header}${linhas.join('\n')}${footer}` });
+      const artifact = run.results.find(({ tool }) => tool === 'gerarRender')?.result;
+      const artifactData = artifact && artifact.ok ? artifact.data as Record<string, unknown> : null;
+      await saveMessage({ sender: 'iara', text: `${header}${linhas.join('\n')}${footer}`, metadata: { domain: domainIntent.domain, action: domainIntent.action, agent: domainIntent.agent, ...(artifactData?.studioCommandId ? { artifact: { type: 'render', id: String(artifactData.studioCommandId) }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }] } : {}) } });
       lastFailedRef.current = null;
     } catch (error: unknown) {
       lastFailedRef.current = { text: promptText, upload };
@@ -106,10 +112,15 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   };
 
   const handleSend = async () => { if (!chatInput.trim() && !pendingUpload) return; if (!user) { setShowAuthDialog(true); return; } const promptText = chatInput.trim(); const upload = pendingUpload; setChatInput(''); setPendingUpload(null); await sendPrompt(promptText, upload); };
+  const handleSmartAction = async (action: SmartAction) => {
+    if (!user) { setShowAuthDialog(true); return; }
+    setChatInput('');
+    await sendPrompt(action.prompt, null, action);
+  };
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload); };
   const dismissError = () => setError(null);
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; }; reader.readAsDataURL(file); };
   useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`); recognitionRef.current = r; }, []);
   const toggleRecording = () => { if (isListening) recognitionRef.current?.stop(); else recognitionRef.current?.start(); };
-  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError };
+  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError };
 };
