@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { agents, getAgent } from './registry';
-import { domainAgents, domainAgentRegistry, resolveDomain, runIara } from './domain';
+import { createDomainIntent, domainAgents, domainAgentRegistry, resolveDomain, runIara } from './domain';
 import { runProjectJourney } from './orchestrator';
 
 const baseInput = {
@@ -61,6 +61,13 @@ describe('IARA/YARA domain orchestration', () => {
     expect(resolveDomain({ input: { message: 'quanto devo cobrar neste móvel?' } })).toBe('business');
     expect(resolveDomain({ input: { message: 'preciso instalar e entregar' } })).toBe('execution');
     expect(resolveDomain({ input: { message: 'analise as fotos da cozinha' } })).toBe('project');
+  });
+
+  it('mapeia ações rápidas para o domínio sem expor especialista técnico', () => {
+    expect(createDomainIntent({ domain: 'project', action: 'project.render' }, 'gerar render')).toEqual({ domain: 'project', action: 'render', agent: 'IARA' });
+    expect(createDomainIntent({ domain: 'production', action: 'production.hardware' }, 'listar ferragens')).toEqual({ domain: 'production', action: 'materials', agent: 'BENTO' });
+    expect(createDomainIntent({ domain: 'business', action: 'business.budget' }, 'gerar orçamento')).toEqual({ domain: 'business', action: 'budget', agent: 'ESTELA' });
+    expect(createDomainIntent({ domain: 'execution', action: 'execution.delivery' }, 'entrega')).toEqual({ domain: 'execution', action: 'execution', agent: 'JUCA' });
   });
 
   it('preserva as dependências registradas dos especialistas', () => {
