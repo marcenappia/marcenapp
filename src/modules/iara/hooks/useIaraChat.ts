@@ -54,21 +54,22 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     const lastCommand = commandHistory[0];
     if (lastCommand.source !== 'iara' || lastCommand.target !== 'studio') return;
     if (commandProjectId(lastCommand) !== (projectId ?? null)) return;
+    const commandScope = scopeRef.current;
+    const isCurrentCommandScope = () => isCurrentIaraExecutionScope(scopeRef.current, commandScope);
 
     const notifyChat = async () => {
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
-      const commandScope = scopeRef.current;
       if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
-        await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' });
-        if (scopeRef.current.projectId === commandScope.projectId && scopeRef.current.userId === commandScope.userId) setIsTyping(false);
+        await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } });
+        if (isCurrentCommandScope()) setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
         await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } });
-        if (scopeRef.current.projectId === commandScope.projectId && scopeRef.current.userId === commandScope.userId) setIsTyping(false);
+        if (isCurrentCommandScope()) setIsTyping(false);
       }
     };
-    void notifyChat().catch((commandError: unknown) => setError(humanizeError(commandError)));
+    void notifyChat().catch((commandError: unknown) => { if (isCurrentCommandScope()) setError(humanizeError(commandError)); });
   }, [commandHistory, projectId, user]);
 
   useEffect(() => {
