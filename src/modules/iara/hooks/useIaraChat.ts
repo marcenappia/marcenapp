@@ -3,8 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
+import { useActiveContextStore, type ActiveContext } from '@/store/useActiveContextStore';
 import { runIaraConversation } from '@/lib/agents/domain';
-import { loadIaraProjectContext, saveIaraProjectContext, type IaraProjectContext } from '../services/iaraProjectContext';
+import { loadIaraContext, saveIaraContext, type IaraContext, type IaraContextScope } from '../services/iaraProjectContext';
 import { advanceIaraExecutionScope, isCurrentIaraExecutionScope, type IaraExecutionScope } from './iaraExecutionScope';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
@@ -14,23 +15,16 @@ type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecogni
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
 type UploadPayload = { base64: string; baseRaw: string; maskRaw: string };
-type FailedRequest = { text: string; upload: UploadPayload | null; smartAction?: SmartAction; projectId: string | null };
+type FailedRequest = { text: string; upload: UploadPayload | null; smartAction?: SmartAction; scope: IaraContextScope };
 
 function rawErrorMessage(error: unknown): string { return error instanceof Error ? error.message : ''; }
-function humanizeError(error: unknown): string {
-  const message = rawErrorMessage(error);
-  if (/nenhuma imagem base|imagem base|máscara|mascara/i.test(message)) return 'Para gerar esse render, preciso de uma foto do ambiente. Pode enviar uma foto aqui e eu continuo.';
-  if (/supabase|provider|gemini|http|stack|function|exception|rpc|postgres|edge function|failed to fetch/i.test(message)) return 'Não foi possível concluir esta ação. Revise as informações do projeto e tente novamente.';
-  return message || 'Não foi possível concluir esta ação. Tente novamente.';
-}
-function toolFailureMessage(tool: string, error: unknown): string {
-  const message = rawErrorMessage(error);
-  if (tool === 'gerarRender' || /nenhuma imagem base|imagem base|máscara|mascara/i.test(message)) return 'Para gerar esse render, preciso de uma foto do ambiente. Pode enviar uma foto aqui e eu continuo.';
-  return humanizeError(error);
-}
+function humanizeError(error: unknown): string { const message = rawErrorMessage(error); if (/nenhuma imagem base|imagem base|máscara|mascara/i.test(message)) return 'Para gerar esse render, preciso de uma foto do ambiente. Pode enviar uma foto aqui e eu continuo.'; if (/supabase|provider|gemini|http|stack|function|exception|rpc|postgres|edge function|failed to fetch/i.test(message)) return 'Não foi possível concluir esta ação. Revise as informações do contexto e tente novamente.'; return message || 'Não foi possível concluir esta ação. Tente novamente.'; }
+function toolFailureMessage(tool: string, error: unknown): string { return tool === 'gerarRender' ? 'Para gerar esse render, preciso de uma foto do ambiente. Pode enviar uma foto aqui e eu continuo.' : humanizeError(error); }
 
-export const useIaraChat = (factors: { L: number; A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void }, projectId: string | null = null) => {
+export const useIaraChat = (factors: { L: number; A: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void }, projectId: string | null = null, contextOverride?: Partial<ActiveContext>) => {
   const { user } = useAuth();
+  const storeContext = useActiveContextStore(state => ({ clientId: state.clientId, projectId: state.projectId, environmentId: state.environmentId, versionId: state.versionId }));
+  const activeContext: ActiveContext = { clientId: contextOverride?.clientId ?? storeContext.clientId, projectId: contextOverride?.projectId ?? storeContext.projectId ?? projectId, environmentId: contextOverride?.environmentId ?? storeContext.environmentId, versionId: contextOverride?.versionId ?? storeContext.versionId };
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -38,99 +32,78 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement } | null>(null);
   const [pendingUpload, setPendingUpload] = useState<UploadPayload | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
-  const [projectContext, setProjectContext] = useState<IaraProjectContext | null>(null);
+  const [projectContext, setProjectContext] = useState<IaraContext | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastFailedRef = useRef<FailedRequest | null>(null);
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const scopeRef = useRef<IaraExecutionScope>({ userId: user?.id ?? null, projectId, generation: 0 });
+  const scopeRef = useRef<IaraExecutionScope>({ userId: user?.id ?? null, clientId: activeContext.clientId, projectId: activeContext.projectId, environmentId: activeContext.environmentId, versionId: activeContext.versionId, generation: 0 });
+  scopeRef.current = advanceIaraExecutionScope(scopeRef.current, { userId: user?.id ?? null, clientId: activeContext.clientId, projectId: activeContext.projectId, environmentId: activeContext.environmentId, versionId: activeContext.versionId });
+  const isSameScope = (a: IaraContextScope, b: IaraContextScope) => a.userId === b.userId && a.clientId === b.clientId && a.projectId === b.projectId && a.environmentId === b.environmentId && a.versionId === b.versionId;
 
-  scopeRef.current = advanceIaraExecutionScope(scopeRef.current, user?.id ?? null, projectId);
-
-  const commandProjectId = (command: { payload?: Record<string, unknown> }) => typeof command.payload?.projectId === 'string' ? command.payload.projectId : null;
-
-  useEffect(() => {
-    if (commandHistory.length === 0 || !user) return;
-    const lastCommand = commandHistory[0];
-    if (lastCommand.source !== 'iara' || lastCommand.target !== 'studio') return;
-    if (commandProjectId(lastCommand) !== (projectId ?? null)) return;
-    const commandScope = scopeRef.current;
-    const isCurrentCommandScope = () => isCurrentIaraExecutionScope(scopeRef.current, commandScope);
-
-    const notifyChat = async () => {
-      const lastProcessedId = localStorage.getItem('last_processed_command_id');
-      if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
-      if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
-        localStorage.setItem('last_processed_command_id', lastCommand.id);
-        await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } });
-        if (isCurrentCommandScope()) setIsTyping(false);
-      } else if (lastCommand.status === 'failed') {
-        await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } });
-        if (isCurrentCommandScope()) setIsTyping(false);
-      }
-    };
-    void notifyChat().catch((commandError: unknown) => { if (isCurrentCommandScope()) setError(humanizeError(commandError)); });
-  }, [commandHistory, projectId, user]);
+  const saveMessage = async (scope: IaraContextScope, msg: Partial<ChatMessage>) => {
+    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: scope.userId, project_id: scope.projectId, environment_id: scope.environmentId, version_id: scope.versionId, ...msg });
+    if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
+  };
 
   useEffect(() => {
     const capturedScope = scopeRef.current;
+    const scope: IaraContextScope = { userId: capturedScope.userId!, clientId: capturedScope.clientId, projectId: capturedScope.projectId, environmentId: capturedScope.environmentId, versionId: capturedScope.versionId };
     const isCurrentScope = () => isCurrentIaraExecutionScope(scopeRef.current, capturedScope);
-
-    if (!user) {
-      setMessages([]); setProjectContext(null); setLastContext(null); setPendingUpload(null); setError(null);
-      return;
-    }
-
+    if (!user) { setMessages([]); setProjectContext(null); setLastContext(null); setPendingUpload(null); setError(null); return; }
     setMessages([]); setProjectContext(null); setLastContext(null); setPendingUpload(null); setError(null);
     const load = async () => {
-      const messageQuery = projectId
-        ? supabase.from('chat_messages').select('*').eq('user_id', user.id).eq('project_id', projectId)
-        : supabase.from('chat_messages').select('*').eq('user_id', user.id).is('project_id', null);
-      const [{ data, error: loadError }, contextResult] = await Promise.all([
-        messageQuery.order('created_at', { ascending: true }),
-        projectId ? loadIaraProjectContext(projectId) : Promise.resolve(null),
-      ]);
+      let query = supabase.from('chat_messages').select('*').eq('user_id', scope.userId);
+      query = scope.projectId ? query.eq('project_id', scope.projectId) : query.is('project_id', null);
+      query = scope.environmentId ? query.eq('environment_id', scope.environmentId) : query.is('environment_id', null);
+      query = scope.versionId ? query.eq('version_id', scope.versionId) : query.is('version_id', null);
+      const [{ data, error: loadError }, contextResult] = await Promise.all([query.order('created_at', { ascending: true }), loadIaraContext(scope)]);
       if (!isCurrentScope()) return;
       if (loadError) { setError('Não foi possível carregar o histórico. Verifique sua conexão.'); return; }
       if (data) setMessages(data as ChatMessage[]);
       setProjectContext(contextResult);
     };
     void load().catch((loadError: unknown) => { if (isCurrentScope()) setError(humanizeError(loadError)); });
-
-    const channel = supabase.channel(`chat_messages_${projectId ?? 'none'}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
+    const channel = supabase.channel(`chat_messages_${scope.projectId ?? 'none'}_${scope.environmentId ?? 'none'}_${scope.versionId ?? 'none'}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${scope.userId}` }, payload => {
       if (!isCurrentScope()) return;
-      const msg = payload.new as ChatMessage;
-      if ((msg.project_id ?? null) !== (projectId ?? null)) return;
+      const msg = payload.new as ChatMessage & { environment_id?: string | null; version_id?: string | null };
+      if ((msg.project_id ?? null) !== scope.projectId || (msg.environment_id ?? null) !== scope.environmentId || (msg.version_id ?? null) !== scope.versionId) return;
       setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
     }).subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [user, projectId]);
+  }, [user, activeContext.clientId, activeContext.projectId, activeContext.environmentId, activeContext.versionId]);
 
-  const saveMessage = async (msg: Partial<ChatMessage>) => {
-    if (!user) return;
-    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: user.id, project_id: projectId, ...msg });
-    if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
-  };
+  useEffect(() => {
+    if (commandHistory.length === 0 || !user) return;
+    const lastCommand = commandHistory[0];
+    if (lastCommand.source !== 'iara' || lastCommand.target !== 'studio') return;
+    const capturedScope = scopeRef.current;
+    const commandProjectId = typeof lastCommand.payload?.projectId === 'string' ? lastCommand.payload.projectId : null;
+    if (commandProjectId !== capturedScope.projectId) return;
+    const isCurrentCommandScope = () => isCurrentIaraExecutionScope(scopeRef.current, capturedScope);
+    const notifyChat = async () => {
+      const scope: IaraContextScope = { userId: capturedScope.userId!, clientId: capturedScope.clientId, projectId: capturedScope.projectId, environmentId: capturedScope.environmentId, versionId: capturedScope.versionId };
+      if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) await saveMessage(scope, { sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, status: 'ready' } });
+      else if (lastCommand.status === 'failed') await saveMessage(scope, { sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do contexto e tente novamente.', metadata: { status: 'error' } });
+      if (isCurrentCommandScope()) setIsTyping(false);
+    };
+    void notifyChat().catch((commandError: unknown) => { if (isCurrentCommandScope()) setError(humanizeError(commandError)); });
+  }, [commandHistory, user]);
 
   const sendPrompt = async (promptText: string, upload: UploadPayload | null, smartAction?: SmartAction) => {
     if (!user) return;
     const capturedScope = scopeRef.current;
-    const scopedUserId = user.id;
-    const scopedProjectId = projectId;
+    const scope: IaraContextScope = { userId: user.id, clientId: capturedScope.clientId, projectId: capturedScope.projectId, environmentId: capturedScope.environmentId, versionId: capturedScope.versionId };
     const isCurrentScope = () => isCurrentIaraExecutionScope(scopeRef.current, capturedScope);
-
     if (isCurrentScope()) { setIsTyping(true); setError(null); }
-    let currentBaseRaw: string | null = null;
-    let currentMaskRaw: string | null = null;
-    let previewImg: string | null = null;
-    if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; if (isCurrentScope()) setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw }); }
-    else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; }
+    let currentBaseRaw: string | null = null; let currentMaskRaw: string | null = null; let previewImg: string | null = null;
+    if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; if (isCurrentScope()) setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw }); } else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; }
     try {
       const correlationId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const intentInput = { message: promptText, projectId: scopedProjectId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
-      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, status: 'requested' } : { correlationId, status: 'requested' } });
+      const intentInput = { message: promptText, projectId: scope.projectId, clientId: scope.clientId, environmentId: scope.environmentId, versionId: scope.versionId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
+      await saveMessage(scope, { sender: 'user', text: promptText, image_url: previewImg, metadata: { ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), correlationId, status: 'requested' } });
       const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
-      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: scopedProjectId ?? undefined, correlationId, execution: { userId: scopedUserId, projectId: scopedProjectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, currentProject: { id: scopedProjectId, largura: factors.L, altura: factors.A }, projectIaraContext: projectContext, conversation } });
+      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: scope.projectId ?? undefined, correlationId, execution: { userId: scope.userId, clientId: scope.clientId ?? undefined, projectId: scope.projectId ?? undefined, environmentId: scope.environmentId ?? undefined, versionId: scope.versionId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, activeContext: scope, currentProject: { id: scope.projectId, largura: factors.L, altura: factors.A }, projectIaraContext: projectContext, conversation } });
       const lines = response.run.results.map(({ tool, result }) => {
         if (result.ok === false) return toolFailureMessage(tool, result.error);
         const data = result.data as Record<string, unknown>;
@@ -140,42 +113,26 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
           case 'gerarRender': return 'Estou preparando o render. Aviso quando estiver pronto.';
           case 'calcularOrcamento': { const precoVenda = Number(data.precoVenda); const materiais = Number(data.materiais); const ferragens = Number(data.ferragens); const maoDeObra = Number(data.maoDeObra); const outros = Number(data.outros); const lucro = Number(data.lucro); const margemPct = Number(data.margemPct); return `Orçamento atualizado: **R$ ${precoVenda.toLocaleString('pt-BR')}**. Custos: R$ ${materiais.toLocaleString('pt-BR')} em materiais, R$ ${ferragens.toLocaleString('pt-BR')} em ferragens, R$ ${maoDeObra.toLocaleString('pt-BR')} de mão de obra e R$ ${outros.toLocaleString('pt-BR')} em outros custos. Lucro: R$ ${lucro.toLocaleString('pt-BR')} (${margemPct.toLocaleString('pt-BR')}%).`; }
           case 'gerarContrato': return `Documento preparado para **${String(data.cliente ?? 'cliente')}**.`;
-          case 'operationalIntelligence': return 'Informações operacionais do projeto atualizadas.';
           default: return 'Ação concluída.';
         }
       });
       const artifact = response.artifacts[0];
-      const metadata: MessageMetadata = { domain: response.domain, action: response.action, agent: response.domainAgent, correlationId: response.correlationId, status: response.run.status === 'completed' ? 'ready' : response.run.status, artifacts: response.artifacts, panel: response.panel, ...(artifact ? { artifact: { type: artifact.type, id: artifact.id } } : {}), ...(artifact ? { actions: [{ id: 'open', label: artifact.type === 'render' ? 'Abrir render' : 'Abrir artefato', kind: 'open-panel' }] } : {}) };
+      const metadata: MessageMetadata = { domain: response.domain, action: response.action, agent: response.domainAgent, correlationId: response.correlationId, status: response.run.status === 'completed' ? 'ready' : response.run.status, artifacts: response.artifacts, panel: response.panel, ...(artifact ? { artifact: { type: artifact.type, id: artifact.id } } : {}) };
       const header = response.run.status === 'needs_input' ? 'Preciso confirmar uma informação antes de continuar.' : response.run.status === 'failed' ? 'Não foi possível concluir esta ação.' : 'Pronto.';
-      const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?';
-      await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, metadata });
-
-      if (scopedProjectId) {
-        const persisted = await saveIaraProjectContext(scopedUserId, scopedProjectId, {
-          summary: body.slice(0, 1000),
-          decisions: [{ action: response.action, domain: response.domain, agent: response.domainAgent, correlationId: response.correlationId, at: new Date().toISOString() }],
-          artifacts: response.artifacts,
-          lastCorrelationId: response.correlationId,
-        });
-        if (isCurrentScope()) setProjectContext(persisted);
-      }
-      if (isCurrentScope()) lastFailedRef.current = null;
-    } catch (error: unknown) {
-      if (isCurrentScope()) {
-        lastFailedRef.current = { text: promptText, upload, smartAction, projectId: scopedProjectId };
-        setError(humanizeError(error));
-      }
-    } finally {
-      if (isCurrentScope()) setIsTyping(false);
-    }
+      const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer neste contexto?';
+      await saveMessage(scope, { sender: 'iara', text: `${header}\n\n${body}`, metadata });
+      const persisted = await saveIaraContext(scope, { summary: body.slice(0, 1000), decisions: [{ action: response.action, domain: response.domain, agent: response.domainAgent, correlationId: response.correlationId, at: new Date().toISOString() }], artifacts: response.artifacts, lastCorrelationId: response.correlationId });
+      if (isCurrentScope()) { setProjectContext(persisted); lastFailedRef.current = null; }
+    } catch (requestError: unknown) { if (isCurrentScope()) { lastFailedRef.current = { text: promptText, upload, smartAction, scope }; setError(humanizeError(requestError)); } }
+    finally { if (isCurrentScope()) setIsTyping(false); }
   };
 
   const handleSend = async () => { if (!chatInput.trim() && !pendingUpload) return; if (!user) { setShowAuthDialog(true); return; } const promptText = chatInput.trim() || 'Analise a imagem anexada e me diga como podemos seguir.'; const upload = pendingUpload; setChatInput(''); setPendingUpload(null); await sendPrompt(promptText, upload); };
   const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
-  const retryLast = async () => { const failed = lastFailedRef.current; if (!failed || failed.projectId !== projectId) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
+  const retryLast = async () => { const failed = lastFailedRef.current; const current: IaraContextScope = { userId: user?.id ?? '', clientId: activeContext.clientId, projectId: activeContext.projectId, environmentId: activeContext.environmentId, versionId: activeContext.versionId }; if (!failed || !isSameScope(failed.scope, current)) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
   const dismissError = () => setError(null);
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; }; reader.readAsDataURL(file); };
-  useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`); recognitionRef.current = r; }, []);
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = r => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; }; reader.readAsDataURL(file); };
+  useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = event => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`); recognitionRef.current = r; }, []);
   const toggleRecording = () => { if (isListening) recognitionRef.current?.stop(); else recognitionRef.current?.start(); };
   return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError };
 };
