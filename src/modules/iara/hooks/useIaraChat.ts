@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runIaraConversation } from '@/lib/agents/domain';
-import { loadIaraProjectContext, mergeIaraProjectContext, saveIaraProjectContext, type IaraProjectContext } from '../services/iaraProjectContext';
+import { loadIaraProjectContext, saveIaraProjectContext, type IaraProjectContext } from '../services/iaraProjectContext';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
@@ -12,6 +12,7 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
+type FailedRequest = { text: string; upload: typeof pendingUpload; smartAction?: SmartAction; projectId: string | null };
 
 function rawErrorMessage(error: unknown): string { return error instanceof Error ? error.message : ''; }
 function humanizeError(error: unknown): string {
@@ -37,32 +38,58 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   const [projectContext, setProjectContext] = useState<IaraProjectContext | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload; smartAction?: SmartAction } | null>(null);
+  const lastFailedRef = useRef<FailedRequest | null>(null);
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const scopeRef = useRef<{ userId: string | null; projectId: string | null; generation: number }>({ userId: user?.id ?? null, projectId, generation: 0 });
+
+  // This ref is updated synchronously with the render so an old async execution
+  // can never mistake a newly selected project for its original execution scope.
+  if (scopeRef.current.userId !== (user?.id ?? null) || scopeRef.current.projectId !== projectId) {
+    scopeRef.current = {
+      userId: user?.id ?? null,
+      projectId,
+      generation: scopeRef.current.generation + 1,
+    };
+  }
+
+  const commandProjectId = (command: { payload?: Record<string, unknown> }) => typeof command.payload?.projectId === 'string' ? command.payload.projectId : null;
 
   useEffect(() => {
-    if (commandHistory.length === 0) return;
+    if (commandHistory.length === 0 || !user) return;
     const lastCommand = commandHistory[0];
+    if (lastCommand.source !== 'iara' || lastCommand.target !== 'studio') return;
+    if (commandProjectId(lastCommand) !== (projectId ?? null)) return;
+
     const notifyChat = async () => {
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
       if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
         await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } });
-        setIsTyping(false);
+        if (scopeRef.current.projectId === projectId && scopeRef.current.userId === user.id) setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
         await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } });
-        setIsTyping(false);
+        if (scopeRef.current.projectId === projectId && scopeRef.current.userId === user.id) setIsTyping(false);
       }
     };
-    void notifyChat();
-  }, [commandHistory]);
+    void notifyChat().catch((commandError: unknown) => {
+      if (scopeRef.current.projectId === projectId && scopeRef.current.userId === user.id) setError(humanizeError(commandError));
+    });
+  }, [commandHistory, projectId, user]);
 
   useEffect(() => {
-    if (!user) { setMessages([]); setProjectContext(null); return; }
-    let cancelled = false;
-    setMessages([]); setProjectContext(null); setError(null);
+    const generation = scopeRef.current.generation;
+    const scopedUserId = user?.id ?? null;
+    const scopedProjectId = projectId;
+    const isCurrentScope = () => scopeRef.current.generation === generation && scopeRef.current.userId === scopedUserId && scopeRef.current.projectId === scopedProjectId;
+
+    if (!user) {
+      setMessages([]); setProjectContext(null); setLastContext(null); setPendingUpload(null); setError(null);
+      return;
+    }
+
+    setMessages([]); setProjectContext(null); setLastContext(null); setPendingUpload(null); setError(null);
     const load = async () => {
       const messageQuery = projectId
         ? supabase.from('chat_messages').select('*').eq('user_id', user.id).eq('project_id', projectId)
@@ -71,18 +98,20 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
         messageQuery.order('created_at', { ascending: true }),
         projectId ? loadIaraProjectContext(projectId) : Promise.resolve(null),
       ]);
-      if (cancelled) return;
+      if (!isCurrentScope()) return;
       if (loadError) { setError('Não foi possível carregar o histórico. Verifique sua conexão.'); return; }
       if (data) setMessages(data as ChatMessage[]);
       setProjectContext(contextResult);
     };
-    void load().catch((loadError: unknown) => { if (!cancelled) setError(humanizeError(loadError)); });
+    void load().catch((loadError: unknown) => { if (isCurrentScope()) setError(humanizeError(loadError)); });
+
     const channel = supabase.channel(`chat_messages_${projectId ?? 'none'}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
+      if (!isCurrentScope()) return;
       const msg = payload.new as ChatMessage;
       if ((msg.project_id ?? null) !== (projectId ?? null)) return;
       setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
     }).subscribe();
-    return () => { cancelled = true; void supabase.removeChannel(channel); };
+    return () => { void supabase.removeChannel(channel); };
   }, [user, projectId]);
 
   const saveMessage = async (msg: Partial<ChatMessage>) => {
@@ -93,24 +122,29 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
 
   const sendPrompt = async (promptText: string, upload: typeof pendingUpload, smartAction?: SmartAction) => {
     if (!user) return;
-    setIsTyping(true); setError(null);
+    const generation = scopeRef.current.generation;
+    const scopedUserId = user.id;
+    const scopedProjectId = projectId;
+    const isCurrentScope = () => scopeRef.current.generation === generation && scopeRef.current.userId === scopedUserId && scopeRef.current.projectId === scopedProjectId;
+
+    if (isCurrentScope()) { setIsTyping(true); setError(null); }
     let currentBaseRaw: string | null = null;
     let currentMaskRaw: string | null = null;
     let previewImg: string | null = null;
-    if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw }); }
+    if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; if (isCurrentScope()) setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw }); }
     else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; }
     try {
       const correlationId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const intentInput = { message: promptText, projectId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
+      const intentInput = { message: promptText, projectId: scopedProjectId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
       await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, status: 'requested' } : { correlationId, status: 'requested' } });
       const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
-      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: projectId ?? undefined, correlationId, execution: { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, projectIaraContext: projectContext, conversation } });
+      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: scopedProjectId ?? undefined, correlationId, execution: { userId: scopedUserId, projectId: scopedProjectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, currentProject: { id: scopedProjectId, largura: factors.L, altura: factors.A }, projectIaraContext: projectContext, conversation } });
       const lines = response.run.results.map(({ tool, result }) => {
         if (result.ok === false) return toolFailureMessage(tool, result.error);
         const data = result.data as Record<string, unknown>;
         switch (tool) {
           case 'createCliente': return `Cliente **${String(data.nome ?? 'sem nome')}** cadastrado.`;
-          case 'createProjeto': { const width = Number(data.width); const height = Number(data.height); const depth = Number(data.depth); if (Number.isFinite(width) && Number.isFinite(height) && Number.isFinite(depth)) hooks?.onProjectCreated?.({ width, height, depth }); return `Projeto **${String(data.nome ?? 'Projeto')}** criado.`; }
+          case 'createProjeto': { const width = Number(data.width); const height = Number(data.height); const depth = Number(data.depth); if (Number.isFinite(width) && Number.isFinite(height) && Number.isFinite(depth) && isCurrentScope()) hooks?.onProjectCreated?.({ width, height, depth }); return `Projeto **${String(data.nome ?? 'Projeto')}** criado.`; }
           case 'gerarRender': return 'Estou preparando o render. Aviso quando estiver pronto.';
           case 'calcularOrcamento': { const precoVenda = Number(data.precoVenda); const materiais = Number(data.materiais); const ferragens = Number(data.ferragens); const maoDeObra = Number(data.maoDeObra); const outros = Number(data.outros); const lucro = Number(data.lucro); const margemPct = Number(data.margemPct); return `Orçamento atualizado: **R$ ${precoVenda.toLocaleString('pt-BR')}**. Custos: R$ ${materiais.toLocaleString('pt-BR')} em materiais, R$ ${ferragens.toLocaleString('pt-BR')} em ferragens, R$ ${maoDeObra.toLocaleString('pt-BR')} de mão de obra e R$ ${outros.toLocaleString('pt-BR')} em outros custos. Lucro: R$ ${lucro.toLocaleString('pt-BR')} (${margemPct.toLocaleString('pt-BR')}%).`; }
           case 'gerarContrato': return `Documento preparado para **${String(data.cliente ?? 'cliente')}**.`;
@@ -124,30 +158,29 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?';
       await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, metadata });
 
-      if (projectId) {
-        const nextContext = mergeIaraProjectContext(projectContext, {
+      if (scopedProjectId) {
+        const persisted = await saveIaraProjectContext(scopedUserId, scopedProjectId, {
           summary: body.slice(0, 1000),
           decisions: [{ action: response.action, domain: response.domain, agent: response.domainAgent, correlationId: response.correlationId, at: new Date().toISOString() }],
           artifacts: response.artifacts,
           lastCorrelationId: response.correlationId,
         });
-        try {
-          await saveIaraProjectContext(user.id, projectId, nextContext);
-          setProjectContext({ projectId, summary: nextContext.summary ?? null, decisions: nextContext.decisions, artifacts: nextContext.artifacts, lastCorrelationId: nextContext.lastCorrelationId ?? null });
-        } catch (contextError) {
-          console.warn('[iara-project-context] persistence failed', contextError);
-        }
+        if (isCurrentScope()) setProjectContext(persisted);
       }
-      lastFailedRef.current = null;
+      if (isCurrentScope()) lastFailedRef.current = null;
     } catch (error: unknown) {
-      lastFailedRef.current = { text: promptText, upload, smartAction };
-      setError(humanizeError(error));
-    } finally { setIsTyping(false); }
+      if (isCurrentScope()) {
+        lastFailedRef.current = { text: promptText, upload, smartAction, projectId: scopedProjectId };
+        setError(humanizeError(error));
+      }
+    } finally {
+      if (isCurrentScope()) setIsTyping(false);
+    }
   };
 
   const handleSend = async () => { if (!chatInput.trim() && !pendingUpload) return; if (!user) { setShowAuthDialog(true); return; } const promptText = chatInput.trim() || 'Analise a imagem anexada e me diga como podemos seguir.'; const upload = pendingUpload; setChatInput(''); setPendingUpload(null); await sendPrompt(promptText, upload); };
   const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
-  const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
+  const retryLast = async () => { const failed = lastFailedRef.current; if (!failed || failed.projectId !== projectId) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
   const dismissError = () => setError(null);
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; }; reader.readAsDataURL(file); };
   useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`); recognitionRef.current = r; }, []);
