@@ -1,5 +1,7 @@
 import { getAgent } from './registry';
 import { runAgentPlan, type AgentPlanResult, type AgentPlanStep } from './orchestrator';
+import { runOrchestrator, type OrchestratorRun } from '@/core/orchestrator';
+import type { ExecutionContext } from '@/core/toolRegistry';
 import type { AgentId } from './types';
 
 export type DomainId = 'project' | 'production' | 'business' | 'execution';
@@ -11,6 +13,26 @@ export type DomainResponse = {
   projectId?: string; action: string; plan: AgentPlanResult; artifacts: DomainArtifact[]; panel?: DomainPanel;
 };
 export type DomainIntent = { domain: DomainId; action: string; agent: 'IARA' | 'BENTO' | 'ESTELA' | 'JUCA' };
+export type DomainConversationRequest = {
+  input: Record<string, unknown>;
+  intent?: string;
+  projectId?: string;
+  correlationId?: string;
+  execution: ExecutionContext;
+  context?: Record<string, unknown>;
+};
+export type DomainConversationResponse = {
+  orchestrator: 'IARA';
+  domain: DomainId;
+  domainAgent: 'IARA' | 'BENTO' | 'ESTELA' | 'JUCA';
+  action: string;
+  projectId?: string;
+  correlationId: string;
+  intent: DomainIntent;
+  run: OrchestratorRun;
+  artifacts: DomainArtifact[];
+  panel?: DomainPanel;
+};
 export type DomainAgentDefinition = {
   id: DomainId; name: 'Inteligência do Projeto' | 'BENTO' | 'ESTELA' | 'JUCA'; role: string; technicalAgents: AgentId[];
 };
@@ -43,6 +65,19 @@ export function resolveDomain(request: DomainRequest): DomainId {
 }
 
 function actionFor(domain: DomainId, input: Record<string, unknown>): string {
+  const explicitAction = normalize(input.action);
+  const allowedActions: Record<DomainId, string[]> = {
+    project: ['analyze_environment', 'create_project', 'check_measurements', 'render', 'review_project', 'approval', 'presentation'],
+    production: ['materials', 'hardware', 'cut', 'inventory', 'production'],
+    business: ['budget', 'documents', 'order'],
+    execution: ['assembly', 'installation', 'checklist', 'delivery', 'execution'],
+  };
+  if (allowedActions[domain].includes(explicitAction)) {
+    if (domain === 'production' && explicitAction === 'hardware') return 'materials';
+    if (domain === 'project' && ['analyze_environment', 'create_project', 'check_measurements', 'review_project'].includes(explicitAction)) return 'project_intelligence';
+    if (domain === 'execution') return 'execution';
+    return explicitAction;
+  }
   const intent = requestIntent({ input });
   if (domain === 'project') return matches(intent, ['render']) ? 'render' : matches(intent, ['aprovação', 'aprovacao']) ? 'approval' : matches(intent, ['apresentação', 'apresentacao']) ? 'presentation' : 'project_intelligence';
   if (domain === 'production') return matches(intent, ['corte', 'chapa']) ? 'cut' : matches(intent, ['estoque']) ? 'inventory' : matches(intent, ['produção', 'producao', 'fabric']) ? 'production' : 'materials';
@@ -95,6 +130,25 @@ function artifactsFor(domain: DomainId, action: string, input: Record<string, un
   return [];
 }
 
+function artifactsFromExecution(run: OrchestratorRun, input: Record<string, unknown>): DomainArtifact[] {
+  const fallbackId = typeof input.projectId === 'string' ? input.projectId : undefined;
+  const toolArtifacts: Record<string, string> = {
+    createProjeto: 'project',
+    gerarRender: 'render',
+    calcularOrcamento: 'budget',
+    gerarContrato: 'contract',
+    operationalIntelligence: 'production',
+  };
+  return run.results.flatMap(({ tool, result }) => {
+    if (!result.ok) return [];
+    const type = toolArtifacts[tool];
+    if (!type) return [];
+    const data = result.data as Record<string, unknown>;
+    const id = typeof data?.studioCommandId === 'string' ? data.studioCommandId : typeof data?.projetoId === 'string' ? data.projetoId : typeof data?.id === 'string' ? data.id : fallbackId;
+    return [{ type, id }];
+  });
+}
+
 async function runDomain(domain: DomainId, action: string, request: DomainRequest): Promise<AgentPlanResult> {
   const agentIds = dependencyClosure(targetFor(domain, action));
   const steps: AgentPlanStep[] = agentIds.map((agentId) => ({ id: `${agentId}-${request.correlationId ?? 'domain'}`, agentId, type: `domain.${domain}.${agentId}`, input: request.input }));
@@ -106,4 +160,23 @@ export async function runIara(request: DomainRequest): Promise<DomainResponse> {
   const plan = await runDomain(domain, action, request);
   const artifacts = artifactsFor(domain, action, request.input);
   return { orchestrator: 'IARA', domain, domainAgent, projectId: request.projectId ?? (typeof request.input.projectId === 'string' ? request.input.projectId : undefined), action, plan, artifacts, panel: artifacts[0] ? { type: artifacts[0].type } : undefined };
+}
+
+export async function runIaraConversation(request: DomainConversationRequest): Promise<DomainConversationResponse> {
+  const { domain, action, agent: domainAgent } = createDomainIntent(request.input, request.intent);
+  const correlationId = request.correlationId ?? globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const run = await runOrchestrator(request.intent ?? String(request.input.message ?? ''), request.execution, {
+    ...(request.context ?? {}),
+    correlationId,
+    iara: {
+      orchestrator: 'IARA',
+      domain,
+      domainAgent,
+      action,
+      projectId: request.projectId,
+    },
+  });
+  const artifacts = artifactsFromExecution(run, request.input);
+  const panel = artifacts[0] ? { type: artifacts[0].type } : undefined;
+  return { orchestrator: 'IARA', domain, domainAgent, action, projectId: request.projectId, correlationId, intent: { domain, action, agent: domainAgent }, run, artifacts, panel };
 }
