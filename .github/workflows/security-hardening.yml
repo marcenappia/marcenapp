@@ -56,4 +56,4 @@ jobs:
           E2E_SECOND_PASSWORD: ${{ secrets.E2E_SECOND_PASSWORD }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-        run: npx playwright test tests/e2e/security-hardening.spec.ts
+        run: npx playwright test tests/e2e/security-hardening.spec.ts --project=chromium
