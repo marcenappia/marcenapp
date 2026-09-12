@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Hammer, ChevronRight, Camera, MessageSquareText, Sparkles, Calculator, CreditCard, BookOpen, Users } from 'lucide-react';
+import { Plus, Hammer, ChevronRight, Camera, Sparkles, CreditCard, BookOpen, Users, Trophy, Flame } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { carregarProgresso, ETAPAS_OBRA, percentualObra, EtapaId } from './types';
 
 interface ObraResumo { id: string; nome: string; cliente?: string | null; atualizadoEm: string; etapa: EtapaId; }
+interface Gamification { xp: number; level: number; streak_days: number; }
 const etapaDaObra = (p: { id: string; status?: string | null; jornada?: unknown }): EtapaId => { const aprovado = p.status === 'aprovado' || p.status === 'em_producao' || p.status === 'concluido'; const remota = (p.jornada && typeof p.jornada === 'object' ? (p.jornada as { etapa?: number }).etapa : undefined); const local = carregarProgresso(p.id)?.etapa; const etapa = remota ?? local ?? 1; return (aprovado ? Math.max(etapa, 7) : etapa) as EtapaId; };
 interface Props { navigateTo: (id: string, params?: Record<string, string>) => void; }
 
@@ -12,12 +13,27 @@ export const Home = ({ navigateTo }: Props) => {
   const { user, profile } = useAuth();
   const [obras, setObras] = useState<ObraResumo[]>([]);
   const [carregando, setCarregando] = useState(false);
+  const [gamification, setGamification] = useState<Gamification | null>(null);
   const userId = user?.id;
-  useEffect(() => { if (!userId) { setObras([]); return; } setCarregando(true); supabase.from('projects').select('id, nome, name, updated_at, status, jornada, clientes(nome)').eq('user_id', userId).order('updated_at', { ascending: false }).limit(20).then(({ data }) => { const lista: ObraResumo[] = (data ?? []).map(p => ({ id: p.id, nome: p.nome || p.name || 'Obra sem nome', cliente: p.clientes?.nome ?? null, atualizadoEm: p.updated_at, etapa: etapaDaObra(p) })); setObras(lista); setCarregando(false); }); }, [userId]);
+
+  useEffect(() => { if (!userId) { setObras([]); setGamification(null); return; }
+    setCarregando(true);
+    supabase.from('projects').select('id, nome, name, updated_at, status, jornada, clientes(nome)').eq('user_id', userId).order('updated_at', { ascending: false }).limit(20).then(({ data }) => { const lista: ObraResumo[] = (data ?? []).map(p => ({ id: p.id, nome: p.nome || p.name || 'Obra sem nome', cliente: p.clientes?.nome ?? null, atualizadoEm: p.updated_at, etapa: etapaDaObra(p) })); setObras(lista); setCarregando(false); });
+    supabase.rpc('register_gamification_activity', { p_user_id: userId, p_xp: 10 }).then(({ data }) => { if (data) setGamification(data as Gamification); });
+  }, [userId]);
+
   const primeiroNome = profile?.name?.split(' ')[0];
+  const xpAtual = gamification?.xp ?? 0;
+  const nivel = gamification?.level ?? 1;
+  const xpNoNivel = xpAtual % 100;
+  const progressoXp = Math.min(100, xpNoNivel);
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4"><div><h2 className="text-2xl md:text-3xl font-black text-slate-900">{primeiroNome ? `Olá, ${primeiroNome}!` : 'Bem-vindo à sua marcenaria'}</h2><p className="text-slate-500 mt-1">Comece pelo Diário, organize a obra e deixe a IARA acompanhar o projeto.</p></div><button type="button" onClick={() => navigateTo('diario')} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white border border-slate-200 px-4 py-3 text-sm font-extrabold text-slate-800 hover:border-indigo-300 hover:shadow-sm transition-all"><BookOpen size={18} className="text-indigo-600" /> Abrir Diário de Obra</button></div>
+
+      {user && <section className="rounded-3xl border border-indigo-100 bg-white p-5 md:p-6 shadow-sm"><div className="flex flex-col md:flex-row md:items-center gap-5"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600"><Trophy size={26} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="text-xs font-black uppercase tracking-widest text-indigo-600">Progresso</span><span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-black text-white">Nível {nivel}</span></div><p className="mt-1 font-black text-slate-900">{xpAtual} XP acumulados</p><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${progressoXp}%` }} /></div><p className="mt-2 text-xs text-slate-500">{100 - xpNoNivel} XP para o próximo nível</p></div><div className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-amber-700"><Flame size={19} /><div><p className="text-[10px] font-black uppercase tracking-wider">Sequência</p><p className="font-black">{gamification?.streak_days ?? 0} dias</p></div></div></div></section>}
+
       <section className="rounded-3xl bg-indigo-600 text-white p-5 md:p-7 shadow-xl shadow-indigo-600/20"><div className="flex flex-col lg:flex-row lg:items-center gap-5"><div className="flex-1"><p className="text-indigo-100 text-xs font-black uppercase tracking-widest">Primeiro passo</p><h3 className="mt-1 text-2xl md:text-3xl font-black">Registre a obra do jeito que você trabalha.</h3><p className="mt-2 text-indigo-100 max-w-2xl">Cliente, foto, voz ou texto. O Diário vira o contexto que a IARA usa para ajudar você a transformar o pedido em projeto.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => navigateTo('diario')} className="inline-flex items-center gap-2 rounded-2xl bg-white text-indigo-700 px-5 py-3 font-black hover:bg-indigo-50 transition-colors"><BookOpen size={18} /> Começar pelo Diário</button><button type="button" onClick={() => navigateTo('studio')} className="inline-flex items-center gap-2 rounded-2xl bg-indigo-500/40 text-white border border-white/20 px-5 py-3 font-bold hover:bg-indigo-500/60 transition-colors"><Sparkles size={18} /> Falar com a IARA</button></div></div></section>
       <div className="grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => navigateTo('diario')} className="rounded-2xl bg-white border border-slate-200 p-4 text-left hover:border-indigo-300 hover:shadow-sm transition-all"><div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><Camera size={19} /></div><p className="mt-3 font-black text-slate-900">Foto, voz ou texto</p><p className="text-xs text-slate-500 mt-1">Registre a obra sem precisar aprender ferramenta nova.</p></button><button type="button" onClick={() => navigateTo('clientes')} className="rounded-2xl bg-white border border-slate-200 p-4 text-left hover:border-indigo-300 hover:shadow-sm transition-all"><div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center"><Users size={19} /></div><p className="mt-3 font-black text-slate-900">Clientes</p><p className="text-xs text-slate-500 mt-1">Cadastre e mantenha os dados da obra organizados.</p></button><button type="button" onClick={() => navigateTo('billing')} className="rounded-2xl bg-white border border-slate-200 p-4 text-left hover:border-indigo-300 hover:shadow-sm transition-all"><div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><CreditCard size={19} /></div><p className="mt-3 font-black text-slate-900">Créditos e planos</p><p className="text-xs text-slate-500 mt-1">Veja saldo, compras e planos da sua conta.</p></button></div>
       <section aria-labelledby="minhas-obras"><div className="flex items-center justify-between gap-3 mb-3"><h3 id="minhas-obras" className="text-lg font-black text-slate-800 flex items-center gap-2"><Hammer size={20} /> Minhas obras</h3><button type="button" onClick={() => navigateTo('diario')} className="text-sm font-bold text-indigo-600 hover:text-indigo-700">Ver Diário</button></div>
