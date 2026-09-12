@@ -67,14 +67,38 @@ jobs:
         continue-on-error: true
         run: npx playwright install --with-deps
 
+      - name: Check authenticated E2E credentials without exposing secrets
+        id: e2e_config
+        if: always()
+        env:
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          if [ -n "$E2E_EMAIL" ] && [ -n "$E2E_PASSWORD" ]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+            echo 'E2E authenticated credentials are configured.'
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            echo 'E2E authenticated gate is BLOCKED: E2E_EMAIL and/or E2E_PASSWORD are unavailable in GitHub Actions.'
+          fi
+
       - name: npm run test:e2e
         id: e2e
-        if: always()
+        if: steps.e2e_config.outputs.available == 'true'
         continue-on-error: true
+        timeout-minutes: 15
         env:
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: npm run test:e2e
+
+      - name: Mark E2E as blocked when credentials are unavailable
+        id: e2e_blocked
+        if: steps.e2e_config.outputs.available != 'true'
+        continue-on-error: true
+        run: |
+          echo 'npm run test:e2e = BLOCKED — missing E2E_EMAIL/E2E_PASSWORD; no fake E2E result is produced.' >> "$GITHUB_STEP_SUMMARY"
+          exit 2
 
       - name: Gate summary
         if: always()
@@ -89,7 +113,11 @@ jobs:
             echo '| npm test | ${{ steps.test.outcome }} |'
             echo '| npm run build | ${{ steps.build.outcome }} |'
             echo '| Playwright install | ${{ steps.playwright_install.outcome }} |'
-            echo '| npm run test:e2e | ${{ steps.e2e.outcome }} |'
+            if [ '${{ steps.e2e_config.outputs.available }}' = 'true' ]; then
+              echo '| npm run test:e2e | ${{ steps.e2e.outcome }} |'
+            else
+              echo '| npm run test:e2e | BLOCKED |'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Enforce executable gates
@@ -101,6 +129,10 @@ jobs:
           test '${{ steps.test.outcome }}' = success
           test '${{ steps.build.outcome }}' = success
           test '${{ steps.playwright_install.outcome }}' = success
+          if [ '${{ steps.e2e_config.outputs.available }}' != 'true' ]; then
+            echo 'E2E gate BLOCKED: credentials unavailable.'
+            exit 2
+          fi
           test '${{ steps.e2e.outcome }}' = success
 
   migration-validation:
@@ -120,12 +152,30 @@ jobs:
           version: latest
 
       - name: Start isolated Supabase
+        id: supabase_start
+        continue-on-error: true
         run: supabase start
 
+      - name: Record migration prerequisite blocker
+        if: steps.supabase_start.outcome != 'success'
+        run: |
+          echo 'MIGRATION = BLOCKED — isolated Supabase could not start because an earlier repository migration fails before the Billing P0 migration is reached.' >> "$GITHUB_STEP_SUMMARY"
+          exit 2
+
       - name: Apply migrations to isolated local DB
+        if: steps.supabase_start.outcome == 'success'
+        id: migration_reset
+        continue-on-error: true
         run: supabase db reset --yes
 
+      - name: Record migration prerequisite failure
+        if: steps.migration_reset.outcome != 'success'
+        run: |
+          echo 'MIGRATION = BLOCKED — full migration chain did not reach 20260912160000 because a prior repository migration failed. The target migration was not represented as PASS.' >> "$GITHUB_STEP_SUMMARY"
+          exit 2
+
       - name: Validate Billing P0 schema objects
+        if: steps.migration_reset.outcome == 'success'
         run: |
           supabase db lint
           supabase db dump --local --schema public > /tmp/public-schema.sql
@@ -138,7 +188,6 @@ jobs:
       - name: Migration evidence summary
         if: always()
         run: |
-          echo 'Migration was executed only against the isolated local Supabase database.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Production database was not targeted.' >> "$GITHUB_STEP_SUMMARY"
 
   asaas-sandbox:
@@ -162,5 +211,5 @@ jobs:
             echo 'ASAAS SANDBOX = BLOCKED / UNAVAILABLE' >> "$GITHUB_STEP_SUMMARY"
             exit 2
           fi
-          echo 'Sandbox configuration exists, but no authorized real Sandbox harness is defined by this workflow; refusing to simulate a financial transaction.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Sandbox credentials/configuration exist, but no authorized real financial harness is defined by this workflow; refusing to simulate a transaction.' >> "$GITHUB_STEP_SUMMARY"
           exit 2
