@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { test, expect } from './fixtures/authenticated';
 
 test.describe('IARA → Gemini real provider', () => {
@@ -20,7 +21,7 @@ test.describe('IARA → Gemini real provider', () => {
     await page.getByRole('button', { name: 'Enviar mensagem' }).click();
 
     const request = await requestPromise;
-    expect(request.headers().authorization).toMatch(/^Bearer\\s+\\S+/);
+    expect(request.headers().authorization).toMatch(/^Bearer\s+\S+/);
 
     const response = await responsePromise;
     expect(response.status()).toBe(200);
@@ -36,7 +37,6 @@ test.describe('IARA → Gemini real provider', () => {
       token?: unknown;
     };
 
-    // This proof is intentionally strict: a fallback to another provider is not a Gemini pass.
     expect(body.provider).toBe('gemini');
     expect(body.model).toBe('gemini-3.6-flash');
     expect(body.summary).toMatch(/TESTE GEMINI OK/i);
@@ -47,5 +47,25 @@ test.describe('IARA → Gemini real provider', () => {
 
     await expect(page.getByText(prompt, { exact: true })).toBeVisible();
     await expect(page.getByText(/TESTE GEMINI OK/i)).toBeVisible();
+
+    fs.mkdirSync('gemini-e2e-evidence', { recursive: true });
+    fs.writeFileSync(
+      'gemini-e2e-evidence/result.json',
+      JSON.stringify(
+        {
+          requestPath: new URL(request.url()).pathname,
+          requestMethod: request.method(),
+          requestAuthenticated: /^Bearer\s+\S+$/.test(request.headers().authorization ?? ''),
+          httpStatus: response.status(),
+          provider: body.provider,
+          model: body.model,
+          responseContainsExpectedText: /TESTE GEMINI OK/i.test(body.summary ?? ''),
+          uiContainsExpectedText: true,
+          secretsExposedInResponse: false,
+        },
+        null,
+        2,
+      ),
+    );
   });
 });
