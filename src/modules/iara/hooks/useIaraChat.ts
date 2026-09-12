@@ -5,6 +5,7 @@ import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runIaraConversation } from '@/lib/agents/domain';
 import { loadIaraProjectContext, saveIaraProjectContext, type IaraProjectContext } from '../services/iaraProjectContext';
+import { advanceIaraExecutionScope, isCurrentIaraExecutionScope, type IaraExecutionScope } from './iaraExecutionScope';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
@@ -12,7 +13,8 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
-type FailedRequest = { text: string; upload: typeof pendingUpload; smartAction?: SmartAction; projectId: string | null };
+type UploadPayload = { base64: string; baseRaw: string; maskRaw: string };
+type FailedRequest = { text: string; upload: UploadPayload | null; smartAction?: SmartAction; projectId: string | null };
 
 function rawErrorMessage(error: unknown): string { return error instanceof Error ? error.message : ''; }
 function humanizeError(error: unknown): string {
@@ -34,24 +36,16 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement } | null>(null);
-  const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<UploadPayload | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   const [projectContext, setProjectContext] = useState<IaraProjectContext | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastFailedRef = useRef<FailedRequest | null>(null);
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const scopeRef = useRef<{ userId: string | null; projectId: string | null; generation: number }>({ userId: user?.id ?? null, projectId, generation: 0 });
+  const scopeRef = useRef<IaraExecutionScope>({ userId: user?.id ?? null, projectId, generation: 0 });
 
-  // This ref is updated synchronously with the render so an old async execution
-  // can never mistake a newly selected project for its original execution scope.
-  if (scopeRef.current.userId !== (user?.id ?? null) || scopeRef.current.projectId !== projectId) {
-    scopeRef.current = {
-      userId: user?.id ?? null,
-      projectId,
-      generation: scopeRef.current.generation + 1,
-    };
-  }
+  scopeRef.current = advanceIaraExecutionScope(scopeRef.current, user?.id ?? null, projectId);
 
   const commandProjectId = (command: { payload?: Record<string, unknown> }) => typeof command.payload?.projectId === 'string' ? command.payload.projectId : null;
 
@@ -64,25 +58,22 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     const notifyChat = async () => {
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
+      const commandScope = scopeRef.current;
       if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
-        await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } });
-        if (scopeRef.current.projectId === projectId && scopeRef.current.userId === user.id) setIsTyping(false);
+        await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' });
+        if (scopeRef.current.projectId === commandScope.projectId && scopeRef.current.userId === commandScope.userId) setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
         await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } });
-        if (scopeRef.current.projectId === projectId && scopeRef.current.userId === user.id) setIsTyping(false);
+        if (scopeRef.current.projectId === commandScope.projectId && scopeRef.current.userId === commandScope.userId) setIsTyping(false);
       }
     };
-    void notifyChat().catch((commandError: unknown) => {
-      if (scopeRef.current.projectId === projectId && scopeRef.current.userId === user.id) setError(humanizeError(commandError));
-    });
+    void notifyChat().catch((commandError: unknown) => setError(humanizeError(commandError)));
   }, [commandHistory, projectId, user]);
 
   useEffect(() => {
-    const generation = scopeRef.current.generation;
-    const scopedUserId = user?.id ?? null;
-    const scopedProjectId = projectId;
-    const isCurrentScope = () => scopeRef.current.generation === generation && scopeRef.current.userId === scopedUserId && scopeRef.current.projectId === scopedProjectId;
+    const capturedScope = scopeRef.current;
+    const isCurrentScope = () => isCurrentIaraExecutionScope(scopeRef.current, capturedScope);
 
     if (!user) {
       setMessages([]); setProjectContext(null); setLastContext(null); setPendingUpload(null); setError(null);
@@ -120,12 +111,12 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
   };
 
-  const sendPrompt = async (promptText: string, upload: typeof pendingUpload, smartAction?: SmartAction) => {
+  const sendPrompt = async (promptText: string, upload: UploadPayload | null, smartAction?: SmartAction) => {
     if (!user) return;
-    const generation = scopeRef.current.generation;
+    const capturedScope = scopeRef.current;
     const scopedUserId = user.id;
     const scopedProjectId = projectId;
-    const isCurrentScope = () => scopeRef.current.generation === generation && scopeRef.current.userId === scopedUserId && scopeRef.current.projectId === scopedProjectId;
+    const isCurrentScope = () => isCurrentIaraExecutionScope(scopeRef.current, capturedScope);
 
     if (isCurrentScope()) { setIsTyping(true); setError(null); }
     let currentBaseRaw: string | null = null;
