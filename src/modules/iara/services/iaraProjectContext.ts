@@ -4,26 +4,8 @@ import type { Json } from '@/integrations/supabase/runtime-types';
 export type IaraProjectArtifact = { type: string; id?: string };
 export type IaraProjectDecision = { action: string; domain: string; agent: string; correlationId?: string; at: string };
 
-export interface IaraContext {
-  userId: string;
-  clientId: string | null;
-  projectId: string | null;
-  environmentId: string | null;
-  versionId: string | null;
-  summary: string | null;
-  decisions: IaraProjectDecision[];
-  artifacts: IaraProjectArtifact[];
-  lastCorrelationId: string | null;
-}
-
-export interface IaraProjectContext {
-  projectId: string;
-  summary: string | null;
-  decisions: IaraProjectDecision[];
-  artifacts: IaraProjectArtifact[];
-  lastCorrelationId: string | null;
-}
-
+export interface IaraContext { userId: string; clientId: string | null; projectId: string | null; environmentId: string | null; versionId: string | null; summary: string | null; decisions: IaraProjectDecision[]; artifacts: IaraProjectArtifact[]; lastCorrelationId: string | null; }
+export interface IaraProjectContext { projectId: string; summary: string | null; decisions: IaraProjectDecision[]; artifacts: IaraProjectArtifact[]; lastCorrelationId: string | null; }
 export interface IaraContextSnapshot { summary?: string | null; decisions: IaraProjectDecision[]; artifacts: IaraProjectArtifact[]; lastCorrelationId?: string | null; }
 export interface IaraProjectContextSnapshot extends IaraContextSnapshot {}
 export interface IaraContextScope { userId: string; clientId: string | null; projectId: string | null; environmentId: string | null; versionId: string | null; }
@@ -62,6 +44,9 @@ export async function loadIaraProjectContext(projectId: string): Promise<IaraPro
 }
 
 export async function saveIaraProjectContext(userId: string, projectId: string, snapshot: IaraProjectContextSnapshot): Promise<IaraProjectContext> {
-  const result = await saveIaraContext({ userId, clientId: null, projectId, environmentId: null, versionId: null }, snapshot);
-  return { projectId: result.projectId as string, summary: result.summary, decisions: result.decisions, artifacts: result.artifacts, lastCorrelationId: result.lastCorrelationId };
+  const { data, error } = await supabase.rpc('merge_iara_project_context', { p_user_id: userId, p_project_id: projectId, p_summary: snapshot.summary ?? null, p_decisions: snapshot.decisions as unknown as Json, p_artifacts: snapshot.artifacts as unknown as Json, p_last_correlation_id: snapshot.lastCorrelationId ?? null });
+  if (error) throw error;
+  if (!data) throw new Error('A IARA não retornou o contexto persistido do projeto.');
+  const row = data as unknown as { project_id: string; summary: string | null; decisions: Json; artifacts: Json; last_correlation_id: string | null };
+  return { projectId: row.project_id, summary: row.summary, decisions: Array.isArray(row.decisions) ? row.decisions as unknown as IaraProjectDecision[] : [], artifacts: Array.isArray(row.artifacts) ? row.artifacts as unknown as IaraProjectArtifact[] : [], lastCorrelationId: row.last_correlation_id };
 }
