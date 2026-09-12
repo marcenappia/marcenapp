@@ -80,8 +80,8 @@ export const StudioHub = (props: StudioHubProps) => {
   };
 
   return (
-    <section className="relative -mx-4 -mt-4 min-h-[calc(100vh-4rem)] w-[calc(100%+2rem)] bg-background md:-mx-8 md:-mt-8 md:min-h-[calc(100vh-4rem)] md:w-[calc(100%+4rem)]" aria-label="Projeto e IARA">
-      <div className="flex h-full min-h-[calc(100vh-4rem)] w-full flex-col">
+    <section className="fixed inset-0 z-[60] flex min-h-0 w-full bg-background" aria-label="Projeto e IARA">
+      <div className="flex h-full min-h-0 w-full flex-col">
         <header className="flex min-h-[72px] shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-4 py-3 sm:px-6 lg:px-8" aria-label="Contexto do projeto">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
