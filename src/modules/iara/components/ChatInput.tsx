@@ -1,38 +1,23 @@
 import React, { useState } from 'react';
 import { Paperclip, Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scissors, PackageCheck, Calculator, FileText, ShoppingCart, Wrench, Truck, ListChecks } from 'lucide-react';
+import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
 
 type PendingUpload = { base64: string; baseRaw?: string; maskRaw?: string };
-export type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
+export type SmartAction = IaraSmartAction & { prompt: string };
 
-export const SMART_ACTIONS: Array<{ domain: SmartAction['domain']; title: string; items: SmartAction[] }> = [
-  { domain: 'project', title: 'IARA · Projeto', items: [
-    { id: 'analyze_environment', label: 'Analisar ambiente', prompt: 'Analise o ambiente e identifique os pontos importantes para o projeto.', domain: 'project' },
-    { id: 'create_project', label: 'Criar projeto', prompt: 'Crie o projeto com os dados que já temos nesta conversa.', domain: 'project' },
-    { id: 'check_measurements', label: 'Conferir medidas', prompt: 'Confira as medidas e a consistência técnica deste projeto.', domain: 'project' },
-    { id: 'render', label: 'Gerar render', prompt: 'Gere um render deste projeto.', domain: 'project' },
-    { id: 'review_project', label: 'Revisar projeto', prompt: 'Revise o projeto e aponte o que precisa de atenção.', domain: 'project' },
-  ]},
-  { domain: 'production', title: 'BENTO · Produção', items: [
-    { id: 'materials', label: 'Materiais', prompt: 'Liste e organize os materiais deste projeto.', domain: 'production' },
-    { id: 'hardware', label: 'Ferragens', prompt: 'Liste e organize as ferragens deste projeto.', domain: 'production' },
-    { id: 'cut', label: 'Plano de corte', prompt: 'Gere o plano de corte deste projeto.', domain: 'production' },
-    { id: 'inventory', label: 'Consultar estoque', prompt: 'Confira o estoque necessário para este projeto.', domain: 'production' },
-    { id: 'production', label: 'Preparar produção', prompt: 'Prepare a produção deste projeto.', domain: 'production' },
-  ]},
-  { domain: 'business', title: 'ESTELA · Negócio', items: [
-    { id: 'budget', label: 'Orçamento', prompt: 'Calcule o orçamento deste projeto.', domain: 'business' },
-    { id: 'documents', label: 'Documentos', prompt: 'Prepare os documentos deste projeto.', domain: 'business' },
-    { id: 'order', label: 'Pedido', prompt: 'Prepare o pedido deste projeto.', domain: 'business' },
-  ]},
-  { domain: 'execution', title: 'JUCA · Execução', items: [
-    { id: 'assembly', label: 'Montagem', prompt: 'Prepare a orientação de montagem deste projeto.', domain: 'execution' },
-    { id: 'installation', label: 'Instalação', prompt: 'Prepare a orientação de instalação deste projeto.', domain: 'execution' },
-    { id: 'checklist', label: 'Checklist', prompt: 'Prepare um checklist de execução deste projeto.', domain: 'execution' },
-    { id: 'delivery', label: 'Entrega', prompt: 'Prepare o checklist de entrega deste projeto.', domain: 'execution' },
-  ]},
+const SMART_ACTIONS: Array<{ domain: SmartAction['domain']; title: string; items: SmartAction[] }> = [
+  { domain: 'project', title: 'IARA · Projeto', items: IARA_SMART_ACTIONS.filter(a => a.domain === 'project').map(a => ({ ...a, prompt: a.intent })) },
+  { domain: 'production', title: 'BENTO · Produção', items: IARA_SMART_ACTIONS.filter(a => a.domain === 'production').map(a => ({ ...a, prompt: a.intent })) },
+  { domain: 'business', title: 'ESTELA · Negócio', items: IARA_SMART_ACTIONS.filter(a => a.domain === 'business').map(a => ({ ...a, prompt: a.intent })) },
+  { domain: 'execution', title: 'JUCA · Execução', items: IARA_SMART_ACTIONS.filter(a => a.domain === 'execution').map(a => ({ ...a, prompt: a.intent })) },
 ];
 
-const ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = { analyze_environment: Image, create_project: ClipboardList, check_measurements: Ruler, render: Image, review_project: ClipboardList, materials: Boxes, hardware: Wrench, cut: Scissors, inventory: PackageCheck, production: ClipboardList, budget: Calculator, documents: FileText, order: ShoppingCart, assembly: Wrench, installation: Wrench, checklist: ListChecks, delivery: Truck };
+const ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  'project.analyze': Image, 'project.create': ClipboardList, 'project.measurements': Ruler, 'project.render': Image, 'project.review': ClipboardList,
+  'production.materials': Boxes, 'production.hardware': Wrench, 'production.cut': Scissors, 'production.inventory': PackageCheck, 'production.production': ClipboardList,
+  'business.budget': Calculator, 'business.documents': FileText, 'business.order': ShoppingCart,
+  'execution.assembly': Wrench, 'execution.installation': Wrench, 'execution.checklist': ListChecks, 'execution.delivery': Truck,
+};
 
 interface ChatInputProps {
   chatInput: string; setChatInput: (val: string) => void; onSend: () => void; onImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
