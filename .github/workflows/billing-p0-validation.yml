@@ -1,0 +1,166 @@
+name: Billing P0 Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/billing/**'
+      - 'supabase/functions/asaas/**'
+      - 'supabase/migrations/**'
+      - 'tests/billing-gate.test.ts'
+      - 'tests/e2e/billing.spec.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/billing-p0-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  billing-p0-gates:
+    name: Billing P0 gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (project standard)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: npm ci
+        id: npm_ci
+        continue-on-error: true
+        run: npm ci
+
+      - name: npm run lint
+        id: lint
+        if: always()
+        continue-on-error: true
+        run: npm run lint
+
+      - name: npm run typecheck
+        id: typecheck
+        if: always()
+        continue-on-error: true
+        run: npm run typecheck
+
+      - name: npm test
+        id: test
+        if: always()
+        continue-on-error: true
+        run: npm test
+
+      - name: npm run build
+        id: build
+        if: always()
+        continue-on-error: true
+        run: npm run build
+
+      - name: Install Playwright Browsers (project mechanism)
+        id: playwright_install
+        if: always()
+        continue-on-error: true
+        run: npx playwright install --with-deps
+
+      - name: npm run test:e2e
+        id: e2e
+        if: always()
+        continue-on-error: true
+        env:
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: npm run test:e2e
+
+      - name: Gate summary
+        if: always()
+        run: |
+          {
+            echo '## Billing P0 executable gates'
+            echo '| Gate | Outcome |'
+            echo '|---|---|'
+            echo '| npm ci | ${{ steps.npm_ci.outcome }} |'
+            echo '| npm run lint | ${{ steps.lint.outcome }} |'
+            echo '| npm run typecheck | ${{ steps.typecheck.outcome }} |'
+            echo '| npm test | ${{ steps.test.outcome }} |'
+            echo '| npm run build | ${{ steps.build.outcome }} |'
+            echo '| Playwright install | ${{ steps.playwright_install.outcome }} |'
+            echo '| npm run test:e2e | ${{ steps.e2e.outcome }} |'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce executable gates
+        if: always()
+        run: |
+          test '${{ steps.npm_ci.outcome }}' = success
+          test '${{ steps.lint.outcome }}' = success
+          test '${{ steps.typecheck.outcome }}' = success
+          test '${{ steps.test.outcome }}' = success
+          test '${{ steps.build.outcome }}' = success
+          test '${{ steps.playwright_install.outcome }}' = success
+          test '${{ steps.e2e.outcome }}' = success
+
+  migration-validation:
+    name: Billing P0 migration validation (isolated local DB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify target migration
+        run: test -f supabase/migrations/20260912160000_billing_p0_reconciliation_and_idempotency.sql
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start isolated Supabase
+        run: supabase start
+
+      - name: Apply migrations to isolated local DB
+        run: supabase db reset --yes
+
+      - name: Validate Billing P0 schema objects
+        run: |
+          supabase db lint
+          supabase db dump --local --schema public > /tmp/public-schema.sql
+          grep -q 'billing_operation_locks' /tmp/public-schema.sql
+          grep -q 'acquire_billing_operation_lock' /tmp/public-schema.sql
+          grep -q 'release_billing_operation_lock' /tmp/public-schema.sql
+          grep -q 'external_reference' /tmp/public-schema.sql
+          grep -q 'create_marcenapp_trial' /tmp/public-schema.sql
+
+      - name: Migration evidence summary
+        if: always()
+        run: |
+          echo 'Migration was executed only against the isolated local Supabase database.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Production database was not targeted.' >> "$GITHUB_STEP_SUMMARY"
+
+  asaas-sandbox:
+    name: Asaas Sandbox gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Sandbox configuration without exposing secrets
+        env:
+          ASAAS_API_KEY: ${{ secrets.ASAAS_API_KEY }}
+          ASAAS_WEBHOOK_TOKEN: ${{ secrets.ASAAS_WEBHOOK_TOKEN }}
+          BILLING_E2E_SANDBOX_URL: ${{ secrets.BILLING_E2E_SANDBOX_URL }}
+        run: |
+          missing=0
+          for name in ASAAS_API_KEY ASAAS_WEBHOOK_TOKEN BILLING_E2E_SANDBOX_URL; do
+            if [ -z "${!name}" ]; then
+              echo "Missing GitHub Actions secret/configuration: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo 'ASAAS SANDBOX = BLOCKED / UNAVAILABLE' >> "$GITHUB_STEP_SUMMARY"
+            exit 2
+          fi
+          echo 'Sandbox configuration exists, but no authorized real Sandbox harness is defined by this workflow; refusing to simulate a financial transaction.' >> "$GITHUB_STEP_SUMMARY"
+          exit 2
