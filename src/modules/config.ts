@@ -12,7 +12,9 @@ export interface ModuleConfig {
   hidden?: boolean;
 }
 
-export const MOBILE_NAV_IDS = ['dashboard', 'novo', 'studio', 'orcamento', 'diario', 'corte'];
+// No celular, a navegação primária fica reduzida ao que sustenta a rotina diária:
+// IARA, Diário e Início. Os demais módulos continuam acessíveis pelo menu secundário.
+export const MOBILE_NAV_IDS = ['studio', 'diario', 'dashboard'];
 
 export const modules: ModuleConfig[] = [
   { id: 'dashboard', label: 'Início', mobileLabel: 'Início', icon: Home, category: 'portal' },
@@ -21,7 +23,7 @@ export const modules: ModuleConfig[] = [
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: Users, category: 'portal' },
   { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: BookOpen, category: 'portal' },
   { id: 'billing', label: 'Planos e Créditos', mobileLabel: 'Créditos', icon: CreditCard, category: 'portal' },
-  { id: 'studio', label: 'Estúdio', mobileLabel: 'Estúdio', icon: Wand2, category: 'studio' },
+  { id: 'studio', label: 'Estúdio', mobileLabel: 'IARA', icon: Wand2, category: 'studio' },
   { id: 'elevator', label: 'Planta', mobileLabel: 'Planta', icon: ArrowUpFromLine, category: 'studio' },
   { id: 'orcamento', label: 'Orçamento', mobileLabel: 'Orçamento', icon: Calculator, category: 'finance' },
   { id: 'corte', label: 'Lista de Corte', mobileLabel: 'Corte', icon: Package, category: 'production' },
