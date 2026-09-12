@@ -74,12 +74,15 @@ function actionFor(domain: DomainId, input: Record<string, unknown>): string {
   };
   if (allowedActions[domain].includes(explicitAction)) {
     if (domain === 'production' && explicitAction === 'hardware') return 'materials';
-    if (domain === 'project' && ['analyze_environment', 'create_project', 'check_measurements', 'review_project'].includes(explicitAction)) return 'project_intelligence';
+    if (domain === 'project' && ['analyze_environment', 'check_measurements', 'review_project'].includes(explicitAction)) return 'project_intelligence';
     if (domain === 'execution') return 'execution';
     return explicitAction;
   }
   const intent = requestIntent({ input });
-  if (domain === 'project') return matches(intent, ['render']) ? 'render' : matches(intent, ['aprovação', 'aprovacao']) ? 'approval' : matches(intent, ['apresentação', 'apresentacao']) ? 'presentation' : 'project_intelligence';
+  if (domain === 'project') {
+    if (matches(intent, ['crie ', 'criar ', 'cria ', 'novo projeto', 'novo móvel', 'novo movel'])) return 'create_project';
+    return matches(intent, ['render']) ? 'render' : matches(intent, ['aprovação', 'aprovacao']) ? 'approval' : matches(intent, ['apresentação', 'apresentacao']) ? 'presentation' : 'project_intelligence';
+  }
   if (domain === 'production') return matches(intent, ['corte', 'chapa']) ? 'cut' : matches(intent, ['estoque']) ? 'inventory' : matches(intent, ['produção', 'producao', 'fabric']) ? 'production' : 'materials';
   if (domain === 'business') return matches(intent, ['pedido']) ? 'order' : matches(intent, ['documento']) ? 'documents' : 'budget';
   return 'execution';
@@ -123,6 +126,7 @@ function dependencyClosure(targets: AgentId[]): AgentId[] {
 function artifactsFor(domain: DomainId, action: string, input: Record<string, unknown>): DomainArtifact[] {
   const id = typeof input.artifactId === 'string' ? input.artifactId : typeof input.projectId === 'string' ? input.projectId : undefined;
   if (domain === 'project' && action === 'render') return [{ type: 'render', id }];
+  if (domain === 'project' && action === 'create_project') return [{ type: 'project', id }];
   if (domain === 'production' && action === 'cut') return [{ type: 'cut_plan', id }];
   if (domain === 'business' && action === 'budget') return [{ type: 'budget', id }];
   if (domain === 'business' && action === 'documents') return [{ type: 'document', id }];
@@ -149,6 +153,38 @@ function artifactsFromExecution(run: OrchestratorRun, input: Record<string, unkn
   });
 }
 
+function extractDimension(value: string, axis: 'width' | 'height' | 'depth'): number | undefined {
+  const normalized = value.replace(/,/g, '.').toLocaleLowerCase('pt-BR');
+  const numbers = normalized.match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  if (!numbers.length) return undefined;
+  const n = numbers[axis === 'width' ? 0 : axis === 'height' ? 1 : 2];
+  if (!Number.isFinite(n)) return undefined;
+  const unit = normalized.match(/(mm|cm|m)\b/g)?.[0];
+  if (unit === 'm') return n * 1000;
+  if (unit === 'cm') return n * 10;
+  return n;
+}
+
+export function parseCreateProjectInput(input: Record<string, unknown>, intent?: string): Record<string, unknown> | undefined {
+  const raw = normalize(intent ?? input.message ?? input.prompt ?? input.request);
+  const explicit = input.createProjectArgs;
+  if (explicit && typeof explicit === 'object') return explicit as Record<string, unknown>;
+  const dimensions = raw.match(/(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
+  if (!dimensions) return undefined;
+  const unitFor = (value: string, unit?: string) => {
+    const n = Number(value.replace(',', '.'));
+    const u = unit ?? 'mm';
+    return u === 'm' ? n * 1000 : u === 'cm' ? n * 10 : n;
+  };
+  const width = unitFor(dimensions[1], dimensions[2]);
+  const height = unitFor(dimensions[3], dimensions[4]);
+  const depth = unitFor(dimensions[5], dimensions[6]);
+  if (![width, height, depth].every((n) => Number.isFinite(n) && n > 0)) return undefined;
+  const typeMatch = raw.match(/(?:crie|criar|cria|novo)\s+(?:um|uma)?\s*([a-záàâãéêíóôõúç\s-]+?)(?:\s+de\s+|\s+com\s+|\s+medindo\s+|\s+\d)/i);
+  const nome = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : typeMatch?.[1]?.trim() || 'Novo projeto';
+  return { nome, width, height, depth, tipo: typeof input.tipo === 'string' ? input.tipo : typeMatch?.[1]?.trim(), confirmado: true };
+}
+
 async function runDomain(domain: DomainId, action: string, request: DomainRequest): Promise<AgentPlanResult> {
   const agentIds = dependencyClosure(targetFor(domain, action));
   const steps: AgentPlanStep[] = agentIds.map((agentId) => ({ id: `${agentId}-${request.correlationId ?? 'domain'}`, agentId, type: `domain.${domain}.${agentId}`, input: request.input }));
@@ -165,6 +201,7 @@ export async function runIara(request: DomainRequest): Promise<DomainResponse> {
 export async function runIaraConversation(request: DomainConversationRequest): Promise<DomainConversationResponse> {
   const { domain, action, agent: domainAgent } = createDomainIntent(request.input, request.intent);
   const correlationId = request.correlationId ?? globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const createProjectArgs = action === 'create_project' ? parseCreateProjectInput(request.input, request.intent) : undefined;
   const run = await runOrchestrator(request.intent ?? String(request.input.message ?? ''), request.execution, {
     ...(request.context ?? {}),
     correlationId,
@@ -174,6 +211,7 @@ export async function runIaraConversation(request: DomainConversationRequest): P
       domainAgent,
       action,
       projectId: request.projectId,
+      ...(createProjectArgs ? { createProjectArgs } : {}),
     },
   });
   const artifacts = artifactsFromExecution(run, request.input);
