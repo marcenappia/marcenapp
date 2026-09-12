@@ -7,7 +7,7 @@ export type IaraProjectDecision = { action: string; domain: string; agent: strin
 export interface IaraContext { userId: string; clientId: string | null; projectId: string | null; environmentId: string | null; versionId: string | null; summary: string | null; decisions: IaraProjectDecision[]; artifacts: IaraProjectArtifact[]; lastCorrelationId: string | null; }
 export interface IaraProjectContext { projectId: string; summary: string | null; decisions: IaraProjectDecision[]; artifacts: IaraProjectArtifact[]; lastCorrelationId: string | null; }
 export interface IaraContextSnapshot { summary?: string | null; decisions: IaraProjectDecision[]; artifacts: IaraProjectArtifact[]; lastCorrelationId?: string | null; }
-export interface IaraProjectContextSnapshot extends IaraContextSnapshot {}
+export type IaraProjectContextSnapshot = IaraContextSnapshot;
 export interface IaraContextScope { userId: string; clientId: string | null; projectId: string | null; environmentId: string | null; versionId: string | null; }
 
 export function mergeIaraProjectContext(previous: IaraProjectContext | null, next: IaraProjectContextSnapshot): IaraProjectContextSnapshot {
