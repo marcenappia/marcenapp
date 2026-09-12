@@ -1,16 +1,25 @@
 export interface IaraExecutionScope {
   userId: string | null;
+  clientId: string | null;
   projectId: string | null;
+  environmentId: string | null;
+  versionId: string | null;
   generation: number;
 }
 
 export function advanceIaraExecutionScope(
   previous: IaraExecutionScope,
-  userId: string | null,
-  projectId: string | null,
+  next: Omit<IaraExecutionScope, 'generation'>,
 ): IaraExecutionScope {
-  if (previous.userId === userId && previous.projectId === projectId) return previous;
-  return { userId, projectId, generation: previous.generation + 1 };
+  if (
+    previous.userId === next.userId &&
+    previous.clientId === next.clientId &&
+    previous.projectId === next.projectId &&
+    previous.environmentId === next.environmentId &&
+    previous.versionId === next.versionId
+  ) return previous;
+
+  return { ...next, generation: previous.generation + 1 };
 }
 
 export function isCurrentIaraExecutionScope(
@@ -19,5 +28,8 @@ export function isCurrentIaraExecutionScope(
 ): boolean {
   return current.generation === captured.generation
     && current.userId === captured.userId
-    && current.projectId === captured.projectId;
+    && current.clientId === captured.clientId
+    && current.projectId === captured.projectId
+    && current.environmentId === captured.environmentId
+    && current.versionId === captured.versionId;
 }
