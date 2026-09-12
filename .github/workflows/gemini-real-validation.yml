@@ -1,0 +1,41 @@
+name: Real Gemini IARA Validation
+on:
+  push:
+    branches:
+      - investigation/gemini-iara-e2e-20260912
+  workflow_dispatch:
+jobs:
+  gemini-real:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run isolated real Gemini E2E
+        env:
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: npx playwright test tests/e2e/iara-gemini-real.spec.ts --project=chromium
+      - name: Publish sanitized evidence
+        if: always()
+        run: |
+          if [ -f gemini-e2e-evidence/result.json ]; then
+            cat gemini-e2e-evidence/result.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Gemini evidence file was not produced.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-real-evidence-${{ github.sha }}-${{ github.run_id }}
+          path: gemini-e2e-evidence/result.json
+          if-no-files-found: warn
+          retention-days: 7
