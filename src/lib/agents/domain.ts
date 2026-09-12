@@ -10,6 +10,7 @@ export type DomainResponse = {
   orchestrator: 'IARA'; domain: DomainId; domainAgent: 'IARA' | 'BENTO' | 'ESTELA' | 'JUCA';
   projectId?: string; action: string; plan: AgentPlanResult; artifacts: DomainArtifact[]; panel?: DomainPanel;
 };
+export type DomainIntent = { domain: DomainId; action: string; agent: 'IARA' | 'BENTO' | 'ESTELA' | 'JUCA' };
 export type DomainAgentDefinition = {
   id: DomainId; name: 'Inteligência do Projeto' | 'BENTO' | 'ESTELA' | 'JUCA'; role: string; technicalAgents: AgentId[];
 };
@@ -41,19 +42,19 @@ export function resolveDomain(request: DomainRequest): DomainId {
   return 'project';
 }
 
-function dependencyClosure(targets: AgentId[]): AgentId[] {
-  const ordered: AgentId[] = []; const visited = new Set<AgentId>();
-  const visit = (id: AgentId) => { if (visited.has(id)) return; visited.add(id); for (const dependency of getAgent(id).dependencies ?? []) visit(dependency); ordered.push(id); };
-  targets.forEach(visit);
-  return ordered;
-}
-
 function actionFor(domain: DomainId, input: Record<string, unknown>): string {
   const intent = requestIntent({ input });
   if (domain === 'project') return matches(intent, ['render']) ? 'render' : matches(intent, ['aprovação', 'aprovacao']) ? 'approval' : matches(intent, ['apresentação', 'apresentacao']) ? 'presentation' : 'project_intelligence';
   if (domain === 'production') return matches(intent, ['corte', 'chapa']) ? 'cut' : matches(intent, ['estoque']) ? 'inventory' : matches(intent, ['produção', 'producao', 'fabric']) ? 'production' : 'materials';
   if (domain === 'business') return matches(intent, ['pedido']) ? 'order' : matches(intent, ['documento']) ? 'documents' : 'budget';
   return 'execution';
+}
+
+export function createDomainIntent(input: Record<string, unknown>, intent?: string): DomainIntent {
+  const domain = resolveDomain({ input, intent });
+  const action = actionFor(domain, input);
+  const agent = domain === 'production' ? 'BENTO' : domain === 'business' ? 'ESTELA' : domain === 'execution' ? 'JUCA' : 'IARA';
+  return { domain, action, agent };
 }
 
 function targetFor(domain: DomainId, action: string): AgentId[] {
@@ -77,6 +78,13 @@ function targetFor(domain: DomainId, action: string): AgentId[] {
   return [];
 }
 
+function dependencyClosure(targets: AgentId[]): AgentId[] {
+  const ordered: AgentId[] = []; const visited = new Set<AgentId>();
+  const visit = (id: AgentId) => { if (visited.has(id)) return; visited.add(id); for (const dependency of getAgent(id).dependencies ?? []) visit(dependency); ordered.push(id); };
+  targets.forEach(visit);
+  return ordered;
+}
+
 function artifactsFor(domain: DomainId, action: string, input: Record<string, unknown>): DomainArtifact[] {
   const id = typeof input.artifactId === 'string' ? input.artifactId : typeof input.projectId === 'string' ? input.projectId : undefined;
   if (domain === 'project' && action === 'render') return [{ type: 'render', id }];
@@ -94,9 +102,7 @@ async function runDomain(domain: DomainId, action: string, request: DomainReques
 }
 
 export async function runIara(request: DomainRequest): Promise<DomainResponse> {
-  const domain = resolveDomain(request);
-  const domainAgent = domain === 'production' ? 'BENTO' : domain === 'business' ? 'ESTELA' : domain === 'execution' ? 'JUCA' : 'IARA';
-  const action = actionFor(domain, request.input);
+  const { domain, action, agent: domainAgent } = createDomainIntent(request.input, request.intent);
   const plan = await runDomain(domain, action, request);
   const artifacts = artifactsFor(domain, action, request.input);
   return { orchestrator: 'IARA', domain, domainAgent, projectId: request.projectId ?? (typeof request.input.projectId === 'string' ? request.input.projectId : undefined), action, plan, artifacts, panel: artifacts[0] ? { type: artifacts[0].type } : undefined };
