@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const SUPABASE_URL = 'https://uzhqhieqlcyncelltfjw.supabase.co';
+const SUPABASE_URL = process.env.E2E_SUPABASE_URL ?? 'https://uzhqhieqlcyncelltfjw.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = process.env.E2E_SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_o9A9xyvRYXt-Rl9MZfdArA_SdYOAySX';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -10,7 +11,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html'], ['list']],
   webServer: {
-    command: `VITE_SUPABASE_URL=${SUPABASE_URL} npm run build && VITE_SUPABASE_URL=${SUPABASE_URL} npm run preview -- --host 127.0.0.1 --port 4173 --strictPort`,
+    command: `VITE_SUPABASE_URL=${SUPABASE_URL} VITE_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY} npm run build && VITE_SUPABASE_URL=${SUPABASE_URL} VITE_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY} npm run preview -- --host 127.0.0.1 --port 4173 --strictPort`,
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

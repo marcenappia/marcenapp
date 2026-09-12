@@ -5,11 +5,11 @@ type AuthenticatedFixtures = {
 };
 
 export const test = base.extend<AuthenticatedFixtures>({
-  authenticatedPage: async ({ browser, baseURL }, use) => {
+  authenticatedPage: async ({ browser, baseURL }, applyFixture) => {
     const email = process.env.E2E_EMAIL?.trim();
     const password = process.env.E2E_PASSWORD;
     if (!email || !password) {
-      throw new Error('E2E authenticated gate requires E2E_EMAIL and E2E_PASSWORD GitHub Actions secrets.');
+      throw new Error('E2E authenticated gate requires E2E_EMAIL and E2E_PASSWORD.');
     }
 
     const context = await browser.newContext({ baseURL });
@@ -21,7 +21,7 @@ export const test = base.extend<AuthenticatedFixtures>({
     await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/$/);
 
-    await use(page);
+    await applyFixture(page);
     await context.close();
   },
 });

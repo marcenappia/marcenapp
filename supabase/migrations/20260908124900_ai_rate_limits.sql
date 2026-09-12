@@ -6,6 +6,40 @@ create table if not exists public.ai_rate_limits (
   primary key (user_id, fn)
 );
 
+-- PostgreSQL cannot change a function's return row type with CREATE OR REPLACE.
+-- Older/local reconstructed databases may already contain this RPC under the
+-- same input signature but with a different OUT/RETURNS TABLE contract.
+-- Recreate it only in that incompatible case, and refuse to use CASCADE when
+-- dependencies exist so callers cannot be broken silently.
+do $$
+declare
+  v_oid oid;
+  v_return_type text;
+begin
+  select p.oid, pg_get_function_result(p.oid)
+    into v_oid, v_return_type
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = 'consume_ai_rate_limit'
+    and pg_get_function_identity_arguments(p.oid) = '_user_id uuid, _fn text, _limit integer, _window_seconds integer';
+
+  if v_oid is not null and v_return_type <> 'TABLE(allowed boolean, retry_after_seconds integer)' then
+    if exists (
+      select 1
+      from pg_depend d
+      where d.refobjid = v_oid
+        and d.objid <> v_oid
+        and d.deptype = 'n'
+    ) then
+      raise exception 'consume_ai_rate_limit has dependent database objects; refusing to DROP/CREATE incompatible return type';
+    end if;
+
+    drop function public.consume_ai_rate_limit(uuid, text, integer, integer);
+  end if;
+end;
+$$;
+
 create or replace function public.consume_ai_rate_limit(
   _user_id uuid,
   _fn text,
