@@ -1,92 +1,66 @@
 import { getAgent } from './registry';
 import type { AgentId, AgentResult, AgentTask, Evidence } from './types';
+import { supabase } from '@/integrations/supabase/client';
+import { callAIFunction } from '@/services/ai';
+import type { Json } from '@/integrations/supabase/runtime-types';
+import type { ExecutionContext, ToolResult } from '@/core/toolRegistry';
 
-export type AgentPlanStep = {
-  id: string;
-  agentId: AgentId;
-  type: string;
-  input: Record<string, unknown>;
-};
+export type AgentPlanStep = { id: string; agentId: AgentId; type: string; input: Record<string, unknown>; };
+export type AgentPlanResult = { correlationId: string; results: AgentResult[]; status: 'completed' | 'needs_input' | 'failed'; };
+export type ToolCall = { tool: string; args: Record<string, unknown>; };
+export type OrchestratorPlan = { plan: ToolCall[]; summary: string; model?: string; provider?: 'lovable' | 'gemini'; };
+export type OrchestratorRun = { runId: string | null; plan: ToolCall[]; summary: string; results: Array<{ tool: string; result: ToolResult }>; usedFallback: boolean; provider?: 'lovable' | 'gemini'; error?: string; };
 
-export type AgentPlanResult = {
-  correlationId: string;
-  results: AgentResult[];
-  status: 'completed' | 'needs_input' | 'failed';
-};
-
-function uuid(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function collectEvidence(results: AgentResult[]): Evidence[] {
-  return results.flatMap((result) => result.evidence ?? []);
-}
+function uuid(): string { return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+function collectEvidence(results: AgentResult[]): Evidence[] { return results.flatMap((result) => result.evidence ?? []); }
 
 export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid()): Promise<AgentPlanResult> {
   const results: AgentResult[] = [];
   const done = new Set<AgentId>();
   const remaining = [...steps];
-
   while (remaining.length) {
     const ready = remaining.filter((step) => getAgent(step.agentId).dependencies?.every((dep) => done.has(dep)) ?? true);
     if (!ready.length) return { correlationId, results, status: 'failed' };
-
     const evidence = collectEvidence(results);
     const batch = await Promise.all(ready.map(async (step) => {
       const dependencyIds = new Set(getAgent(step.agentId).dependencies ?? []);
       const dependencyResults = results.filter((result) => dependencyIds.has(result.agentId));
-      const task: AgentTask = {
-        id: step.id,
-        type: step.type,
-        input: { ...step.input },
-        correlationId,
-        context: {
-          originalInput: { ...step.input },
-          dependencyResults,
-          evidence,
-        },
-      };
+      const task: AgentTask = { id: step.id, type: step.type, input: { ...step.input }, correlationId, context: { originalInput: { ...step.input }, dependencyResults, evidence } };
       return getAgent(step.agentId).handle(task);
     }));
-
-    for (const result of batch) {
-      results.push(result);
-      if (result.status === 'failed') return { correlationId, results, status: 'failed' };
-      if (result.status === 'needs_input') return { correlationId, results, status: 'needs_input' };
-      done.add(result.agentId);
-    }
-
+    for (const result of batch) { results.push(result); if (result.status === 'failed') return { correlationId, results, status: 'failed' }; if (result.status === 'needs_input') return { correlationId, results, status: 'needs_input' }; done.add(result.agentId); }
     for (const step of ready) remaining.splice(remaining.indexOf(step), 1);
   }
-
   return { correlationId, results, status: 'completed' };
 }
 
-/**
- * Jornada comercial canônica. A interface existente permanece intacta;
- * os especialistas executam por baixo dela e compartilham a mesma evidência.
- */
 export async function runProjectJourney(input: Record<string, unknown>): Promise<AgentPlanResult> {
   return runAgentPlan([
-    { id: 'customer', agentId: 'customer', type: 'customer.validate', input },
-    { id: 'project', agentId: 'project', type: 'project.prepare', input },
-    { id: 'vision', agentId: 'vision', type: 'vision.environment.analyze', input },
-    { id: 'perspective', agentId: 'perspective', type: 'vision.perspective.analyze', input },
-    { id: 'measurement', agentId: 'measurement', type: 'measurement.validate', input },
-    { id: 'measurement_prediction', agentId: 'measurement_prediction', type: 'measurement.predict', input },
-    { id: 'multiview', agentId: 'multiview', type: 'multiview.reconcile', input },
-    { id: 'furniture_engineering', agentId: 'furniture_engineering', type: 'furniture.engineer', input },
-    { id: 'materials', agentId: 'materials', type: 'materials.prepare', input },
-    { id: 'cut_optimization', agentId: 'cut_optimization', type: 'cut.optimize', input },
-    { id: 'cut_audit', agentId: 'cut_audit', type: 'cut.audit', input },
-    { id: 'render', agentId: 'render', type: 'render.prepare', input },
-    { id: 'quality', agentId: 'quality', type: 'quality.validate', input },
-    { id: 'presentation', agentId: 'presentation', type: 'presentation.prepare', input },
-    { id: 'approval', agentId: 'approval', type: 'approval.record', input },
-    { id: 'inventory', agentId: 'inventory', type: 'inventory.check', input },
-    { id: 'production', agentId: 'production', type: 'production.prepare', input },
-    { id: 'budget', agentId: 'budget', type: 'budget.prepare', input },
-    { id: 'documents', agentId: 'documents', type: 'document.prepare', input },
-    { id: 'order', agentId: 'order', type: 'order.prepare', input },
+    { id: 'customer', agentId: 'customer', type: 'customer.validate', input }, { id: 'project', agentId: 'project', type: 'project.prepare', input }, { id: 'vision', agentId: 'vision', type: 'vision.environment.analyze', input }, { id: 'perspective', agentId: 'perspective', type: 'vision.perspective.analyze', input }, { id: 'measurement', agentId: 'measurement', type: 'measurement.validate', input }, { id: 'measurement_prediction', agentId: 'measurement_prediction', type: 'measurement.predict', input }, { id: 'multiview', agentId: 'multiview', type: 'multiview.reconcile', input }, { id: 'furniture_engineering', agentId: 'furniture_engineering', type: 'furniture.engineer', input }, { id: 'materials', agentId: 'materials', type: 'materials.prepare', input }, { id: 'cut_optimization', agentId: 'cut_optimization', type: 'cut.optimize', input }, { id: 'cut_audit', agentId: 'cut_audit', type: 'cut.audit', input }, { id: 'render', agentId: 'render', type: 'render.prepare', input }, { id: 'quality', agentId: 'quality', type: 'quality.validate', input }, { id: 'presentation', agentId: 'presentation', type: 'presentation.prepare', input }, { id: 'approval', agentId: 'approval', type: 'approval.record', input }, { id: 'inventory', agentId: 'inventory', type: 'inventory.check', input }, { id: 'production', agentId: 'production', type: 'production.prepare', input }, { id: 'budget', agentId: 'budget', type: 'budget.prepare', input }, { id: 'documents', agentId: 'documents', type: 'document.prepare', input }, { id: 'order', agentId: 'order', type: 'order.prepare', input },
   ]);
+}
+
+export async function planWithLLM(userPrompt: string, context?: Record<string, unknown>): Promise<OrchestratorPlan> {
+  const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string; provider?: 'lovable' | 'gemini' }>('ai-orchestrator', { userPrompt, context });
+  return { plan: data.plan ?? [], summary: data.summary ?? '', model: data.model, provider: data.provider };
+}
+
+export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext, context?: Record<string, unknown>): Promise<OrchestratorRun> {
+  let runId: string | null = null;
+  try { const { data } = await supabase.from('orchestrator_runs').insert({ user_id: ctx.userId, project_id: ctx.projectId ?? null, user_prompt: userPrompt, status: 'planning' }).select('id').single(); runId = data?.id ?? null; } catch (e) { console.warn('Falha ao registrar orchestrator_run:', e); }
+  const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
+  const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : [];
+  const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: userPrompt, estilo: ctx.decorStyle } }] : [];
+  const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicRenderPlan;
+  const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir das dimensões informadas.' : 'Render solicitado pela IARA.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(userPrompt, { ...(context ?? {}), executionScope: { userId: ctx.userId, clientId: ctx.clientId ?? null, projectId: ctx.projectId ?? null, environmentId: ctx.environmentId ?? null, versionId: ctx.versionId ?? null } });
+  const plan = result.plan.map(call => (call.tool === 'calcularOrcamento' || call.tool === 'operationalIntelligence') && !call.args.projetoId && ctx.projectId ? { ...call, args: { ...call.args, projetoId: ctx.projectId } } : call);
+  const results: Array<{ tool: string; result: ToolResult }> = [];
+  for (const call of plan) { const r = await executeToolCallCompat(call.tool, call.args, ctx); results.push({ tool: call.tool, result: r }); if (!r.ok) break; }
+  if (runId) { try { await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status: results.every(r => r.result.ok) ? 'completed' : 'failed' }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado do orchestrator:', e); } }
+  return { runId, plan, summary: result.summary, results, usedFallback: false, provider: result.provider };
+}
+
+async function executeToolCallCompat(name: string, args: Record<string, unknown>, ctx: ExecutionContext): Promise<ToolResult> {
+  const { executeToolCall } = await import('@/core/toolRegistry');
+  return executeToolCall(name, args, ctx);
 }
