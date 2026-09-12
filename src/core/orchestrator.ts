@@ -55,7 +55,15 @@ export async function runOrchestrator(
     console.warn('Falha ao registrar orchestrator_run:', e);
   }
 
-  const result = await planWithLLM(userPrompt, context);
+  const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
+  const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs
+    ? [{ tool: 'createProjeto', args: iara.createProjectArgs }]
+    : [];
+
+  const result = deterministicProjectPlan.length
+    ? { plan: deterministicProjectPlan, summary: 'Projeto preparado a partir das dimensões informadas.', provider: undefined as OrchestratorPlan['provider'] }
+    : await planWithLLM(userPrompt, context);
+
   const plan = result.plan.map(call => {
     if ((call.tool === 'calcularOrcamento' || call.tool === 'operationalIntelligence') && !call.args.projetoId && ctx.projectId) {
       return { ...call, args: { ...call.args, projetoId: ctx.projectId } };
