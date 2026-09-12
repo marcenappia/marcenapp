@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, User, LogIn, Sparkles, ChevronRight, MessageCircle, EllipsisVertical, Building2 } from 'lucide-react';
+import { LogOut, User, LogIn, Sparkles, ChevronRight, MessageCircle, EllipsisVertical, Building2, Settings2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,24 +19,12 @@ import CorteModule from '@/modules/patio';
 import { Contrato } from '@/modules/projetos/components/Contrato';
 import ClientesModule from '@/modules/projetos/components/Clientes';
 import DiarioModule from '@/modules/projetos/components/Diario';
+import ConfiguracoesModule from '@/modules/configuracoes';
 import { modules, CATEGORY_LABELS, ModuleCategory, MOBILE_NAV_IDS } from '@/modules/config';
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
 import { ProjectData } from '@/modules/projetos/types';
 
-const emptyProject: ProjectData = {
-  width: 0,
-  height: 0,
-  depth: 0,
-  modules: 0,
-  drawers: 0,
-  doors: 0,
-  internalMaterial: '',
-  externalMaterial: '',
-  backMaterial: '',
-  handleType: '',
-  profitMargin: 0,
-  laborRate: 0,
-};
+const emptyProject: ProjectData = { width: 0, height: 0, depth: 0, modules: 0, drawers: 0, doors: 0, internalMaterial: '', externalMaterial: '', backMaterial: '', handleType: '', profitMargin: 0, laborRate: 0 };
 
 const Index = () => {
   const { user, profile, signOut } = useAuth();
@@ -55,13 +43,13 @@ const Index = () => {
   const [makerCompany, setMakerCompany] = useState(profile?.company ?? '');
   const [savingMakerData, setSavingMakerData] = useState(false);
 
-  useEffect(() => { const moduleData = modules.find(m => m.id === activeModule); if (moduleData) document.title = `${moduleData.label} | Marcenapp`; }, [activeModule]);
+  useEffect(() => { const moduleData = modules.find(m => m.id === activeModule); if (moduleData) document.title = `${moduleData.label} | Marcenapp`; else if (activeModule === 'configuracoes') document.title = 'Configurações | Marcenapp'; }, [activeModule]);
   useEffect(() => { setMakerName(profile?.name ?? ''); setMakerCompany(profile?.company ?? ''); }, [profile?.name, profile?.company]);
   useProjectPersistence(budgetProject, setBudgetProject);
   const activeModuleData = modules.find(m => m.id === activeModule) ?? modules[0];
-  const ActiveIcon = activeModule === 'studio' ? MessageCircle : activeModuleData.icon;
-  const activeTitle = activeModule === 'studio' ? 'IARA' : activeModuleData.label;
-  const activeSubtitle = activeModule === 'studio' ? 'Inteligência do seu projeto' : CATEGORY_LABELS[activeModuleData.category];
+  const ActiveIcon = activeModule === 'studio' ? MessageCircle : activeModule === 'configuracoes' ? Settings2 : activeModuleData.icon;
+  const activeTitle = activeModule === 'studio' ? 'IARA' : activeModule === 'configuracoes' ? 'Configurações' : activeModuleData.label;
+  const activeSubtitle = activeModule === 'studio' ? 'Inteligência do seu projeto' : activeModule === 'configuracoes' ? 'Central da marcenaria' : CATEGORY_LABELS[activeModuleData.category];
 
   const renderModule = () => {
     switch (activeModule) {
@@ -77,6 +65,7 @@ const Index = () => {
       case 'corte': return <CorteModule parts={parts} setParts={setParts} project={budgetProject} />;
       case 'contrato': return <Contrato />;
       case 'admin-billing': return <CreditRules />;
+      case 'configuracoes': return <ConfiguracoesModule userId={user?.id} profile={profile} onNavigate={setActiveModule} onSaved={() => window.location.reload()} />;
       default: return null;
     }
   };
@@ -87,6 +76,7 @@ const Index = () => {
   const mobileModules = useMemo(() => MOBILE_NAV_IDS.map(id => modules.find(m => m.id === id)).filter(Boolean) as typeof modules, []);
 
   const openMakerData = () => { setMakerName(profile?.name ?? ''); setMakerCompany(profile?.company ?? ''); setShowUserMenu(false); setShowMakerData(true); };
+  const openSettings = () => { setShowUserMenu(false); setActiveModule('configuracoes'); };
   const saveMakerData = async () => {
     if (!user) return;
     setSavingMakerData(true);
@@ -122,7 +112,7 @@ const Index = () => {
                 <div className="hidden md:flex w-8 h-8 rounded-full bg-indigo-600 items-center justify-center text-white text-sm font-bold shadow-md">{profile?.name?.charAt(0)?.toUpperCase() || <User size={16} />}</div>
                 <div className="hidden sm:block text-left"><p className="text-[10px] font-bold text-slate-700 leading-none">{profile?.name || 'Usuário'}</p><p className="text-[8px] text-slate-500 uppercase tracking-tighter">{profile?.company || 'Marcenaria'}</p></div>
               </button>
-              {showUserMenu && <><div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} /><div className="absolute right-0 top-12 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-3 w-64 animate-in zoom-in-95 duration-200"><div className="px-3 py-2 border-b border-slate-100 mb-2"><p className="font-bold text-slate-800 text-sm truncate">{profile?.company || 'Sua marcenaria'}</p><p className="text-xs text-slate-500 truncate">{profile?.name || 'Responsável'}</p></div><button onClick={openMakerData} className="w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"><Building2 size={17} className="text-indigo-600" /> Dados da marcenaria</button><button onClick={() => { if (window.confirm('Deseja reiniciar o tutorial completo?')) { localStorage.removeItem('marcenapp_onboarding_seen'); localStorage.removeItem('marcenapp_onboarding_step'); localStorage.removeItem('marcenapp_onboarding_completed'); if (user) { supabase.from('profiles').update({ onboarding_step: 0, onboarding_completed: [] }).eq('user_id', user.id).then(() => window.location.reload()); } else { window.location.reload(); } } }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"><Sparkles size={16} className="text-amber-500" /> Reiniciar Tutorial</button><button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-xl transition-colors"><LogOut size={16} /> Sair</button></div></>}
+              {showUserMenu && <><div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} /><div className="absolute right-0 top-12 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-3 w-64 animate-in zoom-in-95 duration-200"><div className="px-3 py-2 border-b border-slate-100 mb-2"><p className="font-bold text-slate-800 text-sm truncate">{profile?.company || 'Sua marcenaria'}</p><p className="text-xs text-slate-500 truncate">{profile?.name || 'Responsável'}</p></div><button onClick={openSettings} className="w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"><Settings2 size={17} className="text-indigo-600" /> Central da marcenaria</button><button onClick={openMakerData} className="w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"><Building2 size={17} className="text-indigo-600" /> Dados rápidos</button><button onClick={() => { if (window.confirm('Deseja reiniciar o tutorial completo?')) { localStorage.removeItem('marcenapp_onboarding_seen'); localStorage.removeItem('marcenapp_onboarding_step'); localStorage.removeItem('marcenapp_onboarding_completed'); if (user) { supabase.from('profiles').update({ onboarding_step: 0, onboarding_completed: [] }).eq('user_id', user.id).then(() => window.location.reload()); } else { window.location.reload(); } } }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"><Sparkles size={16} className="text-amber-500" /> Reiniciar Tutorial</button><button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-xl transition-colors"><LogOut size={16} /> Sair</button></div></>}
             </> : <button onClick={() => navigate('/auth')} className="flex items-center gap-2 p-2 px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20"><LogIn size={16} /> Entrar</button>}
           </div>
         </header>
@@ -134,12 +124,8 @@ const Index = () => {
 
       {showMakerData && <div className="fixed inset-0 z-[200] bg-slate-950/45 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4" role="dialog" aria-modal="true" aria-labelledby="maker-data-title">
         <div className="bg-white w-full md:max-w-md rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden">
-          <div className="p-5 border-b border-slate-200 flex items-center justify-between"><div><h3 id="maker-data-title" className="text-base font-black text-slate-800">Dados da marcenaria</h3><p className="text-xs text-slate-500 mt-1">Essas informações ajudam a IARA a entender seu contexto.</p></div><button type="button" onClick={() => setShowMakerData(false)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500" aria-label="Fechar">×</button></div>
-          <div className="p-5 space-y-4">
-            <label className="block"><span className="text-xs font-bold text-slate-600">Responsável</span><input value={makerName} onChange={e => setMakerName(e.target.value)} placeholder="Seu nome" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" /></label>
-            <label className="block"><span className="text-xs font-bold text-slate-600">Nome da marcenaria</span><input value={makerCompany} onChange={e => setMakerCompany(e.target.value)} placeholder="Nome comercial" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" /></label>
-            <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-xl p-3">A estrutura está preparada para receber depois telefone, endereço, CNPJ e outras informações comerciais sem transformar o chat em formulário.</p>
-          </div>
+          <div className="p-5 border-b border-slate-200 flex items-center justify-between"><div><h3 id="maker-data-title" className="text-base font-black text-slate-800">Dados rápidos da marcenaria</h3><p className="text-xs text-slate-500 mt-1">Edite os dados básicos sem sair da tela.</p></div><button type="button" onClick={() => setShowMakerData(false)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500" aria-label="Fechar">×</button></div>
+          <div className="p-5 space-y-4"><label className="block"><span className="text-xs font-bold text-slate-600">Responsável</span><input value={makerName} onChange={e => setMakerName(e.target.value)} placeholder="Seu nome" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" /></label><label className="block"><span className="text-xs font-bold text-slate-600">Nome da marcenaria</span><input value={makerCompany} onChange={e => setMakerCompany(e.target.value)} placeholder="Nome comercial" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" /></label></div>
           <div className="p-5 pt-0 flex gap-2"><button type="button" onClick={() => setShowMakerData(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600">Cancelar</button><button type="button" onClick={saveMakerData} disabled={savingMakerData} className="flex-1 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">{savingMakerData ? 'Salvando...' : 'Salvar dados'}</button></div>
         </div>
       </div>}
