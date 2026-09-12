@@ -2,7 +2,9 @@ name: Security Hardening Gate
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - feat/domain-architecture-definitive-20260912
     paths-ignore:
       - 'docs/**'
   push:
