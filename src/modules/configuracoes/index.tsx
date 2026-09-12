@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Building2, Calculator, CreditCard, Package, Palette, Save, Settings2, Sparkles, Users, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { ProfessionalProfileCard } from '@/modules/admin/ProfessionalProfiles';
 
-type Profile = { name?: string | null; company?: string | null };
+type Profile = { name?: string | null; company?: string | null; profession?: string | null };
 
 type Props = {
   userId?: string;
@@ -43,8 +44,10 @@ const ConfiguracoesModule = ({ userId, profile, onNavigate, onSaved }: Props) =>
       <div>
         <div className="flex items-center gap-2 text-indigo-600 mb-2"><Settings2 size={18} /><span className="text-xs font-black uppercase tracking-widest">Central da marcenaria</span></div>
         <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Configurações da sua marcenaria</h1>
-        <p className="mt-2 text-sm md:text-base text-slate-500 max-w-2xl">Um único lugar para configurar os dados do negócio e acessar as áreas que formam o Master App. Funciona igual no computador e no celular.</p>
+        <p className="mt-2 text-sm md:text-base text-slate-500 max-w-2xl">Um único lugar para configurar os dados do negócio e definir a experiência profissional que orienta o Master App e a IARA. Funciona igual no computador e no celular.</p>
       </div>
+
+      <ProfessionalProfileCard userId={userId} profession={profile?.profession} onSaved={() => onSaved?.()} />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
         <div className="flex items-start gap-3 mb-5"><div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600"><Building2 size={20} /></div><div><h2 className="font-black text-slate-800">Dados da marcenaria</h2><p className="text-xs text-slate-500 mt-1">Esses dados serão a base dos próximos documentos, orçamentos e comunicação com o cliente.</p></div></div>
@@ -61,7 +64,7 @@ const ConfiguracoesModule = ({ userId, profile, onNavigate, onSaved }: Props) =>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-2 font-bold text-slate-800"><Palette size={18} className="text-slate-500" /> Aparência</div><p className="text-xs text-slate-500 mt-2">A personalização visual do orçamento e dos documentos será centralizada aqui, mantendo a experiência profissional e sem visual artificial.</p></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-2 font-bold text-slate-800"><Sparkles size={18} className="text-indigo-500" /> IARA conectada</div><p className="text-xs text-slate-500 mt-2">As configurações da marcenaria servem de contexto para a IARA responder e executar tarefas dentro do negócio.</p></div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-2 font-bold text-slate-800"><Sparkles size={18} className="text-indigo-500" /> IARA conectada</div><p className="text-xs text-slate-500 mt-2">O perfil profissional e as configurações da marcenaria servirão de contexto para a IARA responder e executar tarefas dentro do negócio.</p></div>
       </div>
     </section>
   );
