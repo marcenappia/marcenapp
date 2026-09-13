@@ -24,7 +24,8 @@ export const Home = ({ navigateTo }: Props) => {
     if (!user?.id) { setObras([]); setGamification(null); return; }
     setCarregando(true);
     supabase.from('projects').select('id, nome, name, updated_at, status, jornada, clientes(nome)').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20).then(({ data }) => {
-      setObras((data ?? []).map(p => ({ id: p.id, nome: p.nome || p.name || 'Obra sem nome', cliente: p.clientes?.nome ?? null, atualizadoEm: p.updated_at, etapa: etapaDaObra(p) })));
+      const rows = (data ?? []) as unknown as Array<{ id: string; nome: string | null; name: string | null; updated_at: string; status?: string | null; jornada?: unknown; clientes?: { nome: string | null } | null }>;
+      setObras(rows.map(p => ({ id: p.id, nome: p.nome || p.name || 'Obra sem nome', cliente: p.clientes?.nome ?? null, atualizadoEm: p.updated_at, etapa: etapaDaObra(p) })));
       setCarregando(false);
     });
     supabase.rpc('register_gamification_activity', { p_user_id: user.id, p_xp: 10 }).then(({ data }) => { if (data) setGamification(data as Gamification); });
