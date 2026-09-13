@@ -3,6 +3,7 @@ import { Boxes, Building2, FileUp, Package, Plus, Search, Store, Trash2, X } fro
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { extractMaterialsFromFile } from './dnaIngestion';
+import { DNA_UPLOAD_ACCEPT, validateDnaUpload } from './uploadContract';
 
 type Tab = 'materiais' | 'fornecedores' | 'estoque' | 'documentos';
 interface Props { onClose?: () => void; }
@@ -46,29 +47,23 @@ export default function MinhaMarcenaria({ onClose }: Props) {
 
   const uploadDocument = async () => {
     if (!user || !file) return;
+    const validationError = validateDnaUpload(file);
+    if (validationError) { setMessage(validationError); return; }
     setLoading(true); setMessage('Lendo o documento…');
     const path = `${user.id}/dna/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const { error: uploadError } = await supabase.storage.from('obras').upload(path, file, { upsert: false, contentType: file.type || 'application/octet-stream' });
+    const { error: uploadError } = await supabase.storage.from('obras').upload(path, file, { upsert: false, contentType: file.type });
     if (uploadError) { setMessage('Não foi possível enviar o arquivo.'); setLoading(false); return; }
 
-    const { data: document, error: documentError } = await supabase.from('marcenaria_documentos').insert({ user_id: user.id, nome: file.name, tipo: file.type || 'arquivo', storage_path: path, status: 'processando', metadata: { origem: 'minha_marcenaria' } }).select('id').single();
-    if (documentError || !document) { setMessage('Arquivo enviado, mas não foi possível registrar a referência.'); setLoading(false); return; }
+    const { data: document, error: documentError } = await supabase.from('marcenaria_documentos').insert({ user_id: user.id, nome: file.name, tipo: file.type, storage_path: path, status: 'processando', metadata: { origem: 'minha_marcenaria' } }).select('id').single();
+    if (documentError || !document) {
+      await supabase.storage.from('obras').remove([path]);
+      setMessage('Não foi possível registrar o documento.'); setLoading(false); return;
+    }
 
     try {
       const extracted = await extractMaterialsFromFile(file);
       if (extracted.length) {
-        const rows = extracted.map((material) => ({
-          user_id: user.id,
-          nome: material.nome,
-          categoria: material.categoria,
-          unidade: material.unidade,
-          espessura: material.espessura,
-          preco: material.preco,
-          fornecedor: material.fornecedor,
-          ativo: true,
-          origem: 'documento_ia',
-          metadata: { documento_id: document.id, documento_nome: file.name },
-        }));
+        const rows = extracted.map((material) => ({ user_id: user.id, nome: material.nome, categoria: material.categoria, unidade: material.unidade, espessura: material.espessura, preco: material.preco, fornecedor: material.fornecedor, ativo: true, origem: 'documento_ia', metadata: { documento_id: document.id, documento_nome: file.name } }));
         const { error: materialsError } = await supabase.from('marcenaria_materiais').insert(rows);
         if (materialsError) throw materialsError;
       }
@@ -93,7 +88,7 @@ export default function MinhaMarcenaria({ onClose }: Props) {
     </div>
     <div className="p-5 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="font-black text-slate-900">{title}</h3><p className="text-xs text-slate-500">{description}</p></div><div className="flex gap-2"><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar" className="w-36 rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-indigo-300"/></div>{tab !== 'documentos' && <button onClick={()=>setShowAdd(true)} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-black text-white"><Plus size={16}/> Adicionar</button>}</div></div>
-      {tab === 'documentos' && <div className="mt-4 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black text-slate-900">Envie uma tabela, PDF ou foto</p><p className="mt-1 text-xs text-slate-500">A IARA lê a referência e transforma materiais identificados em dados da sua marcenaria.</p></div><label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white"><FileUp size={16}/> Escolher arquivo<input type="file" accept=".pdf,.csv,.txt,image/*" className="hidden" onChange={e=>setFile(e.target.files?.[0] || null)}/></label></div>{file && <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white p-3 text-xs font-bold text-slate-700"><span className="truncate">{file.name}</span><button onClick={()=>void uploadDocument()} disabled={loading} className="rounded-lg bg-slate-900 px-3 py-2 text-white">{loading?'Processando…':'Enviar para a IARA'}</button></div>}</div>}
+      {tab === 'documentos' && <div className="mt-4 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black text-slate-900">Envie uma referência</p><p className="mt-1 text-xs text-slate-500">PDF, CSV, TXT, JPG, PNG ou WebP. Limite de 10 MB. A IARA lê o arquivo e estrutura apenas o que identificar.</p></div><label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white"><FileUp size={16}/> Escolher arquivo<input type="file" accept={DNA_UPLOAD_ACCEPT} className="hidden" onChange={e=>{ const selected=e.target.files?.[0] ?? null; setFile(selected); setMessage(selected ? (validateDnaUpload(selected) ?? '') : ''); }}/></label></div>{file && <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white p-3 text-xs font-bold text-slate-700"><span className="truncate">{file.name}</span><button onClick={()=>void uploadDocument()} disabled={loading || !!validateDnaUpload(file)} className="rounded-lg bg-slate-900 px-3 py-2 text-white disabled:opacity-40">{loading?'Processando…':'Enviar para a IARA'}</button></div>}</div>}
       <div className="mt-4 space-y-2">{loading && !items.length ? <div className="py-10 text-center text-sm text-slate-400">Carregando…</div> : filtered.length ? filtered.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{item.nome || item.nome_item}</p><p className="text-xs text-slate-500">{tab==='materiais' && item.preco != null ? `R$ ${Number(item.preco).toLocaleString('pt-BR',{minimumFractionDigits:2})}${item.fornecedor?' · '+item.fornecedor:''}` : tab==='estoque' ? `${item.quantidade ?? 0} ${item.unidade ?? 'un'}` : tab==='documentos' ? item.status : 'Cadastro da sua marcenaria'}</p></div><button onClick={()=>void remove(item.id)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label="Remover"><Trash2 size={15}/></button></div>) : <div className="rounded-2xl border border-dashed border-slate-200 py-10 text-center"><p className="text-sm font-bold text-slate-700">Ainda não há {title.toLowerCase()}.</p><p className="mt-1 text-xs text-slate-400">Adicione manualmente ou envie uma referência.</p></div>}</div>
       {message && <p className="mt-3 text-xs font-semibold text-slate-500">{message}</p>}
     </div>
