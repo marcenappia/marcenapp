@@ -35,3 +35,4 @@ jobs:
           git diff --cached -- package-lock.json
           git commit -m "fix: synchronize package lock"
           git push origin fix/p1-product-data-hardening-20260913
+# temporary validation helper; removed after synchronization
