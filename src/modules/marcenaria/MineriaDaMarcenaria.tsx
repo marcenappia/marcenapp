@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Boxes, Building2, FileUp, Package, Plus, Search, Store, Trash2, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,8 +13,7 @@ export default function MinhaMarcenaria({ onClose }: Props) {
   const [tab, setTab] = useState<Tab>('materiais');
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
-  // Supabase runtime tables are intentionally dynamic here because each tab maps to a different table shape.
-  const [items, setItems] = useState<Record<string, unknown>[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -29,7 +29,7 @@ export default function MinhaMarcenaria({ onClose }: Props) {
     if (!user) return;
     setLoading(true);
     const { data } = await supabase.from(table).select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(200);
-    setItems((data || []) as Record<string, unknown>[]); setLoading(false);
+    setItems(data || []); setLoading(false);
   };
   useEffect(() => { void load(); }, [user, table]);
 
@@ -58,7 +58,18 @@ export default function MinhaMarcenaria({ onClose }: Props) {
     try {
       const extracted = await extractMaterialsFromFile(file);
       if (extracted.length) {
-        const rows = extracted.map((material) => ({ user_id: user.id, nome: material.nome, categoria: material.categoria, unidade: material.unidade, espessura: material.espessura, preco: material.preco, fornecedor: material.fornecedor, ativo: true, origem: 'documento_ia', metadata: { documento_id: document.id, documento_nome: file.name } }));
+        const rows = extracted.map((material) => ({
+          user_id: user.id,
+          nome: material.nome,
+          categoria: material.categoria,
+          unidade: material.unidade,
+          espessura: material.espessura,
+          preco: material.preco,
+          fornecedor: material.fornecedor,
+          ativo: true,
+          origem: 'documento_ia',
+          metadata: { documento_id: document.id, documento_nome: file.name },
+        }));
         const { error: materialsError } = await supabase.from('marcenaria_materiais').insert(rows);
         if (materialsError) throw materialsError;
       }
@@ -84,7 +95,7 @@ export default function MinhaMarcenaria({ onClose }: Props) {
     <div className="p-5 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="font-black text-slate-900">{title}</h3><p className="text-xs text-slate-500">{description}</p></div><div className="flex gap-2"><div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar" className="w-36 rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-indigo-300"/></div>{tab !== 'documentos' && <button onClick={()=>setShowAdd(true)} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-black text-white"><Plus size={16}/> Adicionar</button>}</div></div>
       {tab === 'documentos' && <div className="mt-4 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black text-slate-900">Envie uma tabela, PDF ou foto</p><p className="mt-1 text-xs text-slate-500">A IARA lê a referência e transforma materiais identificados em dados da sua marcenaria.</p></div><label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white"><FileUp size={16}/> Escolher arquivo<input type="file" accept=".pdf,.csv,.txt,image/*" className="hidden" onChange={e=>setFile(e.target.files?.[0] || null)}/></label></div>{file && <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white p-3 text-xs font-bold text-slate-700"><span className="truncate">{file.name}</span><button onClick={()=>void uploadDocument()} disabled={loading} className="rounded-lg bg-slate-900 px-3 py-2 text-white">{loading?'Processando…':'Enviar para a IARA'}</button></div>}</div>}
-      <div className="mt-4 space-y-2">{loading && !items.length ? <div className="py-10 text-center text-sm text-slate-400">Carregando…</div> : filtered.length ? filtered.map(item => <div key={String(item.id)} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{String(item.nome || item.nome_item || '')}</p><p className="text-xs text-slate-500">{tab==='materiais' && item.preco != null ? `R$ ${Number(item.preco).toLocaleString('pt-BR',{minimumFractionDigits:2})}${item.fornecedor?` · ${String(item.fornecedor)}`:''}` : tab==='estoque' ? `${String(item.quantidade ?? 0)} ${String(item.unidade ?? 'un')}` : tab==='documentos' ? String(item.status ?? '') : 'Cadastro da sua marcenaria'}</p></div><button onClick={()=>void remove(String(item.id))} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label="Remover"><Trash2 size={15}/></button></div>) : <div className="rounded-2xl border border-dashed border-slate-200 py-10 text-center"><p className="text-sm font-bold text-slate-700">Ainda não há {title.toLowerCase()}.</p><p className="mt-1 text-xs text-slate-400">Adicione manualmente ou envie uma referência.</p></div>}</div>
+      <div className="mt-4 space-y-2">{loading && !items.length ? <div className="py-10 text-center text-sm text-slate-400">Carregando…</div> : filtered.length ? filtered.map(item => <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{item.nome || item.nome_item}</p><p className="text-xs text-slate-500">{tab==='materiais' && item.preco != null ? `R$ ${Number(item.preco).toLocaleString('pt-BR',{minimumFractionDigits:2})}${item.fornecedor?' · '+item.fornecedor:''}` : tab==='estoque' ? `${item.quantidade ?? 0} ${item.unidade ?? 'un'}` : tab==='documentos' ? item.status : 'Cadastro da sua marcenaria'}</p></div><button onClick={()=>void remove(item.id)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label="Remover"><Trash2 size={15}/></button></div>) : <div className="rounded-2xl border border-dashed border-slate-200 py-10 text-center"><p className="text-sm font-bold text-slate-700">Ainda não há {title.toLowerCase()}.</p><p className="mt-1 text-xs text-slate-400">Adicione manualmente ou envie uma referência.</p></div>}</div>
       {message && <p className="mt-3 text-xs font-semibold text-slate-500">{message}</p>}
     </div>
     {showAdd && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/40 p-4"><div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between"><h3 className="font-black text-slate-900">Adicionar {title === 'Fornecedores' ? 'Fornecedor' : title === 'Estoque' ? 'item' : 'Material'}</h3><button onClick={()=>setShowAdd(false)}><X size={18}/></button></div><input autoFocus value={name} onChange={e=>setName(e.target.value)} placeholder={tab==='estoque'?'Nome do item':'Nome'} className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-indigo-300"/>{tab==='materiais' && <><input value={price} onChange={e=>setPrice(e.target.value)} placeholder="Preço de referência (ex.: 189,90)" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none"/><input value={supplier} onChange={e=>setSupplier(e.target.value)} placeholder="Fornecedor (opcional)" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none"/></>}{tab==='estoque' && <input value={price} onChange={e=>setPrice(e.target.value)} placeholder="Quantidade" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none"/>}<button onClick={()=>void addItem()} disabled={!name.trim() || loading} className="mt-4 w-full rounded-xl bg-slate-900 py-3 text-sm font-black text-white disabled:opacity-40">Salvar</button></div></div>}
