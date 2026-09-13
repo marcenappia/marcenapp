@@ -27,6 +27,15 @@ export const StudioWorker = () => {
     if (error) console.error('Erro ao salvar na galeria:', error.message);
   };
 
+  const isCurrentContext = async (payload: Record<string, unknown>) => {
+    if (!user || payload.userId !== user.id) return false;
+    const { data } = await supabase.from('project_iara_contexts').select('project_id,environment_id,version_id').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+    const current = data as { project_id: string | null; environment_id: string | null; version_id: string | null } | null;
+    return (payload.projectId ?? null) === (current?.project_id ?? null)
+      && (payload.environmentId ?? null) === (current?.environment_id ?? null)
+      && (payload.versionId ?? null) === (current?.version_id ?? null);
+  };
+
   const resolveRenderCommand = (osCommand: OSCommand) => {
     const payload = (osCommand.payload ?? {}) as Partial<RenderCommand> & { studioCommandId?: string; userId?: string };
     const studioCommandId = payload.studioCommandId;
@@ -38,7 +47,13 @@ export const StudioWorker = () => {
   };
 
   const processCommand = async (osCommand: OSCommand) => {
-    if (osCommand.status === 'cancelled' || !user || osCommand.payload?.userId !== user.id) { currentlyProcessing.current = null; return; }
+    if (osCommand.status === 'cancelled' || !user) { currentlyProcessing.current = null; return; }
+    const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
+    if (!(await isCurrentContext(payload))) {
+      updateOSStatus(osCommand.id, 'cancelled', undefined, 'Comando descartado: contexto do projeto mudou antes da execução.');
+      currentlyProcessing.current = null;
+      return;
+    }
     const { command, studioCommandId } = resolveRenderCommand(osCommand);
     const storeCommandId = studioCommandId ?? osCommand.id;
     const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
