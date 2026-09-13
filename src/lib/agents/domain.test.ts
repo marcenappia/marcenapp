@@ -99,7 +99,16 @@ describe('IARA/YARA domain orchestration', () => {
 
   it('mantém o contrato de artefato/painel preparado para a UI contextual', async () => {
     const response = await runIara({ input: { ...baseInput, intent: 'gerar render', artifactId: 'render-1' }, correlationId: 'ui-contract' });
-    expect(response.artifacts).toEqual([{ type: 'render', id: 'render-1' }]);
+    expect(response.artifacts).toEqual([{
+      type: 'render',
+      id: 'render-1',
+      context: {
+        projectId: 'project-1',
+        environmentId: undefined,
+        versionId: undefined,
+        correlationId: 'ui-contract',
+      },
+    }]);
     expect(response.panel).toEqual({ type: 'render' });
     expect(response.projectId).toBe('project-1');
   });
