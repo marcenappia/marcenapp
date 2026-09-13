@@ -2,7 +2,7 @@ name: Playwright Tests
 # Validation trigger kept on main so the complete IARA E2E gate runs for the current commit.
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, fix/p1-product-data-hardening-20260913 ]
   pull_request:
     branches: [ main, master ]
 concurrency:
