@@ -9,7 +9,9 @@ interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ tran
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
+type UploadKind = 'environment' | 'reference' | 'sketch' | 'plan';
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
+type PendingUpload = { base64: string; baseRaw: string; maskRaw: string; kind?: UploadKind };
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
 
 function rawErrorMessage(error: unknown): string { return error instanceof Error ? error.message : ''; }
@@ -31,8 +33,8 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement } | null>(null);
-  const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
+  const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement; kind: UploadKind } | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload; smartAction?: SmartAction } | null>(null);
@@ -50,7 +52,7 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
         await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } });
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
-        await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } });
+        await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] });
         setIsTyping(false);
       }
     };
@@ -92,7 +94,7 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; }
     try {
       const correlationId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const intentInput = { message: promptText, projectId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
+      const intentInput = { message: promptText, projectId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}), ...(upload?.kind ? { attachmentKind: upload.kind } : {}) } as Record<string, unknown>;
       await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, status: 'requested' } : { correlationId, status: 'requested' } });
       const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
       const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: projectId ?? undefined, correlationId, execution: { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, conversation } });
@@ -125,7 +127,22 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
   const dismissError = () => setError(null);
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; }; reader.readAsDataURL(file); };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, kind: UploadKind = 'environment') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (r) => {
+      const result = r.target?.result;
+      if (typeof result !== 'string') return;
+      const img = new Image();
+      img.onload = () => setMaskingImage({ src: result, img, kind });
+      img.src = result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`); recognitionRef.current = r; }, []);
   const toggleRecording = () => { if (isListening) recognitionRef.current?.stop(); else recognitionRef.current?.start(); };
   return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError };
