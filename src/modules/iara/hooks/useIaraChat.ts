@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { runIaraConversation } from '@/lib/agents/domain';
+import { isIaraCommandForExecution, isIaraExecutionCurrent, type IaraExecutionIdentity } from './iaraExecutionScope';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
@@ -38,24 +39,41 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload; smartAction?: SmartAction } | null>(null);
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const executionGenerationRef = useRef(0);
+  const pendingExecutionsRef = useRef(new Map<string, IaraExecutionIdentity>());
+
+  useEffect(() => {
+    executionGenerationRef.current += 1;
+    const generation = executionGenerationRef.current;
+    for (const [correlationId, identity] of pendingExecutionsRef.current) {
+      if (identity.projectId !== projectId || identity.generation !== generation - 1) pendingExecutionsRef.current.delete(correlationId);
+    }
+  }, [projectId]);
 
   useEffect(() => {
     if (commandHistory.length === 0) return;
     const lastCommand = commandHistory[0];
+    const correlationId = typeof lastCommand.payload?.correlationId === 'string' ? lastCommand.payload.correlationId : null;
+    const execution = correlationId ? pendingExecutionsRef.current.get(correlationId) : undefined;
+    if (!execution || !isIaraCommandForExecution(lastCommand, execution) || !isIaraExecutionCurrent(execution, projectId, executionGenerationRef.current)) return;
     const notifyChat = async () => {
       const lastProcessedId = localStorage.getItem('last_processed_command_id');
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
       if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
+        if (!isIaraExecutionCurrent(execution, projectId, executionGenerationRef.current)) return;
         localStorage.setItem('last_processed_command_id', lastCommand.id);
-        await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } });
+        await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, correlationId: execution.correlationId, resultUrl: lastCommand.result.resultUrl, imageUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } }, execution.projectId);
+        pendingExecutionsRef.current.delete(execution.correlationId);
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
-        await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } });
+        if (!isIaraExecutionCurrent(execution, projectId, executionGenerationRef.current)) return;
+        await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', correlationId: execution.correlationId, actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } }, execution.projectId);
+        pendingExecutionsRef.current.delete(execution.correlationId);
         setIsTyping(false);
       }
     };
     void notifyChat();
-  }, [commandHistory]);
+  }, [commandHistory, projectId]);
 
   useEffect(() => {
     if (!user) { setMessages([]); return; }
@@ -76,9 +94,9 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     return () => { cancelled = true; void supabase.removeChannel(channel); };
   }, [user, projectId]);
 
-  const saveMessage = async (msg: Partial<ChatMessage>) => {
+  const saveMessage = async (msg: Partial<ChatMessage>, targetProjectId: string | null = projectId) => {
     if (!user) return;
-    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: user.id, project_id: projectId, ...msg });
+    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: user.id, project_id: targetProjectId, ...msg });
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
   };
 
@@ -90,12 +108,17 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     let previewImg: string | null = null;
     if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw }); }
     else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; }
+    let execution: IaraExecutionIdentity | null = null;
     try {
       const correlationId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      execution = { projectId, correlationId, generation: executionGenerationRef.current };
+      pendingExecutionsRef.current.set(correlationId, execution);
       const intentInput = { message: promptText, projectId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
-      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, status: 'requested' } : { correlationId, status: 'requested' } });
+      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, status: 'requested' } : { correlationId, status: 'requested' } }, projectId);
+      if (!isIaraExecutionCurrent(execution, projectId, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
-      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: projectId ?? undefined, correlationId, execution: { userId: user.id, projectId: projectId ?? undefined, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, conversation } });
+      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: projectId ?? undefined, correlationId, execution: { userId: user.id, projectId: projectId ?? undefined, correlationId, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, currentProject: { id: projectId, largura: factors.L, altura: factors.A }, conversation } });
+      if (!isIaraExecutionCurrent(execution, projectId, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       const lines = response.run.results.map(({ tool, result }) => {
         if (result.ok === false) return toolFailureMessage(tool, result.error);
         const data = result.data as Record<string, unknown>;
@@ -115,10 +138,13 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       const metadata: MessageMetadata = { domain: response.domain, action: response.action, agent: response.domainAgent, correlationId: response.correlationId, status: response.run.status === 'completed' ? 'ready' : response.run.status, artifacts: response.artifacts, panel: response.panel, ...(artifact ? { artifact: { type: artifact.type, id: artifact.id } } : {}), ...(artifact ? { actions: [{ id: 'open', label: artifact.type === 'render' ? 'Abrir render' : 'Abrir artefato', kind: 'open-panel' }] } : {}), ...(directRenderImageUrl ? { resultUrl: directRenderImageUrl, imageUrl: directRenderImageUrl } : {}) };
       const header = response.run.status === 'needs_input' ? 'Preciso confirmar uma informação antes de continuar.' : response.run.status === 'failed' ? 'Não foi possível concluir esta ação.' : directRenderImageUrl ? 'Pronto.' : response.action === 'render' ? 'Solicitação recebida.' : 'Pronto.';
       const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?';
-      await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, ...(directRenderImageUrl ? { image_url: directRenderImageUrl } : {}), metadata });
+      if (!isIaraExecutionCurrent(execution, projectId, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
+      await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, ...(directRenderImageUrl ? { image_url: directRenderImageUrl } : {}), metadata }, execution.projectId);
+      pendingExecutionsRef.current.delete(correlationId);
       lastFailedRef.current = null;
     } catch (error: unknown) {
       lastFailedRef.current = { text: promptText, upload, smartAction };
+      if (execution) pendingExecutionsRef.current.delete(execution.correlationId);
       setError(humanizeError(error));
     } finally { setIsTyping(false); }
   };
