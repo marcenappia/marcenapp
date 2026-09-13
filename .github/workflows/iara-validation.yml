@@ -1,4 +1,5 @@
 name: IARA Validation
+# Temporary validation-only workflow; no production deployment.
 on:
   push:
     branches: [ validation/iara-e3d0-20260913 ]
