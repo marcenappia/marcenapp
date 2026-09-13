@@ -33,7 +33,12 @@ export const useProjectPersistence = (
       }
 
       if (data?.[0]) {
-        const p = data[0];
+        const p = data[0] as unknown as {
+          id: string; width: number | string | null; height: number | string | null; depth: number | string | null;
+          modules: number | string | null; drawers: number | string | null; doors: number | string | null;
+          profit_margin: number | string | null; labor_rate: number | string | null;
+          internal_material: string | null; external_material: string | null; back_material: string | null; handle_type: string | null;
+        };
         const requiredNumeric = [p.width, p.height, p.depth, p.modules, p.drawers, p.doors, p.profit_margin, p.labor_rate];
         const requiredText = [p.internal_material, p.external_material, p.back_material, p.handle_type];
         const hasCompleteProjectData = requiredNumeric.every(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
