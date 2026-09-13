@@ -1,6 +1,6 @@
-name: Reconcile lockfile from trusted PR head
+name: Reconcile lockfile in PR
 on:
-  pull_request_target:
+  pull_request:
     branches: [main]
 permissions:
   contents: write
@@ -10,7 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
