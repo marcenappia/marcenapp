@@ -4,7 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 export type OSModule = 'iara' | 'studio' | 'portal' | 'estela' | 'production' | 'system';
 export type OSCommandStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export type OSCommandPayload = Record<string, unknown>;
-export type OSCommandResult = Record<string, unknown>;
+export type OSCommandResult = Record<string, unknown> & { resultUrl?: string };
 
 export interface OSCommand {
   id: string;
