@@ -7,7 +7,7 @@ import type { Json } from '@/integrations/supabase/runtime-types';
 
 export interface ToolCall { tool: string; args: Record<string, unknown>; }
 export interface OrchestratorPlan { plan: ToolCall[]; summary: string; model?: string; provider?: 'lovable' | 'gemini'; }
-export interface OrchestratorRun { runId: string | null; plan: ToolCall[]; summary: string; results: Array<{ tool: string; result: ToolResult }>; usedFallback: boolean; provider?: 'lovable' | 'gemini'; error?: string; }
+export interface OrchestratorRun { runId: string | null; plan: ToolCall[]; summary: string; results: Array<{ tool: string; result: ToolResult }>; usedFallback: boolean; provider?: 'lovable' | 'gemini'; error?: string; status: 'completed' | 'failed'; }
 
 export async function planWithLLM(userPrompt: string, context?: Record<string, unknown>): Promise<OrchestratorPlan> {
   const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string; provider?: 'lovable' | 'gemini' }>('ai-orchestrator', { userPrompt, context });
@@ -41,10 +41,11 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     results.push({ tool: call.tool, result: r });
     if (!r.ok) break;
   }
+  const status: OrchestratorRun['status'] = results.every(r => r.result.ok) ? 'completed' : 'failed';
 
   if (runId) {
-    try { await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status: results.every(r => r.result.ok) ? 'completed' : 'failed' }).eq('id', runId); }
+    try { await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status }).eq('id', runId); }
     catch (e) { console.warn('Falha ao registrar resultado do orchestrator_run:', e); }
   }
-  return { runId, plan, summary, results, usedFallback: false, provider: result.provider };
+  return { runId, plan, summary, results, usedFallback: false, provider: result.provider, status };
 }
