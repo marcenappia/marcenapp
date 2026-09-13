@@ -39,7 +39,14 @@ export async function loadIaraContext(userId: string, projectId: string | null):
   ]);
   if (!project) return { ...emptyIaraContext, projectId };
 
-  const client = Array.isArray(project.clientes) ? project.clientes[0] : project.clientes;
+  const projectRow = project as unknown as {
+    id: string;
+    nome: string | null;
+    name: string | null;
+    cliente_id: string | null;
+    clientes: { nome: string | null } | Array<{ nome: string | null }> | null;
+  };
+  const client = Array.isArray(projectRow.clientes) ? projectRow.clientes[0] : projectRow.clientes;
   const environmentId = persisted?.environment_id ?? environments?.[0]?.id ?? null;
   const environment = environments?.find(item => item.id === environmentId) ?? environments?.[0] ?? null;
   let version: { id: string; version_number: number; environment_id: string } | null = null;
@@ -49,10 +56,10 @@ export async function loadIaraContext(userId: string, projectId: string | null):
   }
 
   return {
-    clientId: project.cliente_id ?? persisted?.client_id ?? null,
+    clientId: projectRow.cliente_id ?? persisted?.client_id ?? null,
     clientName: typeof client?.nome === 'string' ? client.nome : null,
-    projectId: project.id,
-    projectName: project.nome || project.name || null,
+    projectId: projectRow.id,
+    projectName: projectRow.nome || projectRow.name || null,
     environmentId: environment?.id ?? null,
     environmentName: environment?.name ?? null,
     versionId: version?.id ?? null,
