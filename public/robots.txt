@@ -1,4 +1,21 @@
 User-agent: *
 Allow: /
+Disallow: /auth
+Disallow: /auth/
+Disallow: /login
+Disallow: /signup
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /admin
+Disallow: /admin/
+Disallow: /studio
+Disallow: /studio/
+Disallow: /iara
+Disallow: /iara/
+Disallow: /configuracoes
+Disallow: /configuracoes/
+Disallow: /app
+Disallow: /app/
 
 Sitemap: https://www.marcenapp.com.br/sitemap.xml
