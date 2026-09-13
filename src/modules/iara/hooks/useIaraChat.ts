@@ -1,3 +1,4 @@
+// Production rebuild marker: keep current IARA implementation intact while re-triggering Vercel from canonical main.
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
