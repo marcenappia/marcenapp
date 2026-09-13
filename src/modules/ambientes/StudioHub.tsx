@@ -1,4 +1,5 @@
-import React, { createPortal, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle2, FolderKanban } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
