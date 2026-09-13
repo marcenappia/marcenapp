@@ -50,10 +50,28 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
       if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
       if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
         localStorage.setItem('last_processed_command_id', lastCommand.id);
-        await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, resultUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } });
+        await saveMessage({
+          sender: 'iara',
+          text: 'O render está pronto.',
+          image_url: lastCommand.result.resultUrl,
+          metadata: {
+            commandId: lastCommand.id,
+            resultUrl: lastCommand.result.resultUrl,
+            artifact: { type: 'render', id: lastCommand.id },
+            actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }],
+            status: 'ready'
+          }
+        });
         setIsTyping(false);
       } else if (lastCommand.status === 'failed') {
-        await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] });
+        await saveMessage({
+          sender: 'iara',
+          text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.',
+          metadata: {
+            status: 'error',
+            actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }]
+          }
+        });
         setIsTyping(false);
       }
     };
