@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scissors, PackageCheck, Calculator, FileText, ShoppingCart, Wrench, Truck, ListChecks, Camera, PencilLine, Plus, ArrowUpFromLine } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
 import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
 
 type PendingUpload = { base64: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan' };
@@ -12,7 +13,7 @@ const SMART_ACTIONS: Array<{ domain: SmartAction['domain']; title: string; items
   { domain: 'execution', title: 'Execução', items: IARA_SMART_ACTIONS.filter(a => a.domain === 'execution').map(a => ({ ...a, prompt: a.intent })) },
 ];
 
-const ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+const ICONS: Record<string, React.ComponentType<LucideProps>> = {
   'project.analyze': Image, 'project.create': ClipboardList, 'project.measurements': Ruler, 'project.elevation': ArrowUpFromLine,
   'project.render': Image, 'project.review': ClipboardList, 'production.materials': Boxes, 'production.hardware': Wrench,
   'production.cut': Scissors, 'production.inventory': PackageCheck, 'production.production': ClipboardList, 'business.budget': Calculator,
