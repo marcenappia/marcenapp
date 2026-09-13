@@ -1,3 +1,4 @@
+// IARA context validation: client → project → environment → version.
 import { supabase } from '@/integrations/supabase/client';
 
 export type IaraContext = {
