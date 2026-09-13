@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, FolderKanban } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, FolderKanban, MoreVertical, Settings2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,7 +9,7 @@ import type { ProjectData } from '@/modules/projetos/types';
 
 interface StudioHubProps {
   setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>;
-  navigateTo: (id: string) => void;
+  navigateTo: (id: string, params?: Record<string, string>) => void;
   gallery: string[];
   setGallery: React.Dispatch<React.SetStateAction<string[]>>;
   budgetProject: ProjectData;
@@ -21,6 +21,7 @@ export const StudioHub = (props: StudioHubProps) => {
   const [searchParams] = useSearchParams();
   const requestedProjectId = searchParams.get('projeto');
   const projectId = requestedProjectId || budgetProject?.id || null;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!user || !requestedProjectId || requestedProjectId === budgetProject?.id) return;
@@ -69,21 +70,44 @@ export const StudioHub = (props: StudioHubProps) => {
     });
   };
 
+  const leaveProject = () => {
+    setMenuOpen(false);
+    props.navigateTo('dashboard');
+  };
+
   return createPortal(
     <section className="fixed inset-0 z-[9999] flex min-h-0 w-full bg-background" aria-label="Projeto e IARA">
-      <div className="flex h-full min-h-0 w-full flex-col">
-        <header className="flex min-h-[72px] shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-4 py-3 sm:px-6 lg:px-8" aria-label="Contexto do projeto">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><FolderKanban size={17} aria-hidden="true" /></div>
+      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+        <header className="flex min-h-[64px] shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 py-2.5 sm:min-h-[72px] sm:px-6 sm:py-3 lg:px-8" aria-label="Contexto do projeto">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <button type="button" onClick={leaveProject} aria-label="Voltar para os projetos" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden">
+              <ArrowLeft size={18} aria-hidden="true" />
+            </button>
+            <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:flex"><FolderKanban size={17} aria-hidden="true" /></div>
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Projeto</p>
-              <p className="truncate text-base font-semibold text-foreground sm:text-lg">{projectName}</p>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Projeto</p>
+              <p className="truncate text-sm font-semibold text-foreground sm:text-lg">{projectName}</p>
               {(budgetProject?.clientName || budgetProject?.environmentName) && <p className="truncate text-[10px] text-muted-foreground sm:text-xs">{[budgetProject.clientName, budgetProject.environmentName].filter(Boolean).join(' · ')}</p>}
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-[10px] font-semibold text-primary sm:text-xs"><CheckCircle2 size={13} aria-hidden="true" /><span>IARA conectada</span></div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="hidden items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-[10px] font-semibold text-primary sm:flex sm:text-xs"><CheckCircle2 size={13} aria-hidden="true" /><span>IARA conectada</span></div>
+            <div className="relative">
+              <button type="button" onClick={() => setMenuOpen(v => !v)} aria-label="Abrir opções do projeto" aria-expanded={menuOpen} className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <MoreVertical size={19} aria-hidden="true" />
+              </button>
+              {menuOpen && <>
+                <button type="button" aria-label="Fechar opções" className="fixed inset-0 z-40 cursor-default" onClick={() => setMenuOpen(false)} />
+                <div role="menu" aria-label="Opções do projeto" className="absolute right-0 top-12 z-50 w-56 rounded-2xl border border-border bg-card p-2 shadow-2xl">
+                  <div className="px-3 py-2"><p className="text-xs font-semibold text-foreground truncate">{projectName}</p><p className="text-[10px] text-muted-foreground">Opções do projeto</p></div>
+                  <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); props.navigateTo('configuracoes'); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-3 text-left text-xs font-semibold hover:bg-muted"><Settings2 size={15} /> Configurações da marcenaria</button>
+                  <button type="button" role="menuitem" onClick={leaveProject} className="flex w-full items-center gap-2 rounded-xl px-3 py-3 text-left text-xs font-semibold hover:bg-muted"><ArrowLeft size={15} /> Voltar para os projetos</button>
+                </div>
+              </>}
+            </div>
+          </div>
         </header>
-        <div className="min-h-0 flex-1 px-2 py-2 sm:px-4 sm:py-3 lg:px-6">
+        <div className="min-h-0 flex-1 px-1.5 py-1.5 sm:px-4 sm:py-3 lg:px-6">
           <IaraModule embedded projectId={projectId} syncProject={syncProject} onProjectChange={handleIaraProjectChange} />
         </div>
       </div>
