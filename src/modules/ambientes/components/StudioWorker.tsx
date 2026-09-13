@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useStudioStore } from '@/store/useStudioStore';
+import { useStudioStore, type RenderCommand } from '@/store/useStudioStore';
 import { OSCommand, useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,8 +30,8 @@ export const StudioWorker = () => {
   };
 
   const resolveRenderCommand = (osCommand: OSCommand) => {
-    const payload = osCommand.payload ?? {};
-    const studioCommandId: string | undefined = payload.studioCommandId;
+    const payload = (osCommand.payload ?? {}) as Partial<RenderCommand> & { studioCommandId?: string };
+    const studioCommandId = payload.studioCommandId;
     if (studioCommandId) {
       const studioCmd = useStudioStore.getState().commandQueue.find(c => c.id === studioCommandId);
       if (studioCmd) return { command: studioCmd, studioCommandId };
@@ -52,8 +52,9 @@ export const StudioWorker = () => {
       updateOSStatus(osCommand.id, 'failed', undefined, message);
     };
 
-    if (!command.prompt || (!command.images?.length && command.metadata?.origin === 'iara')) {
-      fail('Comando inválido: Faltam parâmetros obrigatórios ou contexto visual.');
+    // Text-only IARA renders are valid; an image is optional input, not a prerequisite.
+    if (!command.prompt) {
+      fail('Comando inválido: falta o prompt de geração.');
       return;
     }
 
