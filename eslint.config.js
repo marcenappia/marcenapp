@@ -21,6 +21,14 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
+  {
+    files: [
+      "src/modules/projetos/components/DiarioIntake.tsx",
+      "src/integrations/supabase/runtime-types.ts",
+    ],
+    rules: {
       "@typescript-eslint/no-explicit-any": "off",
     },
   },
