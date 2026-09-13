@@ -33,10 +33,11 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement; kind: UploadKind } | null>(null);
+  const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement } | null>(null);
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const uploadKindRef = useRef<UploadKind>('environment');
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload; smartAction?: SmartAction } | null>(null);
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -132,12 +133,13 @@ export const useIaraChat = (factors: { L: number; A: number }, decorStyle: strin
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
+    uploadKindRef.current = kind;
     const reader = new FileReader();
     reader.onload = (r) => {
       const result = r.target?.result;
       if (typeof result !== 'string') return;
       const img = new Image();
-      img.onload = () => setMaskingImage({ src: result, img, kind });
+      img.onload = () => setMaskingImage({ src: result, img });
       img.src = result;
     };
     reader.readAsDataURL(file);
