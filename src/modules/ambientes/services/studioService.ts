@@ -8,22 +8,7 @@ interface ImagePayload {
 
 function normalizeImages(images?: ImageData[]): ImagePayload[] | undefined {
   if (!images || images.length === 0) return undefined;
-  return images.map(img => {
-    if (typeof img === 'object' && img !== null && 'mimeType' in img) {
-      return { mimeType: img.mimeType, data: img.data };
-    }
-    if (typeof img === 'string') {
-      const raw = img.includes(',') ? img.split(',')[1] : img;
-      return { mimeType: 'image/png', data: raw };
-    }
-    if (typeof img === 'object' && img !== null) {
-      const raw = (img as Record<string, unknown>).baseRaw as string || (img as Record<string, unknown>).data as string || '';
-      const mime = (img as Record<string, unknown>).mimeType as string || (img as Record<string, unknown>).mime as string || 'image/png';
-      if (!raw) return null as unknown as ImagePayload;
-      return { mimeType: mime, data: raw };
-    }
-    return null as unknown as ImagePayload;
-  }).filter(Boolean) as ImagePayload[];
+  return images.map(img => ({ mimeType: img.mimeType, data: img.data }));
 }
 
 export const studioService = {
