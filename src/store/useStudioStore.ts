@@ -40,8 +40,9 @@ export const useStudioStore = create<StudioState>()(
         if (version === 0) return { ...state, commandQueue: [] };
         if (version === 1) {
           const commandQueue = Array.isArray(state.commandQueue) ? state.commandQueue.map(command => {
-            const cmd = isRecord(command) ? command : {};
-            return { ...cmd, status: asStatus(cmd.status), metadata: isRecord(cmd.metadata) ? cmd.metadata : { origin: 'manual' } };
+            const cmd = isRecord(command) ? command as unknown as RenderCommand : null;
+            if (!cmd) return command;
+            return { ...cmd, status: asStatus(cmd.status), metadata: isRecord(cmd.metadata) ? cmd.metadata as RenderCommand['metadata'] : { origin: 'manual' as const } };
           }) : [];
           return { ...state, commandQueue };
         }
