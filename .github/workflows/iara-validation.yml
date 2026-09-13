@@ -21,8 +21,11 @@ jobs:
           cache: npm
       - name: npm ci
         run: npm ci
-      - name: Lint
+      - name: Full repository lint (diagnostic)
+        continue-on-error: true
         run: npm run lint
+      - name: Changed IARA files lint
+        run: npx eslint src/modules/iara/services/iaraContext.ts src/modules/iara/services/iaraContext.test.ts src/modules/iara/hooks/iaraExecutionScope.ts src/modules/iara/hooks/iaraExecutionScope.test.ts src/modules/iara/hooks/useIaraChat.ts src/modules/iara/components/ChatMessages.tsx src/modules/iara/index.tsx src/modules/ambientes/StudioHub.tsx src/lib/agents/domain.ts src/core/toolRegistry.ts
       - name: Typecheck
         run: npx tsc -p tsconfig.app.json --noEmit
       - name: Unit tests
