@@ -26,7 +26,7 @@ const normalize = (value: unknown): ExtractedMaterial[] => {
 
 async function extractPdfText(file: File): Promise<string> {
   const data = new Uint8Array(await file.arrayBuffer());
-  const pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
   const pages: string[] = [];
   for (let pageNumber = 1; pageNumber <= pdf.numPages && pages.join('\n').length < MAX_TEXT; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
