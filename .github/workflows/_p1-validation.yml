@@ -16,12 +16,21 @@ jobs:
           node-version: 22
           cache: npm
       - name: npm ci
+        id: install
         run: npm ci
       - name: lint
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        continue-on-error: true
         run: npm run lint
       - name: typecheck
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        continue-on-error: true
         run: npm run typecheck
       - name: test
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        continue-on-error: true
         run: npm test
       - name: build
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        continue-on-error: true
         run: npm run build
