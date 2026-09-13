@@ -9,7 +9,7 @@ export const StudioWorker = () => {
   const { user } = useAuth();
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const updateOSStatus = useMarcenappOS(state => state.updateCommandStatus);
-  const commandQueue = useMemo(() => commandHistory.filter(cmd => cmd.target === 'studio'), [commandHistory]);
+  const commandQueue = useMemo(() => commandHistory.filter(cmd => cmd.target === 'studio' && cmd.payload?.userId === user?.id), [commandHistory, user?.id]);
   const isRendering = useStudioStore(state => state.isRendering);
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
@@ -18,9 +18,7 @@ export const StudioWorker = () => {
 
   useEffect(() => {
     const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
-    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) {
-      void processCommand(nextCommand);
-    }
+    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
   }, [commandQueue, isRendering]);
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
@@ -30,7 +28,7 @@ export const StudioWorker = () => {
   };
 
   const resolveRenderCommand = (osCommand: OSCommand) => {
-    const payload = (osCommand.payload ?? {}) as Partial<RenderCommand> & { studioCommandId?: string };
+    const payload = (osCommand.payload ?? {}) as Partial<RenderCommand> & { studioCommandId?: string; userId?: string };
     const studioCommandId = payload.studioCommandId;
     if (studioCommandId) {
       const studioCmd = useStudioStore.getState().commandQueue.find(c => c.id === studioCommandId);
@@ -40,36 +38,16 @@ export const StudioWorker = () => {
   };
 
   const processCommand = async (osCommand: OSCommand) => {
-    if (osCommand.status === 'cancelled') {
-      currentlyProcessing.current = null;
-      return;
-    }
-
+    if (osCommand.status === 'cancelled' || !user || osCommand.payload?.userId !== user.id) { currentlyProcessing.current = null; return; }
     const { command, studioCommandId } = resolveRenderCommand(osCommand);
     const storeCommandId = studioCommandId ?? osCommand.id;
-    const fail = (message: string) => {
-      failCommand(storeCommandId, message);
-      updateOSStatus(osCommand.id, 'failed', undefined, message);
-    };
-
-    // Text-only IARA renders are valid; an image is optional input, not a prerequisite.
-    if (!command.prompt) {
-      fail('Comando inválido: falta o prompt de geração.');
-      return;
-    }
-
+    const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
+    if (!command.prompt) { fail('Comando inválido: falta o prompt de geração.'); return; }
     currentlyProcessing.current = osCommand.id;
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
-
     try {
-      const result = await studioService.generateVisual(
-        command.prompt,
-        command.images,
-        command.style,
-        command.decor,
-        osCommand.id,
-      );
+      const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, osCommand.id);
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
       completeCommand(storeCommandId, result);
       updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
@@ -77,9 +55,7 @@ export const StudioWorker = () => {
     } catch (error: unknown) {
       console.error('StudioWorker Error:', error);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
-    } finally {
-      currentlyProcessing.current = null;
-    }
+    } finally { currentlyProcessing.current = null; }
   };
 
   return null;
