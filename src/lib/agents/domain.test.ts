@@ -72,12 +72,7 @@ describe('IARA/YARA domain orchestration', () => {
 
   it('reconhece criação de projeto somente por texto e normaliza metros para milímetros', () => {
     expect(createDomainIntent({ message: 'Crie um armário de 2,40m x 2,20m x 0,60m com 4 portas e 3 gavetas' })).toEqual({ domain: 'project', action: 'create_project', agent: 'IARA' });
-    expect(parseCreateProjectInput({ message: 'Crie um armário de 2,40m x 2,20m x 0,60m com 4 portas e 3 gavetas' })).toMatchObject({
-      width: 2400,
-      height: 2200,
-      depth: 600,
-      confirmado: true,
-    });
+    expect(parseCreateProjectInput({ message: 'Crie um armário de 2,40m x 2,20m x 0,60m com 4 portas e 3 gavetas' })).toMatchObject({ width: 2400, height: 2200, depth: 600, confirmado: true });
   });
 
   it('não cria projeto sem as três dimensões explícitas', () => {
@@ -99,7 +94,7 @@ describe('IARA/YARA domain orchestration', () => {
 
   it('mantém o contrato de artefato/painel preparado para a UI contextual', async () => {
     const response = await runIara({ input: { ...baseInput, intent: 'gerar render', artifactId: 'render-1' }, correlationId: 'ui-contract' });
-    expect(response.artifacts).toEqual([{ type: 'render', id: 'render-1' }]);
+    expect(response.artifacts).toEqual([{ type: 'render', id: 'render-1', context: { projectId: 'project-1', environmentId: undefined, versionId: undefined, correlationId: 'ui-contract' } }]);
     expect(response.panel).toEqual({ type: 'render' });
     expect(response.projectId).toBe('project-1');
   });
