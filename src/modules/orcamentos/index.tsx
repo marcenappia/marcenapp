@@ -1,87 +1,38 @@
 import React, { useState } from 'react';
-import { Package, Printer, Calculator, Sliders, Save, RefreshCw } from 'lucide-react';
+import { Package, Printer, Calculator, Sliders, Save, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Button, Card, InputGroup, Modal } from '@/components/marcenaria/shared';
 import { useOrcamento } from './hooks/useOrcamento';
 import type { ProjectData } from '@/modules/projetos/types';
 
-interface Props {
-  project: ProjectData;
-  setProject: React.Dispatch<React.SetStateAction<ProjectData>>;
-}
-
-type CostField = 'salePrice' | 'materialCost' | 'hardwareCost' | 'laborCost' | 'otherCost';
+interface Props { project: ProjectData; setProject: React.Dispatch<React.SetStateAction<ProjectData>>; }
+type CostField = 'salePrice' | 'materialCost' | 'hardwareCost' | 'laborCost' | 'otherCost' | 'discountPct' | 'marginPct';
+const STATUS_LABELS = { draft: 'Rascunho', sent: 'Enviado', approved: 'Aprovado', rejected: 'Rejeitado', cancelled: 'Cancelado' } as const;
 
 const OrcamentoModule = ({ project }: Props) => {
   const [showModal, setShowModal] = useState(false);
-  const { budget, setBudget, calc, formatBRL, loading, saving, saved, error, save, reload } = useOrcamento(project);
-
-  const field = (name: CostField, label: string) => (
-    <InputGroup label={label} value={budget[name] ?? ''} onChange={value => setBudget(name, value)} prefix="R$" />
-  );
-
-  return (
-    <>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in pb-20 md:pb-0">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="p-6">
-            <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2">
-              <Package size={20} className="text-indigo-500" /> Estela — Orçamento Real
-            </h3>
-            <p className="text-sm text-slate-500 mb-5">Aqui entram somente custos e preço de venda reais. O Marcenapp não inventa preço de MDF, ferragens ou mão de obra.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {field('salePrice', 'Preço de venda')}
-              {field('materialCost', 'Materiais / MDF')}
-              {field('hardwareCost', 'Ferragens')}
-              {field('laborCost', 'Mão de obra')}
-              {field('otherCost', 'Outros custos')}
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Sliders size={20} className="text-emerald-500" /> Dados do projeto</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
-              <div><span className="text-slate-400 block">Largura</span><strong>{project.width} m</strong></div>
-              <div><span className="text-slate-400 block">Altura</span><strong>{project.height} m</strong></div>
-              <div><span className="text-slate-400 block">Prof.</span><strong>{project.depth} m</strong></div>
-              <div><span className="text-slate-400 block">Portas</span><strong>{project.doors}</strong></div>
-              <div><span className="text-slate-400 block">Gavetas</span><strong>{project.drawers}</strong></div>
-            </div>
-          </Card>
-
-          {error && <Card className="p-4 border-red-200 bg-red-50"><p className="text-sm font-semibold text-red-700">{error}</p></Card>}
-          {saved && <Card className="p-4 border-emerald-200 bg-emerald-50"><p className="text-sm font-semibold text-emerald-700">Orçamento real salvo e disponível para a IARA.</p></Card>}
-        </div>
-
-        <div className="lg:col-span-1">
-          <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-700 sticky top-20" style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>
-            <div className="p-6">
-              <span style={{ color: '#a5b4fc', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Preço de Venda Real</span>
-              <div style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '1rem', marginTop: '0.5rem', color: '#fff' }}>{formatBRL(budget.salePrice)}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#cbd5e1' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Custo total</span><span style={{ color: '#fff', fontWeight: 600 }}>{formatBRL(calc.custoTotal)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Lucro real</span><span style={{ color: '#34d399', fontWeight: 700 }}>{formatBRL(calc.lucro)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Margem real</span><span style={{ color: '#34d399', fontWeight: 700 }}>{calc.margemPct == null ? '—' : `${calc.margemPct.toLocaleString('pt-BR')}%`}</span></div>
-                <div style={{ paddingTop: '0.75rem', borderTop: '1px solid #334155', fontSize: '0.75rem', color: '#94a3b8' }}>
-                  {loading ? 'Carregando orçamento...' : budget.updatedAt ? `Atualizado em ${new Date(budget.updatedAt).toLocaleString('pt-BR')}` : 'Ainda não existe orçamento real salvo para este projeto.'}
-                </div>
-              </div>
-              <button disabled={saving || !project.id} onClick={() => void save()} style={{ width: '100%', marginTop: '1.5rem', padding: '0.7rem', background: saving ? '#64748b' : '#4f46e5', color: '#fff', borderRadius: '0.75rem', fontWeight: 600, cursor: saving || !project.id ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: 'none' }}><Save size={16} /> {saving ? 'Salvando...' : 'Salvar orçamento real'}</button>
-              <button disabled={loading} onClick={() => void reload()} style={{ width: '100%', marginTop: '0.6rem', padding: '0.55rem', background: 'transparent', color: '#cbd5e1', borderRadius: '0.75rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: '1px solid #334155' }}><RefreshCw size={15} /> Atualizar</button>
-              <button disabled={!calc.isComplete} onClick={() => setShowModal(true)} style={{ width: '100%', marginTop: '0.6rem', padding: '0.6rem', background: calc.isComplete ? '#1e293b' : '#0f172a', color: calc.isComplete ? '#fff' : '#64748b', borderRadius: '0.75rem', fontWeight: 600, cursor: calc.isComplete ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: '1px solid #334155' }}><Printer size={16} /> Gerar Resumo</button>
-            </div>
-          </div>
-        </div>
+  const { budget, setBudget, setProposalReference, setStatus, calc, formatBRL, loading, saving, saved, error, save, reload } = useOrcamento(project);
+  const field = (name: CostField, label: string, prefix = 'R$') => <InputGroup label={label} value={budget[name] ?? ''} onChange={value => setBudget(name, value)} prefix={prefix} />;
+  return <>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in pb-20 md:pb-0">
+      <div className="lg:col-span-2 space-y-6">
+        <Card className="p-6">
+          <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2"><Package size={20} className="text-indigo-500" /> Estela — Orçamento Real</h3>
+          <p className="text-sm text-slate-500 mb-5">Somente custos e preço de venda informados pela marcenaria. Nenhum preço é inventado.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{field('salePrice', 'Preço de venda')}{field('materialCost', 'Materiais / MDF')}{field('hardwareCost', 'Ferragens')}{field('laborCost', 'Mão de obra')}{field('otherCost', 'Outros custos')}</div>
+        </Card>
+        <Card className="p-6">
+          <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Sliders size={20} className="text-emerald-500" /> Condições comerciais</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{field('marginPct', 'Margem desejada', '%')}{field('discountPct', 'Desconto', '%')}</div>
+          <label className="block mt-4"><span className="text-xs font-bold text-slate-600">Identificação do orçamento</span><input value={budget.proposalReference} onChange={e => setProposalReference(e.target.value)} placeholder={project.id ? `Orçamento do projeto ${project.id.slice(0, 8)}` : 'Ex.: Orçamento cozinha cliente'} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-indigo-500" /></label>
+          <label className="block mt-4"><span className="text-xs font-bold text-slate-600">Status comercial</span><select value={budget.status} onChange={e => setStatus(e.target.value as typeof budget.status)} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none">{Object.entries(STATUS_LABELS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        </Card>
+        <Card className="p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Sliders size={20} className="text-emerald-500" /> Dados do projeto</h3><div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm"><div><span className="text-slate-400 block">Largura</span><strong>{project.width} m</strong></div><div><span className="text-slate-400 block">Altura</span><strong>{project.height} m</strong></div><div><span className="text-slate-400 block">Prof.</span><strong>{project.depth} m</strong></div><div><span className="text-slate-400 block">Portas</span><strong>{project.doors}</strong></div><div><span className="text-slate-400 block">Gavetas</span><strong>{project.drawers}</strong></div></div></Card>
+        {error && <Card className="p-4 border-red-200 bg-red-50"><p className="text-sm font-semibold text-red-700">{error}</p></Card>}
+        {saved && <Card className="p-4 border-emerald-200 bg-emerald-50"><p className="text-sm font-semibold text-emerald-700">Orçamento real salvo e disponível para a IARA.</p></Card>}
       </div>
-
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Resumo do Orçamento Real" maxWidth="max-w-md">
-        <div className="bg-white p-6 rounded text-slate-800 space-y-4">
-          <div className="text-center border-b pb-4"><div className="flex items-center justify-center gap-2 mb-1"><Calculator size={20} className="text-indigo-600" /><h2 className="text-xl font-bold">Orçamento</h2></div><p className="text-slate-400 text-sm">Projeto {project.id ? project.id.slice(0, 8) : 'não salvo'}</p></div>
-          <div className="space-y-2 text-sm"><p><strong>Dimensões:</strong> {project.width} × {project.height} × {project.depth} m</p><p><strong>Estrutura:</strong> {project.doors} portas, {project.drawers} gavetas</p><div className="border-t border-dashed pt-3 mt-3 space-y-1"><p className="flex justify-between"><span>Materiais:</span><span>{formatBRL(budget.materialCost)}</span></p><p className="flex justify-between"><span>Ferragens:</span><span>{formatBRL(budget.hardwareCost)}</span></p><p className="flex justify-between"><span>Mão de Obra:</span><span>{formatBRL(budget.laborCost)}</span></p><p className="flex justify-between"><span>Outros:</span><span>{formatBRL(budget.otherCost)}</span></p><p className="flex justify-between font-bold"><span>Custo total:</span><span>{formatBRL(calc.custoTotal)}</span></p><p className="flex justify-between text-lg font-bold mt-2 border-t pt-2"><span>Preço de venda:</span><span>{formatBRL(budget.salePrice)}</span></p><p className="flex justify-between text-emerald-600 font-bold"><span>Lucro:</span><span>{formatBRL(calc.lucro)}</span></p><p className="flex justify-between text-emerald-600"><span>Margem:</span><span>{calc.margemPct == null ? '—' : `${calc.margemPct.toLocaleString('pt-BR')}%`}</span></p></div></div>
-          <Button onClick={() => window.print()} className="w-full"><Printer size={16} /> Imprimir</Button>
-        </div>
-      </Modal>
-    </>
-  );
+      <div className="lg:col-span-1"><div className="rounded-2xl overflow-hidden shadow-sm border border-slate-700 sticky top-20" style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}><div className="p-6"><span style={{ color: '#a5b4fc', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Proposta comercial</span><div style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '1rem', marginTop: '0.5rem', color: '#fff' }}>{formatBRL(calc.totalFinal ?? budget.salePrice)}</div><div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#cbd5e1' }}><div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Custo total</span><span style={{ color: '#fff', fontWeight: 600 }}>{formatBRL(calc.custoTotal)}</span></div><div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Lucro real</span><span style={{ color: '#34d399', fontWeight: 700 }}>{formatBRL(calc.lucro)}</span></div><div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Margem real</span><span style={{ color: '#34d399', fontWeight: 700 }}>{calc.margemPct == null ? '—' : `${calc.margemPct.toLocaleString('pt-BR')}%`}</span></div><div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Desconto</span><span style={{ color: '#fff', fontWeight: 600 }}>{budget.discountPct.toLocaleString('pt-BR')}%</span></div><div style={{ paddingTop: '0.75rem', borderTop: '1px solid #334155', fontSize: '0.75rem', color: '#94a3b8' }}>{loading ? 'Carregando orçamento...' : `${STATUS_LABELS[budget.status]}${budget.updatedAt ? ` · atualizado em ${new Date(budget.updatedAt).toLocaleString('pt-BR')}` : ''}`}</div></div><button disabled={saving || !project.id} onClick={() => void save()} style={{ width: '100%', marginTop: '1.5rem', padding: '0.7rem', background: saving ? '#64748b' : '#4f46e5', color: '#fff', borderRadius: '0.75rem', fontWeight: 600, cursor: saving || !project.id ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: 'none' }}><Save size={16} /> {saving ? 'Salvando...' : 'Salvar proposta'}</button><button disabled={loading} onClick={() => void reload()} style={{ width: '100%', marginTop: '0.6rem', padding: '0.55rem', background: 'transparent', color: '#cbd5e1', borderRadius: '0.75rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: '1px solid #334155' }}><RefreshCw size={15} /> Atualizar</button><button disabled={!calc.isComplete} onClick={() => setShowModal(true)} style={{ width: '100%', marginTop: '0.6rem', padding: '0.6rem', background: calc.isComplete ? '#1e293b' : '#0f172a', color: calc.isComplete ? '#fff' : '#64748b', borderRadius: '0.75rem', fontWeight: 600, cursor: calc.isComplete ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: '1px solid #334155' }}><Printer size={16} /> Gerar Resumo</button></div></div></div>
+    </div>
+    <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Resumo da Proposta" maxWidth="max-w-md"><div className="bg-white p-6 rounded text-slate-800 space-y-4"><div className="text-center border-b pb-4"><div className="flex items-center justify-center gap-2 mb-1"><Calculator size={20} className="text-indigo-600" /><h2 className="text-xl font-bold">Orçamento</h2></div><p className="text-slate-400 text-sm">{budget.proposalReference || `Projeto ${project.id ? project.id.slice(0, 8) : 'não salvo'}`}</p></div><div className="space-y-2 text-sm"><p><strong>Dimensões:</strong> {project.width} × {project.height} × {project.depth} m</p><div className="border-t border-dashed pt-3 mt-3 space-y-1"><p className="flex justify-between"><span>Materiais:</span><span>{formatBRL(budget.materialCost)}</span></p><p className="flex justify-between"><span>Ferragens:</span><span>{formatBRL(budget.hardwareCost)}</span></p><p className="flex justify-between"><span>Mão de Obra:</span><span>{formatBRL(budget.laborCost)}</span></p><p className="flex justify-between"><span>Outros:</span><span>{formatBRL(budget.otherCost)}</span></p><p className="flex justify-between font-bold"><span>Custo total:</span><span>{formatBRL(calc.custoTotal)}</span></p><p className="flex justify-between"><span>Preço de venda:</span><span>{formatBRL(budget.salePrice)}</span></p><p className="flex justify-between"><span>Desconto:</span><span>{budget.discountPct.toLocaleString('pt-BR')}%</span></p><p className="flex justify-between text-lg font-bold mt-2 border-t pt-2"><span>Total final:</span><span>{formatBRL(calc.totalFinal)}</span></p><p className="flex justify-between text-emerald-600 font-bold"><span>Lucro:</span><span>{formatBRL(calc.lucro)}</span></p><p className="flex justify-between text-emerald-600"><span>Status:</span><span>{STATUS_LABELS[budget.status]}</span></p></div></div><Button onClick={() => window.print()} className="w-full"><CheckCircle2 size={16} /> Imprimir</Button></div></Modal>
+  </>;
 };
-
 export default OrcamentoModule;
