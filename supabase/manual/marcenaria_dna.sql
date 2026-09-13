@@ -1,15 +1,27 @@
 -- Canonical SQL reference for Minha Marcenaria / DNA operacional.
--- Runtime dependencies are represented here and reproducible from migrations.
+-- This is the schema already consumed by runtime; migrations reproduce it.
 
 create table if not exists public.marcenaria_dna (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  data jsonb not null default '{}'::jsonb,
+  user_id uuid not null primary key references auth.users(id) on delete cascade,
+  standard_mdf_thickness_mm numeric,
+  back_thickness_mm numeric,
+  minimum_margin_pct numeric,
+  labor_cost_per_hour numeric,
+  waste_pct numeric,
+  standard_processes jsonb not null default '{}'::jsonb,
+  machines jsonb not null default '{}'::jsonb,
+  suppliers jsonb not null default '{}'::jsonb,
+  material_prices jsonb not null default '{}'::jsonb,
+  hardware_prices jsonb not null default '{}'::jsonb,
+  construction_rules jsonb not null default '{}'::jsonb,
+  production_rules jsonb not null default '{}'::jsonb,
+  assembly_rules jsonb not null default '{}'::jsonb,
+  financial_rules jsonb not null default '{}'::jsonb,
+  preferences jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint marcenaria_dna_user_unique unique (user_id)
+  updated_at timestamptz not null default now()
 );
-create index if not exists marcenaria_dna_user_idx on public.marcenaria_dna(user_id);
+create unique index if not exists marcenaria_dna_user_idx on public.marcenaria_dna(user_id);
 
 create table if not exists public.marcenaria_materiais (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade, nome text not null, categoria text, unidade text default 'un', espessura numeric, preco numeric, fornecedor text, ativo boolean not null default true, origem text default 'manual', metadata jsonb not null default '{}'::jsonb, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 create table if not exists public.marcenaria_fornecedores (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade, nome text not null, contato text, site text, observacoes text, metadata jsonb not null default '{}'::jsonb, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
@@ -35,9 +47,5 @@ create policy "owner documents" on public.marcenaria_documentos for all to authe
 
 grant select, insert, update, delete on public.marcenaria_dna, public.marcenaria_materiais, public.marcenaria_fornecedores, public.marcenaria_estoque, public.marcenaria_documentos to authenticated;
 
--- The private obras bucket accepts only formats consumed by dnaIngestion.ts and remains capped at 10 MB.
-update storage.buckets
-set public = false,
-    file_size_limit = 10485760,
-    allowed_mime_types = array['application/pdf','text/csv','text/plain','image/jpeg','image/png','image/webp']::text[]
-where id = 'obras';
+-- Private bucket contract for DNA ingestion: only supported formats, 10 MB maximum.
+update storage.buckets set public=false, file_size_limit=10485760, allowed_mime_types=array['application/pdf','text/csv','text/plain','image/jpeg','image/png','image/webp']::text[] where id='obras';
