@@ -32,13 +32,16 @@ describe('IARA-Studio Architecture', () => {
     expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
     expect(vi.mocked(studioService.generateVisual).mock.calls[0]?.[1]).toEqual([{ mimeType: 'image/png', data: 'abc' }]);
   });
-  it('IARA command without visual context fails without calling the render service', async () => {
+  it('IARA command without visual context is accepted for text-only rendering', async () => {
+    vi.mocked(studioService.generateVisual).mockResolvedValue('url-text-only');
     let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
     renderAct(() => { ids = dispatchRender(undefined); });
     render(<StudioWorker />);
     await renderAct(async () => { await new Promise(r => setTimeout(r, 50)); });
     const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
-    expect(osCmd?.status).toBe('failed');
-    expect(studioService.generateVisual).not.toHaveBeenCalled();
+    expect(osCmd?.status).toBe('completed');
+    expect(osCmd?.result?.resultUrl).toBe('url-text-only');
+    expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(studioService.generateVisual).mock.calls[0]?.[1]).toBeUndefined();
   });
 });
