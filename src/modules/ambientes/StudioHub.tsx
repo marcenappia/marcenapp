@@ -10,35 +10,24 @@ interface StudioHubProps {
   budgetProject: ProjectData;
 }
 
-/**
- * Studio is a work surface inside the IARA experience, not a second prompt + render workspace.
- * Keep project synchronization here while leaving conversation, actions and artifacts to IARA.
- */
+/** IARA is the work surface; the surrounding frame stays quiet so conversation remains primary. */
 export const StudioHub = (props: StudioHubProps) => {
   const { budgetProject } = props;
   const projectId: string | null = budgetProject?.id ?? null;
-
-  const syncProject = {
-    width: budgetProject?.width,
-    height: budgetProject?.height,
-    depth: budgetProject?.depth,
-  };
+  const syncProject = { width: budgetProject?.width, height: budgetProject?.height, depth: budgetProject?.depth };
 
   const handleIaraProjectChange = (project: { width: number; height: number; depth: number }) => {
-    props.setBudgetProject((prev) => {
+    props.setBudgetProject(prev => {
       if (prev?.width === project.width && prev?.height === project.height && prev?.depth === project.depth) return prev;
       return { ...prev, width: project.width, height: project.height, depth: project.depth };
     });
   };
 
   return (
-    <section className="relative h-full min-h-[calc(100vh-9rem)]" aria-label="IARA — trabalho no projeto atual">
-      <IaraModule
-        embedded
-        projectId={projectId}
-        syncProject={syncProject}
-        onProjectChange={handleIaraProjectChange}
-      />
+    <section className="relative min-h-[calc(100vh-9rem)] w-full rounded-2xl bg-slate-100/70 p-1 sm:p-2 md:p-3" aria-label="IARA — trabalho no projeto atual">
+      <div className="h-full min-h-[calc(100vh-10rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <IaraModule embedded projectId={projectId} syncProject={syncProject} onProjectChange={handleIaraProjectChange} />
+      </div>
     </section>
   );
 };
