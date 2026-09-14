@@ -67,7 +67,7 @@ export async function loadIaraContext(userId: string, projectId: string | null):
   };
 }
 
-export async function persistIaraContext(userId: string, context: IaraContext, correlationId?: string): Promise<void> {
+export async function persistIaraContext(userId: string, context: IaraContext, correlationId?: string, generation?: number): Promise<void> {
   if (!context.projectId) return;
   const { data: existing } = await supabase.from('project_iara_contexts').select('id').eq('user_id', userId).eq('project_id', context.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
   const payload = {
@@ -77,6 +77,7 @@ export async function persistIaraContext(userId: string, context: IaraContext, c
     environment_id: context.environmentId,
     version_id: context.versionId,
     ...(correlationId ? { last_correlation_id: correlationId } : {}),
+    ...(typeof generation === 'number' ? { last_execution_generation: generation } : {}),
     updated_at: new Date().toISOString(),
   };
   if (existing?.id) {
