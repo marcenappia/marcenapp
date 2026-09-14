@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, act, cleanup, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Auth from '../pages/Auth';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -45,9 +45,10 @@ describe('Auth Page - Reset Password Flow', () => {
     if (submitButton.hasAttribute('disabled')) {
       await act(async () => { vi.advanceTimersByTime(30000); });
     }
+    await waitFor(() => expect(submitButton).toBeEnabled());
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Enviar Recuperação/i }));
+      fireEvent.click(submitButton);
     });
 
     expect(await screen.findByText(/Se o e-mail estiver cadastrado, enviaremos a recuperação\. Verifique também o spam\./i)).toBeInTheDocument();
@@ -57,7 +58,7 @@ describe('Auth Page - Reset Password Flow', () => {
       vi.advanceTimersByTime(30000);
     });
 
-    expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled());
   });
 
   it('shows support link when an error occurs during reset', async () => {
@@ -74,9 +75,10 @@ describe('Auth Page - Reset Password Flow', () => {
     if (submitButton.hasAttribute('disabled')) {
       await act(async () => { vi.advanceTimersByTime(30000); });
     }
+    await waitFor(() => expect(submitButton).toBeEnabled());
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Enviar Recuperação/i }));
+      fireEvent.click(submitButton);
     });
 
     expect(await screen.findByText(/Failed to send/i)).toBeInTheDocument();
