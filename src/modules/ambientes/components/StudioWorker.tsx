@@ -17,6 +17,7 @@ export const StudioWorker = () => {
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
   const failCommand = useStudioStore(state => state.failCommand);
+  const cancelCommand = useStudioStore(state => state.cancelCommand);
   const currentlyProcessing = useRef<string | null>(null);
 
   useEffect(() => {
@@ -44,8 +45,10 @@ export const StudioWorker = () => {
     } | null;
   };
 
-  const isCurrentContext = async (payload: Record<string, unknown>) => {
+  const isCurrentContext = async (payload: Record<string, unknown>, isIaraCommand: boolean) => {
     if (!user || payload.userId !== user.id) return false;
+
+    if (isIaraCommand && typeof payload.generation !== 'number') return false;
 
     const hasScopedContext = [payload.projectId, payload.environmentId, payload.versionId]
       .some(value => typeof value === 'string' && value.length > 0);
@@ -63,8 +66,13 @@ export const StudioWorker = () => {
     if (!sameScope) return false;
 
     // project_iara_contexts persists the latest correlation id, but not the
-    // in-memory execution generation. Correlation ids are unique per request
-    // and therefore provide the durable stale-command guard here.
+    // in-memory execution generation. For IARA commands the correlation id is
+    // mandatory and provides the durable stale-command guard.
+    if (isIaraCommand) {
+      return typeof payload.correlationId === 'string'
+        && payload.correlationId === current.last_correlation_id;
+    }
+
     return typeof payload.correlationId !== 'string'
       || payload.correlationId === current.last_correlation_id;
   };
@@ -82,12 +90,20 @@ export const StudioWorker = () => {
   const processCommand = async (osCommand: OSCommand) => {
     if (osCommand.status === 'cancelled' || !user) { currentlyProcessing.current = null; return; }
     const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
-    if (!(await isCurrentContext(payload))) {
-      const message = 'Comando de render descartado: o contexto persistido do projeto não corresponde à execução atual.';
-      updateOSStatus(osCommand.id, 'failed', undefined, message);
+    const isIaraCommand = osCommand.source === 'iara';
+
+    const cancel = (message: string) => {
+      updateOSStatus(osCommand.id, 'cancelled', undefined, message);
       const { studioCommandId } = resolveRenderCommand(osCommand);
-      if (studioCommandId) failCommand(studioCommandId, message);
+      if (studioCommandId) cancelCommand(studioCommandId);
       currentlyProcessing.current = null;
+    };
+
+    if (!(await isCurrentContext(payload, isIaraCommand))) {
+      const message = isIaraCommand
+        ? 'Comando de render descartado: a identidade da execução IARA não corresponde ao contexto atual.'
+        : 'Comando de render descartado: o contexto persistido do projeto não corresponde à execução atual.';
+      cancel(message);
       return;
     }
 
@@ -105,8 +121,8 @@ export const StudioWorker = () => {
       const idempotencyKey = typeof payload.correlationId === 'string' ? payload.correlationId : undefined;
       const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, idempotencyKey);
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
-      if (!(await isCurrentContext(payload))) {
-        fail('Resultado descartado: a identidade de execução mudou durante a geração.');
+      if (!(await isCurrentContext(payload, isIaraCommand))) {
+        cancel('Resultado descartado: a identidade da execução mudou durante a geração.');
         return;
       }
 
