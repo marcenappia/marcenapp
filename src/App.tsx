@@ -21,9 +21,6 @@ const HomeRoute = () => {
   return user ? <Workspace /> : <Landing />;
 };
 
-const isFirebasePreview =
-  typeof window !== "undefined" && window.location.hostname.endsWith(".web.app");
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -32,15 +29,6 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <SeoRoute />
-          {isFirebasePreview && (
-            <div
-              className="fixed right-4 top-4 z-[9999] rounded-full border border-white/15 bg-slate-950/90 px-3 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur"
-              role="status"
-              aria-label="Firebase Preview ativo"
-            >
-              Firebase Preview • código atualizado
-            </div>
-          )}
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<Auth />} />
@@ -50,6 +38,7 @@ const App = () => (
             <Route path="/forgot-password" element={<Auth />} />
             <Route path="/reset-password" element={<Auth />} />
             <Route path="/workspace" element={<Workspace />} />
+            <Route path="/app" element={<Index />} />
             <Route path="/cliente/revisao" element={<ClientReview />} />
             <Route path="/admin/agentes" element={<AdminAgents />} />
             <Route path="/" element={<HomeRoute />} />
