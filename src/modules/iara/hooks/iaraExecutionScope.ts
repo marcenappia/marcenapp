@@ -13,6 +13,16 @@ export type IaraCommandIdentity = {
   environmentId?: unknown;
   versionId?: unknown;
   correlationId?: unknown;
+  generation?: unknown;
+};
+
+export type IaraPersistedExecutionContext = {
+  userId: string | null;
+  projectId: string | null;
+  environmentId: string | null;
+  versionId: string | null;
+  correlationId: string | null;
+  generation: number | null;
 };
 
 export function isIaraExecutionCurrent(identity: IaraExecutionIdentity, context: { userId: string | null; projectId: string | null; environmentId: string | null; versionId: string | null }, generation: number): boolean {
@@ -28,5 +38,17 @@ export function isIaraCommandForExecution(command: { payload?: IaraCommandIdenti
     && command.payload?.projectId === identity.projectId
     && command.payload?.environmentId === identity.environmentId
     && command.payload?.versionId === identity.versionId
-    && command.payload?.correlationId === identity.correlationId;
+    && command.payload?.correlationId === identity.correlationId
+    && command.payload?.generation === identity.generation;
+}
+
+export function isIaraCommandExecutionCurrent(command: { payload?: IaraCommandIdentity }, current: IaraPersistedExecutionContext): boolean {
+  const payload = command.payload;
+  if (!payload || typeof payload.userId !== 'string' || typeof payload.correlationId !== 'string' || typeof payload.generation !== 'number') return false;
+  return payload.userId === current.userId
+    && (payload.projectId ?? null) === current.projectId
+    && (payload.environmentId ?? null) === current.environmentId
+    && (payload.versionId ?? null) === current.versionId
+    && payload.correlationId === current.correlationId
+    && payload.generation === current.generation;
 }
