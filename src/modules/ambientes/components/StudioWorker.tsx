@@ -15,6 +15,7 @@ export const StudioWorker = () => {
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
   const failCommand = useStudioStore(state => state.failCommand);
+  const cancelCommand = useStudioStore(state => state.cancelCommand);
   const currentlyProcessing = useRef<string | null>(null);
 
   useEffect(() => {
@@ -71,6 +72,7 @@ export const StudioWorker = () => {
     if (osCommand.status === 'cancelled' || !user) { currentlyProcessing.current = null; return; }
     const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
     if (!(await isCurrentContext(payload))) {
+      cancelCommand((payload.studioCommandId as string | undefined) ?? osCommand.id);
       updateOSStatus(osCommand.id, 'cancelled', undefined, 'Comando descartado: identidade de execução não é mais válida.');
       currentlyProcessing.current = null;
       return;
@@ -86,7 +88,8 @@ export const StudioWorker = () => {
       const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, osCommand.id);
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
       if (!(await isCurrentContext(payload))) {
-        fail('Resultado descartado: a identidade de execução mudou durante a geração.');
+        cancelCommand(storeCommandId);
+        updateOSStatus(osCommand.id, 'cancelled', undefined, 'Resultado descartado: a identidade de execução mudou durante a geração.');
         return;
       }
       completeCommand(storeCommandId, result);
@@ -102,7 +105,7 @@ export const StudioWorker = () => {
         correlation_id: typeof payload.correlationId === 'string' ? payload.correlationId : null,
         execution_generation: typeof payload.generation === 'number' ? payload.generation : null,
       });
-      if (error) throw new Error(`Erro ao salvar na galeria: ${error.message}`);
+      if (error) console.error('Falha ao salvar o render na galeria após conclusão:', error);
     } catch (error: unknown) {
       console.error('StudioWorker Error:', error);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
