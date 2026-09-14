@@ -25,13 +25,11 @@ describe('Auth Page - Reset Password Flow', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
-    vi.useFakeTimers();
     vi.stubEnv('VITE_SUPPORT_WHATSAPP_LINK', 'https://example.com/support');
   });
 
   afterEach(() => {
     cleanup();
-    vi.useRealTimers();
   });
 
   it('shows success state and disables reset submission during the cooldown', async () => {
