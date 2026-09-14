@@ -25,7 +25,7 @@ describe('Auth Page - Reset Password Flow', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers();
     vi.stubEnv('VITE_SUPPORT_WHATSAPP_LINK', 'https://example.com/support');
   });
 
@@ -41,11 +41,8 @@ describe('Auth Page - Reset Password Flow', () => {
     renderAuth();
     fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
 
-    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação|Aguarde/i });
-    if (submitButton.hasAttribute('disabled')) {
-      await act(async () => { vi.advanceTimersByTime(30000); });
-    }
-    await waitFor(() => expect(submitButton).toBeEnabled());
+    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação/i });
+    expect(submitButton).toBeEnabled();
 
     await act(async () => {
       fireEvent.click(submitButton);
@@ -55,10 +52,10 @@ describe('Auth Page - Reset Password Flow', () => {
     expect(screen.getByRole('button', { name: /Aguarde/i })).toBeDisabled();
 
     await act(async () => {
-      vi.advanceTimersByTime(31000);
+      await vi.runAllTimersAsync();
     });
 
-    expect(await screen.findByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
   });
 
   it('shows support link when an error occurs during reset', async () => {
@@ -71,11 +68,8 @@ describe('Auth Page - Reset Password Flow', () => {
     renderAuth();
     fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
 
-    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação|Aguarde/i });
-    if (submitButton.hasAttribute('disabled')) {
-      await act(async () => { vi.advanceTimersByTime(30000); });
-    }
-    await waitFor(() => expect(submitButton).toBeEnabled());
+    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação/i });
+    expect(submitButton).toBeEnabled();
 
     await act(async () => {
       fireEvent.click(submitButton);
