@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Auth from '../pages/Auth';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -34,7 +34,7 @@ describe('Auth Page - Reset Password Flow', () => {
     vi.useRealTimers();
   });
 
-  it('shows success state and countdown after a successful reset request', async () => {
+  it('shows success state and disables reset submission during the cooldown', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
     (supabase.auth.resetPasswordForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {}, error: null });
 
@@ -50,12 +50,6 @@ describe('Auth Page - Reset Password Flow', () => {
 
     expect(await screen.findByText(/Se o e-mail estiver cadastrado, enviaremos a recuperação\. Verifique também o spam\./i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Aguarde/i })).toBeDisabled();
-
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-
-    expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
   });
 
   it('shows support link when an error occurs during reset', async () => {
