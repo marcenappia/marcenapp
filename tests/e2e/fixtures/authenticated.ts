@@ -5,7 +5,7 @@ type AuthenticatedFixtures = {
 };
 
 export const test = base.extend<AuthenticatedFixtures>({
-  authenticatedPage: async ({ browser, baseURL }, use) => {
+  authenticatedPage: async ({ browser, baseURL }, fixtureUse) => {
     const email = process.env.E2E_EMAIL?.trim();
     const password = process.env.E2E_PASSWORD;
     if (!email || !password) {
@@ -21,7 +21,7 @@ export const test = base.extend<AuthenticatedFixtures>({
     await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/$/);
 
-    await use(page);
+    await fixtureUse(page);
     await context.close();
   },
 });

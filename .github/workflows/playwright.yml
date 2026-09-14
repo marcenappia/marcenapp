@@ -1,13 +1,18 @@
 name: Playwright Tests
-# Validation trigger kept on main so the complete IARA E2E gate runs for the current commit.
+# Full validation gate for the release branch; never deploys or merges.
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+
+permissions:
+  contents: read
+
 concurrency:
   group: marcenapp-validation-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   test:
     timeout-minutes: 60
@@ -18,9 +23,11 @@ jobs:
       with:
         node-version: lts/*
         cache: npm
+
     - name: Install dependencies
       id: install
       run: npm ci
+
     - name: Dependency audit
       if: ${{ always() && steps.install.outcome == 'success' }}
       continue-on-error: true
@@ -35,48 +42,42 @@ jobs:
           console.log(JSON.stringify({ package: name, severity: info.severity, isDirect: info.isDirect, via: info.via?.map(v => typeof v === 'string' ? v : v.name), range: info.range, fixAvailable: info.fixAvailable }));
         }
         NODE
+
     - name: Lint
       id: lint
-      continue-on-error: true
-      run: |
-        set +e
-        npm run lint 2>&1 | tee lint.log
-        status=${PIPESTATUS[0]}
-        echo "lint_exit_code=$status" >> "$GITHUB_STEP_SUMMARY"
-        exit "$status"
-    - name: Typecheck diagnostics
+      if: ${{ steps.install.outcome == 'success' }}
+      run: npm run lint
+
+    - name: Typecheck
       id: typecheck
-      continue-on-error: true
-      if: ${{ always() && steps.install.outcome == 'success' }}
-      run: |
-        set +e
-        npx tsc -p tsconfig.app.json --noEmit 2>&1 | tee typecheck.log
-        status=${PIPESTATUS[0]}
-        echo "typecheck_exit_code=$status" >> "$GITHUB_STEP_SUMMARY"
-        exit "$status"
+      if: ${{ steps.install.outcome == 'success' }}
+      run: npx tsc -p tsconfig.app.json --noEmit
+
     - name: Unit tests
       id: unit
-      continue-on-error: true
-      if: ${{ always() && steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       run: npm run test
+
     - name: Production build
       id: build
-      continue-on-error: true
-      if: ${{ always() && steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       run: npm run build
+
     - name: Install Playwright Browsers
-      if: ${{ always() && steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       run: npx playwright install --with-deps
+
     - name: Run Playwright tests
       id: playwright
-      continue-on-error: true
-      if: ${{ always() && steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       env:
         E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
         E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
       run: npx playwright test
+
     - name: Upload diagnostics
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       if: always() && steps.install.outcome == 'success'
       with:
         name: diagnostics-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -88,20 +89,3 @@ jobs:
           test-results/
         if-no-files-found: ignore
         retention-days: 7
-    - name: Enforce validation gates
-      if: ${{ always() && steps.install.outcome == 'success' }}
-      run: |
-        failed=0
-        for gate in lint typecheck unit build playwright; do
-          if [ "${{ steps.lint.conclusion }}" != "success" ] && [ "$gate" = "lint" ]; then failed=1; fi
-          if [ "${{ steps.typecheck.conclusion }}" != "success" ] && [ "$gate" = "typecheck" ]; then failed=1; fi
-          if [ "${{ steps.unit.conclusion }}" != "success" ] && [ "$gate" = "unit" ]; then failed=1; fi
-          if [ "${{ steps.build.conclusion }}" != "success" ] && [ "$gate" = "build" ]; then failed=1; fi
-          if [ "${{ steps.playwright.conclusion }}" != "success" ] && [ "$gate" = "playwright" ]; then failed=1; fi
-        done
-        echo "lint=${{ steps.lint.conclusion }}"
-        echo "typecheck=${{ steps.typecheck.conclusion }}"
-        echo "unit=${{ steps.unit.conclusion }}"
-        echo "build=${{ steps.build.conclusion }}"
-        echo "playwright=${{ steps.playwright.conclusion }}"
-        exit "$failed"

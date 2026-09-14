@@ -54,8 +54,9 @@ describe('gerarContrato tool', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.clausulasGeradas).toBe(2);
-      expect(result.data.clausulas).toEqual(['Cláusula um', 'Cláusula dois']);
+      const data = result.data as { clausulasGeradas: number; clausulas: string[] };
+      expect(data.clausulasGeradas).toBe(2);
+      expect(data.clausulas).toEqual(['Cláusula um', 'Cláusula dois']);
     }
   });
 });

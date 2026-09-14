@@ -10,6 +10,31 @@ type PersistedStudioState = Partial<StudioState>;
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 const asPersistedState = (value: unknown): PersistedStudioState => isRecord(value) ? value as PersistedStudioState : {};
 const asStatus = (value: unknown): CommandStatus => value === 'processing' || value === 'completed' || value === 'failed' || value === 'cancelled' ? value : 'pending';
+const asMetadata = (value: unknown): RenderCommand['metadata'] => {
+  if (!isRecord(value)) return { origin: 'manual' };
+  const origin = value.origin === 'iara' ? 'iara' : 'manual';
+  return {
+    origin,
+    ...(typeof value.originalPrompt === 'string' ? { originalPrompt: value.originalPrompt } : {}),
+    ...(typeof value.targetModule === 'string' ? { targetModule: value.targetModule } : {}),
+  };
+};
+const asMigratedCommand = (value: unknown): RenderCommand | null => {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.prompt !== 'string') return null;
+  return {
+    id: value.id,
+    prompt: value.prompt,
+    status: asStatus(value.status),
+    timestamp: typeof value.timestamp === 'number' ? value.timestamp : Date.now(),
+    ...(Array.isArray(value.images) ? { images: value.images.filter(isRecord).flatMap(image => typeof image.mimeType === 'string' && typeof image.data === 'string' ? [{ mimeType: image.mimeType, data: image.data }] : []) } : {}),
+    ...(typeof value.style === 'string' ? { style: value.style } : {}),
+    ...(typeof value.decor === 'string' ? { decor: value.decor } : {}),
+    ...(typeof value.error === 'string' ? { error: value.error } : {}),
+    ...(typeof value.resultUrl === 'string' ? { resultUrl: value.resultUrl } : {}),
+    ...(typeof value.idempotencyKey === 'string' ? { idempotencyKey: value.idempotencyKey } : {}),
+    metadata: asMetadata(value.metadata),
+  };
+};
 
 export const useStudioStore = create<StudioState>()(
   persist(
@@ -39,10 +64,7 @@ export const useStudioStore = create<StudioState>()(
         const state = asPersistedState(persistedState);
         if (version === 0) return { ...state, commandQueue: [] };
         if (version === 1) {
-          const commandQueue = Array.isArray(state.commandQueue) ? state.commandQueue.map(command => {
-            const cmd = isRecord(command) ? command : {};
-            return { ...cmd, status: asStatus(cmd.status), metadata: isRecord(cmd.metadata) ? cmd.metadata : { origin: 'manual' } };
-          }) : [];
+          const commandQueue = Array.isArray(state.commandQueue) ? state.commandQueue.map(asMigratedCommand).filter((command): command is RenderCommand => command !== null) : [];
           return { ...state, commandQueue };
         }
         return state;
