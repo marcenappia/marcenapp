@@ -23,9 +23,10 @@ It must not duplicate or replace:
 The official ECC repository is treated as upstream only:
 
 - upstream: `https://github.com/affaan-m/ECC.git`
-- pinned commit: `e7b0c6b8e4f2e0f9f7f2d1d4f3d8f6b0e0c5a6d1`
+- pinned commit: `8321021c54d670126ce3b2969d5deb880b4b0c2a`
+- upstream commit message: `fix(memory): classify directory traversal failures`
 
-The pin above is a placeholder until the bootstrap process records the exact verified upstream commit. Never update the vendored snapshot from `main` implicitly.
+This is a fixed snapshot reference. Never update the vendored snapshot from upstream `main` implicitly.
 
 ## Operating model
 
