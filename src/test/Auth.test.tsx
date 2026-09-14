@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Auth from '../pages/Auth';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -23,12 +23,14 @@ const renderAuth = () => render(<MemoryRouter initialEntries={['/forgot-password
 
 describe('Auth Page - Reset Password Flow', () => {
   beforeEach(() => {
+    cleanup();
     vi.clearAllMocks();
     vi.useFakeTimers();
     vi.stubEnv('VITE_SUPPORT_WHATSAPP_LINK', 'https://example.com/support');
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
   });
 
