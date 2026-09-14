@@ -52,9 +52,11 @@ describe('Auth Page - Reset Password Flow', () => {
     expect(screen.getByText(/Se o e-mail estiver cadastrado, enviaremos a recuperação\. Verifique também o spam\./i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Aguarde/i })).toBeDisabled();
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000);
-    });
+    for (let second = 0; second < 30; second += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+    }
 
     expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
   });
