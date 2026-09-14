@@ -21,6 +21,6 @@ vi.mock('@/modules/jornada/Home', () => ({ default: () => <div data-testid="home
 
 describe('Menu Accessibility', () => {
   beforeEach(() => { window.innerWidth = 1200; localStorage.setItem('marcenapp_onboarding_seen', 'true'); window.HTMLElement.prototype.scrollIntoView = vi.fn(); });
-  it('nav buttons should have focus indicators', () => { render(<BrowserRouter><Index /></BrowserRouter>); const chatBtn = screen.getByLabelText(/Inteligência Operacional/i); expect(chatBtn).toHaveClass('focus-visible:ring-2'); });
+  it('nav buttons should have focus indicators', () => { render(<BrowserRouter><Index /></BrowserRouter>); const chatBtn = screen.getByLabelText(/^IARA$/i); expect(chatBtn).toHaveClass('focus-visible:ring-2'); });
   it('home (jornada) is the default module and mobile nav exposes Novo', () => { window.innerWidth = 400; render(<BrowserRouter><Index /></BrowserRouter>); expect(screen.getByTestId('home')).toBeInTheDocument(); expect(screen.getByLabelText('Novo')).toBeInTheDocument(); });
 });
