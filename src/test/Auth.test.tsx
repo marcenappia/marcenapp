@@ -32,16 +32,6 @@ describe('Auth Page - Reset Password Flow', () => {
     vi.useRealTimers();
   });
 
-  const getReadyResetButton = async () => {
-    const button = screen.getByRole('button', { name: /Enviar Recuperação|Aguarde/i });
-    if (button.hasAttribute('disabled')) {
-      await act(async () => {
-        vi.advanceTimersByTime(31_000);
-      });
-    }
-    return screen.getByRole('button', { name: /Enviar Recuperação/i });
-  };
-
   it('shows success state and countdown after a successful reset request', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
     (supabase.auth.resetPasswordForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {}, error: null });
@@ -49,7 +39,8 @@ describe('Auth Page - Reset Password Flow', () => {
     renderAuth();
     fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
 
-    const submitButton = await getReadyResetButton();
+    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação/i });
+    expect(submitButton).toBeEnabled();
     await act(async () => {
       fireEvent.click(submitButton);
       await Promise.resolve();
@@ -59,7 +50,7 @@ describe('Auth Page - Reset Password Flow', () => {
     expect(screen.getByRole('button', { name: /Aguarde/i })).toBeDisabled();
 
     await act(async () => {
-      vi.advanceTimersByTime(31_000);
+      await vi.runAllTimersAsync();
     });
 
     expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
@@ -75,7 +66,8 @@ describe('Auth Page - Reset Password Flow', () => {
     renderAuth();
     fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
 
-    const submitButton = await getReadyResetButton();
+    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação/i });
+    expect(submitButton).toBeEnabled();
     await act(async () => {
       fireEvent.click(submitButton);
       await Promise.resolve();
