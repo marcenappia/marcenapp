@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 type AIImageInput = string | { mimeType: string; data: string };
-type AIErrorBody = { error?: string; message?: string; code?: string };
+type AIErrorBody = { error?: string; message?: string; code?: string; diagnostic?: { correlationId?: string; provider?: string; model?: string; upstreamStatus?: number | null; upstreamError?: string } };
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://uzhqhieqlcyncelltfjw.supabase.co';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_o9A9xyvRYXt-Rl9MZfdArA_SdYOAySX';
@@ -13,51 +13,37 @@ export const requireAuth = async (): Promise<boolean> => {
 };
 
 export class AIAuthError extends Error {
-  constructor(message = 'Faça login para usar os recursos de IA.') {
-    super(message);
-    this.name = 'AIAuthError';
-  }
+  constructor(message = 'Faça login para usar os recursos de IA.') { super(message); this.name = 'AIAuthError'; }
 }
 
 export const aiHeaders = async (): Promise<Record<string, string>> => {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new AIAuthError();
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${session.access_token}`,
-    apikey: SUPABASE_KEY,
-  };
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}`, apikey: SUPABASE_KEY };
 };
 
-const isAIErrorBody = (value: unknown): value is AIErrorBody =>
-  typeof value === 'object' && value !== null && ('error' in value || 'message' in value || 'code' in value);
+const isAIErrorBody = (value: unknown): value is AIErrorBody => typeof value === 'object' && value !== null && ('error' in value || 'message' in value || 'code' in value);
 
 const normalizeAIError = (status: number, data: unknown): Error => {
   if (status === 401) return new AIAuthError('Sessão expirada. Faça login novamente.');
   const body = isAIErrorBody(data) ? data : {};
   switch (body.code) {
     case 'missing_api_key':
-    case 'provider_not_configured':
-      return new Error('Nenhum provedor de IA está configurado para esta operação. Verifique a configuração no Admin.');
-    case 'commercial_rule_missing':
-      return new Error('Esta ferramenta de IA ainda não está habilitada comercialmente.');
-    case 'insufficient_credits':
-      return new Error('Créditos Marcenapp insuficientes para gerar o render.');
+    case 'provider_not_configured': return new Error('Nenhum provedor de IA está configurado para esta operação. Verifique a configuração no Admin.');
+    case 'commercial_rule_missing': return new Error('Esta ferramenta de IA ainda não está habilitada comercialmente.');
+    case 'insufficient_credits': return new Error('Créditos Marcenapp insuficientes para gerar o render.');
     case 'provider_credits_exhausted':
-    case 'credits_exhausted':
-      return new Error('Os créditos do provedor de IA acabaram. Verifique o provedor configurado no Admin.');
-    case 'rate_limit_unavailable':
-      return new Error('O controle de uso da IA está indisponível. Tente novamente em instantes.');
-    case 'provider_connection_error':
-      return new Error('Não foi possível comunicar com o provedor de IA. Tente novamente.');
-    case 'provider_timeout':
-      return new Error('O provedor de IA demorou além do limite esperado. Tente novamente.');
-    case 'upstream_error':
-      return new Error('O provedor de IA está indisponível no momento. Tente novamente.');
-    case 'rate_limited':
-      return new Error('O limite do provedor de IA foi atingido. Tente novamente em alguns segundos.');
-    default:
-      return new Error(body.error || body.message || `Erro ${status}`);
+    case 'credits_exhausted': return new Error('Os créditos do provedor de IA acabaram. Verifique o provedor configurado no Admin.');
+    case 'rate_limit_unavailable': return new Error('O controle de uso da IA está indisponível. Tente novamente em instantes.');
+    case 'provider_connection_error': return new Error('Não foi possível comunicar com o provedor de IA. Tente novamente.');
+    case 'provider_timeout': return new Error('O provedor de IA demorou além do limite esperado. Tente novamente.');
+    case 'provider_bad_request': return new Error(`A requisição de render foi rejeitada pelo provedor${body.diagnostic?.upstreamError ? `: ${body.diagnostic.upstreamError}` : '.'}`);
+    case 'provider_auth_error': return new Error(`A autenticação do provedor de imagens foi rejeitada${body.diagnostic?.upstreamError ? `: ${body.diagnostic.upstreamError}` : '.'}`);
+    case 'provider_model_not_found': return new Error(`O modelo de imagem configurado não foi encontrado${body.diagnostic?.upstreamError ? `: ${body.diagnostic.upstreamError}` : '.'}`);
+    case 'provider_server_error': return new Error(`O provedor de imagens retornou erro de servidor${body.diagnostic?.upstreamError ? `: ${body.diagnostic.upstreamError}` : '.'}`);
+    case 'rate_limited': return new Error('O limite do provedor de IA foi atingido. Tente novamente em alguns segundos.');
+    case 'upstream_error': return new Error(`Falha no provedor de imagens (HTTP ${body.diagnostic?.upstreamStatus ?? status})${body.diagnostic?.upstreamError ? `: ${body.diagnostic.upstreamError}` : '. Não é possível afirmar que o provedor esteja indisponível.'}`);
+    default: return new Error(body.error || body.message || `Erro ${status}`);
   }
 };
 
@@ -65,42 +51,20 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Pr
   const headers = await aiHeaders();
   let res: Response;
   try {
-    res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
-    });
+    res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(AI_TIMEOUT_MS) });
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error('A comunicação com o serviço de IA excedeu o tempo limite. Tente novamente.');
-    }
+    if (error instanceof DOMException && error.name === 'TimeoutError') throw new Error('A comunicação com o serviço de IA excedeu o tempo limite. Tente novamente.');
     throw new Error('Não foi possível comunicar com o serviço de IA. Verifique sua conexão e tente novamente.');
   }
-
   let data: unknown = null;
   try { data = await res.json(); } catch { /* corpo vazio */ }
   if (!res.ok) throw normalizeAIError(res.status, data);
   return data as T;
 };
 
-export const callAIImage = async (
-  prompt: string,
-  images?: AIImageInput[],
-  idempotencyKey = crypto.randomUUID(),
-) => {
-  const normalizedImages = images?.map(img => {
-    if (typeof img === 'string') {
-      const raw = img.includes(',') ? img.split(',')[1] : img;
-      return { mimeType: 'image/png', data: raw };
-    }
-    return img;
-  });
-  const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', {
-    prompt,
-    images: normalizedImages,
-    idempotencyKey,
-  });
+export const callAIImage = async (prompt: string, images?: AIImageInput[], idempotencyKey = crypto.randomUUID()) => {
+  const normalizedImages = images?.map(img => typeof img === 'string' ? { mimeType: 'image/png', data: img.includes(',') ? img.split(',')[1] : img } : img);
+  const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', { prompt, images: normalizedImages, idempotencyKey });
   return data.imageUrl ?? null;
 };
 
@@ -110,9 +74,6 @@ export const callAIText = async (prompt: string, images?: { mimeType: string; da
 };
 
 export const callAIContractClause = async (prompt: string, idempotencyKey = crypto.randomUUID()) => {
-  const data = await callAIFunction<{ id: string; text: string; model: string; operationType: string }>('commercial-contract', {
-    prompt,
-    idempotencyKey,
-  });
+  const data = await callAIFunction<{ id: string; text: string; model: string; operationType: string }>('commercial-contract', { prompt, idempotencyKey });
   return data;
 };
