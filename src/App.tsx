@@ -16,7 +16,21 @@ const queryClient = new QueryClient();
 
 const HomeRoute = () => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-slate-950" aria-label="Carregando Marcenapp" />;
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white" aria-busy="true" aria-live="polite">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 shadow-2xl">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+          </div>
+          <div>
+            <p className="text-sm font-black tracking-wide">MARCENAPP</p>
+            <p className="mt-1 text-xs text-slate-400">Preparando seu espaço de trabalho…</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
   return user ? <Index /> : <Landing />;
 };
 
