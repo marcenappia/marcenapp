@@ -30,9 +30,16 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
     return () => { ativo = false; };
   }, [inicialId, user?.id]);
 
+  useEffect(() => {
+    if (!user || !pendente.current) return;
+    const acao = pendente.current;
+    pendente.current = null;
+    acao();
+  }, [user?.id]);
+
   const persistir = (patch: JornadaSalva, extra?: { status?: StatusObra; aprovado?: boolean }) => { if (!projectId) return; salvarJornada(projectId, patch, extra).catch(() => salvarProgresso(projectId, { ...patch, aprovado: extra?.aprovado })); };
   const comAuth = async (acao: () => void) => { const ok = await requireAuth(); if (ok) return acao(); pendente.current = acao; setShowAuth(true); };
-  const onAuthSuccess = () => { setShowAuth(false); const a = pendente.current; pendente.current = null; a?.(); };
+  const onAuthSuccess = () => { setShowAuth(false); };
 
   const salvarNome = () => comAuth(async () => {
     if (!user || !nome.trim()) return; setLoading('salvando'); setErro(null);
