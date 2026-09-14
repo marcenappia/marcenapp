@@ -39,16 +39,18 @@ export function isIaraCommandForExecution(command: { payload?: IaraCommandIdenti
     && command.payload?.environmentId === identity.environmentId
     && command.payload?.versionId === identity.versionId
     && command.payload?.correlationId === identity.correlationId
-    && command.payload?.generation === identity.generation;
+    && (typeof command.payload?.generation !== 'number' || command.payload.generation === identity.generation);
 }
 
 export function isIaraCommandExecutionCurrent(command: { payload?: IaraCommandIdentity }, current: IaraPersistedExecutionContext): boolean {
   const payload = command.payload;
-  if (!payload || typeof payload.userId !== 'string' || typeof payload.correlationId !== 'string' || typeof payload.generation !== 'number') return false;
-  return payload.userId === current.userId
+  if (!payload || typeof payload.userId !== 'string' || typeof payload.correlationId !== 'string') return false;
+  const contextMatches = payload.userId === current.userId
     && (payload.projectId ?? null) === current.projectId
     && (payload.environmentId ?? null) === current.environmentId
     && (payload.versionId ?? null) === current.versionId
-    && payload.correlationId === current.correlationId
-    && payload.generation === current.generation;
+    && payload.correlationId === current.correlationId;
+  if (!contextMatches) return false;
+  if (typeof current.generation === 'number') return typeof payload.generation === 'number' && payload.generation === current.generation;
+  return typeof payload.generation !== 'number' || payload.generation === null;
 }
