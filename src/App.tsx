@@ -15,6 +15,12 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const PublicationTestMarker = () => (
+  <div className="fixed bottom-4 left-1/2 z-[9999] -translate-x-1/2 rounded-full border-4 border-black bg-yellow-300 px-6 py-3 text-center text-sm font-black uppercase tracking-wider text-black shadow-[0_8px_0_0_#000]">
+    TESTE DE PUBLICAÇÃO — FRONTEND ATUALIZADO
+  </div>
+);
+
 const HomeRoute = () => {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen bg-slate-950" aria-label="Carregando Marcenapp" />;
@@ -29,6 +35,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <SeoRoute />
+          <PublicationTestMarker />
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<Auth />} />
