@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isIaraCommandForExecution, isIaraExecutionCurrent, type IaraExecutionIdentity } from './iaraExecutionScope';
+import { isIaraCommandExecutionCurrent, isIaraCommandForExecution, isIaraExecutionCurrent, type IaraExecutionIdentity } from './iaraExecutionScope';
 
 const context = (userId: string, projectId: string, environmentId: string | null = 'E1', versionId: string | null = 'V1') => ({ userId, projectId, environmentId, versionId });
 const execution = (userId: string, projectId: string, correlationId: string, generation: number, environmentId = 'E1', versionId = 'V1'): IaraExecutionIdentity => ({ userId, projectId, environmentId, versionId, correlationId, generation });
-const command = (userId: string, projectId: string, correlationId: string, environmentId = 'E1', versionId = 'V1') => ({ payload: { userId, projectId, environmentId, versionId, correlationId } });
+const command = (userId: string, projectId: string, correlationId: string, environmentId = 'E1', versionId = 'V1', generation?: number) => ({ payload: { userId, projectId, environmentId, versionId, correlationId, ...(typeof generation === 'number' ? { generation } : {}) } });
 
 describe('IARA execution isolation', () => {
   it('rejects a Project A result after switching to Project B', () => {
@@ -66,5 +66,25 @@ describe('IARA execution isolation', () => {
     expect(isIaraCommandForExecution(command('U1', 'A', 'corr-active', 'E2', 'V2'), active)).toBe(false);
     expect(isIaraCommandForExecution(command('U1', 'A', 'corr-active', 'E1', 'V1'), active)).toBe(false);
     expect(isIaraCommandForExecution(command('U2', 'A', 'corr-active', 'E1', 'V2'), active)).toBe(false);
+  });
+
+  it('rejects the old A command after A → B → A persisted context changes', () => {
+    const oldCommand = command('U1', 'A', 'corr-old-a', 'E1', 'V1', 1);
+    const currentContext = { userId: 'U1', projectId: 'A', environmentId: 'E1', versionId: 'V1', correlationId: 'corr-new-a', generation: 3 };
+    expect(isIaraCommandExecutionCurrent(oldCommand, currentContext)).toBe(false);
+  });
+
+  it('accepts a new A command after returning to A', () => {
+    const newCommand = command('U1', 'A', 'corr-new-a', 'E1', 'V1', 3);
+    const currentContext = { userId: 'U1', projectId: 'A', environmentId: 'E1', versionId: 'V1', correlationId: 'corr-new-a', generation: 3 };
+    expect(isIaraCommandExecutionCurrent(newCommand, currentContext)).toBe(true);
+  });
+
+  it('rejects stale commands when project, environment, version or user changes', () => {
+    const currentContext = { userId: 'U1', projectId: 'B', environmentId: 'E2', versionId: 'V2', correlationId: 'corr-b', generation: 4 };
+    expect(isIaraCommandExecutionCurrent(command('U1', 'A', 'corr-b', 'E2', 'V2', 4), currentContext)).toBe(false);
+    expect(isIaraCommandExecutionCurrent(command('U1', 'B', 'corr-b', 'E1', 'V2', 4), currentContext)).toBe(false);
+    expect(isIaraCommandExecutionCurrent(command('U1', 'B', 'corr-b', 'E2', 'V1', 4), currentContext)).toBe(false);
+    expect(isIaraCommandExecutionCurrent(command('U2', 'B', 'corr-b', 'E2', 'V2', 4), currentContext)).toBe(false);
   });
 });
