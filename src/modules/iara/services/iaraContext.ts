@@ -69,20 +69,19 @@ export async function loadIaraContext(userId: string, projectId: string | null):
 
 export async function persistIaraContext(userId: string, context: IaraContext, correlationId?: string, generation?: number): Promise<void> {
   if (!context.projectId) return;
-  const { data: existing } = await supabase.from('project_iara_contexts').select('id').eq('user_id', userId).eq('project_id', context.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
-  const payload = {
-    user_id: userId,
-    client_id: context.clientId,
-    project_id: context.projectId,
-    environment_id: context.environmentId,
-    version_id: context.versionId,
-    ...(correlationId ? { last_correlation_id: correlationId } : {}),
-    ...(typeof generation === 'number' ? { last_execution_generation: generation } : {}),
-    updated_at: new Date().toISOString(),
-  };
-  if (existing?.id) {
-    await supabase.from('project_iara_contexts').update(payload).eq('id', existing.id).eq('user_id', userId);
-  } else {
-    await supabase.from('project_iara_contexts').insert(payload);
-  }
+
+  const { error } = await supabase.rpc('merge_iara_context', {
+    p_user_id: userId,
+    p_client_id: context.clientId,
+    p_project_id: context.projectId,
+    p_environment_id: context.environmentId,
+    p_version_id: context.versionId,
+    p_summary: null,
+    p_decisions: [],
+    p_artifacts: [],
+    p_last_correlation_id: correlationId ?? null,
+    p_generation: typeof generation === 'number' ? generation : null,
+  });
+
+  if (error) throw new Error(`Falha ao persistir contexto IARA: ${error.message}`);
 }
