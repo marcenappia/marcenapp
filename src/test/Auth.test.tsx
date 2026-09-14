@@ -49,8 +49,9 @@ describe('Auth Page - Reset Password Flow', () => {
     expect(screen.getByText(/Se o e-mail estiver cadastrado, enviaremos a recuperação\. Verifique também o spam\./i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Aguarde/i })).toBeDisabled();
 
+    // The first 1s timeout is scheduled by the countdown effect after the success update.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(31_000);
     });
 
     expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
