@@ -7,16 +7,16 @@ export type Json =
   | Json[];
 
 type TableDefinition = {
-  Row: Record<string, unknown>;
-  Insert: Record<string, unknown>;
-  Update: Record<string, unknown>;
-  Relationships: unknown[];
+  Row: Record<string, any>;
+  Insert: Record<string, any>;
+  Update: Record<string, any>;
+  Relationships: any[];
 };
 
 type FunctionDefinition = {
-  Args: Record<string, unknown>;
-  Returns: unknown;
-  SetofOptions?: unknown;
+  Args: Record<string, any> | any;
+  Returns: any;
+  SetofOptions?: any;
 };
 
 export type Database = {
