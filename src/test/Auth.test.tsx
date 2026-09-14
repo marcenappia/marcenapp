@@ -41,6 +41,11 @@ describe('Auth Page - Reset Password Flow', () => {
     renderAuth();
     fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
 
+    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação|Aguarde/i });
+    if (submitButton.hasAttribute('disabled')) {
+      await act(async () => { vi.advanceTimersByTime(30000); });
+    }
+
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Enviar Recuperação/i }));
     });
