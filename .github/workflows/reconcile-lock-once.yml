@@ -1,9 +1,9 @@
 name: Reconcile Lockfile Once
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/pre-release-full-sweep-20260913
+      - main
 
 permissions:
   contents: write
@@ -27,3 +27,4 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "chore: reconcile package lockfile"
           git push origin HEAD:fix/pre-release-full-sweep-20260913
+# One-time deterministic recovery; remove after lockfile reconciliation.
