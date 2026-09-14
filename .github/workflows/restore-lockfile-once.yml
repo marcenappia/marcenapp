@@ -1,0 +1,28 @@
+name: Restore lockfile
+
+on:
+  push:
+    branches:
+      - fix/pre-release-full-sweep-20260913
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore lockfile from pre-repair commit
+        run: |
+          git checkout 36d416d65bb5ae96f9dab910666b55902aead2df -- package-lock.json
+          node -e "const fs=require('fs'); const p='package-lock.json'; const x=JSON.parse(fs.readFileSync(p,'utf8')); x.name='marcenapp'; x.packages[''].name='marcenapp'; fs.writeFileSync(p, JSON.stringify(x,null,2)+'\\n');"
+      - name: Commit restored lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "fix: restore stable npm lockfile" || exit 0
+          git push
