@@ -55,10 +55,10 @@ describe('Auth Page - Reset Password Flow', () => {
     expect(screen.getByRole('button', { name: /Aguarde/i })).toBeDisabled();
 
     await act(async () => {
-      vi.advanceTimersByTime(30000);
+      vi.advanceTimersByTime(31000);
     });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled());
+    expect(await screen.findByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
   });
 
   it('shows support link when an error occurs during reset', async () => {
