@@ -2,7 +2,7 @@ import { Home, Wand2, Calculator, Package, Scale, Users, BookOpen, Plus, ArrowUp
 
 export type ModuleCategory = 'intelligence' | 'portal' | 'studio' | 'finance' | 'production';
 export interface ModuleConfig { id: string; label: string; mobileLabel: string; icon: React.ComponentType<LucideProps>; category: ModuleCategory; hidden?: boolean; }
-export const MOBILE_NAV_IDS = ['studio', 'diario', 'dashboard'];
+export const MOBILE_NAV_IDS = ['studio', 'novo', 'diario', 'dashboard'];
 export const modules: ModuleConfig[] = [
   { id: 'dashboard', label: 'Início', mobileLabel: 'Início', icon: Home, category: 'portal' },
   { id: 'inteligencia', label: 'Inteligência Operacional', mobileLabel: 'IARA', icon: Sparkles, category: 'intelligence' },
