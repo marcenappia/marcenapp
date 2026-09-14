@@ -13,7 +13,11 @@ const Workspace = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 md:px-8">
-      <ProfessionalWorkspace profession={profile.profession} name={profile.name} navigateTo={(id, params = {}) => navigate(`/?module=${id}${Object.keys(params).length ? `&${new URLSearchParams(params).toString()}` : ''}`)} />
+      <ProfessionalWorkspace
+        profession={profile.profession}
+        name={profile.name}
+        navigateTo={(id, params = {}) => navigate(`/app?module=${id}${Object.keys(params).length ? `&${new URLSearchParams(params).toString()}` : ''}`)}
+      />
     </div>
   );
 };
