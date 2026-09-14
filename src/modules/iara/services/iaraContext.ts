@@ -67,7 +67,7 @@ export async function loadIaraContext(userId: string, projectId: string | null):
   };
 }
 
-export async function persistIaraContext(userId: string, context: IaraContext, correlationId?: string, generation?: number): Promise<void> {
+export async function persistIaraContext(userId: string, context: IaraContext, correlationId?: string, _generation?: number): Promise<void> {
   if (!context.projectId) return;
 
   const { error } = await supabase.rpc('merge_iara_context', {
@@ -80,7 +80,6 @@ export async function persistIaraContext(userId: string, context: IaraContext, c
     p_decisions: [],
     p_artifacts: [],
     p_last_correlation_id: correlationId ?? null,
-    p_generation: typeof generation === 'number' ? generation : null,
   });
 
   if (error) throw new Error(`Falha ao persistir contexto IARA: ${error.message}`);
