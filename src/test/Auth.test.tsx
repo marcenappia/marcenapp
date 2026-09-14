@@ -52,9 +52,10 @@ describe('Auth Page - Reset Password Flow', () => {
     const submitButton = await getReadyResetButton();
     await act(async () => {
       fireEvent.click(submitButton);
+      await Promise.resolve();
     });
 
-    expect(await screen.findByText(/Se o e-mail estiver cadastrado, enviaremos a recuperação\. Verifique também o spam\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Se o e-mail estiver cadastrado, enviaremos a recuperação\. Verifique também o spam\./i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Aguarde/i })).toBeDisabled();
 
     await act(async () => {
@@ -77,9 +78,10 @@ describe('Auth Page - Reset Password Flow', () => {
     const submitButton = await getReadyResetButton();
     await act(async () => {
       fireEvent.click(submitButton);
+      await Promise.resolve();
     });
 
-    expect(await screen.findByText(/Failed to send/i)).toBeInTheDocument();
+    expect(screen.getByText(/Failed to send/i)).toBeInTheDocument();
     expect(screen.getByText(/Fale com o suporte/i)).toBeInTheDocument();
   });
 });
