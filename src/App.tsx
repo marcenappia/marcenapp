@@ -8,6 +8,7 @@ import SeoRoute from "@/components/SeoRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Landing from "./pages/Landing";
+import Workspace from "./pages/Workspace";
 import ClientReview from "./pages/ClientReview";
 import AdminAgents from "./pages/AdminAgents";
 import NotFound from "./pages/NotFound";
@@ -17,7 +18,7 @@ const queryClient = new QueryClient();
 const HomeRoute = () => {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen bg-slate-950" aria-label="Carregando Marcenapp" />;
-  return user ? <Index /> : <Landing />;
+  return user ? <Workspace /> : <Landing />;
 };
 
 const isFirebasePreview =
@@ -47,6 +48,8 @@ const App = () => (
             <Route path="/signup" element={<Auth />} />
             <Route path="/register" element={<Auth />} />
             <Route path="/forgot-password" element={<Auth />} />
+            <Route path="/reset-password" element={<Auth />} />
+            <Route path="/workspace" element={<Workspace />} />
             <Route path="/reset-password" element={<Auth />} />
             <Route path="/cliente/revisao" element={<ClientReview />} />
             <Route path="/admin/agentes" element={<AdminAgents />} />
