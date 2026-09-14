@@ -70,6 +70,8 @@ export const StudioWorker = () => {
 
   const processCommand = async (osCommand: OSCommand) => {
     if (osCommand.status === 'cancelled' || !user) { currentlyProcessing.current = null; return; }
+    if (currentlyProcessing.current && currentlyProcessing.current !== osCommand.id) return;
+    currentlyProcessing.current = osCommand.id;
     const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
     if (!(await isCurrentContext(payload))) {
       cancelCommand((payload.studioCommandId as string | undefined) ?? osCommand.id);
@@ -80,8 +82,7 @@ export const StudioWorker = () => {
     const { command, studioCommandId } = resolveRenderCommand(osCommand);
     const storeCommandId = studioCommandId ?? osCommand.id;
     const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
-    if (!command.prompt) { fail('Comando inválido: falta o prompt de geração.'); return; }
-    currentlyProcessing.current = osCommand.id;
+    if (!command.prompt) { fail('Comando inválido: falta o prompt de geração.'); currentlyProcessing.current = null; return; }
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
     try {
