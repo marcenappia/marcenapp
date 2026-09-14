@@ -6,8 +6,16 @@ import { useAuth } from '@/hooks/useAuth';
 import logo from '@/assets/marcenapp-logo.svg';
 
 const PRODUCTION_ORIGIN = 'https://www.marcenapp.com.br';
-const AUTH_CALLBACK = `${PRODUCTION_ORIGIN}/auth`;
 const PURCHASE_STORAGE_KEY = 'marcenapp_pending_purchase';
+
+const getAppOrigin = () => {
+  const { hostname, origin } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return origin;
+  if (hostname.endsWith('.web.app')) return origin;
+  return PRODUCTION_ORIGIN;
+};
+
+const getAuthCallback = () => `${getAppOrigin()}/auth`;
 
 const INITIAL_PROFILES = [
   { id: 'marcenaria', label: 'Marcenaria', description: 'Organizar e executar trabalhos de marcenaria', icon: BriefcaseBusiness },
@@ -15,17 +23,13 @@ const INITIAL_PROFILES = [
   { id: 'outro', label: 'Outro', description: 'Usar uma ferramenta específica do Marcenapp', icon: Sparkles },
 ] as const;
 
-const getAppOrigin = () => {
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return window.location.origin;
-  return PRODUCTION_ORIGIN;
-};
-
 const describeAuthError = (authError: { code?: string; message?: string; status?: number } | null) => {
   if (!authError) return '';
   const raw = authError.message?.trim() || '';
   const code = authError.code?.trim().toLowerCase() || '';
   const message = raw.toLowerCase();
-  if (code === 'redirect_to_not_allowed' || message.includes('redirect') && message.includes('not allowed')) return `O endereço de confirmação ${AUTH_CALLBACK} não está autorizado no Supabase Auth. A configuração de URLs de autenticação precisa incluir esse endereço.`;
+  const callback = getAuthCallback();
+  if (code === 'redirect_to_not_allowed' || message.includes('redirect') && message.includes('not allowed')) return `O endereço de confirmação ${callback} não está autorizado no Supabase Auth. A configuração de URLs de autenticação precisa incluir esse endereço.`;
   if (code === 'signup_disabled' || message.includes('signups not allowed')) return 'O cadastro de novos usuários está desativado no Supabase Auth.';
   if (code === 'email_address_invalid' || message.includes('invalid email')) return 'O endereço de e-mail informado é inválido.';
   if (code === 'email_provider_disabled' || message.includes('email provider') && message.includes('disabled')) return 'O provedor de e-mail do Supabase Auth está desativado.';
@@ -114,7 +118,7 @@ const Auth = () => {
     setError('');
     setSuccess('');
     try {
-      const { error: authError } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: AUTH_CALLBACK } });
+      const { error: authError } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: getAuthCallback() } });
       if (authError) setError(describeAuthError(authError));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Não foi possível iniciar o login com Google.');
@@ -140,7 +144,7 @@ const Auth = () => {
       if (isReset) {
         if (!email.trim()) { setError('Informe um e-mail válido.'); return; }
         if (countdown > 0) return;
-        const { error: authError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${PRODUCTION_ORIGIN}/reset-password` });
+        const { error: authError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${getAppOrigin()}/reset-password` });
         if (authError) setError(describeAuthError(authError)); else { setSuccess('Se o e-mail estiver cadastrado, enviaremos a recuperação. Verifique também o spam.'); setCountdown(30); }
         return;
       }
@@ -160,7 +164,7 @@ const Auth = () => {
         password,
         options: {
           data: { name: name.trim(), profession },
-          emailRedirectTo: AUTH_CALLBACK,
+          emailRedirectTo: getAuthCallback(),
         },
       });
       if (authError) { setError(describeAuthError(authError)); return; }
