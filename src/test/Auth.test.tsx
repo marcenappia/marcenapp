@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Auth from '../pages/Auth';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -24,9 +24,23 @@ const renderAuth = () => render(<MemoryRouter initialEntries={['/forgot-password
 describe('Auth Page - Reset Password Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers();
     vi.stubEnv('VITE_SUPPORT_WHATSAPP_LINK', 'https://example.com/support');
   });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const getReadyResetButton = async () => {
+    const button = screen.getByRole('button', { name: /Enviar Recuperação|Aguarde/i });
+    if (button.hasAttribute('disabled')) {
+      await act(async () => {
+        vi.advanceTimersByTime(31_000);
+      });
+    }
+    return screen.getByRole('button', { name: /Enviar Recuperação/i });
+  };
 
   it('shows success state and countdown after a successful reset request', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
@@ -35,21 +49,16 @@ describe('Auth Page - Reset Password Flow', () => {
     renderAuth();
     fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
 
-    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação|Aguarde/i });
-    if (submitButton.hasAttribute('disabled')) {
-      await act(async () => { vi.advanceTimersByTime(30000); });
-    }
-
-    expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
+    const submitButton = await getReadyResetButton();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Enviar Recuperação/i }));
+      fireEvent.click(submitButton);
     });
 
     expect(await screen.findByText(/Se o e-mail estiver cadastrado, enviaremos a recuperação\. Verifique também o spam\./i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Aguarde/i })).toBeDisabled();
 
     await act(async () => {
-      vi.advanceTimersByTime(30000);
+      vi.advanceTimersByTime(31_000);
     });
 
     expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
@@ -65,13 +74,9 @@ describe('Auth Page - Reset Password Flow', () => {
     renderAuth();
     fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
 
-    const submitButton = screen.getByRole('button', { name: /Enviar Recuperação|Aguarde/i });
-    if (submitButton.hasAttribute('disabled')) {
-      await act(async () => { vi.advanceTimersByTime(30000); });
-    }
-
+    const submitButton = await getReadyResetButton();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Enviar Recuperação/i }));
+      fireEvent.click(submitButton);
     });
 
     expect(await screen.findByText(/Failed to send/i)).toBeInTheDocument();
