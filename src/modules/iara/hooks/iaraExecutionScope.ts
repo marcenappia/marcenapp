@@ -51,6 +51,6 @@ export function isIaraCommandExecutionCurrent(command: { payload?: IaraCommandId
     && (payload.versionId ?? null) === current.versionId
     && payload.correlationId === current.correlationId;
   if (!contextMatches) return false;
-  if (typeof current.generation === 'number') return typeof payload.generation === 'number' && payload.generation === current.generation;
-  return typeof payload.generation !== 'number' || payload.generation === null;
+  if (typeof current.generation === 'number' && typeof payload.generation === 'number') return payload.generation === current.generation;
+  return true;
 }
