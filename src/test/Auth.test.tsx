@@ -50,7 +50,7 @@ describe('Auth Page - Reset Password Flow', () => {
     expect(screen.getByRole('button', { name: /Aguarde/i })).toBeDisabled();
 
     await act(async () => {
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(30_000);
     });
 
     expect(screen.getByRole('button', { name: /Enviar Recuperação/i })).toBeEnabled();
