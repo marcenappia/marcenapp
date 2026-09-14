@@ -34,23 +34,24 @@ export function isIaraExecutionCurrent(identity: IaraExecutionIdentity, context:
 }
 
 export function isIaraCommandForExecution(command: { payload?: IaraCommandIdentity }, identity: IaraExecutionIdentity): boolean {
-  return command.payload?.userId === identity.userId
-    && command.payload?.projectId === identity.projectId
-    && command.payload?.environmentId === identity.environmentId
-    && command.payload?.versionId === identity.versionId
-    && command.payload?.correlationId === identity.correlationId
-    && (typeof command.payload?.generation !== 'number' || command.payload.generation === identity.generation);
+  return typeof command.payload?.userId === 'string'
+    && command.payload.userId === identity.userId
+    && command.payload.projectId === identity.projectId
+    && command.payload.environmentId === identity.environmentId
+    && command.payload.versionId === identity.versionId
+    && command.payload.correlationId === identity.correlationId
+    && typeof command.payload.generation === 'number'
+    && command.payload.generation === identity.generation;
 }
 
 export function isIaraCommandExecutionCurrent(command: { payload?: IaraCommandIdentity }, current: IaraPersistedExecutionContext): boolean {
   const payload = command.payload;
   if (!payload || typeof payload.userId !== 'string' || typeof payload.correlationId !== 'string') return false;
-  const contextMatches = payload.userId === current.userId
+  if (typeof current.generation !== 'number' || typeof payload.generation !== 'number') return false;
+  return payload.userId === current.userId
     && (payload.projectId ?? null) === current.projectId
     && (payload.environmentId ?? null) === current.environmentId
     && (payload.versionId ?? null) === current.versionId
-    && payload.correlationId === current.correlationId;
-  if (!contextMatches) return false;
-  if (typeof current.generation === 'number' && typeof payload.generation === 'number') return payload.generation === current.generation;
-  return true;
+    && payload.correlationId === current.correlationId
+    && payload.generation === current.generation;
 }
