@@ -161,7 +161,10 @@ export function optimizeCutList(parts: CutPart[], sheetTemplates: CutSheet[], ke
     entry.freeRects.splice(0, entry.freeRects.length, ...pruneFreeRects(entry.freeRects));
   }
 
-  const totalPartArea = expanded.filter((part) => !unplaced.some((item) => item.partId.startsWith(part.id))).reduce((sum, part) => sum + part.width * part.height, 0);
+  const totalPartArea = sheets.reduce(
+    (sum, sheet) => sum + sheet.placements.reduce((area, placement) => area + placement.width * placement.height, 0),
+    0,
+  );
   const totalSheetArea = sheets.reduce((sum, sheet) => sum + sheet.width * sheet.height, 0);
   const wasteArea = Math.max(0, totalSheetArea - totalPartArea);
   return { sheets, unplaced, kerf, totalPartArea, totalSheetArea, wasteArea, utilizationPct: totalSheetArea ? (totalPartArea / totalSheetArea) * 100 : 0 };
