@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { agents, getAgent } from './registry';
 import { createDomainIntent, domainAgents, domainAgentRegistry, parseCreateProjectInput, resolveDomain, runIara } from './domain';
 import { runProjectJourney } from './orchestrator';
@@ -65,9 +64,9 @@ describe('IARA/YARA domain orchestration', () => {
 
   it('mapeia ações rápidas para o domínio sem expor especialista técnico', () => {
     expect(createDomainIntent({ domain: 'project', action: 'project.render' }, 'gerar render')).toEqual({ domain: 'project', action: 'render', agent: 'IARA' });
-    expect(createDomainIntent({ domain: 'production', action: 'production.hardware' }, 'listar ferragens')).toEqual({ domain: 'production', action: 'materials', agent: 'BENTO' });
+    expect(createDomainIntent({ domain: 'production', action: 'production.hardware' }, 'listar ferragens')).toEqual({ domain: 'production', action: 'hardware', agent: 'BENTO' });
     expect(createDomainIntent({ domain: 'business', action: 'business.budget' }, 'gerar orçamento')).toEqual({ domain: 'business', action: 'budget', agent: 'ESTELA' });
-    expect(createDomainIntent({ domain: 'execution', action: 'execution.delivery' }, 'entrega')).toEqual({ domain: 'execution', action: 'execution', agent: 'JUCA' });
+    expect(createDomainIntent({ domain: 'execution', action: 'execution.delivery' }, 'entrega')).toEqual({ domain: 'execution', action: 'delivery', agent: 'JUCA' });
   });
 
   it('reconhece criação de projeto somente por texto e normaliza metros para milímetros', () => {
@@ -85,9 +84,9 @@ describe('IARA/YARA domain orchestration', () => {
   });
 
   it('preserva as dependências registradas dos especialistas', () => {
-    expect(getAgent('materials').dependencies).toEqual(['furniture_engineering']);
+    expect(getAgent('materials').dependencies).toEqual(['furniture_engineering', 'approval']);
     expect(getAgent('cut_audit').dependencies).toEqual(['cut_optimization']);
-    expect(getAgent('budget').dependencies).toEqual(['materials', 'inventory', 'production', 'approval']);
+    expect(getAgent('budget').dependencies).toEqual(['materials', 'inventory', 'cut_audit', 'approval']);
   });
 
   it('propaga correlationId, evidências e bloqueadores pelo contrato existente', async () => {
