@@ -5,12 +5,14 @@ import { useMarcenappOS } from '@/store/useMarcenappOS';
 import type { ExecutionContext } from '@/core/toolRegistry';
 import { humanSpatialLanguagePrompt } from './spatialLanguage';
 import { buildFloorPlanGeometry } from './floorPlanGeometry';
+import type { FurnitureModuleSpec } from '@/lib/furniture/package';
 
 interface PlanAnalysis {
   environments?: Array<{ name?: string; type?: string; confidence?: number; position?: number }>;
   dimensions?: { width?: number; depth?: number; ceilingHeight?: number };
   walls?: Array<{ start?: [number, number]; end?: [number, number]; length?: number; humanReference?: string; cardinalReference?: string }>;
   openings?: Array<{ type?: string; position?: string | number; width?: number; height?: number; wallReference?: string }>;
+  modules?: FurnitureModuleSpec[];
   notes?: string[];
 }
 
@@ -61,11 +63,13 @@ export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; pla
     'Reconcilie as vistas quando elas mostrarem o mesmo ambiente. Não trate fotos diferentes como ambientes diferentes sem evidência.',
     'Não invente medidas. Diferencie medido, estimado e desconhecido.',
     'Identifique ambientes, paredes, portas, janelas e dimensões visíveis.',
+    'Quando o pedido indicar móveis planejados, proponha módulos apenas quando largura, altura, profundidade e material puderem ser determinados ou forem fornecidos explicitamente. Marque a incerteza nas notas; não invente folgas, sobreposições, ferragens ou medidas de fabricação.',
     humanSpatialLanguagePrompt(args.prompt),
     'Para cada parede, preserve a referência humana quando puder ser determinada: direita, esquerda, frente, trás, fundo, ao lado ou oposta. Pode registrar referência cardeal auxiliar internamente, mas a humana é principal.',
     'Para portas e janelas, informe em qual parede humana elas estão. Se não for possível determinar, use "não determinada".',
+    'Para módulos, use IDs estáveis e inclua somente dimensões/materiais sustentados pelas entradas. Portas e gavetas devem trazer dimensões explícitas das frentes; caixas de gaveta devem trazer dimensões explícitas; ferragens só entram quando identificadas ou fornecidas.',
     'Retorne SOMENTE JSON válido no formato:',
-    '{"environments":[{"name":"Cozinha","type":"cozinha","confidence":0.9,"position":1}],"dimensions":{"width":0,"depth":0,"ceilingHeight":0},"walls":[{"start":[0,0],"end":[1,0],"length":1,"humanReference":"parede da direita","cardinalReference":"east"}],"openings":[{"type":"door","position":"entrada","wallReference":"parede da frente","width":0,"height":0}],"notes":[]}',
+    '{"environments":[{"name":"Cozinha","type":"cozinha","confidence":0.9,"position":1}],"dimensions":{"width":0,"depth":0,"ceilingHeight":0},"walls":[{"start":[0,0],"end":[1,0],"length":1,"humanReference":"parede da direita","cardinalReference":"east"}],"openings":[{"type":"door","position":"entrada","wallReference":"parede da frente","width":0,"height":0}],"modules":[{"id":"modulo-01","name":"Balcão","width":1200,"height":900,"depth":600,"quantity":1,"material":"MDP 18","door":{"count":2,"frontWidth":590,"frontHeight":700,"material":"MDF 18","hardware":[]},"drawer":{"count":1,"frontWidth":590,"frontHeight":150,"boxWidth":550,"boxHeight":120,"boxDepth":500,"material":"MDP 15","hardware":[]},"hardware":[]}],"notes":[]}',
   ].join(' ');
 
   let analysis: PlanAnalysis;
@@ -77,8 +81,9 @@ export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; pla
   }
 
   const geometry = buildFloorPlanGeometry(analysis);
+  const modules = analysis.modules ?? [];
   const analysisId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const { error: analysisError } = await supabase.from('project_plan_analyses').insert({ id: analysisId, project_plan_id: planId, project_id: ctx.projectId, status: 'completed', provider: 'marcenapp-ai', model: 'configured-ai-text', result: { ...analysis, geometry, sourceReferences: references.length }, completed_at: new Date().toISOString() });
+  const { error: analysisError } = await supabase.from('project_plan_analyses').insert({ id: analysisId, project_plan_id: planId, project_id: ctx.projectId, status: 'completed', provider: 'marcenapp-ai', model: 'configured-ai-text', result: { ...analysis, geometry, modules, sourceReferences: references.length }, completed_at: new Date().toISOString() });
   if (analysisError) return { ok: false as const, error: analysisError.message };
 
   const environments = analysis.environments ?? [];
@@ -88,12 +93,12 @@ export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; pla
     if (error) return { ok: false as const, error: error.message };
   }
 
-  await supabase.from('project_plans').update({ status: 'analyzed', metadata: { origin: 'iara', correlationId: ctx.correlationId ?? null, analysisId, environmentCount: environments.length, referenceCount: references.length, analysis, geometry } }).eq('id', planId).eq('project_id', ctx.projectId);
+  await supabase.from('project_plans').update({ status: 'analyzed', metadata: { origin: 'iara', correlationId: ctx.correlationId ?? null, analysisId, environmentCount: environments.length, moduleCount: modules.length, referenceCount: references.length, analysis, geometry, modules } }).eq('id', planId).eq('project_id', ctx.projectId);
 
-  const environmentSummary = JSON.stringify({ project: (project as { nome?: string | null; name?: string | null }).nome || (project as { name?: string | null }).name || 'Projeto', geometry, dimensions: analysis.dimensions ?? {}, walls: analysis.walls ?? [], openings: analysis.openings ?? [], environments, notes: analysis.notes ?? [] });
+  const environmentSummary = JSON.stringify({ project: (project as { nome?: string | null; name?: string | null }).nome || (project as { name?: string | null }).name || 'Projeto', geometry, dimensions: analysis.dimensions ?? {}, walls: analysis.walls ?? [], openings: analysis.openings ?? [], environments, modules, notes: analysis.notes ?? [] });
   const idempotencyKey = ctx.correlationId || `${planId}-${Date.now()}`;
-  const studioCommandId = useStudioStore.getState().enqueueCommand({ prompt: `MARCENAPP IARA OS: gerar perspectiva/elevação fiel à planta baixa. ${args.prompt}. Preserve a geometria, proporções, paredes e aberturas identificadas. Use as fotos do mesmo projeto apenas para complementar aparência e elementos fixos. Use as referências humanas das paredes (direita, esquerda, frente, trás e fundo) conforme a análise; não substitua essas referências por norte/sul/leste/oeste na interpretação do pedido. Contexto espacial: ${environmentSummary}`, images: references.map((reference) => ({ mimeType: reference.mimeType, data: reference.data })), decor: ctx.decorStyle || 'Limpo', idempotencyKey, metadata: { origin: 'iara', originalPrompt: args.prompt, targetModule: 'studio', planId, referenceCount: references.length } });
+  const studioCommandId = useStudioStore.getState().enqueueCommand({ prompt: `MARCENAPP IARA OS: gerar perspectiva/elevação fiel à planta baixa. ${args.prompt}. Preserve a geometria, proporções, paredes e aberturas identificadas. Use as fotos do mesmo projeto apenas para complementar aparência e elementos fixos. Use as referências humanas das paredes (direita, esquerda, frente, trás e fundo) conforme a análise; não substitua essas referências por norte/sul/leste/oeste na interpretação do pedido. Contexto espacial: ${environmentSummary}`, images: references.map((reference) => ({ mimeType: reference.mimeType, data: reference.data })), decor: ctx.decorStyle || 'Limpo', idempotencyKey, metadata: { origin: 'iara', originalPrompt: args.prompt, targetModule: 'studio', planId, referenceCount: references.length, moduleCount: modules.length } });
   useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: args.prompt, estilo: ctx.decorStyle || 'Limpo', studioCommandId, userId: ctx.userId, projectId: ctx.projectId, ...(ctx.environmentId ? { environmentId: ctx.environmentId } : {}), ...(ctx.versionId ? { versionId: ctx.versionId } : {}), ...(ctx.correlationId ? { correlationId: ctx.correlationId } : {}), ...(typeof ctx.generation === 'number' ? { generation: ctx.generation } : {}), planId } });
 
-  return { ok: true as const, data: { planId, analysisId, studioCommandId, status: 'queued', environmentCount: environments.length, geometry } };
+  return { ok: true as const, data: { planId, analysisId, studioCommandId, status: 'queued', environmentCount: environments.length, moduleCount: modules.length, geometry, modules } };
 }
