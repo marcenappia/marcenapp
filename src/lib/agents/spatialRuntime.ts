@@ -17,6 +17,29 @@ function asImages(input: Record<string, unknown>): Array<{ mimeType: string; dat
   }).slice(0, 8);
 }
 
+function hasVisualUrl(input: Record<string, unknown>): boolean {
+  return typeof input.photoUrl === 'string' && input.photoUrl.trim().length > 0;
+}
+
+function urlOnlyResult(agentId: SpatialAgentId, task: AgentTask): AgentResult {
+  return {
+    agentId,
+    taskId: task.id,
+    correlationId: task.correlationId,
+    status: 'completed',
+    data: {
+      stage: agentId,
+      modelBacked: false,
+      visualReference: 'url',
+      analysisDeferred: true,
+    },
+    confidence: 0,
+    evidence: [{ source: `${agentId}.reference`, value: task.input.photoUrl }],
+    warnings: ['A referência visual foi recebida apenas como URL; nenhuma análise visual foi simulada. Envie a imagem incorporada para análise por modelo.'],
+    assumptions: [],
+  };
+}
+
 function promptInput(input: Record<string, unknown>): Record<string, unknown> {
   const result = { ...input };
   delete result.images;
@@ -70,13 +93,17 @@ function buildPrompt(agentId: SpatialAgentId, task: AgentTask): string {
 export async function executeSpatialAgent(agentId: AgentId, task: AgentTask): Promise<AgentResult> {
   if (!SPATIAL_AGENTS.includes(agentId as SpatialAgentId)) return { agentId, taskId: task.id, correlationId: task.correlationId, status: 'failed', error: `Agente não pertence ao runtime espacial: ${agentId}` };
 
+  const spatialAgent = agentId as SpatialAgentId;
   const images = asImages(task.input);
-  if (!images.length && (agentId === 'vision' || agentId === 'perspective' || agentId === 'multiview')) {
+  if (!images.length && hasVisualUrl(task.input) && (spatialAgent === 'vision' || spatialAgent === 'perspective' || spatialAgent === 'multiview')) {
+    return urlOnlyResult(spatialAgent, task);
+  }
+  if (!images.length && (spatialAgent === 'vision' || spatialAgent === 'perspective' || spatialAgent === 'multiview')) {
     return { agentId, taskId: task.id, correlationId: task.correlationId, status: 'needs_input', data: { missing: ['imagem ou referência visual'] }, blockers: ['O agente espacial precisa de pelo menos uma referência visual para esta etapa.'] };
   }
 
   try {
-    const result = parseModelJson(await callAIText(buildPrompt(agentId as SpatialAgentId, task), images, true));
+    const result = parseModelJson(await callAIText(buildPrompt(spatialAgent, task), images, true));
     const confidence = Number(result.confidence);
     const evidence: Evidence[] = Array.isArray(result.evidence)
       ? result.evidence.map((item) => typeof item === 'object' && item !== null ? item as Evidence : ({ source: agentId, value: item }))
