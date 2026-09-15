@@ -14,6 +14,22 @@ export type WorkshopPart = {
   position?: { x: number; y: number; rotated?: boolean };
 };
 
+export type WorkshopLabel = {
+  id: string;
+  text: string;
+  partCode: string;
+  furnitureId: string;
+  furnitureName: string;
+  moduleId?: string;
+  moduleName?: string;
+  role?: string;
+  width: number;
+  height: number;
+  material: string;
+  sheetCode: string;
+  position: { x: number; y: number; rotated?: boolean };
+};
+
 export type WorkshopSheet = {
   code: string;
   width: number;
@@ -50,6 +66,7 @@ export type WorkshopPacket = {
   sequence: string[];
   modules: WorkshopModule[];
   parts: WorkshopPart[];
+  labels: WorkshopLabel[];
   sheets: WorkshopSheet[];
   hardware: WorkshopHardware[];
   traceability: {
@@ -77,10 +94,6 @@ function positive(value: unknown): number {
 
 function codeOf(value: RecordValue): string {
   return text(value.code ?? value.id);
-}
-
-function furnitureNameOf(input: RecordValue): string {
-  return text(input.furnitureName ?? input.workName ?? input.name) || 'Móvel sem nome';
 }
 
 /**
@@ -133,15 +146,31 @@ export function buildWorkshopPacket(input: {
   });
 
   const partByCode = new Map(parts.map((part) => [part.code, part]));
+  const labels: WorkshopLabel[] = [];
   const sheets: WorkshopSheet[] = (input.cutPlan).map((sheet) => {
     const sheetCode = codeOf(sheet);
     const pieces = Array.isArray(sheet.pieces) ? sheet.pieces as RecordValue[] : [];
-    const normalizedPieces = pieces.map((piece) => {
-      const code = codeOf(piece).split('#')[0];
+    const normalizedPieces = pieces.map((piece, index) => {
+      const rawCode = codeOf(piece);
+      const code = rawCode.split('#')[0];
       const part = partByCode.get(code);
+      const position = { x: Number(piece.x), y: Number(piece.y), ...(piece.rotated !== undefined ? { rotated: Boolean(piece.rotated) } : {}) };
       if (part) {
-        part.sheetCode = sheetCode;
-        part.position = { x: Number(piece.x), y: Number(piece.y), ...(piece.rotated !== undefined ? { rotated: Boolean(piece.rotated) } : {}) };
+        labels.push({
+          id: `${code}#${index + 1}`,
+          text: `${part.label} | ${part.width}×${part.height} mm | ${part.material}`,
+          partCode: code,
+          furnitureId,
+          furnitureName,
+          ...(part.moduleId ? { moduleId: part.moduleId } : {}),
+          ...(part.moduleName ? { moduleName: part.moduleName } : {}),
+          ...(part.role ? { role: part.role } : {}),
+          width: part.width,
+          height: part.height,
+          material: part.material,
+          sheetCode,
+          position,
+        });
       }
       return { code, x: Number(piece.x), y: Number(piece.y), width: positive(piece.width), height: positive(piece.height), ...(piece.rotated !== undefined ? { rotated: Boolean(piece.rotated) } : {}) };
     });
@@ -173,6 +202,7 @@ export function buildWorkshopPacket(input: {
     sequence,
     modules: [...moduleMap.values()],
     parts,
+    labels,
     sheets,
     hardware,
     traceability: { projectId: input.projectId, environmentId: input.environmentId, versionId: input.versionId, correlationId: input.correlationId, furnitureId },
