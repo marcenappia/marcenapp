@@ -11,10 +11,10 @@ function normalizeImages(images?: ImageData[]): ImagePayload[] | undefined {
   return images.map(img => ({ mimeType: img.mimeType, data: img.data }));
 }
 
-function normalizeIdempotencyKey(key?: string): `${string}-${string}-${string}-${string}-${string}` | undefined {
+function normalizeIdempotencyKey(key?: string): string | undefined {
   if (!key) return undefined;
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidPattern.test(key) ? key as `${string}-${string}-${string}-${string}-${string}` : undefined;
+  const normalized = key.trim();
+  return normalized.length >= 8 && normalized.length <= 200 ? normalized : undefined;
 }
 
 export const studioService = {
@@ -31,7 +31,7 @@ export const studioService = {
   },
 
   refineVisual: async (originalImage: string, instructions: string): Promise<string | null> => {
-    const base64 = originalImage.split(',')[1];
+    const base64 = originalImage.includes(',') ? originalImage.split(',')[1] : originalImage;
     const finalPrompt = `ACT AS A 3D MODELER AND RENDERER. TASK: Re-render the provided image with STRUCTURAL MODIFICATIONS. USER COMMAND: "${instructions}". Keep everything else the same.`;
     return await callAIImage(finalPrompt, [{ mimeType: 'image/png', data: base64 }]);
   }
