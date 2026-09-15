@@ -25,6 +25,11 @@ function asImages(input: Record<string, unknown>): Array<{ mimeType: string; dat
   }).slice(0, 8);
 }
 
+function promptInput(input: Record<string, unknown>): Record<string, unknown> {
+  const { images: _images, ...rest } = input;
+  return rest;
+}
+
 function humanLanguage(request: string): string {
   return [
     'Use linguagem humana de marcenaria.',
@@ -61,7 +66,7 @@ function buildPrompt(agentId: SpatialAgentId, task: AgentTask): string {
     role[agentId],
     humanLanguage(String(task.input.prompt ?? task.type ?? '')),
     'Não invente medidas, paredes, portas, janelas ou relações espaciais. Diferencie observado, inferido e desconhecido.',
-    `Entrada estruturada: ${JSON.stringify(task.input)}`,
+    `Entrada estruturada: ${JSON.stringify(promptInput(task.input))}`,
     `Resultados de dependências: ${JSON.stringify(dependencyResults)}`,
     `Evidências anteriores: ${JSON.stringify(evidence)}`,
     'Retorne SOMENTE JSON válido com: summary, findings, confidence, warnings, assumptions, evidence.',
