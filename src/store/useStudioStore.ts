@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type CommandStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export interface ImageData { mimeType: string; data: string; }
-export interface RenderCommand { id: string; prompt: string; images?: ImageData[]; style?: string; decor?: string; status: CommandStatus; error?: string; resultUrl?: string; timestamp: number; idempotencyKey?: string; metadata?: { origin: 'iara' | 'manual'; originalPrompt?: string; targetModule?: string; }; }
+export interface RenderCommand { id: string; prompt: string; images?: ImageData[]; style?: string; decor?: string; status: CommandStatus; error?: string; resultUrl?: string; timestamp: number; idempotencyKey?: string; metadata?: { origin: 'iara' | 'manual'; originalPrompt?: string; targetModule?: string; referenceCount?: number; planId?: string; }; }
 export interface StudioState { commandQueue: RenderCommand[]; lastResult: string | null; generatedImage: string | null; isRendering: boolean; enqueueCommand: (command: Omit<RenderCommand, 'id' | 'status' | 'timestamp'>) => string; startProcessing: (id: string) => void; completeCommand: (id: string, resultUrl: string) => void; failCommand: (id: string, error: string) => void; cancelCommand: (id: string) => void; setGeneratedImage: (url: string | null) => void; clearQueue: () => void; removeFromQueue: (id: string) => void; }
 
 type PersistedStudioState = Partial<StudioState>;
@@ -13,7 +13,13 @@ const asStatus = (value: unknown): CommandStatus => value === 'processing' || va
 const asMetadata = (value: unknown): RenderCommand['metadata'] => {
   if (!isRecord(value)) return { origin: 'manual' };
   const origin = value.origin === 'iara' ? 'iara' : 'manual';
-  return { origin, ...(typeof value.originalPrompt === 'string' ? { originalPrompt: value.originalPrompt } : {}), ...(typeof value.targetModule === 'string' ? { targetModule: value.targetModule } : {}) };
+  return {
+    origin,
+    ...(typeof value.originalPrompt === 'string' ? { originalPrompt: value.originalPrompt } : {}),
+    ...(typeof value.targetModule === 'string' ? { targetModule: value.targetModule } : {}),
+    ...(typeof value.referenceCount === 'number' ? { referenceCount: value.referenceCount } : {}),
+    ...(typeof value.planId === 'string' ? { planId: value.planId } : {}),
+  };
 };
 const asMigratedCommand = (value: unknown, recoverProcessing = false): RenderCommand | null => {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.prompt !== 'string') return null;
