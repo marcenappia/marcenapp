@@ -27,7 +27,8 @@ export const studioService = {
   ): Promise<string | null> => {
     const finalPrompt = `ACT AS AN EXPERT ARCHITECTURAL VISUALIZER.\n      Style: ${stylePrompt || 'Photorealistic'}.\n      Decor: ${decorPrompt || 'Modern'}.\n      Instructions: ${prompt}.\n      Maximum realism, 8k.`;
     const processedImages = normalizeImages(images);
-    return await callAIImage(finalPrompt, processedImages, normalizeIdempotencyKey(idempotencyKey));
+    const normalizedKey = normalizeIdempotencyKey(idempotencyKey);
+    return await callAIImage(finalPrompt, processedImages, normalizedKey as Parameters<typeof callAIImage>[2]);
   },
 
   refineVisual: async (originalImage: string, instructions: string): Promise<string | null> => {
