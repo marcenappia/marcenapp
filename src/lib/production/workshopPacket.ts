@@ -147,7 +147,7 @@ export function buildWorkshopPacket(input: {
 
   const partByCode = new Map(parts.map((part) => [part.code, part]));
   const labels: WorkshopLabel[] = [];
-  const sheets: WorkshopSheet[] = (input.cutPlan).map((sheet) => {
+  const sheets: WorkshopSheet[] = input.cutPlan.map((sheet) => {
     const sheetCode = codeOf(sheet);
     const pieces = Array.isArray(sheet.pieces) ? sheet.pieces as RecordValue[] : [];
     const normalizedPieces = pieces.map((piece, index) => {
@@ -156,6 +156,10 @@ export function buildWorkshopPacket(input: {
       const part = partByCode.get(code);
       const position = { x: Number(piece.x), y: Number(piece.y), ...(piece.rotated !== undefined ? { rotated: Boolean(piece.rotated) } : {}) };
       if (part) {
+        if (!part.sheetCode) {
+          part.sheetCode = sheetCode;
+          part.position = position;
+        }
         labels.push({
           id: `${code}#${index + 1}`,
           text: `${part.label} | ${part.width}×${part.height} mm | ${part.material}`,
