@@ -40,4 +40,16 @@ describe('optimizeCutList', () => {
     expect(result.unplaced[0]?.material).toBe('MDF 18');
     expect(result.sheets).toHaveLength(0);
   });
+
+  it('counts only placed quantities in the utilization totals', () => {
+    const result = optimizeCutList([
+      { id: 'panel', width: 400, height: 400, quantity: 2, material: 'MDF 18', grainSensitive: true },
+    ], [{ id: 'sheet-1', width: 500, height: 500, material: 'MDF 18' }], 0);
+
+    expect(result.sheets[0].placements).toHaveLength(1);
+    expect(result.unplaced).toHaveLength(1);
+    expect(result.totalPartArea).toBe(160_000);
+    expect(result.totalSheetArea).toBe(250_000);
+    expect(result.utilizationPct).toBeCloseTo(64);
+  });
 });
