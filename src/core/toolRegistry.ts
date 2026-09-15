@@ -1,27 +1,3 @@
-// IARA OS v1 — Tool Registry (client-side executors)
-// Contracts are stable. AI selects a tool; this registry executes inside the same RLS/trust boundaries.
-import { z } from 'zod';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import { useStudioStore } from '@/store/useStudioStore';
-import { useMarcenappOS } from '@/store/useMarcenappOS';
-import { callAIContractClause } from '@/services/ai';
-
-const db = supabase as unknown as SupabaseClient;
-export type ToolResult<T = unknown> = | { ok: true; data: T } | { ok: false; error: string };
-export interface ToolDefinition<TArgs extends object, TResult = unknown> { name: string; description: string; version: string; inputSchema: z.ZodTypeAny; execute: (args: TArgs, ctx: ExecutionContext) => Promise<ToolResult<TResult>>; }
-export interface ExecutionContext { userId: string; projectId?: string; environmentId?: string; versionId?: string; correlationId?: string; generation?: number; decorStyle?: string; lastImageBase?: string; lastImageMask?: string; }
-
-type CreateClienteArgs = { nome: string; email?: string; telefone?: string };
-type CreateProjetoArgs = { nome: string; clienteNome?: string; width: number; height: number; depth: number; tipo?: string; confirmado: true };
-type GerarRenderArgs = { prompt: string; estilo?: string };
-type CalcularOrcamentoArgs = { projetoId?: string };
-type OperationalArgs = { projetoId?: string };
-type GerarContratoArgs = { clienteNome: string; valor?: number; prazoDias?: number; clausulasExtras?: string[] };
-type ClienteData = { id: string; nome: string };
-type ProjetoData = { id: string; nome: string; width: number; height: number; depth: number };
-type RenderData = { studioCommandId?: string; status: string; imageUrl?: string };
-type OrcamentoData = { projetoId: string; nome: string; total: number; materiais: number; ferragens: number; maoDeObra: number; outros: number; precoVenda: number; lucro: number; margemPct: number; isEstimate: false };
 type OperationalData = { projetoId: string; alertas: unknown[]; dados: Record<string, unknown> };
 type ContratoData = { cliente: string; valor: number | null; prazoDias: number | null; clausulasGeradas: number; clausulas: string[] };
 
@@ -35,6 +11,4 @@ const TOOLS = { createCliente, createProjeto, gerarRender, calcularOrcamento, op
 type ToolName = keyof typeof TOOLS;
 type ErasedTool = { inputSchema: z.ZodTypeAny; execute: (args: Record<string, unknown>, ctx: ExecutionContext) => Promise<ToolResult<unknown>> };
 export function getTool(name: string): ToolDefinition<object, unknown> | undefined { return TOOLS[name as ToolName] as unknown as ToolDefinition<object, unknown> | undefined; }
-export function listTools(): ToolDefinition<object, unknown>[] { return Object.values(TOOLS) as unknown as ToolDefinition<object, unknown>[]; }
-export async function executeToolCall(name: string, args: unknown, ctx: ExecutionContext): Promise<ToolResult<unknown>> { const tool = getTool(name); if (!tool) return { ok: false, error: `Ferramenta desconhecida: ${name}` }; const parsed = tool.inputSchema.safeParse(args); if (!parsed.success) return { ok: false, error: `Argumentos inválidos para ${name}: ${JSON.stringify(parsed.error.flatten().fieldErrors)}` }; try { return await (tool as unknown as ErasedTool).execute(parsed.data as Record<string, unknown>, ctx); } catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Erro desconhecido' }; }
-}
+export function listTools(): ToolDefinition<object, unknown>[] { return Object.values(TOOLS) as unknown as ToolDefinition<object, unknown>[] }
