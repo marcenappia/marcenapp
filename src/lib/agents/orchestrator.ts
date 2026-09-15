@@ -1,5 +1,6 @@
 import { getAgent } from './registry';
 import { executeSpatialAgent, isSpatialAgent } from './spatialRuntime';
+import { validateProductionPackage } from '@/lib/production/packageValidation';
 import type { AgentId, AgentResult, AgentTask, Evidence } from './types';
 
 export type AgentPlanStep = { id: string; agentId: AgentId; type: string; input: Record<string, unknown> };
@@ -27,12 +28,26 @@ export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid(
       const input = { ...step.input };
       for (const key of ['parts', 'sheetTemplates', 'kerf', 'cutPlan', 'hardware', 'bom', 'modules']) {
         if (input[key] === undefined) {
-          const generated = dependencyData(dependencyResults, key);
+          const generated = dependencyData(results, key);
           if (generated !== undefined) input[key] = generated;
         }
       }
       const task: AgentTask = { id: step.id, type: step.type, input, correlationId, context: { originalInput: { ...step.input }, dependencyResults, evidence } };
-      return isSpatialAgent(step.agentId) ? executeSpatialAgent(step.agentId, task) : getAgent(step.agentId).handle(task);
+      const result = isSpatialAgent(step.agentId) ? await executeSpatialAgent(step.agentId, task) : await getAgent(step.agentId).handle(task);
+      if (step.agentId === 'production' && result.status === 'completed') {
+        const productionParts = Array.isArray(input.parts) ? input.parts as Array<Record<string, unknown>> : [];
+        const productionCutPlan = Array.isArray(input.cutPlan) ? input.cutPlan as Array<Record<string, unknown>> : [];
+        const productionBom = Array.isArray(input.bom) ? input.bom as Array<Record<string, unknown>> : [];
+        if (!productionParts.length || !productionCutPlan.length) {
+          return { ...result, status: 'needs_input' as const, data: { ...result.data, productionReady: false }, blockers: ['Produção bloqueada: peças e plano de corte validados são obrigatórios.'] };
+        }
+        const validation = validateProductionPackage(productionParts, productionCutPlan, productionBom);
+        if (!validation.valid) {
+          return { ...result, status: 'needs_input' as const, data: { ...result.data, productionReady: false, validation }, blockers: validation.blockers };
+        }
+        return { ...result, data: { ...result.data, productionReady: true, validation, cutPlan: productionCutPlan, bom: productionBom } };
+      }
+      return result;
     }));
     for (const result of batch) {
       results.push(result);
