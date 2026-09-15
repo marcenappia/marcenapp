@@ -3,12 +3,13 @@ import { callAIText } from '@/services/ai';
 import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import type { ExecutionContext } from '@/core/toolRegistry';
+import { humanSpatialLanguagePrompt } from './spatialLanguage';
 
 interface PlanAnalysis {
   environments?: Array<{ name?: string; type?: string; confidence?: number; position?: number }>;
   dimensions?: { width?: number; depth?: number; ceilingHeight?: number };
-  walls?: Array<{ start?: [number, number]; end?: [number, number]; length?: number }>;
-  openings?: Array<{ type?: string; position?: string; width?: number; height?: number }>;
+  walls?: Array<{ start?: [number, number]; end?: [number, number]; length?: number; humanReference?: string; cardinalReference?: string }>;
+  openings?: Array<{ type?: string; position?: string; width?: number; height?: number; wallReference?: string }>;
   notes?: string[];
 }
 
@@ -65,8 +66,11 @@ export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; pla
     'Reconcilie as vistas quando elas mostrarem o mesmo ambiente. Não trate fotos diferentes como ambientes diferentes sem evidência.',
     'Não invente medidas. Diferencie medido, estimado e desconhecido.',
     'Identifique ambientes, paredes, portas, janelas e dimensões visíveis.',
+    humanSpatialLanguagePrompt(args.prompt),
+    'Para cada parede, preserve a referência humana quando ela puder ser determinada: direita, esquerda, frente, trás, fundo, ao lado ou oposta. Pode registrar uma referência cardeal auxiliar internamente, mas a referência humana é a principal para a conversa.',
+    'Para portas e janelas, informe em qual parede humana elas estão, por exemplo "janela na parede da direita". Se não for possível determinar a referência humana, use "não determinada".',
     'Retorne SOMENTE JSON válido no formato:',
-    '{"environments":[{"name":"Cozinha","type":"cozinha","confidence":0.9,"position":1}],"dimensions":{"width":0,"depth":0,"ceilingHeight":0},"walls":[{"start":[0,0],"end":[1,0],"length":1}],"openings":[{"type":"door","position":"north","width":0,"height":0}],"notes":[]}',
+    '{"environments":[{"name":"Cozinha","type":"cozinha","confidence":0.9,"position":1}],"dimensions":{"width":0,"depth":0,"ceilingHeight":0},"walls":[{"start":[0,0],"end":[1,0],"length":1,"humanReference":"parede da direita","cardinalReference":"east"}],"openings":[{"type":"door","position":"entrada","wallReference":"parede da frente","width":0,"height":0}],"notes":[]}',
   ].join(' ');
 
   let analysis: PlanAnalysis;
@@ -92,7 +96,7 @@ export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; pla
 
   const environmentSummary = JSON.stringify({ project: (project as { nome?: string | null; name?: string | null }).nome || (project as { name?: string | null }).name || 'Projeto', dimensions: analysis.dimensions ?? {}, walls: analysis.walls ?? [], openings: analysis.openings ?? [], environments, notes: analysis.notes ?? [] });
   const idempotencyKey = ctx.correlationId || `${planId}-${Date.now()}`;
-  const studioCommandId = useStudioStore.getState().enqueueCommand({ prompt: `MARCENAPP IARA OS: gerar perspectiva/elevação fiel à planta baixa. ${args.prompt}. Preserve a geometria, proporções, paredes e aberturas identificadas. Use as fotos do mesmo projeto apenas para complementar aparência e elementos fixos. Contexto espacial: ${environmentSummary}`, images: references.map((reference) => ({ mimeType: reference.mimeType, data: reference.data })), decor: ctx.decorStyle || 'Limpo', idempotencyKey, metadata: { origin: 'iara', originalPrompt: args.prompt, targetModule: 'studio', planId, analysisId, referenceCount: references.length } });
+  const studioCommandId = useStudioStore.getState().enqueueCommand({ prompt: `MARCENAPP IARA OS: gerar perspectiva/elevação fiel à planta baixa. ${args.prompt}. Preserve a geometria, proporções, paredes e aberturas identificadas. Use as fotos do mesmo projeto apenas para complementar aparência e elementos fixos. Use as referências humanas das paredes (direita, esquerda, frente, trás e fundo) conforme a análise; não substitua essas referências por norte/sul/leste/oeste na interpretação do pedido. Contexto espacial: ${environmentSummary}`, images: references.map((reference) => ({ mimeType: reference.mimeType, data: reference.data })), decor: ctx.decorStyle || 'Limpo', idempotencyKey, metadata: { origin: 'iara', originalPrompt: args.prompt, targetModule: 'studio', planId, analysisId, referenceCount: references.length } });
   useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: args.prompt, estilo: ctx.decorStyle || 'Limpo', studioCommandId, userId: ctx.userId, projectId: ctx.projectId, ...(ctx.environmentId ? { environmentId: ctx.environmentId } : {}), ...(ctx.versionId ? { versionId: ctx.versionId } : {}), ...(ctx.correlationId ? { correlationId: ctx.correlationId } : {}), ...(typeof ctx.generation === 'number' ? { generation: ctx.generation } : {}), planId, analysisId } });
 
   return { ok: true as const, data: { planId, analysisId, studioCommandId, status: 'queued', environmentCount: environments.length } };
