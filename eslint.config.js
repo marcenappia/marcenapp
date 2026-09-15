@@ -32,4 +32,10 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
     },
   },
+  {
+    files: ["src/core/toolRegistry.ts"],
+    rules: {
+      "no-useless-escape": "off",
+    },
+  },
 );
