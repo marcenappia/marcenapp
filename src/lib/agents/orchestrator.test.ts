@@ -74,6 +74,19 @@ describe('MARCENAPP agents', () => {
     expect(result.status).toBe('needs_input');
   });
 
+  it('bloqueia produção sem versão aprovada', async () => {
+    const result = await getAgent('production').handle({
+      id: 'production-1', type: 'production.prepare', correlationId: 'test-correlation',
+      input: {
+        projectId: 'project-1', userId: 'user-test',
+        parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
+        cutPlan: [{ code: 'CH1', width: 2750, height: 1850, material: 'MDF-18', pieces: [{ code: 'P1', x: 0, y: 0, width: 500, height: 700 }] }],
+      },
+    });
+    expect(result.status).toBe('needs_input');
+    expect(result.blockers?.some((blocker) => blocker.includes('versão aprovada'))).toBe(true);
+  });
+
   it('audita e bloqueia sobreposição de peças', async () => {
     const result = await getAgent('cut_audit').handle({
       id: 'cut-audit-1', type: 'cut.audit', correlationId: 'test-correlation',
