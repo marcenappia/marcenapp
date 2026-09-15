@@ -23,9 +23,10 @@ export function createProductionAgent(dependencies: AgentDefinition['id'][] = ['
       }
 
       const projectId = typeof task.input.projectId === 'string' ? task.input.projectId : '';
+      const versionId = typeof task.input.versionId === 'string' ? task.input.versionId : '';
       const userId = typeof task.input.userId === 'string' ? task.input.userId : (await supabase.auth.getUser()).data.user?.id ?? '';
-      if (!projectId || !userId) {
-        return { agentId: 'production', taskId: task.id, correlationId: task.correlationId, status: 'needs_input', data: { productionReady: false }, blockers: ['Produção bloqueada: projeto e sessão do usuário são obrigatórios.'] };
+      if (!projectId || !versionId || !userId) {
+        return { agentId: 'production', taskId: task.id, correlationId: task.correlationId, status: 'needs_input', data: { productionReady: false }, blockers: ['Produção bloqueada: projeto, versão aprovada e sessão do usuário são obrigatórios.'] };
       }
 
       const validation = validateProductionPackage(parts, cutPlan, bom);
@@ -36,7 +37,7 @@ export function createProductionAgent(dependencies: AgentDefinition['id'][] = ['
       const workshopPacket = buildWorkshopPacket({
         projectId,
         environmentId: typeof task.input.environmentId === 'string' ? task.input.environmentId : undefined,
-        versionId: typeof task.input.versionId === 'string' ? task.input.versionId : undefined,
+        versionId,
         correlationId: task.correlationId,
         furnitureId: typeof task.input.furnitureId === 'string' ? task.input.furnitureId : undefined,
         furnitureName: typeof task.input.furnitureName === 'string' ? task.input.furnitureName : typeof task.input.workName === 'string' ? task.input.workName : undefined,
@@ -49,7 +50,7 @@ export function createProductionAgent(dependencies: AgentDefinition['id'][] = ['
       const freeze = await freezeProductionPackage({
         projectId,
         userId,
-        versionId: typeof task.input.versionId === 'string' ? task.input.versionId : undefined,
+        versionId,
         environmentId: typeof task.input.environmentId === 'string' ? task.input.environmentId : undefined,
         correlationId: task.correlationId,
         technicalPackage: {
@@ -68,6 +69,9 @@ export function createProductionAgent(dependencies: AgentDefinition['id'][] = ['
       const frozenPackage = freeze.freeze.snapshot.technicalPackage && typeof freeze.freeze.snapshot.technicalPackage === 'object'
         ? freeze.freeze.snapshot.technicalPackage as Record<string, unknown>
         : {};
+      const frozenWorkshopPacket = frozenPackage.workshopPacket && typeof frozenPackage.workshopPacket === 'object'
+        ? { ...(frozenPackage.workshopPacket as Record<string, unknown>), versionId: freeze.freeze.versionId, traceability: { ...((frozenPackage.workshopPacket as Record<string, unknown>).traceability as Record<string, unknown> ?? {}), versionId: freeze.freeze.versionId } }
+        : { ...workshopPacket, versionId: freeze.freeze.versionId, traceability: { ...workshopPacket.traceability, versionId: freeze.freeze.versionId } };
 
       return {
         agentId: 'production',
@@ -79,7 +83,7 @@ export function createProductionAgent(dependencies: AgentDefinition['id'][] = ['
           productionReady: true,
           cutListReady: true,
           validation: frozenPackage.validation ?? validation,
-          workshopPacket: frozenPackage.workshopPacket ?? workshopPacket,
+          workshopPacket: frozenWorkshopPacket,
           cutPlan: frozenPackage.cutPlan ?? cutPlan,
           bom: frozenPackage.bom ?? bom,
           parts: frozenPackage.parts ?? parts,
