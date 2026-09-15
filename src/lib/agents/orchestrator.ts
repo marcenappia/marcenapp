@@ -1,4 +1,5 @@
 import { getAgent } from './registry';
+import { executeSpatialAgent, isSpatialAgent } from './spatialRuntime';
 import type { AgentId, AgentResult, AgentTask, Evidence } from './types';
 
 export type AgentPlanStep = {
@@ -46,7 +47,12 @@ export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid(
           evidence,
         },
       };
-      return getAgent(step.agentId).handle(task);
+
+      // Mantém os agentes do registry e conecta os especialistas espaciais ao
+      // serviço de IA compartilhado, sem criar um segundo orquestrador.
+      return isSpatialAgent(step.agentId)
+        ? executeSpatialAgent(step.agentId, task)
+        : getAgent(step.agentId).handle(task);
     }));
 
     for (const result of batch) {
