@@ -78,7 +78,7 @@ export async function runProjectJourney(input: Record<string, unknown>): Promise
     { id: 'inventory', agentId: 'inventory', type: 'inventory.check', input },
     { id: 'production', agentId: 'production', type: 'production.prepare', input },
     { id: 'budget', agentId: 'budget', type: 'budget.prepare', input },
-    { id: 'documents', agentId: 'document.prepare', input: {} as Record<string, unknown> },
+    { id: 'documents', agentId: 'documents', type: 'document.prepare', input },
     { id: 'order', agentId: 'order', type: 'order.prepare', input },
   ]);
 }
