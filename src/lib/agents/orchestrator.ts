@@ -2,77 +2,46 @@ import { getAgent } from './registry';
 import { executeSpatialAgent, isSpatialAgent } from './spatialRuntime';
 import type { AgentId, AgentResult, AgentTask, Evidence } from './types';
 
-export type AgentPlanStep = {
-  id: string;
-  agentId: AgentId;
-  type: string;
-  input: Record<string, unknown>;
-};
+export type AgentPlanStep = { id: string; agentId: AgentId; type: string; input: Record<string, unknown> };
+export type AgentPlanResult = { correlationId: string; results: AgentResult[]; status: 'completed' | 'needs_input' | 'failed' };
+function uuid(): string { return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+function collectEvidence(results: AgentResult[]): Evidence[] { return results.flatMap((result) => result.evidence ?? []); }
 
-export type AgentPlanResult = {
-  correlationId: string;
-  results: AgentResult[];
-  status: 'completed' | 'needs_input' | 'failed';
-};
-
-function uuid(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function collectEvidence(results: AgentResult[]): Evidence[] {
-  return results.flatMap((result) => result.evidence ?? []);
+function dependencyData(results: AgentResult[], key: string): unknown {
+  for (let index = results.length - 1; index >= 0; index -= 1) {
+    const value = results[index].data?.[key];
+    if (value !== undefined) return value;
+  }
+  return undefined;
 }
 
 export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid()): Promise<AgentPlanResult> {
-  const results: AgentResult[] = [];
-  const done = new Set<AgentId>();
-  const remaining = [...steps];
-
+  const results: AgentResult[] = []; const done = new Set<AgentId>(); const remaining = [...steps];
   while (remaining.length) {
     const ready = remaining.filter((step) => getAgent(step.agentId).dependencies?.every((dep) => done.has(dep)) ?? true);
     if (!ready.length) return { correlationId, results, status: 'failed' };
-
     const evidence = collectEvidence(results);
     const batch = await Promise.all(ready.map(async (step) => {
       const dependencyIds = new Set(getAgent(step.agentId).dependencies ?? []);
       const dependencyResults = results.filter((result) => dependencyIds.has(result.agentId));
-      const task: AgentTask = {
-        id: step.id,
-        type: step.type,
-        input: { ...step.input },
-        correlationId,
-        context: {
-          originalInput: { ...step.input },
-          dependencyResults,
-          evidence,
-        },
-      };
-
-      // Mantém os agentes do registry e conecta os especialistas espaciais ao
-      // serviço de IA compartilhado, sem criar um segundo orquestrador.
-      return isSpatialAgent(step.agentId)
-        ? executeSpatialAgent(step.agentId, task)
-        : getAgent(step.agentId).handle(task);
+      const input = { ...step.input };
+      if (input.parts === undefined) { const generatedParts = dependencyData(dependencyResults, 'parts'); if (generatedParts !== undefined) input.parts = generatedParts; }
+      if (input.sheetTemplates === undefined) { const generatedSheets = dependencyData(dependencyResults, 'sheetTemplates'); if (generatedSheets !== undefined) input.sheetTemplates = generatedSheets; }
+      if (input.kerf === undefined) { const generatedKerf = dependencyData(dependencyResults, 'kerf'); if (generatedKerf !== undefined) input.kerf = generatedKerf; }
+      const task: AgentTask = { id: step.id, type: step.type, input, correlationId, context: { originalInput: { ...step.input }, dependencyResults, evidence } };
+      return isSpatialAgent(step.agentId) ? executeSpatialAgent(step.agentId, task) : getAgent(step.agentId).handle(task);
     }));
-
     for (const result of batch) {
       results.push(result);
       if (result.status === 'failed') return { correlationId, results, status: 'failed' };
       if (result.status === 'needs_input') return { correlationId, results, status: 'needs_input' };
       done.add(result.agentId);
     }
-
     for (const step of ready) remaining.splice(remaining.indexOf(step), 1);
   }
-
   return { correlationId, results, status: 'completed' };
 }
 
-/**
- * Pipeline técnico usado quando a tarefa é espacial (planta, fotos, câmera,
- * medidas, multivista, engenharia do móvel ou render). Não executa a jornada
- * comercial inteira e não cria um segundo orquestrador.
- */
 export async function runSpatialJourney(input: Record<string, unknown>, correlationId = uuid()): Promise<AgentPlanResult> {
   return runAgentPlan([
     { id: 'vision', agentId: 'vision', type: 'vision.environment.analyze', input },
@@ -86,10 +55,6 @@ export async function runSpatialJourney(input: Record<string, unknown>, correlat
   ], correlationId);
 }
 
-/**
- * Jornada comercial canônica. A interface existente permanece intacta;
- * os especialistas executam por baixo dela e compartilham a mesma evidência.
- */
 export async function runProjectJourney(input: Record<string, unknown>): Promise<AgentPlanResult> {
   return runAgentPlan([
     { id: 'customer', agentId: 'customer', type: 'customer.validate', input },
