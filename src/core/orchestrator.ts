@@ -3,6 +3,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
 import { callAIFunction } from '@/services/ai';
+import { runSpatialJourney } from '@/lib/agents/orchestrator';
 import type { Json } from '@/integrations/supabase/runtime-types';
 
 export interface ToolCall { tool: string; args: Record<string, unknown>; }
@@ -12,6 +13,12 @@ export interface OrchestratorRun { runId: string | null; plan: ToolCall[]; summa
 export async function planWithLLM(userPrompt: string, context?: Record<string, unknown>): Promise<OrchestratorPlan> {
   const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string; provider?: 'lovable' | 'gemini' }>('ai-orchestrator', { userPrompt, context });
   return { plan: data.plan ?? [], summary: data.summary ?? '', model: data.model, provider: data.provider };
+}
+
+function spatialImages(ctx: ExecutionContext): Array<{ mimeType: string; data: string }> {
+  const refs = (ctx.referenceImages ?? []).map((reference) => ({ mimeType: reference.mimeType ?? 'image/png', data: reference.data })).filter((reference) => Boolean(reference.data));
+  if (ctx.lastImageBase && !refs.some((reference) => reference.data === ctx.lastImageBase)) refs.unshift({ mimeType: 'image/png', data: ctx.lastImageBase });
+  return refs.slice(0, 8);
 }
 
 export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext, context?: Record<string, unknown>): Promise<OrchestratorRun> {
@@ -44,6 +51,21 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       try { await supabase.from('orchestrator_runs').update({ plan: [], results: [], used_fallback: false, status: 'needs_input' }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado do orchestrator_run:', e); }
     }
     return { runId, plan, summary, results, usedFallback: false, provider: result.provider, error, status: 'needs_input' };
+  }
+
+  const spatialAction = iara?.action === 'analyze_plan' || iara?.action === 'render';
+  const images = spatialImages(ctx);
+  if (spatialAction && images.length) {
+    const spatial = await runSpatialJourney({ prompt: userPrompt, projectId: ctx.projectId, environmentId: ctx.environmentId, versionId: ctx.versionId, images }, ctx.correlationId ?? undefined);
+    if (spatial.status !== 'completed') {
+      const error = spatial.results.find((item) => item.status === 'failed')?.error
+        ?? spatial.results.find((item) => item.status === 'needs_input')?.blockers?.[0]
+        ?? 'Os agentes espaciais não conseguiram validar o contexto do ambiente.';
+      if (runId) {
+        try { await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: spatial.results as unknown as Json, used_fallback: false, status: spatial.status }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado espacial:', e); }
+      }
+      return { runId, plan, summary, results, usedFallback: false, provider: result.provider, error, status: spatial.status };
+    }
   }
 
   for (const call of plan) {
