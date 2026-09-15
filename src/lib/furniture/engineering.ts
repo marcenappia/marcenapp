@@ -28,7 +28,7 @@ export type EngineeredPart = {
   material: string;
   grainSensitive: boolean;
   allowRotation: boolean;
-  role: 'side' | 'top' | 'bottom' | 'shelf' | 'back';
+  role: 'side' | 'top' | 'bottom' | 'shelf' | 'back' | 'door' | 'drawer-front' | 'drawer-box';
 };
 
 export type EngineeringResult = {
