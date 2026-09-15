@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { optimizeCutList, type CutPart, type CutSheet } from '@/lib/cut/maxRects';
 import type { ToolResult } from './toolRegistry';
 
 const db = supabase;
@@ -25,6 +26,44 @@ function projectIdOrError(projectId?: string): ToolResult<never> | null {
 
 async function currentUserId(): Promise<string | null> {
   return (await db.auth.getUser()).data.user?.id ?? null;
+}
+
+function isCutPart(value: unknown): value is CutPart {
+  if (!value || typeof value !== 'object') return false;
+  const part = value as Record<string, unknown>;
+  return typeof part.id === 'string'
+    && typeof part.width === 'number'
+    && Number.isFinite(part.width)
+    && part.width > 0
+    && typeof part.height === 'number'
+    && Number.isFinite(part.height)
+    && part.height > 0
+    && typeof part.material === 'string'
+    && part.material.length > 0;
+}
+
+function isCutSheet(value: unknown): value is CutSheet {
+  if (!value || typeof value !== 'object') return false;
+  const sheet = value as Record<string, unknown>;
+  return typeof sheet.id === 'string'
+    && typeof sheet.width === 'number'
+    && Number.isFinite(sheet.width)
+    && sheet.width > 0
+    && typeof sheet.height === 'number'
+    && Number.isFinite(sheet.height)
+    && sheet.height > 0
+    && typeof sheet.material === 'string'
+    && sheet.material.length > 0;
+}
+
+function explicitCutInputs(snapshot: unknown): { parts: CutPart[]; sheetTemplates: CutSheet[]; kerf?: number } | null {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const value = snapshot as Record<string, unknown>;
+  const parts = Array.isArray(value.parts) ? value.parts.filter(isCutPart) : [];
+  const sheetTemplates = Array.isArray(value.sheetTemplates) ? value.sheetTemplates.filter(isCutSheet) : [];
+  if (!parts.length || !sheetTemplates.length) return null;
+  const kerf = typeof value.kerf === 'number' && Number.isFinite(value.kerf) && value.kerf >= 0 ? value.kerf : undefined;
+  return { parts, sheetTemplates, kerf };
 }
 
 export async function executeIaraSmartAction(action: SmartAction, projectId?: string): Promise<ToolResult<Record<string, unknown>>> {
@@ -68,8 +107,32 @@ export async function executeIaraSmartAction(action: SmartAction, projectId?: st
   if (action === 'cut') {
     const { data, error } = await db.from('project_versions').select('id,version_number,status,cut_plan_path,snapshot,created_at').eq('user_id', userId).eq('project_id', projectId!).order('version_number', { ascending: false }).limit(1).maybeSingle();
     if (error) return { ok: false, error: error.message };
-    if (!data?.cut_plan_path) return { ok: false, error: 'Este projeto ainda não possui plano de corte gerado. Primeiro é necessário concluir a engenharia do móvel e a otimização de corte.' };
-    return { ok: true, data: { action, projectId, version: data } };
+    if (!data) return { ok: false, error: 'Este projeto ainda não possui uma versão para otimizar.' };
+
+    const inputs = explicitCutInputs(data.snapshot);
+    if (inputs) {
+      const result = optimizeCutList(inputs.parts, inputs.sheetTemplates, inputs.kerf);
+      return {
+        ok: true,
+        data: {
+          action,
+          projectId,
+          versionId: data.id,
+          versionNumber: data.version_number,
+          optimizer: 'max_rects_best_short_side_fit',
+          result,
+          persistedCutPlan: Boolean(data.cut_plan_path),
+        },
+      };
+    }
+
+    if (!data.cut_plan_path) {
+      return {
+        ok: false,
+        error: 'O projeto ainda não possui um plano de corte nem uma lista explícita de peças e chapas no snapshot. A IARA não vai inventar a engenharia necessária para calcular o corte.',
+      };
+    }
+    return { ok: true, data: { action, projectId, version: data, note: 'Plano de corte existente recuperado; a versão atual não contém entradas estruturadas suficientes para recalcular o aproveitamento.' } };
   }
 
   if (action === 'budget') {
