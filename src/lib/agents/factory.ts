@@ -19,12 +19,30 @@ function cutParts(task: AgentTask): CutPart[] | null {
   const result = value.map((part) => ({ id: String(part.id ?? part.code ?? ''), width: Number(part.width), height: Number(part.height), quantity: Number(part.quantity ?? 1), material: String(part.material ?? ''), grainSensitive: Boolean(part.grainSensitive), allowRotation: part.allowRotation !== false }));
   return result.every((part) => part.id && part.width > 0 && part.height > 0 && Number.isInteger(part.quantity) && part.quantity > 0 && part.material) ? result : null;
 }
+function normalizedCutPlan(result: ReturnType<typeof optimizeCutList>): Array<Record<string, unknown>> {
+  return result.sheets.map((sheet) => ({
+    code: sheet.id,
+    width: sheet.width,
+    height: sheet.height,
+    material: sheet.material,
+    pieces: sheet.placements.map((placement) => ({
+      code: placement.partId,
+      id: placement.partId,
+      x: placement.x,
+      y: placement.y,
+      width: placement.width,
+      height: placement.height,
+      rotated: placement.rotated,
+      material: placement.material,
+    })),
+  }));
+}
 function auditCutPlan(requested: Array<Record<string, unknown>>, sheets: Array<Record<string, unknown>>) {
   const blockers: string[] = []; const requestedCounts = new Map<string, number>(); const placedCounts = new Map<string, number>();
   for (const part of requested) { const code = String(part.code ?? part.id ?? ''); const quantity = Number(part.quantity ?? 1); const width = asPositiveNumber(part.width); const height = asPositiveNumber(part.height); if (!code || !Number.isInteger(quantity) || quantity < 1 || !width || !height) { blockers.push(`Peça solicitada inválida: ${code || 'sem código'}`); continue; } requestedCounts.set(code, (requestedCounts.get(code) ?? 0) + quantity); }
   for (const sheet of sheets) { const sheetWidth = asPositiveNumber(sheet.width); const sheetHeight = asPositiveNumber(sheet.height); const placements = Array.isArray(sheet.pieces) ? sheet.pieces as Array<Record<string, unknown>> : []; if (!sheetWidth || !sheetHeight) { blockers.push('Chapa sem largura/altura válidas.'); continue; } for (let i = 0; i < placements.length; i += 1) { const piece = placements[i]; const code = String(piece.code ?? piece.id ?? ''); const x = typeof piece.x === 'number' ? piece.x : NaN; const y = typeof piece.y === 'number' ? piece.y : NaN; const width = asPositiveNumber(piece.width); const height = asPositiveNumber(piece.height); if (!code || !Number.isFinite(x) || !Number.isFinite(y) || !width || !height) { blockers.push(`Posição inválida na chapa ${String(sheet.code ?? '?')}, peça ${i + 1}.`); continue; } if (x < 0 || y < 0 || x + width > sheetWidth || y + height > sheetHeight) blockers.push(`Peça ${code} ultrapassa os limites da chapa ${String(sheet.code ?? '?')}.`); placedCounts.set(code, (placedCounts.get(code) ?? 0) + 1); for (let j = i + 1; j < placements.length; j += 1) { const other = placements[j]; const ox = typeof other.x === 'number' ? other.x : NaN; const oy = typeof other.y === 'number' ? other.y : NaN; const ow = asPositiveNumber(other.width); const oh = asPositiveNumber(other.height); if (![ox, oy].every(Number.isFinite) || !ow || !oh) continue; if (x < ox + ow && x + width > ox && y < oy + oh && y + height > oy) blockers.push(`Sobreposição detectada entre ${code} e ${String(other.code ?? '?')} na chapa ${String(sheet.code ?? '?')}.`); } } }
   for (const [code, expected] of requestedCounts) { const placed = placedCounts.get(code) ?? 0; if (placed !== expected) blockers.push(`Cobertura incorreta da peça ${code}: esperado ${expected}, encontrado ${placed}.`); }
-  for (const [code] of placedCounts) if (!requestedCounts.has(code)) blockers.push(`Peça não solicitada no plano: ${code}.`);
+  for (const [code] of placedCounts) if (!requestedCounts.has(code.split('#')[0])) blockers.push(`Peça não solicitada no plano: ${code}.`);
   return blockers;
 }
 function engineeringSpec(task: AgentTask): FurnitureEngineeringSpec | null { const value = task.input.engineeringSpec; return value && typeof value === 'object' ? value as FurnitureEngineeringSpec : null; }
@@ -40,7 +58,7 @@ export function createAgent(id: AgentDefinition['id'], name: string, capabilitie
       case 'multiview': return hasImage(task) ? complete(id, task, { stage: 'multiview', reconciliationReady: true }, { confidence: 0, warnings: ['Conferência multivista real será executada pelo adaptador de visão; divergências deverão bloquear o avanço.'] }) : needsInput(id, task, ['imagens/perspectivas']);
       case 'furniture_engineering': { const explicitParts = parts(task); if (explicitParts?.length) return complete(id, task, { stage: 'furniture_engineering', engineeringReady: true, parts: explicitParts, sheetTemplates: sheetTemplates(task) ?? [] }); const spec = engineeringSpec(task); if (!spec) return needsInput(id, task, ['parts ou engineeringSpec']); const engineered = engineerBasicCarcass(spec); if (engineered.blockers.length) return { ...needsInput(id, task, ['correção da engenharia do móvel']), blockers: engineered.blockers, data: { stage: 'furniture_engineering', engineeringReady: false, ...engineered } }; return complete(id, task, { stage: 'furniture_engineering', engineeringReady: true, ...engineered }); }
       case 'materials': return parts(task)?.length ? complete(id, task, { normalized: true, stage: 'materials', parts: parts(task) }) : needsInput(id, task, ['parts']);
-      case 'cut_optimization': { const generatedParts = cutParts(task); const sheets = sheetTemplates(task); if (!generatedParts) return needsInput(id, task, ['parts']); if (!sheets?.length) return needsInput(id, task, ['sheetTemplates'], { warnings: ['As dimensões das chapas são uma entrada de fabricação e não serão inventadas.'] }); const result = optimizeCutList(generatedParts, sheets, typeof task.input.kerf === 'number' ? task.input.kerf : 3); return complete(id, task, { stage: 'cut_optimization', optimized: result.unplaced.length === 0, optimizer: 'max_rects_best_short_side_fit', result }); }
+      case 'cut_optimization': { const generatedParts = cutParts(task); const sheets = sheetTemplates(task); if (!generatedParts) return needsInput(id, task, ['parts']); if (!sheets?.length) return needsInput(id, task, ['sheetTemplates'], { warnings: ['As dimensões das chapas são uma entrada de fabricação e não serão inventadas.'] }); const result = optimizeCutList(generatedParts, sheets, typeof task.input.kerf === 'number' ? task.input.kerf : 3); return complete(id, task, { stage: 'cut_optimization', optimized: result.unplaced.length === 0, optimizer: 'max_rects_best_short_side_fit', result, cutPlan: normalizedCutPlan(result) }); }
       case 'cut_audit': { const requested = parts(task); const plan = cutPlan(task); if (!requested?.length || !plan?.length) return needsInput(id, task, ['parts', 'cutPlan']); const blockers = auditCutPlan(requested, plan); return blockers.length ? { ...needsInput(id, task, ['correção do plano de corte']), blockers, data: { stage: 'cut_audit', validated: false, blockers } } : complete(id, task, { stage: 'cut_audit', validated: true, blockers: [] }, { confidence: 1, warnings: ['Auditoria geométrica concluída. Otimalidade de aproveitamento continua separada da validação de segurança.'] }); }
       case 'render': return task.input.projectId || task.input.scene ? complete(id, task, { sceneReady: true, stage: 'render', requiresValidatedTechnicalPackage: true }) : needsInput(id, task, ['projectId ou scene']);
       case 'quality': return task.input.parts && (task.input.measurements || task.input.photoUrl) ? complete(id, task, { validated: true, blockers: [], stage: 'quality' }) : needsInput(id, task, ['parts', 'measurements ou photoUrl']);
