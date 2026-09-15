@@ -1,5 +1,5 @@
 import type { AgentDefinition, AgentResult, AgentTask } from './types';
-import { engineerBasicCarcass, type FurnitureEngineeringSpec } from '@/lib/furniture/engineering';
+import { buildFurniturePackage, type FurniturePackageSpec } from '@/lib/furniture/package';
 import { optimizeCutList, type CutPart, type CutSheet } from '@/lib/cut/maxRects';
 
 function complete(agentId: AgentDefinition['id'], task: AgentTask, data: Record<string, unknown>, extra: Partial<AgentResult> = {}): AgentResult {
@@ -20,22 +20,7 @@ function cutParts(task: AgentTask): CutPart[] | null {
   return result.every((part) => part.id && part.width > 0 && part.height > 0 && Number.isInteger(part.quantity) && part.quantity > 0 && part.material) ? result : null;
 }
 function normalizedCutPlan(result: ReturnType<typeof optimizeCutList>): Array<Record<string, unknown>> {
-  return result.sheets.map((sheet) => ({
-    code: sheet.id,
-    width: sheet.width,
-    height: sheet.height,
-    material: sheet.material,
-    pieces: sheet.placements.map((placement) => ({
-      code: placement.partId,
-      id: placement.partId,
-      x: placement.x,
-      y: placement.y,
-      width: placement.width,
-      height: placement.height,
-      rotated: placement.rotated,
-      material: placement.material,
-    })),
-  }));
+  return result.sheets.map((sheet) => ({ code: sheet.id, width: sheet.width, height: sheet.height, material: sheet.material, pieces: sheet.placements.map((placement) => ({ code: placement.partId, id: placement.partId, x: placement.x, y: placement.y, width: placement.width, height: placement.height, rotated: placement.rotated, material: placement.material })) }));
 }
 function auditCutPlan(requested: Array<Record<string, unknown>>, sheets: Array<Record<string, unknown>>) {
   const blockers: string[] = []; const requestedCounts = new Map<string, number>(); const placedCounts = new Map<string, number>();
@@ -45,7 +30,7 @@ function auditCutPlan(requested: Array<Record<string, unknown>>, sheets: Array<R
   for (const [code] of placedCounts) if (!requestedCounts.has(code)) blockers.push(`Peça não solicitada no plano: ${code}.`);
   return blockers;
 }
-function engineeringSpec(task: AgentTask): FurnitureEngineeringSpec | null { const value = task.input.engineeringSpec; return value && typeof value === 'object' ? value as FurnitureEngineeringSpec : null; }
+function engineeringSpec(task: AgentTask): FurniturePackageSpec | null { const value = task.input.engineeringSpec; return value && typeof value === 'object' ? value as FurniturePackageSpec : null; }
 
 export function createAgent(id: AgentDefinition['id'], name: string, capabilities: string[], dependencies: AgentDefinition['id'][] = []): AgentDefinition {
   return { id, name, capabilities, dependencies, async handle(task) {
@@ -56,7 +41,7 @@ export function createAgent(id: AgentDefinition['id'], name: string, capabilitie
       case 'measurement': return task.input.measurements || task.input.photoUrl ? complete(id, task, { validated: true, stage: 'measurement', source: task.input.measurements ? 'manual' : 'photo' }) : needsInput(id, task, ['measurements ou photoUrl']);
       case 'measurement_prediction': return task.context?.dependencyResults.some((result) => result.agentId === 'measurement' && result.status === 'completed') ? complete(id, task, { stage: 'measurement_prediction', predictionReady: true, requiresModel: true }, { confidence: 0, warnings: ['Predição de medidas exige referência/calibração ou modelo de visão; não há extrapolação silenciosa.'] }) : needsInput(id, task, ['resultado do agente measurement']);
       case 'multiview': return hasImage(task) ? complete(id, task, { stage: 'multiview', reconciliationReady: true }, { confidence: 0, warnings: ['Conferência multivista real será executada pelo adaptador de visão; divergências deverão bloquear o avanço.'] }) : needsInput(id, task, ['imagens/perspectivas']);
-      case 'furniture_engineering': { const explicitParts = parts(task); if (explicitParts?.length) return complete(id, task, { stage: 'furniture_engineering', engineeringReady: true, parts: explicitParts, sheetTemplates: sheetTemplates(task) ?? [] }); const spec = engineeringSpec(task); if (!spec) return needsInput(id, task, ['parts ou engineeringSpec']); const engineered = engineerBasicCarcass(spec); if (engineered.blockers.length) return { ...needsInput(id, task, ['correção da engenharia do móvel']), blockers: engineered.blockers, data: { stage: 'furniture_engineering', engineeringReady: false, ...engineered } }; return complete(id, task, { stage: 'furniture_engineering', engineeringReady: true, ...engineered }); }
+      case 'furniture_engineering': { const explicitParts = parts(task); if (explicitParts?.length) return complete(id, task, { stage: 'furniture_engineering', engineeringReady: true, parts: explicitParts, sheetTemplates: sheetTemplates(task) ?? [] }); const spec = engineeringSpec(task); if (!spec) return needsInput(id, task, ['parts ou engineeringSpec']); const engineered = buildFurniturePackage(spec); if (engineered.blockers.length) return { ...needsInput(id, task, ['correção da engenharia do móvel']), blockers: engineered.blockers, data: { stage: 'furniture_engineering', engineeringReady: false, ...engineered } }; return complete(id, task, { stage: 'furniture_engineering', engineeringReady: true, ...engineered }); }
       case 'materials': return parts(task)?.length ? complete(id, task, { normalized: true, stage: 'materials', parts: parts(task) }) : needsInput(id, task, ['parts']);
       case 'cut_optimization': { const generatedParts = cutParts(task); const sheets = sheetTemplates(task); if (!generatedParts) return needsInput(id, task, ['parts']); if (!sheets?.length) return needsInput(id, task, ['sheetTemplates'], { warnings: ['As dimensões das chapas são uma entrada de fabricação e não serão inventadas.'] }); const result = optimizeCutList(generatedParts, sheets, typeof task.input.kerf === 'number' ? task.input.kerf : 3); return complete(id, task, { stage: 'cut_optimization', optimized: result.unplaced.length === 0, optimizer: 'max_rects_best_short_side_fit', result, cutPlan: normalizedCutPlan(result) }); }
       case 'cut_audit': { const requested = parts(task); const plan = cutPlan(task); if (!requested?.length || !plan?.length) return needsInput(id, task, ['parts', 'cutPlan']); const blockers = auditCutPlan(requested, plan); return blockers.length ? { ...needsInput(id, task, ['correção do plano de corte']), blockers, data: { stage: 'cut_audit', validated: false, blockers } } : complete(id, task, { stage: 'cut_audit', validated: true, blockers: [] }, { confidence: 1, warnings: ['Auditoria geométrica concluída. Otimalidade de aproveitamento continua separada da validação de segurança.'] }); }
