@@ -1,6 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ALLOWED_ORIGIN_SUFFIXES = [".vercel.app", ".lovable.app", ".lovableproject.com", ".lovable.dev"];
 const EXTRA_ORIGINS = [
   "https://marcenapp.com.br",
   "https://www.marcenapp.com.br",
@@ -16,8 +15,7 @@ const isAllowedOrigin = (origin: string | null) => {
     if (hostname === "localhost" || hostname === "127.0.0.1") return true;
     if (protocol !== "https:") return false;
     const normalized = origin.replace(/\/$/, "");
-    if (EXTRA_ORIGINS.includes(normalized)) return true;
-    return ALLOWED_ORIGIN_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+    return EXTRA_ORIGINS.includes(normalized);
   } catch {
     return false;
   }

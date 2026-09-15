@@ -1,24 +1,26 @@
-# marcena 
+# Marcenapp
 
 Aplicativo profissional para gestão de marcenarias com recursos de IA.
 
-This project was built with [Lovable](https://lovable.dev).
+## Desenvolvimento
 
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/92f8283e-86d5-4f16-be5d-c50bf7bc285b).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+O repositório oficial é a fonte de código do projeto.
 
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
-npm i
+npm ci
 npm run dev
 ```
+
+### Validação
+
+```sh
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+npm run test:e2e
+```
+
+A publicação de produção é controlada pelo fluxo de CI/CD configurado no repositório. Alterações devem ser feitas no código versionado e validadas antes de chegar à produção.

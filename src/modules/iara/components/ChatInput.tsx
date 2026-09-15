@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scissors, PackageCheck, Calculator, FileText, ShoppingCart, Wrench, Truck, ListChecks, Camera, PencilLine, Plus, ArrowUpFromLine } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
 import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
 
 type PendingUpload = { base64: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan' };
@@ -12,7 +13,7 @@ const SMART_ACTIONS: Array<{ domain: SmartAction['domain']; title: string; items
   { domain: 'execution', title: 'Execução', items: IARA_SMART_ACTIONS.filter(a => a.domain === 'execution').map(a => ({ ...a, prompt: a.intent })) },
 ];
 
-const ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+const ICONS: Record<string, React.ComponentType<LucideProps>> = {
   'project.analyze': Image, 'project.create': ClipboardList, 'project.measurements': Ruler, 'project.elevation': ArrowUpFromLine,
   'project.render': Image, 'project.review': ClipboardList, 'production.materials': Boxes, 'production.hardware': Wrench,
   'production.cut': Scissors, 'production.inventory': PackageCheck, 'production.production': ClipboardList, 'business.budget': Calculator,
@@ -40,9 +41,11 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     ref.current?.click();
   };
 
-  const startElevation = () => selectImage(planInputRef, 'plan', 'Prepare a elevação desta planta.');
+  const startElevation = () => {
+    selectImage(planInputRef, 'plan', 'Prepare a elevação desta planta.');
+  };
 
-  return <footer className="shrink-0 border-t border-border bg-card px-2.5 pt-2.5 sm:p-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] sm:pb-4 relative z-20" aria-label="Compositor da IARA">
+  return <footer className="bg-card border-t border-border p-3 sm:p-4 shrink-0 relative" aria-label="Compositor da IARA">
     {pendingUpload && <div className="absolute bottom-full left-0 mb-2 ml-3 p-2 bg-card border border-border rounded-2xl shadow-xl flex items-end gap-3 animate-in slide-in-from-bottom-2">
       <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-border">
         <img src={pendingUpload.base64} className="w-full h-full object-cover" alt="Imagem anexada" />
@@ -51,18 +54,28 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       <span className="text-[9px] font-bold text-muted-foreground tracking-wide pb-1">{pendingUpload.kind === 'reference' ? 'Referência' : pendingUpload.kind === 'sketch' ? 'Rascunho' : pendingUpload.kind === 'plan' ? 'Planta' : 'Ambiente'}</span>
     </div>}
 
-    {open && <div role="dialog" aria-label="Adicionar ao contexto da IARA" className="absolute bottom-full left-2 right-2 sm:left-3 sm:right-auto mb-2 w-auto sm:w-[min(430px,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-2xl shadow-2xl p-3 z-30">
+    {open && <div role="dialog" aria-label="Adicionar ao contexto da IARA" className="absolute bottom-full left-3 right-3 sm:left-3 sm:right-auto mb-2 w-auto sm:w-[min(430px,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-2xl shadow-2xl p-3 z-30">
       <div className="flex items-center justify-between px-1 pb-2">
         <div><p className="text-xs font-bold">Adicionar ao projeto</p><p className="text-[10px] text-muted-foreground">Escolha o tipo de material para a IARA entender o contexto.</p></div>
         <button type="button" aria-label="Fechar menu adicionar" onClick={() => setOpen(false)} className="p-2 rounded-lg hover:bg-muted"><X size={16} /></button>
       </div>
 
       <div className="grid grid-cols-2 gap-1.5 mb-3">
-        <button type="button" onClick={() => selectImage(environmentInputRef, 'environment')} className="flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-border hover:border-primary hover:bg-muted transition-colors"><Camera size={17} className="shrink-0 text-muted-foreground" /><span><strong className="block text-[11px]">Foto do ambiente</strong><small className="text-[9px] text-muted-foreground">Câmera ou galeria</small></span></button>
-        <button type="button" onClick={() => selectImage(referenceInputRef, 'reference')} className="flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-border hover:border-primary hover:bg-muted transition-colors"><Image size={17} className="shrink-0 text-muted-foreground" /><span><strong className="block text-[11px]">Foto de referência</strong><small className="text-[9px] text-muted-foreground">Estilo ou inspiração</small></span></button>
-        <button type="button" onClick={() => selectImage(sketchInputRef, 'sketch')} className="flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-border hover:border-primary hover:bg-muted transition-colors"><PencilLine size={17} className="shrink-0 text-muted-foreground" /><span><strong className="block text-[11px]">Rascunho à mão</strong><small className="text-[9px] text-muted-foreground">Foto do desenho</small></span></button>
-        <button type="button" onClick={() => selectImage(planInputRef, 'plan')} className="flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-border hover:border-primary hover:bg-muted transition-colors"><Ruler size={17} className="shrink-0 text-muted-foreground" /><span><strong className="block text-[11px]">Planta / medidas</strong><small className="text-[9px] text-muted-foreground">Planta ou cotas</small></span></button>
-        <button type="button" onClick={startElevation} className="col-span-2 flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-primary/20 bg-primary/5 hover:border-primary/40 transition-colors"><ArrowUpFromLine size={17} className="shrink-0 text-primary" /><span><strong className="block text-[11px]">Fazer elevação da planta</strong><small className="text-[9px] text-muted-foreground">Envie a planta e a IARA prepara a elevação</small></span></button>
+        <button type="button" onClick={() => selectImage(environmentInputRef, 'environment')} className="flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-border hover:border-primary hover:bg-muted transition-colors">
+          <Camera size={17} className="shrink-0 text-muted-foreground" /><span><strong className="block text-[11px]">Foto do ambiente</strong><small className="text-[9px] text-muted-foreground">Câmera ou galeria</small></span>
+        </button>
+        <button type="button" onClick={() => selectImage(referenceInputRef, 'reference')} className="flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-border hover:border-primary hover:bg-muted transition-colors">
+          <Image size={17} className="shrink-0 text-muted-foreground" /><span><strong className="block text-[11px]">Foto de referência</strong><small className="text-[9px] text-muted-foreground">Estilo ou inspiração</small></span>
+        </button>
+        <button type="button" onClick={() => selectImage(sketchInputRef, 'sketch')} className="flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-border hover:border-primary hover:bg-muted transition-colors">
+          <PencilLine size={17} className="shrink-0 text-muted-foreground" /><span><strong className="block text-[11px]">Rascunho à mão</strong><small className="text-[9px] text-muted-foreground">Foto do desenho</small></span>
+        </button>
+        <button type="button" onClick={() => selectImage(planInputRef, 'plan')} className="flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-border hover:border-primary hover:bg-muted transition-colors">
+          <Ruler size={17} className="shrink-0 text-muted-foreground" /><span><strong className="block text-[11px]">Planta / medidas</strong><small className="text-[9px] text-muted-foreground">Planta ou cotas</small></span>
+        </button>
+        <button type="button" onClick={startElevation} className="col-span-2 flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-primary/20 bg-primary/5 hover:border-primary/40 transition-colors">
+          <ArrowUpFromLine size={17} className="shrink-0 text-primary" /><span><strong className="block text-[11px]">Fazer elevação da planta</strong><small className="text-[9px] text-muted-foreground">Envie a planta e a IARA prepara a elevação</small></span>
+        </button>
       </div>
 
       <div className="border-t border-border pt-2">
@@ -70,7 +83,10 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         <div className="grid grid-cols-2 gap-1.5">
           {SMART_ACTIONS.flatMap(group => group.items.map(action => ({ group, action }))).map(({ group, action }) => {
             const Icon = ICONS[action.id] ?? Command;
-            return <button key={action.id} type="button" onClick={() => { setOpen(false); onSmartAction?.(action); }} aria-label={`${action.label} — ${group.title}`} className="group flex items-center gap-2 text-left px-2.5 py-2.5 min-h-11 rounded-xl border border-border bg-background/70 hover:border-primary/40 hover:bg-primary/5 transition-colors"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 transition-colors"><Icon size={15} /></span><span className="text-[11px] font-semibold leading-tight">{action.label}</span></button>;
+            return <button key={action.id} type="button" onClick={() => { setOpen(false); onSmartAction?.(action); }} aria-label={`${action.label} — ${group.title}`} className="group flex items-center gap-2 text-left px-2.5 py-2.5 min-h-11 rounded-xl border border-border bg-background/70 hover:border-primary/40 hover:bg-primary/5 transition-colors">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 transition-colors"><Icon size={15} /></span>
+              <span className="text-[11px] font-semibold leading-tight">{action.label}</span>
+            </button>;
           })}
         </div>
       </div>

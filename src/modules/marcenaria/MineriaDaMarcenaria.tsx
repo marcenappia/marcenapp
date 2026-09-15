@@ -6,13 +6,14 @@ import { extractMaterialsFromFile } from './dnaIngestion';
 
 type Tab = 'materiais' | 'fornecedores' | 'estoque' | 'documentos';
 interface Props { onClose?: () => void; }
+type MarcenariaItem = { id: string; nome?: string | null; nome_item?: string | null; preco?: number | null; fornecedor?: string | null; quantidade?: number | null; unidade?: string | null; status?: string | null } & Record<string, unknown>;
 
 export default function MinhaMarcenaria({ onClose }: Props) {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('materiais');
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<MarcenariaItem[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -28,7 +29,7 @@ export default function MinhaMarcenaria({ onClose }: Props) {
     if (!user) return;
     setLoading(true);
     const { data } = await supabase.from(table).select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(200);
-    setItems(data || []); setLoading(false);
+    setItems((data || []) as unknown as MarcenariaItem[]); setLoading(false);
   };
   useEffect(() => { void load(); }, [user, table]);
 

@@ -8,22 +8,13 @@ interface ImagePayload {
 
 function normalizeImages(images?: ImageData[]): ImagePayload[] | undefined {
   if (!images || images.length === 0) return undefined;
-  return images.map(img => {
-    if (typeof img === 'object' && img !== null && 'mimeType' in img) {
-      return { mimeType: img.mimeType, data: img.data };
-    }
-    if (typeof img === 'string') {
-      const raw = img.includes(',') ? img.split(',')[1] : img;
-      return { mimeType: 'image/png', data: raw };
-    }
-    if (typeof img === 'object' && img !== null) {
-      const raw = (img as Record<string, unknown>).baseRaw as string || (img as Record<string, unknown>).data as string || '';
-      const mime = (img as Record<string, unknown>).mimeType as string || (img as Record<string, unknown>).mime as string || 'image/png';
-      if (!raw) return null as unknown as ImagePayload;
-      return { mimeType: mime, data: raw };
-    }
-    return null as unknown as ImagePayload;
-  }).filter(Boolean) as ImagePayload[];
+  return images.map(img => ({ mimeType: img.mimeType, data: img.data }));
+}
+
+function normalizeIdempotencyKey(key?: string): `${string}-${string}-${string}-${string}-${string}` | undefined {
+  if (!key) return undefined;
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(key) ? key as `${string}-${string}-${string}-${string}-${string}` : undefined;
 }
 
 export const studioService = {
@@ -36,7 +27,7 @@ export const studioService = {
   ): Promise<string | null> => {
     const finalPrompt = `ACT AS AN EXPERT ARCHITECTURAL VISUALIZER.\n      Style: ${stylePrompt || 'Photorealistic'}.\n      Decor: ${decorPrompt || 'Modern'}.\n      Instructions: ${prompt}.\n      Maximum realism, 8k.`;
     const processedImages = normalizeImages(images);
-    return await callAIImage(finalPrompt, processedImages, idempotencyKey);
+    return await callAIImage(finalPrompt, processedImages, normalizeIdempotencyKey(idempotencyKey));
   },
 
   refineVisual: async (originalImage: string, instructions: string): Promise<string | null> => {

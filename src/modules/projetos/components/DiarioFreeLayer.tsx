@@ -79,7 +79,7 @@ export default function DiarioFreeLayer({ navigateTo }: Props) {
   const streak = useMemo(() => {
     const days = new Set<string>(entries.map(e => new Date(e.created_at).toLocaleDateString('sv-SE')));
     queue.forEach(e => days.add(new Date(e.createdAt).toLocaleDateString('sv-SE')));
-    let cursor = new Date(); let count = 0;
+    const cursor = new Date(); let count = 0;
     while (days.has(cursor.toLocaleDateString('sv-SE'))) { count += 1; cursor.setDate(cursor.getDate() - 1); }
     return count;
   }, [entries, queue]);

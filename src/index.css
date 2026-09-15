@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    /* Marcenapp core palette — keep brand identity stable across surfaces. */
     --background: 220 20% 97%;
     --foreground: 222 47% 11%;
 
@@ -34,13 +35,26 @@
 
     --radius: 0.75rem;
 
+    /* Sidebar aliases are intentionally mapped to the same canonical tokens
+       consumed by shadcn/Tailwind components. */
     --sidebar-bg: 222 47% 11%;
     --sidebar-border: 215 28% 17%;
     --sidebar-text: 215 20% 65%;
     --sidebar-active: 217 91% 60%;
+    --sidebar-background: var(--sidebar-bg);
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: var(--sidebar-active);
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 28% 17%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-ring: var(--ring);
 
     --magic-from: 38 92% 50%;
     --magic-to: 20 90% 58%;
+
+    /* Surface depth stays restrained: professional workspace, not SaaS cards everywhere. */
+    --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.04);
+    --shadow-popover: 0 12px 32px hsl(222 47% 11% / 0.12);
   }
 }
 
@@ -49,9 +63,24 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'DM Sans', 'Epilogue', sans-serif;
+    font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
+    color: hsl(var(--foreground));
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
@@ -60,15 +89,22 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(215 28% 17%) transparent;
   }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 4px;
     height: 4px;
   }
+
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: hsl(215 28% 25%);
     border-radius: 4px;
   }
+
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+  }
+
+  .text-balance {
+    text-wrap: balance;
   }
 }
