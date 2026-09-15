@@ -3,15 +3,7 @@ import type { AgentId, AgentResult, AgentTask, Evidence } from './types';
 
 type SpatialAgentId = 'vision' | 'perspective' | 'measurement' | 'measurement_prediction' | 'multiview' | 'furniture_engineering' | 'render';
 
-const SPATIAL_AGENTS: SpatialAgentId[] = [
-  'vision',
-  'perspective',
-  'measurement',
-  'measurement_prediction',
-  'multiview',
-  'furniture_engineering',
-  'render',
-];
+const SPATIAL_AGENTS: SpatialAgentId[] = ['vision', 'perspective', 'measurement', 'measurement_prediction', 'multiview', 'furniture_engineering', 'render'];
 
 function asImages(input: Record<string, unknown>): Array<{ mimeType: string; data: string }> {
   const raw = Array.isArray(input.images) ? input.images : [];
@@ -26,8 +18,9 @@ function asImages(input: Record<string, unknown>): Array<{ mimeType: string; dat
 }
 
 function promptInput(input: Record<string, unknown>): Record<string, unknown> {
-  const { images: _images, ...rest } = input;
-  return rest;
+  const result = { ...input };
+  delete result.images;
+  return result;
 }
 
 function humanLanguage(request: string): string {
@@ -75,9 +68,7 @@ function buildPrompt(agentId: SpatialAgentId, task: AgentTask): string {
 }
 
 export async function executeSpatialAgent(agentId: AgentId, task: AgentTask): Promise<AgentResult> {
-  if (!SPATIAL_AGENTS.includes(agentId as SpatialAgentId)) {
-    return { agentId, taskId: task.id, correlationId: task.correlationId, status: 'failed', error: `Agente não pertence ao runtime espacial: ${agentId}` };
-  }
+  if (!SPATIAL_AGENTS.includes(agentId as SpatialAgentId)) return { agentId, taskId: task.id, correlationId: task.correlationId, status: 'failed', error: `Agente não pertence ao runtime espacial: ${agentId}` };
 
   const images = asImages(task.input);
   if (!images.length && (agentId === 'vision' || agentId === 'perspective' || agentId === 'multiview')) {
@@ -102,13 +93,7 @@ export async function executeSpatialAgent(agentId: AgentId, task: AgentTask): Pr
       assumptions: Array.isArray(result.assumptions) ? result.assumptions.map(String) : [],
     };
   } catch (error) {
-    return {
-      agentId,
-      taskId: task.id,
-      correlationId: task.correlationId,
-      status: 'failed',
-      error: error instanceof Error ? error.message : 'Falha no agente espacial.',
-    };
+    return { agentId, taskId: task.id, correlationId: task.correlationId, status: 'failed', error: error instanceof Error ? error.message : 'Falha no agente espacial.' };
   }
 }
 
