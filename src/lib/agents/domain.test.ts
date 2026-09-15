@@ -5,9 +5,10 @@ import { runProjectJourney } from './orchestrator';
 const baseInput = {
   name: 'Cliente', clientId: 'client-1', workName: 'Cozinha', projectId: 'project-1',
   photoUrl: 'photo.jpg', measurements: { width: 3000 },
-  parts: [{ code: 'P1', width: 500, height: 700, quantity: 1 }],
+  parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
   materials: [{ code: 'MDF-18', quantity: 2 }],
-  cutPlan: [{ code: 'CH1', width: 2750, height: 1850, pieces: [{ code: 'P1', x: 0, y: 0, width: 500, height: 700 }] }],
+  sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
+  cutPlan: [{ code: 'CH1', width: 2750, height: 1850, material: 'MDF-18', pieces: [{ code: 'P1', x: 0, y: 0, width: 500, height: 700 }] }],
   scene: { type: 'kitchen' }, renderUrl: 'render.jpg', presentationId: 'presentation-1', approved: true,
   approvalId: 'approval-1', budgetId: 'budget-1', documentType: 'budget',
 };
