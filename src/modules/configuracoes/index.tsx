@@ -3,6 +3,7 @@ import { Building2, Calculator, CreditCard, Package, Palette, Save, Settings2, S
 import { supabase } from '@/integrations/supabase/client';
 import { ProfessionalProfileCard } from '@/modules/admin/ProfessionalProfiles';
 import MinhaMarcenaria from '@/modules/marcenaria/MineriaDaMarcenaria';
+import MarcenariaDnaPanel from '@/modules/marcenaria/MarcenariaDnaPanel';
 
 type Profile = { name?: string | null; company?: string | null; profession?: string | null };
 
@@ -39,9 +40,9 @@ const ConfiguracoesModule = ({ userId, profile, onNavigate, onSaved }: Props) =>
       <ProfessionalProfileCard userId={userId} profession={profile?.profession} onSaved={() => onSaved?.()} />
 
       <button type="button" onClick={() => setShowDna(v => !v)} className="w-full rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 text-left hover:bg-indigo-50 transition-colors">
-        <div className="flex items-center justify-between gap-4"><div className="flex items-start gap-3"><div className="p-2.5 rounded-xl bg-white text-indigo-600 shadow-sm"><Database size={20} /></div><div><h2 className="font-black text-slate-900">Minha Marcenaria — DNA operacional</h2><p className="mt-1 text-xs text-slate-600">Materiais, fornecedores, estoque e documentos de referência usados pela IARA.</p></div></div><ArrowRight size={18} className={`text-indigo-500 transition-transform ${showDna ? 'rotate-90' : ''}`} /></div>
+        <div className="flex items-center justify-between gap-4"><div className="flex items-start gap-3"><div className="p-2.5 rounded-xl bg-white text-indigo-600 shadow-sm"><Database size={20} /></div><div><h2 className="font-black text-slate-900">Minha Marcenaria — DNA operacional</h2><p className="mt-1 text-xs text-slate-600">Ensine a IARA como sua marcenaria trabalha. Regras, preferências e referências ficam separadas do projeto e podem evoluir com o tempo.</p></div></div><ArrowRight size={18} className={`text-indigo-500 transition-transform ${showDna ? 'rotate-90' : ''}`} /></div>
       </button>
-      {showDna && <MinhaMarcenaria />}
+      {showDna && <div className="space-y-4"><MarcenariaDnaPanel /><MinhaMarcenaria /></div>}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
         <div className="flex items-start gap-3 mb-5"><div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600"><Building2 size={20} /></div><div><h2 className="font-black text-slate-800">Dados da marcenaria</h2><p className="text-xs text-slate-500 mt-1">Esses dados serão a base dos próximos documentos, orçamentos e comunicação com o cliente.</p></div></div>
