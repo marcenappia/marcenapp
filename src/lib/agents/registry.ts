@@ -1,5 +1,6 @@
 import { createAgent } from './factory';
 import { createSpatialAgent } from './spatialAgent';
+import { createProductionAgent } from './productionAgent';
 import type { AgentDefinition, AgentId } from './types';
 
 export const agents: AgentDefinition[] = [
@@ -19,7 +20,7 @@ export const agents: AgentDefinition[] = [
   createAgent('presentation', 'Agente de Apresentação', ['presentation.prepare', 'presentation.generate'], ['customer', 'project', 'render', 'quality']),
   createAgent('approval', 'Agente de Aprovação', ['approval.request', 'approval.record'], ['customer', 'presentation', 'quality']),
   createAgent('inventory', 'Agente de Estoque', ['inventory.check'], ['materials']),
-  createAgent('production', 'Agente de Produção', ['production.cutlist.generate'], ['materials', 'measurement', 'cut_audit']),
+  createProductionAgent(['materials', 'measurement', 'cut_audit']),
   createAgent('budget', 'Agente de Orçamento', ['estimate.materials', 'estimate.calculate', 'estimate.generate', 'cortecloud.quote.prepare'], ['materials', 'inventory', 'production', 'approval']),
   createAgent('documents', 'Agente de Documentos', ['document.generate'], ['budget', 'customer']),
   createAgent('order', 'Agente de Pedido', ['order.get', 'order.update'], ['project', 'customer', 'budget', 'approval']),
