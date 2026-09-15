@@ -99,7 +99,7 @@ export async function runProjectJourney(input: Record<string, unknown>): Promise
     { id: 'measurement', agentId: 'measurement', type: 'measurement.validate', input },
     { id: 'measurement_prediction', agentId: 'measurement_prediction', type: 'measurement.predict', input },
     { id: 'multiview', agentId: 'multiview', type: 'multiview.reconcile', input },
-    { id: 'furniture_engineering', agentId: 'furniture_engineer', type: 'furniture.engineer', input },
+    { id: 'furniture_engineering', agentId: 'furniture_engineering', type: 'furniture.engineer', input },
     { id: 'materials', agentId: 'materials', type: 'materials.prepare', input },
     { id: 'cut_optimization', agentId: 'cut_optimization', type: 'cut.optimize', input },
     { id: 'cut_audit', agentId: 'cut_audit', type: 'cut.audit', input },
