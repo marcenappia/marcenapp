@@ -69,6 +69,24 @@ export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid(
 }
 
 /**
+ * Pipeline técnico usado quando a tarefa é espacial (planta, fotos, câmera,
+ * medidas, multivista, engenharia do móvel ou render). Não executa a jornada
+ * comercial inteira e não cria um segundo orquestrador.
+ */
+export async function runSpatialJourney(input: Record<string, unknown>, correlationId = uuid()): Promise<AgentPlanResult> {
+  return runAgentPlan([
+    { id: 'vision', agentId: 'vision', type: 'vision.environment.analyze', input },
+    { id: 'perspective', agentId: 'perspective', type: 'vision.perspective.analyze', input },
+    { id: 'measurement', agentId: 'measurement', type: 'measurement.validate', input },
+    { id: 'measurement_prediction', agentId: 'measurement_prediction', type: 'measurement.predict', input },
+    { id: 'multiview', agentId: 'multiview', type: 'multiview.reconcile', input },
+    { id: 'furniture_engineering', agentId: 'furniture_engineering', type: 'furniture.engineer', input },
+    { id: 'materials', agentId: 'materials', type: 'materials.prepare', input },
+    { id: 'render', agentId: 'render', type: 'render.prepare', input },
+  ], correlationId);
+}
+
+/**
  * Jornada comercial canônica. A interface existente permanece intacta;
  * os especialistas executam por baixo dela e compartilham a mesma evidência.
  */
@@ -81,7 +99,7 @@ export async function runProjectJourney(input: Record<string, unknown>): Promise
     { id: 'measurement', agentId: 'measurement', type: 'measurement.validate', input },
     { id: 'measurement_prediction', agentId: 'measurement_prediction', type: 'measurement.predict', input },
     { id: 'multiview', agentId: 'multiview', type: 'multiview.reconcile', input },
-    { id: 'furniture_engineering', agentId: 'furniture_engineering', type: 'furniture.engineer', input },
+    { id: 'furniture_engineering', agentId: 'furniture_engineer', type: 'furniture.engineer', input },
     { id: 'materials', agentId: 'materials', type: 'materials.prepare', input },
     { id: 'cut_optimization', agentId: 'cut_optimization', type: 'cut.optimize', input },
     { id: 'cut_audit', agentId: 'cut_audit', type: 'cut.audit', input },
