@@ -42,6 +42,13 @@ export const StudioWorker = () => {
 
   const isCurrentContext = async (payload: Record<string, unknown>) => {
     if (!user || payload.userId !== user.id) return false;
+    const payloadProjectId = (payload.projectId as string | null | undefined) ?? null;
+    const payloadEnvironmentId = (payload.environmentId as string | null | undefined) ?? null;
+    const payloadVersionId = (payload.versionId as string | null | undefined) ?? null;
+    // A render explicitly created without project/environment/version context is
+    // intentionally global. Do not compare it against the user's last persisted
+    // project context, otherwise a text-only render is incorrectly cancelled.
+    if (!payloadProjectId && !payloadEnvironmentId && !payloadVersionId) return true;
     const current = await readCurrentContext();
     if (typeof payload.correlationId === 'string' || typeof payload.generation === 'number') {
       return isIaraCommandExecutionCurrent({ payload }, {
@@ -53,9 +60,19 @@ export const StudioWorker = () => {
         generation: current?.last_execution_generation ?? null,
       });
     }
-    return (payload.projectId ?? null) === (current?.project_id ?? null)
-      && (payload.environmentId ?? null) === (current?.environment_id ?? null)
-      && (payload.versionId ?? null) === (current?.version_id ?? null);
+    return payloadProjectId === (current?.project_id ?? null)
+      && payloadEnvironmentId === (current?.environment_id ?? null)
+      && payloadVersionId === (current?.version_id ?? null);
+  };
+
+  const refundConsumedCredit = async (idempotencyKey: unknown) => {
+    if (!user || typeof idempotencyKey !== 'string' || !idempotencyKey) return;
+    const { error } = await supabase.rpc('refund_billing_credit', {
+      p_user_id: user.id,
+      p_operation_type: 'gerarRender',
+      p_idempotency_key: idempotencyKey,
+    });
+    if (error) console.error('Falha ao devolver crédito de render descartado:', error);
   };
 
   const resolveRenderCommand = (osCommand: OSCommand) => {
@@ -74,6 +91,7 @@ export const StudioWorker = () => {
     currentlyProcessing.current = osCommand.id;
     const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
     if (!(await isCurrentContext(payload))) {
+      await refundConsumedCredit(payload.idempotencyKey);
       cancelCommand((payload.studioCommandId as string | undefined) ?? osCommand.id);
       updateOSStatus(osCommand.id, 'cancelled', undefined, 'Comando descartado: identidade de execução não é mais válida.');
       currentlyProcessing.current = null;
@@ -89,6 +107,7 @@ export const StudioWorker = () => {
       const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, command.idempotencyKey);
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
       if (!(await isCurrentContext(payload))) {
+        await refundConsumedCredit(command.idempotencyKey);
         cancelCommand(storeCommandId);
         updateOSStatus(osCommand.id, 'cancelled', undefined, 'Resultado descartado: a identidade de execução mudou durante a geração.');
         return;
