@@ -58,6 +58,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
 
   const plan = result.plan.map(call => {
     if ((call.tool === 'calcularOrcamento' || call.tool === 'operationalIntelligence') && !call.args.projetoId && ctx.projectId) return { ...call, args: { ...call.args, projetoId: ctx.projectId } };
+    if (call.tool === 'iaraSmartAction' && !call.args.projectId && ctx.projectId) return { ...call, args: { ...call.args, projectId: ctx.projectId } };
     return call;
   });
   const summary = result.summary;
@@ -87,9 +88,11 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
   }
 
   for (const call of plan) {
-    const r = call.tool.startsWith('iara.')
-      ? await executeIaraSmartAction(call.tool.slice(5) as SmartAction, ctx.projectId)
-      : await executeToolCall(call.tool, call.args, ctx);
+    const r = call.tool === 'iaraSmartAction'
+      ? await executeIaraSmartAction(String(call.args.action) as SmartAction, typeof call.args.projectId === 'string' ? call.args.projectId : ctx.projectId)
+      : call.tool.startsWith('iara.')
+        ? await executeIaraSmartAction(call.tool.slice(5) as SmartAction, ctx.projectId)
+        : await executeToolCall(call.tool, call.args, ctx);
     results.push({ tool: call.tool, result: r });
     if (!r.ok) break;
   }
