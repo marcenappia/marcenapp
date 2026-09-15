@@ -95,12 +95,8 @@ export async function executeSpatialAgent(agentId: AgentId, task: AgentTask): Pr
 
   const spatialAgent = agentId as SpatialAgentId;
   const images = asImages(task.input);
-  if (!images.length && hasVisualUrl(task.input) && (spatialAgent === 'vision' || spatialAgent === 'perspective' || spatialAgent === 'multiview')) {
-    return urlOnlyResult(spatialAgent, task);
-  }
-  if (!images.length && (spatialAgent === 'vision' || spatialAgent === 'perspective' || spatialAgent === 'multiview')) {
-    return { agentId, taskId: task.id, correlationId: task.correlationId, status: 'needs_input', data: { missing: ['imagem ou referência visual'] }, blockers: ['O agente espacial precisa de pelo menos uma referência visual para esta etapa.'] };
-  }
+  if (!images.length && hasVisualUrl(task.input)) return urlOnlyResult(spatialAgent, task);
+  if (!images.length) return { agentId, taskId: task.id, correlationId: task.correlationId, status: 'needs_input', data: { missing: ['imagem incorporada ou referência visual analisável'] }, blockers: ['O agente espacial não pode executar análise visual sem uma imagem incorporada. Uma URL isolada não é tratada como análise realizada.'] };
 
   try {
     const result = parseModelJson(await callAIText(buildPrompt(spatialAgent, task), images, true));
