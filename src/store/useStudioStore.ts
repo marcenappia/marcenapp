@@ -71,7 +71,7 @@ export const useStudioStore = create<StudioState>()(
         }
         return state;
       },
-      partialize: (state) => ({ commandQueue: state.commandQueue.map(cmd => ({ ...cmd, images: (cmd.status === 'completed' || cmd.status === 'cancelled') ? [] : cmd.images })), lastResult: state.lastResult, generatedImage: state.generatedImage }),
+      partialize: (state) => ({ commandQueue: state.commandQueue.map(cmd => ({ ...cmd, status: cmd.status === 'processing' ? 'pending' : cmd.status, images: (cmd.status === 'completed' || cmd.status === 'cancelled') ? [] : cmd.images })), lastResult: state.lastResult, generatedImage: state.generatedImage }),
     }
   )
 );
