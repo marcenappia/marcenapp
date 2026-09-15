@@ -98,7 +98,7 @@ describe('MARCENAPP agents', () => {
       cutPlan: [{ code: 'CH1', width: 2750, height: 1850, pieces: [
         { code: 'P1', x: 0, y: 0, width: 500, height: 700 },
       ] }],
-      projectId: 'project-1', documentType: 'budget',
+      projectId: 'project-1', versionId: 'approved-version-test', userId: 'user-test', documentType: 'budget',
       scene: { type: 'kitchen' }, renderUrl: 'render.jpg',
       presentationId: 'presentation-1', approved: true, approvalId: 'approval-1',
       budgetId: 'budget-1',
@@ -109,5 +109,6 @@ describe('MARCENAPP agents', () => {
     const production = result.results.find((r) => r.agentId === 'production');
     expect(production?.data?.productionReady).toBe(true);
     expect(production?.data?.freezeId).toBe('freeze-test-1');
+    expect(production?.data?.frozenVersionId).toBe('approved-version-test');
   });
 });
