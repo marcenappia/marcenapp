@@ -4,7 +4,7 @@ import type { AgentDefinition, AgentId } from './types';
 export const agents: AgentDefinition[] = [
   createAgent('customer', 'Agente de Cliente', ['customer.create', 'customer.get']),
   createAgent('project', 'Agente de Projeto', ['project.create', 'project.update', 'project.get'], ['customer']),
-  createAgent('vision', 'Agente de Visão e Leitura do Ambiente', ['vision.environment.analyze', 'vision.openings.detect', 'vision.obstacles.detect'], ['project']),
+  createAgent('vision', 'Agente de Visão e Leitura do Ambiente', ['vision.environment.analyze', 'vision.openings.detect', 'vision.obstacles.detect']),
   createAgent('perspective', 'Agente de Perspectiva e Geometria', ['vision.perspective.analyze', 'geometry.vanishing_points', 'geometry.scene_planes'], ['vision']),
   createAgent('measurement', 'Agente de Medidas', ['measurement.analyze', 'measurement.validate'], ['perspective']),
   createAgent('measurement_prediction', 'Agente de Predição de Medidas', ['measurement.predict', 'measurement.calibrate', 'measurement.uncertainty'], ['measurement', 'perspective']),
