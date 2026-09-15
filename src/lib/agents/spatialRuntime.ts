@@ -35,7 +35,7 @@ function urlOnlyResult(agentId: SpatialAgentId, task: AgentTask): AgentResult {
     },
     confidence: 0,
     evidence: [{ source: `${agentId}.reference`, value: task.input.photoUrl }],
-    warnings: ['Nenhuma medida foi inventada: a referência visual foi recebida apenas como URL e nenhuma análise visual foi simulada. Envie a imagem incorporada para análise por modelo.'],
+    warnings: ['nenhuma medida foi inventada: a referência visual foi recebida apenas como URL e nenhuma análise visual foi simulada. Envie a imagem incorporada para análise por modelo.'],
     assumptions: [],
   };
 }
