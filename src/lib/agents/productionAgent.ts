@@ -62,7 +62,7 @@ export function createProductionAgent(dependencies: AgentDefinition['id'][] = ['
           workshopPacket,
         },
       });
-      if (!freeze.ok) {
+      if ('error' in freeze) {
         return { agentId: 'production', taskId: task.id, correlationId: task.correlationId, status: 'needs_input', data: { productionReady: false, validation, workshopPacket }, blockers: [freeze.error] };
       }
 
