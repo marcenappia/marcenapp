@@ -16,6 +16,19 @@ function dependencyData(results: AgentResult[], key: string): unknown {
   return undefined;
 }
 
+function gateClientApproval(agentId: AgentId, result: AgentResult, input: Record<string, unknown>): AgentResult {
+  if (agentId !== 'approval') return result;
+  const decision = input.clientDecision;
+  const approved = input.approved === true || decision === 'approved';
+  if (approved) {
+    return { ...result, status: 'completed', data: { ...result.data, decisionCaptured: true, clientDecision: 'approved', productionGate: 'open' } };
+  }
+  if (decision === 'changes_requested') {
+    return { ...result, status: 'needs_input', data: { ...result.data, decisionCaptured: false, clientDecision: 'changes_requested', productionGate: 'closed' }, blockers: ['Cliente solicitou alteração. A versão deve retornar para revisão antes de qualquer congelamento ou produção.'] };
+  }
+  return { ...result, status: 'needs_input', data: { ...result.data, decisionCaptured: false, clientDecision: 'pending', productionGate: 'closed' }, blockers: ['Aguardando decisão do cliente pelo link de revisão: aprovar ou solicitar alteração.'] };
+}
+
 export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid()): Promise<AgentPlanResult> {
   const results: AgentResult[] = []; const done = new Set<AgentId>(); const remaining = [...steps];
   while (remaining.length) {
@@ -33,7 +46,8 @@ export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid(
         }
       }
       const task: AgentTask = { id: step.id, type: step.type, input, correlationId, context: { originalInput: { ...step.input }, dependencyResults, evidence } };
-      const result = isSpatialAgent(step.agentId) ? await executeSpatialAgent(step.agentId, task) : await getAgent(step.agentId).handle(task);
+      const rawResult = isSpatialAgent(step.agentId) ? await executeSpatialAgent(step.agentId, task) : await getAgent(step.agentId).handle(task);
+      const result = gateClientApproval(step.agentId, rawResult, input);
       if (step.agentId === 'production' && result.status === 'completed') {
         const productionParts = Array.isArray(input.parts) ? input.parts as Array<Record<string, unknown>> : [];
         const productionCutPlan = Array.isArray(input.cutPlan) ? input.cutPlan as Array<Record<string, unknown>> : [];
@@ -77,13 +91,14 @@ export async function runSpatialJourney(input: Record<string, unknown>, correlat
 
 /**
  * Canonical business journey:
- * maquete/projeto -> render -> aprovação -> approved-version reference ->
- * materials/hardware -> engineering -> parts/BOM -> cut -> audit ->
- * budget -> order -> production.
+ * maquete/projeto -> render -> presentation/link -> client decision ->
+ * approved-version reference -> materials/hardware -> engineering ->
+ * parts/BOM -> cut -> audit -> budget -> order -> production.
  *
- * The production agent creates the immutable technical snapshot tied to the
- * approved version. Montage remains a downstream execution operation and is
- * not fabricated as a new registry agent here.
+ * The client decision is a hard workflow gate. The production agent creates
+ * the immutable technical snapshot tied to the approved version. Montage
+ * remains a downstream execution operation and is not fabricated as a new
+ * registry agent here.
  */
 export async function runProjectJourney(input: Record<string, unknown>): Promise<AgentPlanResult> {
   return runAgentPlan([
