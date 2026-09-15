@@ -1,9 +1,26 @@
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/production/versionFreeze', () => ({
+  freezeProductionPackage: vi.fn(async ({ projectId, versionId, technicalPackage }) => ({
+    ok: true as const,
+    freeze: {
+      freezeId: 'freeze-domain-test-1',
+      projectId,
+      versionId: versionId || 'approved-version-domain-test',
+      approvalId: 'approval-domain-test-1',
+      snapshotHash: 'domain-test-hash',
+      snapshot: { technicalPackage },
+      createdAt: '2026-09-15T00:00:00.000Z',
+    },
+  })),
+}));
+
 import { agents, getAgent } from './registry';
 import { createDomainIntent, domainAgents, domainAgentRegistry, parseCreateProjectInput, resolveDomain, runIara } from './domain';
 import { runProjectJourney } from './orchestrator';
 
 const baseInput = {
-  name: 'Cliente', clientId: 'client-1', workName: 'Cozinha', projectId: 'project-1',
+  name: 'Cliente', clientId: 'client-1', workName: 'Cozinha', projectId: 'project-1', userId: 'user-1', versionId: 'version-1',
   photoUrl: 'photo.jpg', measurements: { width: 3000 },
   parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
   materials: [{ code: 'MDF-18', quantity: 2 }],
