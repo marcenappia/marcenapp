@@ -7,7 +7,7 @@ const WALL_PATTERNS: Array<[HumanWallReference, RegExp[]]> = [
   ['tras', [/\bparede\s+(?:de|da)\s+tr[aá]s\b/i, /\bparede\s+traseira\b/i, /\bparede\s+dos\s+fundos\b/i]],
   ['fundo', [/\bparede\s+do\s+fundo\b/i, /\bparede\s+ao\s+fundo\b/i]],
   ['adjacente', [/\bparede\s+ao\s+lado\b/i, /\bparede\s+adjacente\b/i]],
-  ['oposta', [/\bparede\s+oposta\b/i, /\bparede\s+do\s+outro\s+lado\b/i, /\b\boposta\b/i]],
+  ['oposta', [/\bparede\s+oposta\b/i, /\bparede\s+do\s+outro\s+lado\b/i, /\boposta\b/i]],
 ];
 
 export function detectHumanWallReferences(text: string): HumanWallReference[] {
