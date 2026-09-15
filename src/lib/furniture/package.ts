@@ -58,8 +58,10 @@ export type BomItem = {
   material?: string;
   width?: number;
   height?: number;
-  role?: EngineeredPart['role'] | 'door' | 'drawer-front' | 'drawer-box';
+  role?: EngineedRole;
 };
+
+type EngineedRole = EngineeredPart['role'] | 'door' | 'drawer-front' | 'drawer-box';
 
 export type FurniturePackageResult = EngineeringResult & {
   modules: FurnitureModuleSpec[];
@@ -124,7 +126,8 @@ function buildBom(parts: EngineeredPart[], hardware: HardwareSpec[]): BomItem[] 
  * It never invents door gaps, overlays, drawer clearances, slides or hinge quantities.
  */
 export function buildFurniturePackage(spec: FurniturePackageSpec): FurniturePackageResult {
-  const engineered = engineerBasicCarcass(spec);
+  const baseSpec: FurnitureEngineeringSpec = { ...spec, doorCount: 0, drawerCount: 0 };
+  const engineered = engineerBasicCarcass(baseSpec);
   const blockers = [...engineered.blockers];
   const assumptions = [...engineered.assumptions];
   const parts = [...engineered.parts];
