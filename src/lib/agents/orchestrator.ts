@@ -25,10 +25,12 @@ export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid(
       const dependencyIds = new Set(getAgent(step.agentId).dependencies ?? []);
       const dependencyResults = results.filter((result) => dependencyIds.has(result.agentId));
       const input = { ...step.input };
-      if (input.parts === undefined) { const generatedParts = dependencyData(dependencyResults, 'parts'); if (generatedParts !== undefined) input.parts = generatedParts; }
-      if (input.sheetTemplates === undefined) { const generatedSheets = dependencyData(dependencyResults, 'sheetTemplates'); if (generatedSheets !== undefined) input.sheetTemplates = generatedSheets; }
-      if (input.kerf === undefined) { const generatedKerf = dependencyData(dependencyResults, 'kerf'); if (generatedKerf !== undefined) input.kerf = generatedKerf; }
-      if (input.cutPlan === undefined) { const generatedCutPlan = dependencyData(dependencyResults, 'cutPlan'); if (generatedCutPlan !== undefined) input.cutPlan = generatedCutPlan; }
+      for (const key of ['parts', 'sheetTemplates', 'kerf', 'cutPlan', 'hardware', 'bom', 'modules']) {
+        if (input[key] === undefined) {
+          const generated = dependencyData(dependencyResults, key);
+          if (generated !== undefined) input[key] = generated;
+        }
+      }
       const task: AgentTask = { id: step.id, type: step.type, input, correlationId, context: { originalInput: { ...step.input }, dependencyResults, evidence } };
       return isSpatialAgent(step.agentId) ? executeSpatialAgent(step.agentId, task) : getAgent(step.agentId).handle(task);
     }));
@@ -76,7 +78,7 @@ export async function runProjectJourney(input: Record<string, unknown>): Promise
     { id: 'inventory', agentId: 'inventory', type: 'inventory.check', input },
     { id: 'production', agentId: 'production', type: 'production.prepare', input },
     { id: 'budget', agentId: 'budget', type: 'budget.prepare', input },
-    { id: 'documents', agentId: 'documents', type: 'document.prepare', input },
+    { id: 'documents', agentId: 'document.prepare', input: {} as Record<string, unknown> },
     { id: 'order', agentId: 'order', type: 'order.prepare', input },
   ]);
 }
