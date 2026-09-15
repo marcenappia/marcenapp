@@ -13,18 +13,16 @@ const asStatus = (value: unknown): CommandStatus => value === 'processing' || va
 const asMetadata = (value: unknown): RenderCommand['metadata'] => {
   if (!isRecord(value)) return { origin: 'manual' };
   const origin = value.origin === 'iara' ? 'iara' : 'manual';
-  return {
-    origin,
-    ...(typeof value.originalPrompt === 'string' ? { originalPrompt: value.originalPrompt } : {}),
-    ...(typeof value.targetModule === 'string' ? { targetModule: value.targetModule } : {}),
-  };
+  return { origin, ...(typeof value.originalPrompt === 'string' ? { originalPrompt: value.originalPrompt } : {}), ...(typeof value.targetModule === 'string' ? { targetModule: value.targetModule } : {}) };
 };
-const asMigratedCommand = (value: unknown): RenderCommand | null => {
+const asMigratedCommand = (value: unknown, recoverProcessing = false): RenderCommand | null => {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.prompt !== 'string') return null;
+  const persistedStatus = asStatus(value.status);
+  const status = recoverProcessing && persistedStatus === 'processing' ? 'pending' : persistedStatus;
   return {
     id: value.id,
     prompt: value.prompt,
-    status: asStatus(value.status),
+    status,
     timestamp: typeof value.timestamp === 'number' ? value.timestamp : Date.now(),
     ...(Array.isArray(value.images) ? { images: value.images.filter(isRecord).flatMap(image => typeof image.mimeType === 'string' && typeof image.data === 'string' ? [{ mimeType: image.mimeType, data: image.data }] : []) } : {}),
     ...(typeof value.style === 'string' ? { style: value.style } : {}),
@@ -58,13 +56,17 @@ export const useStudioStore = create<StudioState>()(
     }),
     {
       name: 'marcenapp-studio-storage',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState: unknown, version: number) => {
         const state = asPersistedState(persistedState);
         if (version === 0) return { ...state, commandQueue: [] };
         if (version === 1) {
-          const commandQueue = Array.isArray(state.commandQueue) ? state.commandQueue.map(asMigratedCommand).filter((command): command is RenderCommand => command !== null) : [];
+          const commandQueue = Array.isArray(state.commandQueue) ? state.commandQueue.map(command => asMigratedCommand(command)).filter((command): command is RenderCommand => command !== null) : [];
+          return { ...state, commandQueue };
+        }
+        if (version === 2) {
+          const commandQueue = Array.isArray(state.commandQueue) ? state.commandQueue.map(command => asMigratedCommand(command, true)).filter((command): command is RenderCommand => command !== null) : [];
           return { ...state, commandQueue };
         }
         return state;
