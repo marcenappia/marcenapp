@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAgent } from './registry';
 
-const callAIText = vi.fn<(prompt: string, images?: { mimeType: string; data: string }[], jsonMode?: boolean) => Promise<string>>(async () => JSON.stringify({
-  summary: 'Ambiente identificado.',
-  findings: { walls: [{ reference: 'parede da direita' }] },
-  confidence: 0.9,
-  warnings: [],
-  assumptions: [],
-  evidence: [{ source: 'vision', value: 'parede da direita' }],
+const { callAIText } = vi.hoisted(() => ({
+  callAIText: vi.fn<(prompt: string, images?: { mimeType: string; data: string }[], jsonMode?: boolean) => Promise<string>>(async () => JSON.stringify({
+    summary: 'Ambiente identificado.',
+    findings: { walls: [{ reference: 'parede da direita' }] },
+    confidence: 0.9,
+    warnings: [],
+    assumptions: [],
+    evidence: [{ source: 'vision', value: 'parede da direita' }],
+  })),
 }));
 
 vi.mock('@/services/ai', () => ({ callAIText }));
