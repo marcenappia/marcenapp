@@ -86,7 +86,7 @@ export const StudioWorker = () => {
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
     try {
-      const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, osCommand.id);
+      const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, command.idempotencyKey);
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
       if (!(await isCurrentContext(payload))) {
         cancelCommand(storeCommandId);
