@@ -31,7 +31,12 @@ async function currentUserId(): Promise<string | null> {
 function isCutPart(value: unknown): value is CutPart {
   if (!value || typeof value !== 'object') return false;
   const part = value as Record<string, unknown>;
+  const quantityValid = part.quantity === undefined
+    || (typeof part.quantity === 'number' && Number.isInteger(part.quantity) && part.quantity >= 1);
+  const grainValid = part.grainSensitive === undefined || typeof part.grainSensitive === 'boolean';
+  const rotationValid = part.allowRotation === undefined || typeof part.allowRotation === 'boolean';
   return typeof part.id === 'string'
+    && part.id.length > 0
     && typeof part.width === 'number'
     && Number.isFinite(part.width)
     && part.width > 0
@@ -39,13 +44,19 @@ function isCutPart(value: unknown): value is CutPart {
     && Number.isFinite(part.height)
     && part.height > 0
     && typeof part.material === 'string'
-    && part.material.length > 0;
+    && part.material.length > 0
+    && quantityValid
+    && grainValid
+    && rotationValid;
 }
 
 function isCutSheet(value: unknown): value is CutSheet {
   if (!value || typeof value !== 'object') return false;
   const sheet = value as Record<string, unknown>;
+  const thicknessValid = sheet.thickness === undefined
+    || (typeof sheet.thickness === 'number' && Number.isFinite(sheet.thickness) && sheet.thickness > 0);
   return typeof sheet.id === 'string'
+    && sheet.id.length > 0
     && typeof sheet.width === 'number'
     && Number.isFinite(sheet.width)
     && sheet.width > 0
@@ -53,15 +64,17 @@ function isCutSheet(value: unknown): value is CutSheet {
     && Number.isFinite(sheet.height)
     && sheet.height > 0
     && typeof sheet.material === 'string'
-    && sheet.material.length > 0;
+    && sheet.material.length > 0
+    && thicknessValid;
 }
 
 function explicitCutInputs(snapshot: unknown): { parts: CutPart[]; sheetTemplates: CutSheet[]; kerf?: number } | null {
   if (!snapshot || typeof snapshot !== 'object') return null;
   const value = snapshot as Record<string, unknown>;
-  const parts = Array.isArray(value.parts) ? value.parts.filter(isCutPart) : [];
-  const sheetTemplates = Array.isArray(value.sheetTemplates) ? value.sheetTemplates.filter(isCutSheet) : [];
-  if (!parts.length || !sheetTemplates.length) return null;
+  if (!Array.isArray(value.parts) || !Array.isArray(value.sheetTemplates) || !value.parts.length || !value.sheetTemplates.length) return null;
+  if (!value.parts.every(isCutPart) || !value.sheetTemplates.every(isCutSheet)) return null;
+  const parts = value.parts as CutPart[];
+  const sheetTemplates = value.sheetTemplates as CutSheet[];
   const kerf = typeof value.kerf === 'number' && Number.isFinite(value.kerf) && value.kerf >= 0 ? value.kerf : undefined;
   return { parts, sheetTemplates, kerf };
 }
