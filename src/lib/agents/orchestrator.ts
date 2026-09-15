@@ -28,6 +28,7 @@ export async function runAgentPlan(steps: AgentPlanStep[], correlationId = uuid(
       if (input.parts === undefined) { const generatedParts = dependencyData(dependencyResults, 'parts'); if (generatedParts !== undefined) input.parts = generatedParts; }
       if (input.sheetTemplates === undefined) { const generatedSheets = dependencyData(dependencyResults, 'sheetTemplates'); if (generatedSheets !== undefined) input.sheetTemplates = generatedSheets; }
       if (input.kerf === undefined) { const generatedKerf = dependencyData(dependencyResults, 'kerf'); if (generatedKerf !== undefined) input.kerf = generatedKerf; }
+      if (input.cutPlan === undefined) { const generatedCutPlan = dependencyData(dependencyResults, 'cutPlan'); if (generatedCutPlan !== undefined) input.cutPlan = generatedCutPlan; }
       const task: AgentTask = { id: step.id, type: step.type, input, correlationId, context: { originalInput: { ...step.input }, dependencyResults, evidence } };
       return isSpatialAgent(step.agentId) ? executeSpatialAgent(step.agentId, task) : getAgent(step.agentId).handle(task);
     }));
