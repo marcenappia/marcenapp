@@ -1,3 +1,5 @@
+import type { CutSheet } from '@/lib/cut/maxRects';
+
 export type FurnitureEngineeringSpec = {
   id: string;
   name: string;
@@ -13,6 +15,8 @@ export type FurnitureEngineeringSpec = {
   material: string;
   backMaterial?: string;
   grainSensitive?: boolean;
+  sheetTemplates?: CutSheet[];
+  kerf?: number;
 };
 
 export type EngineeredPart = {
@@ -30,6 +34,8 @@ export type EngineeredPart = {
 export type EngineeringResult = {
   furnitureId: string;
   parts: EngineeredPart[];
+  sheetTemplates: CutSheet[];
+  kerf?: number;
   assumptions: string[];
   blockers: string[];
 };
@@ -38,8 +44,12 @@ function positive(value: number | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function validSheets(sheets: CutSheet[] | undefined): boolean {
+  return Boolean(sheets?.length) && sheets!.every((sheet) => positive(sheet.width) && positive(sheet.height) && Boolean(sheet.material));
+}
+
 /**
- * Generates only the geometry that is explicitly defined by the construction contract.
+ * Generates only geometry explicitly defined by the construction contract.
  * It deliberately does not guess door/drawer fronts, fittings, edge clearances or joinery.
  */
 export function engineerBasicCarcass(spec: FurnitureEngineeringSpec): EngineeringResult {
@@ -56,7 +66,9 @@ export function engineerBasicCarcass(spec: FurnitureEngineeringSpec): Engineerin
   }
   if (!spec.id) blockers.push('Móvel sem identificador.');
   if (!spec.material) blockers.push('Móvel sem material da caixa.');
-  if (blockers.length) return { furnitureId: spec.id, parts: [], assumptions, blockers };
+  if (spec.kerf !== undefined && (!Number.isFinite(spec.kerf) || spec.kerf < 0)) blockers.push('Kerf inválido.');
+  if (spec.sheetTemplates && !validSheets(spec.sheetTemplates)) blockers.push('Chapas de fabricação inválidas.');
+  if (blockers.length) return { furnitureId: spec.id, parts: [], sheetTemplates: spec.sheetTemplates ?? [], kerf: spec.kerf, assumptions, blockers };
 
   const t = spec.carcassThickness;
   const internalWidth = spec.width - (2 * t);
@@ -65,6 +77,8 @@ export function engineerBasicCarcass(spec: FurnitureEngineeringSpec): Engineerin
     return {
       furnitureId: spec.id,
       parts: [],
+      sheetTemplates: spec.sheetTemplates ?? [],
+      kerf: spec.kerf,
       assumptions,
       blockers: ['As dimensões externas não comportam duas laterais e travessas com a espessura informada.'],
     };
@@ -72,50 +86,10 @@ export function engineerBasicCarcass(spec: FurnitureEngineeringSpec): Engineerin
 
   const grainSensitive = spec.grainSensitive !== false;
   const parts: EngineeredPart[] = [
-    {
-      id: `${spec.id}:lateral-esquerda`,
-      name: 'Lateral esquerda',
-      width: spec.depth,
-      height: spec.height,
-      quantity: 1,
-      material: spec.material,
-      grainSensitive,
-      allowRotation: !grainSensitive,
-      role: 'side',
-    },
-    {
-      id: `${spec.id}:lateral-direita`,
-      name: 'Lateral direita',
-      width: spec.depth,
-      height: spec.height,
-      quantity: 1,
-      material: spec.material,
-      grainSensitive,
-      allowRotation: !grainSensitive,
-      role: 'side',
-    },
-    {
-      id: `${spec.id}:base`,
-      name: 'Base',
-      width: internalWidth,
-      height: spec.depth,
-      quantity: 1,
-      material: spec.material,
-      grainSensitive,
-      allowRotation: !grainSensitive,
-      role: 'bottom',
-    },
-    {
-      id: `${spec.id}:tampo`,
-      name: 'Tampo',
-      width: internalWidth,
-      height: spec.depth,
-      quantity: 1,
-      material: spec.material,
-      grainSensitive,
-      allowRotation: !grainSensitive,
-      role: 'top',
-    },
+    { id: `${spec.id}:lateral-esquerda`, name: 'Lateral esquerda', width: spec.depth, height: spec.height, quantity: 1, material: spec.material, grainSensitive, allowRotation: !grainSensitive, role: 'side' },
+    { id: `${spec.id}:lateral-direita`, name: 'Lateral direita', width: spec.depth, height: spec.height, quantity: 1, material: spec.material, grainSensitive, allowRotation: !grainSensitive, role: 'side' },
+    { id: `${spec.id}:base`, name: 'Base', width: internalWidth, height: spec.depth, quantity: 1, material: spec.material, grainSensitive, allowRotation: !grainSensitive, role: 'bottom' },
+    { id: `${spec.id}:tampo`, name: 'Tampo', width: internalWidth, height: spec.depth, quantity: 1, material: spec.material, grainSensitive, allowRotation: !grainSensitive, role: 'top' },
   ];
 
   const shelfCount = spec.shelfCount ?? 0;
@@ -123,15 +97,8 @@ export function engineerBasicCarcass(spec: FurnitureEngineeringSpec): Engineerin
   if (shelfCount > 0) {
     for (let index = 1; index <= shelfCount; index += 1) {
       parts.push({
-        id: `${spec.id}:prateleira-${index}`,
-        name: `Prateleira ${index}`,
-        width: internalWidth,
-        height: Math.max(1, spec.depth - 2),
-        quantity: 1,
-        material: spec.material,
-        grainSensitive,
-        allowRotation: !grainSensitive,
-        role: 'shelf',
+        id: `${spec.id}:prateleira-${index}`, name: `Prateleira ${index}`, width: internalWidth, height: spec.depth,
+        quantity: 1, material: spec.material, grainSensitive, allowRotation: !grainSensitive, role: 'shelf',
       });
     }
   }
@@ -141,19 +108,10 @@ export function engineerBasicCarcass(spec: FurnitureEngineeringSpec): Engineerin
     else {
       const inset = spec.backInset ?? 0;
       if (inset < 0 || inset >= spec.depth) blockers.push('Recuo do fundo inválido.');
-      else {
-        parts.push({
-          id: `${spec.id}:fundo`,
-          name: 'Fundo',
-          width: spec.width,
-          height: spec.height,
-          quantity: 1,
-          material: spec.backMaterial ?? spec.material,
-          grainSensitive,
-          allowRotation: !grainSensitive,
-          role: 'back',
-        });
-      }
+      else parts.push({
+        id: `${spec.id}:fundo`, name: 'Fundo', width: spec.width, height: spec.height, quantity: 1,
+        material: spec.backMaterial ?? spec.material, grainSensitive, allowRotation: !grainSensitive, role: 'back',
+      });
     }
   } else {
     assumptions.push('Fundo não foi gerado porque a espessura do fundo não foi informada.');
@@ -162,5 +120,5 @@ export function engineerBasicCarcass(spec: FurnitureEngineeringSpec): Engineerin
   if ((spec.doorCount ?? 0) > 0) blockers.push('Portas exigem regra explícita de folga, sobreposição e ferragens; não foram inventadas.');
   if ((spec.drawerCount ?? 0) > 0) blockers.push('Gavetas exigem regra explícita de caixa, corrediça e folgas; não foram inventadas.');
 
-  return { furnitureId: spec.id, parts, assumptions, blockers };
+  return { furnitureId: spec.id, parts, sheetTemplates: spec.sheetTemplates ?? [], kerf: spec.kerf, assumptions, blockers };
 }
