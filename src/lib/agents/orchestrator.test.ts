@@ -106,9 +106,10 @@ describe('MARCENAPP agents', () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
       photoUrl: 'photo.jpg', measurements: { width: 3000 },
-      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1 }],
+      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       materials: [{ code: 'MDF-18', quantity: 2 }],
-      cutPlan: [{ code: 'CH1', width: 2750, height: 1850, pieces: [
+      sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
+      cutPlan: [{ code: 'CH1', width: 2750, height: 1850, material: 'MDF-18', pieces: [
         { code: 'P1', x: 0, y: 0, width: 500, height: 700 },
       ] }],
       projectId: 'project-1', versionId: 'review-version-test', userId: 'user-test', documentType: 'budget',
@@ -124,7 +125,8 @@ describe('MARCENAPP agents', () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
       photoUrl: 'photo.jpg', measurements: { width: 3000 },
-      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1 }],
+      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
+      sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
       projectId: 'project-1', versionId: 'review-version-test', userId: 'user-test',
       scene: { type: 'kitchen' }, renderUrl: 'render.jpg', presentationId: 'presentation-1',
       clientDecision: 'changes_requested',
@@ -140,9 +142,10 @@ describe('MARCENAPP agents', () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
       photoUrl: 'photo.jpg', measurements: { width: 3000 },
-      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1 }],
+      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       materials: [{ code: 'MDF-18', quantity: 2 }],
-      cutPlan: [{ code: 'CH1', width: 2750, height: 1850, pieces: [
+      sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
+      cutPlan: [{ code: 'CH1', width: 2750, height: 1850, material: 'MDF-18', pieces: [
         { code: 'P1', x: 0, y: 0, width: 500, height: 700 },
       ] }],
       projectId: 'project-1', versionId: 'approved-version-test', userId: 'user-test', documentType: 'budget',
