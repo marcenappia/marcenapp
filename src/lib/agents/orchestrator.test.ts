@@ -1,4 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/production/versionFreeze', () => ({
+  freezeProductionPackage: vi.fn(async ({ projectId, versionId, technicalPackage }) => ({
+    ok: true as const,
+    freeze: {
+      freezeId: 'freeze-test-1',
+      projectId,
+      versionId: versionId || 'approved-version-test',
+      approvalId: 'approval-test-1',
+      snapshotHash: 'test-hash',
+      snapshot: { technicalPackage },
+      createdAt: '2026-09-15T00:00:00.000Z',
+    },
+  })),
+}));
+
 import { agents, getAgent } from './registry';
 import { runAgentPlan, runProjectJourney } from './orchestrator';
 
@@ -90,5 +106,8 @@ describe('MARCENAPP agents', () => {
     expect(result.status).toBe('completed');
     expect(new Set(result.results.map((r) => r.correlationId)).size).toBe(1);
     expect(result.results).toHaveLength(20);
+    const production = result.results.find((r) => r.agentId === 'production');
+    expect(production?.data?.productionReady).toBe(true);
+    expect(production?.data?.freezeId).toBe('freeze-test-1');
   });
 });
