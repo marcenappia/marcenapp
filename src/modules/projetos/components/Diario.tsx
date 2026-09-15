@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, BookOpen, Camera, FileText, Mic, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpen, Building2, Camera, FileText, Mic, Sparkles } from 'lucide-react';
 import DiarioIntake from './DiarioIntake';
 import DiarioFreeLayer from './DiarioFreeLayer';
 
@@ -14,7 +14,10 @@ export default function Diario({ navigateTo }: Props) {
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white"><BookOpen size={18} /></div>
             <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Obra em campo</p><h1 className="truncate text-lg font-black tracking-tight text-slate-950 md:text-xl">Diário de Obra</h1><p className="truncate text-xs text-slate-500">Registre primeiro. Organize depois. A IARA entra quando você quiser.</p></div>
           </div>
-          <button type="button" onClick={() => navigateTo?.('studio')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2.5 text-xs font-black text-white hover:bg-slate-800"><Sparkles size={15} /> Levar para a IARA <ArrowRight size={14} /></button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button type="button" onClick={() => navigateTo?.('configuracoes')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2.5 text-xs font-black text-indigo-700 hover:bg-indigo-100"><Building2 size={15} /> Minha Marcenaria</button>
+            <button type="button" onClick={() => navigateTo?.('studio')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2.5 text-xs font-black text-white hover:bg-slate-800"><Sparkles size={15} /> Levar para a IARA <ArrowRight size={14} /></button>
+          </div>
         </header>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
