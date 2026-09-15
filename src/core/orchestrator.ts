@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { executeToolCall, type ExecutionContext, type ToolResult } from './toolRegistry';
 import { callAIFunction } from '@/services/ai';
 import { runSpatialJourney } from '@/lib/agents/orchestrator';
+import { executeIaraSmartAction, type SmartAction } from './iaraSmartActions';
 import type { Json } from '@/integrations/supabase/runtime-types';
 
 export interface ToolCall { tool: string; args: Record<string, unknown>; }
@@ -21,6 +22,15 @@ function spatialImages(ctx: ExecutionContext): Array<{ mimeType: string; data: s
   return refs.slice(0, 8);
 }
 
+const SMART_ACTIONS = new Set<SmartAction>([
+  'materials', 'hardware', 'inventory', 'production', 'cut', 'budget', 'documents', 'order',
+  'assembly', 'installation', 'checklist', 'delivery', 'review_project', 'check_measurements',
+]);
+
+function smartActionFor(iaraAction?: string): SmartAction | null {
+  return iaraAction && SMART_ACTIONS.has(iaraAction as SmartAction) ? iaraAction as SmartAction : null;
+}
+
 export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext, context?: Record<string, unknown>): Promise<OrchestratorRun> {
   let runId: string | null = null;
   try {
@@ -29,13 +39,21 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
   } catch (e) { console.warn('Falha ao registrar orchestrator_run:', e); }
 
   const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
+  const smartAction = smartActionFor(iara?.action);
   const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : [];
   const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: userPrompt, estilo: ctx.decorStyle } }] : [];
   const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: userPrompt } }] : [];
-  const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan;
+  const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
+  const deterministicPlan = deterministicProjectPlan.length
+    ? deterministicProjectPlan
+    : deterministicFloorPlan.length
+      ? deterministicFloorPlan
+      : deterministicRenderPlan.length
+        ? deterministicRenderPlan
+        : deterministicSmartPlan;
 
   const result = deterministicPlan.length
-    ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir das dimensões informadas.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : 'Render solicitado diretamente pela IARA.', provider: undefined as OrchestratorPlan['provider'] }
+    ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir das dimensões informadas.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] }
     : await planWithLLM(userPrompt, context);
 
   const plan = result.plan.map(call => {
@@ -69,7 +87,9 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
   }
 
   for (const call of plan) {
-    const r = await executeToolCall(call.tool, call.args, ctx);
+    const r = call.tool.startsWith('iara.')
+      ? await executeIaraSmartAction(call.tool.slice(5) as SmartAction, ctx.projectId)
+      : await executeToolCall(call.tool, call.args, ctx);
     results.push({ tool: call.tool, result: r });
     if (!r.ok) break;
   }
