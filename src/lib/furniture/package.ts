@@ -58,10 +58,8 @@ export type BomItem = {
   material?: string;
   width?: number;
   height?: number;
-  role?: EngineedRole;
+  role?: EngineeredPart['role'];
 };
-
-type EngineedRole = EngineeredPart['role'] | 'door' | 'drawer-front' | 'drawer-box';
 
 export type FurniturePackageResult = EngineeringResult & {
   modules: FurnitureModuleSpec[];
@@ -159,7 +157,7 @@ export function buildFurniturePackage(spec: FurniturePackageSpec): FurniturePack
         const material = door.material ?? module.material;
         addPart(parts, {
           id: `${module.id}:porta`, name: `${module.name} - porta`, width: door.frontWidth, height: door.frontHeight,
-          quantity: door.count * quantity, material, grainSensitive: door.grainSensitive !== false, allowRotation: door.grainSensitive === false, role: 'top',
+          quantity: door.count * quantity, material, grainSensitive: door.grainSensitive !== false, allowRotation: door.grainSensitive === false, role: 'door',
         });
         addHardware(hardware, door.hardware, blockers);
       }
@@ -172,11 +170,11 @@ export function buildFurniturePackage(spec: FurniturePackageSpec): FurniturePack
       } else {
         addPart(parts, {
           id: `${module.id}:gaveta-frente`, name: `${module.name} - frente de gaveta`, width: drawer.frontWidth, height: drawer.frontHeight,
-          quantity: drawer.count * quantity, material: module.material, grainSensitive: drawer.grainSensitive !== false, allowRotation: drawer.grainSensitive === false, role: 'top',
+          quantity: drawer.count * quantity, material: module.material, grainSensitive: drawer.grainSensitive !== false, allowRotation: drawer.grainSensitive === false, role: 'drawer-front',
         });
         addPart(parts, {
           id: `${module.id}:gaveta-caixa`, name: `${module.name} - caixa de gaveta`, width: drawer.boxWidth, height: drawer.boxDepth,
-          quantity: drawer.count * quantity, material: drawer.material, grainSensitive: drawer.grainSensitive !== false, allowRotation: drawer.grainSensitive === false, role: 'bottom',
+          quantity: drawer.count * quantity, material: drawer.material, grainSensitive: drawer.grainSensitive !== false, allowRotation: drawer.grainSensitive === false, role: 'drawer-box',
         });
         assumptions.push(`Caixa de gaveta ${module.id} registrada com dimensões explícitas; folgas, usinagem e montagem não foram inventadas.`);
         addHardware(hardware, drawer.hardware, blockers);
