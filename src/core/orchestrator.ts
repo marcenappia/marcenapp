@@ -31,6 +31,91 @@ function smartActionFor(iaraAction?: string): SmartAction | null {
   return iaraAction && SMART_ACTIONS.has(iaraAction as SmartAction) ? iaraAction as SmartAction : null;
 }
 
+function normalizeText(value: unknown): string {
+  return String(value ?? '').toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim();
+}
+
+function toMillimeters(value: string, unit?: string): number {
+  const n = Number(value.replace(',', '.'));
+  if (!Number.isFinite(n) || n <= 0) return NaN;
+  const normalizedUnit = unit?.toLocaleLowerCase('pt-BR');
+  if (normalizedUnit === 'm') return n * 1000;
+  if (normalizedUnit === 'cm') return n * 10;
+  return n;
+}
+
+function extractAxisDimension(text: string, axis: 'width' | 'height' | 'depth'): number | undefined {
+  const axisWords = axis === 'width' ? '(?:largura|largo|comprimento)' : axis === 'height' ? '(?:altura|alto)' : '(?:profundidade|profundo)';
+  const number = '(\\d+(?:[.,]\\d+)?)';
+  const unit = '(mm|cm|m)?';
+  const patterns = [
+    new RegExp(`${axisWords}\\s*(?:é|e|de|:|=)?\\s*${number}\\s*(?:${unit})\\b`, 'i'),
+    new RegExp(`${number}\\s*(?:${unit})\\s*(?:de\\s+)?${axisWords}\\b`, 'i'),
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const numericIndex = match.findIndex((value, index) => index > 0 && /^\\d/.test(value));
+    if (numericIndex < 0) continue;
+    const rawNumber = match[numericIndex];
+    const unitValue = match[numericIndex + 1];
+    const result = toMillimeters(rawNumber, unitValue);
+    if (Number.isFinite(result)) return result;
+  }
+  return undefined;
+}
+
+function extractOrderedDimensions(text: string): { width: number; height: number; depth: number } | undefined {
+  const match = text.match(/(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\s*[x×]\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\s*[x×]\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?/i);
+  if (!match) return undefined;
+  const width = toMillimeters(match[1], match[2]);
+  const height = toMillimeters(match[3], match[4]);
+  const depth = toMillimeters(match[5], match[6]);
+  return [width, height, depth].every((value) => Number.isFinite(value)) ? { width, height, depth } : undefined;
+}
+
+function extractTextProjectDimensions(text: string): { width: number; height: number; depth: number } | undefined {
+  const ordered = extractOrderedDimensions(text);
+  if (ordered) return ordered;
+  const width = extractAxisDimension(text, 'width');
+  const height = extractAxisDimension(text, 'height');
+  const depth = extractAxisDimension(text, 'depth');
+  if (![width, height, depth].every((value) => Number.isFinite(value))) return undefined;
+  return { width: width as number, height: height as number, depth: depth as number };
+}
+
+function inferProjectCreationFromConversation(userPrompt: string, context?: Record<string, unknown>): boolean {
+  const current = normalizeText(userPrompt);
+  if (/\b(crie|criar|cria|novo projeto|novo móvel|novo movel|monte um projeto|faça um projeto|faca um projeto)\b/i.test(current)) return true;
+  const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
+  const recentUserText = conversation
+    .filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string')
+    .slice(-6)
+    .map((item) => item.text)
+    .join(' ');
+  return /\b(crie|criar|cria|novo projeto|novo móvel|novo movel|monte um projeto|faça um projeto|faca um projeto)\b/i.test(recentUserText);
+}
+
+function projectNameFromText(text: string): string {
+  const match = text.match(/(?:crie|criar|cria|novo)\s+(?:um|uma)?\s*([a-záàâãéêíóôõúç][a-záàâãéêíóôõúç0-9 -]{1,80}?)(?=\s+(?:de|com|medindo|nas medidas|medidas de)\b|\s+\\d|$)/i);
+  return match?.[1]?.trim() || 'Novo projeto';
+}
+
+function deterministicCreateProjectPlan(userPrompt: string, context?: Record<string, unknown>): ToolCall[] {
+  if (!inferProjectCreationFromConversation(userPrompt, context)) return [];
+  const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
+  const recentText = conversation
+    .filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string')
+    .slice(-6)
+    .map((item) => item.text)
+    .join(' ');
+  const combined = `${recentText} ${userPrompt}`.trim();
+  const dimensions = extractTextProjectDimensions(combined);
+  if (!dimensions) return [];
+  const name = projectNameFromText(combined);
+  return [{ tool: 'createProjeto', args: { nome: name, ...dimensions, tipo: name, confirmado: true } }];
+}
+
 export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext, context?: Record<string, unknown>): Promise<OrchestratorRun> {
   let runId: string | null = null;
   try {
@@ -40,7 +125,10 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
 
   const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
   const smartAction = smartActionFor(iara?.action);
-  const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : [];
+  const fastCreateProjectPlan = deterministicCreateProjectPlan(userPrompt, context);
+  const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs
+    ? [{ tool: 'createProjeto', args: iara.createProjectArgs }]
+    : fastCreateProjectPlan;
   const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: userPrompt, estilo: ctx.decorStyle } }] : [];
   const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: userPrompt } }] : [];
   const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
@@ -53,7 +141,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
         : deterministicSmartPlan;
 
   const result = deterministicPlan.length
-    ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir das dimensões informadas.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] }
+    ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] }
     : await planWithLLM(userPrompt, context);
 
   const plan = result.plan.map(call => {
