@@ -66,10 +66,12 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
 
   if (!plan.length) {
     const error = 'A IARA não conseguiu transformar o pedido em uma ação executável. Reformule o pedido ou informe os dados necessários.';
+    const failureResult: ToolResult = { ok: false, error };
+    const failureResults: Array<{ tool: string; result: ToolResult }> = [{ tool: 'iara', result: failureResult }];
     if (runId) {
-      try { await supabase.from('orchestrator_runs').update({ plan: [], results: [], used_fallback: false, status: 'needs_input' }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado do orchestrator_run:', e); }
+      try { await supabase.from('orchestrator_runs').update({ plan: [], results: failureResults as unknown as Json, used_fallback: false, status: 'needs_input' }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado do orchestrator_run:', e); }
     }
-    return { runId, plan, summary, results, usedFallback: false, provider: result.provider, error, status: 'needs_input' };
+    return { runId, plan, summary, results: failureResults, usedFallback: false, provider: result.provider, error, status: 'needs_input' };
   }
 
   const spatialAction = iara?.action === 'analyze_plan' || iara?.action === 'render';
