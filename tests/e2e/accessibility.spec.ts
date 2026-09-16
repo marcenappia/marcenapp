@@ -9,9 +9,7 @@ const assertNoLovableNavigation = (page: import('@playwright/test').Page) => {
     try {
       const hostname = new URL(url).hostname;
       if (FORBIDDEN_LEGACY_HOSTS.test(hostname)) seen.push(url);
-    } catch {
-      // Ignore non-URL values.
-    }
+    } catch {}
   };
   page.on('request', request => check(request.url()));
   page.on('framenavigated', frame => check(frame.url()));
@@ -26,11 +24,12 @@ test.describe('Marcenapp public acceptance', () => {
     await expect(page).toHaveTitle(/Marcenapp/i);
   });
 
-  test('public landing page renders the current conversion flow', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: /Mais que um software/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Começar agora/i }).first()).toBeVisible();
-    await expect(page.getByRole('link', { name: /Conhecer o Marcenapp/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Da casa do cliente ao móvel pronto/i })).toBeVisible();
+  test('public landing page renders the current product and conversion flow', async ({ page }) => {
+    await expect(page.getByRole('heading', { name: /Sua marcenaria trabalha\./i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /A IARA acelera\./i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Começar agora' }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Ver como funciona' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Você não precisa recomeçar o projeto/i })).toBeVisible();
   });
 
   test('public landing page passes an axe accessibility audit', async ({ page }) => {
@@ -57,30 +56,36 @@ test.describe('Marcenapp public acceptance', () => {
     await page.getByRole('button', { name: /Voltar para o login/i }).click();
     await page.getByRole('button', { name: /Cadastre-se/i }).click();
     await expect(page.getByPlaceholder('Nome completo')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Cadastrar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Criar conta/i })).toBeVisible();
     assertClean();
   });
 
-  test('navigation anchors work on the public landing page', async ({ page }) => {
+  test('public navigation anchors work', async ({ page }) => {
     await page.getByRole('link', { name: 'Como funciona' }).click();
     await expect(page).toHaveURL(/#fluxo$/);
     await expect(page.locator('#fluxo')).toBeVisible();
     await page.getByRole('link', { name: 'Recursos' }).click();
     await expect(page).toHaveURL(/#recursos$/);
     await expect(page.locator('#recursos')).toBeVisible();
+    await page.getByRole('link', { name: 'Valores' }).click();
+    await expect(page).toHaveURL(/#valores$/);
+    await expect(page.locator('#valores')).toBeVisible();
   });
 
   test('mobile landing page remains usable', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('button', { name: 'Abrir menu' })).toBeVisible();
     await page.getByRole('button', { name: 'Abrir menu' }).click();
-    await expect(page.getByRole('button', { name: /Entrar ou começar/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'recursos' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Começar agora' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Recursos' })).toBeVisible();
   });
 
-  test('unauthenticated root stays on the public landing page', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: /Mais que um software/i })).toBeVisible();
-    await expect(page.getByText(/Do projeto à produção, tudo no lugar/i).first()).toBeVisible();
+  test('public purchase flow preserves the selected product', async ({ page }) => {
+    const buy = page.getByRole('button', { name: 'Comprar' }).first();
+    await expect(buy).toBeVisible();
+    await buy.click();
+    await expect(page).toHaveURL(/\/auth\?purchase=[^&]+/);
   });
 
   test('unknown routes resolve to the application fallback instead of a server error', async ({ page }) => {
