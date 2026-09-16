@@ -1,52 +1,32 @@
-import { ArrowLeft, ArrowRight, Building2, Factory, HardHat, Palette, Ruler, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, HardHat, Palette, Ruler } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import logo from '@/assets/marcenapp-logo.svg';
-import { PROFESSIONAL_PROFILES, type ProfessionalProfile } from '@/modules/admin/ProfessionalProfiles';
 
-const PROFILE_ICONS: Record<ProfessionalProfile, typeof HardHat> = {
-  marceneiro: HardHat,
-  loja_planejados: Building2,
-  arquiteto: Ruler,
-  designer_interiores: Palette,
-  projetista: Ruler,
-  vendedor_planejados: Users,
-  fabrica: Factory,
-};
+const OPTIONS = [
+  { value: 'marceneiro', label: 'Marceneiro', description: 'Projeto e produção', icon: HardHat },
+  { value: 'projetista', label: 'Projetista', description: 'Projeto e detalhamento', icon: Ruler },
+  { value: 'arquiteto', label: 'Arquiteto / Design de interiores', description: 'Ambientes e especificações', icon: Palette },
+  { value: 'outros', label: 'Outros', description: 'Outras formas de trabalhar', icon: BriefcaseBusiness },
+] as const;
 
 export default function ProfessionalProfileSelection() {
   const navigate = useNavigate();
   const location = useLocation();
-  const mode = new URLSearchParams(location.search).get('mode') === 'login' ? 'login' : 'signup';
-  const isLogin = mode === 'login';
+  const isLogin = new URLSearchParams(location.search).get('mode') === 'login';
 
-  const select = (profession: ProfessionalProfile) => {
-    navigate(`${isLogin ? '/auth' : '/signup'}?profession=${encodeURIComponent(profession)}`);
-  };
+  if (isLogin) {
+    navigate('/auth', { replace: true });
+    return null;
+  }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl flex-col justify-center">
-        <button type="button" onClick={() => navigate('/')} className="mb-8 inline-flex w-fit items-center gap-2 text-sm font-semibold text-slate-400 transition-colors hover:text-white" aria-label="Voltar para o Marcenapp"><ArrowLeft size={17} /> Voltar</button>
-        <div className="mb-10 max-w-2xl">
-          <div className="mb-5 flex items-center gap-3"><img src={logo} alt="Marcenapp" className="h-10 w-10 rounded-xl" /><span className="text-sm font-black tracking-wide">MARCENAPP</span></div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-300">{isLogin ? 'Antes de entrar' : 'Antes do cadastro'}</p>
-          <h1 className="mt-3 text-4xl font-black tracking-[-0.04em] sm:text-5xl">Como você trabalha?</h1>
-          <p className="mt-4 max-w-xl text-base leading-7 text-slate-400">Escolha seu perfil profissional. Essa escolha orienta a experiência inicial do Marcenapp e o contexto que a IARA deve priorizar.</p>
-        </div>
-        <section aria-labelledby="profile-options" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <h2 id="profile-options" className="sr-only">Perfis profissionais disponíveis</h2>
-          {PROFESSIONAL_PROFILES.map((profile) => {
-            const Icon = PROFILE_ICONS[profile.value];
-            return <button key={profile.value} type="button" onClick={() => select(profile.value)} className="group rounded-2xl border border-white/10 bg-white/[0.045] p-5 text-left transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
-              <div className="flex items-start justify-between gap-4"><div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-200"><Icon size={20} strokeWidth={1.8} aria-hidden="true" /></div><ArrowRight size={17} className="mt-1 text-slate-600 transition-transform group-hover:translate-x-1 group-hover:text-slate-300" aria-hidden="true" /></div>
-              <h3 className="mt-5 text-lg font-black">{profile.label}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{profile.description}</p>
-            </button>;
-          })}
+    <main className="min-h-screen bg-slate-950 px-4 py-6 text-white sm:px-6">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-md flex-col justify-center">
+        <button type="button" onClick={() => navigate('/')} className="mb-5 inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-white" aria-label="Voltar"><ArrowLeft size={14} /> Voltar</button>
+        <div className="mb-6"><p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300">Cadastro</p><h1 className="mt-2 text-3xl font-black tracking-[-0.04em]">Como você trabalha?</h1><p className="mt-2 text-sm leading-6 text-slate-400">Escolha um perfil para eu preparar sua experiência.</p></div>
+        <section aria-label="Perfil profissional" className="grid gap-2">
+          {OPTIONS.map(({ value, label, description, icon: Icon }) => <button key={value} type="button" onClick={() => navigate(`/signup?profession=${encodeURIComponent(value)}`)} className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-slate-300"><Icon size={17} strokeWidth={1.8} aria-hidden="true" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-black text-white">{label}</span><span className="block text-xs text-slate-500">{description}</span></span><ArrowRight size={15} className="text-slate-600 transition group-hover:translate-x-0.5 group-hover:text-slate-300" aria-hidden="true" /></button>)}
         </section>
-        <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs leading-5 text-slate-500">Você poderá revisar o perfil depois em <span className="text-slate-300">Central da marcenaria</span>.</p>
-          {!isLogin && <button type="button" onClick={() => navigate('/perfil-profissional?mode=login')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:bg-white/5 hover:text-white">Já tenho conta <ArrowRight size={16} /></button>}
-        </div>
+        <p className="mt-5 text-center text-[11px] text-slate-600">Você poderá ajustar isso depois na Central da marcenaria.</p>
       </div>
     </main>
   );
