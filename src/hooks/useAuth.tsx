@@ -37,12 +37,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error('Error fetching profile:', error);
+        setProfile(null);
         return;
       }
 
       setProfile(data ?? null);
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
+      setProfile(null);
     } finally {
       setProfileLoading(false);
     }
@@ -74,11 +76,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(null);
         setUser(null);
         setProfile(null);
-      } else {
+        setProfileLoading(false);
+      } else if (data.session?.user) {
         setSession(data.session);
-        setUser(data.session?.user ?? null);
+        setUser(data.session.user);
+        setProfileLoading(true);
+        await fetchProfile(data.session.user.id);
+      } else {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setProfileLoading(false);
       }
-      setLoading(false);
+      if (mounted) setLoading(false);
     };
 
     void initialize();
@@ -95,7 +105,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfileLoading(false);
       return;
     }
-    void fetchProfile(user.id);
+    // The initial session path hydrates the profile itself. Auth state changes
+    // (login, OAuth callback, refresh) still need an explicit profile fetch.
+    if (!profile && !profileLoading) void fetchProfile(user.id);
   }, [user]);
 
   const signOut = async () => {
