@@ -43,7 +43,7 @@ function normalize(value: string): string {
   return value.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-function toMillimeters(value: string, unit: string | undefined): number {
+function toMillimeters(value: string, unit?: string): number {
   const n = Number(value.replace(',', '.'));
   if (unit === 'm') return n * 1000;
   if (unit === 'cm') return n * 10;
@@ -64,23 +64,8 @@ function findNamedDimensions(text: string): Partial<Record<ProjectDimensionKey, 
   };
 }
 
-function findDimensionsByOrder(text: string): Partial<Record<ProjectDimensionKey, number>> {
-  const matches = [...text.matchAll(/(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)\\b/gi)];
-  if (matches.length < 2) return {};
-  const values = matches.map(match => toMillimeters(match[1], match[2]));
-  return {
-    ...(values[0] ? { width: values[0] } : {}),
-    ...(values[1] ? { height: values[1] } : {}),
-    ...(values[2] ? { depth: values[2] } : {}),
-  };
-}
-
-function mergeDefined<T extends Record<string, unknown>>(base: T, patch: Partial<T>): T {
-  return Object.keys(patch).reduce((result, key) => {
-    const value = patch[key];
-    if (value !== undefined) (result as Record<string, unknown>)[key] = value;
-    return result;
-  }, { ...base });
+function findDimensionsByOrder(text: string): number[] {
+  return [...text.matchAll(/(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\b/gi)].map(match => toMillimeters(match[1], match[2]));
 }
 
 function inferType(text: string): string | undefined {
@@ -98,31 +83,64 @@ function inferType(text: string): string | undefined {
 }
 
 function hasCreateIntent(text: string): boolean {
-  return /\\b(?:crie|criar|cria|quero|monte|montar|faca|faca um|faça)\\b/i.test(normalize(text));
+  return /\b(?:crie|criar|cria|quero|monte|montar|faca)\b/i.test(normalize(text));
+}
+
+function componentFromSegment(segment: string, type: string, id: string): ProjectComponentState | null {
+  const dimensions = findNamedDimensions(normalize(segment));
+  const ordered = findDimensionsByOrder(normalize(segment));
+  const merged = {
+    ...dimensions,
+    ...(dimensions.width === undefined && ordered[0] !== undefined ? { width: ordered[0] } : {}),
+    ...(dimensions.height === undefined && ordered[1] !== undefined ? { height: ordered[1] } : {}),
+    ...(dimensions.depth === undefined && ordered[2] !== undefined ? { depth: ordered[2] } : {}),
+  };
+  if (Object.keys(merged).length === 0) return null;
+  return { id, type, dimensions: merged, properties: {} };
+}
+
+function extractComponents(text: string): ProjectComponentState[] {
+  const normalized = normalize(text);
+  const components: ProjectComponentState[] = [];
+  const upperMatch = normalized.match(/(?:no|no\s+|na|na\s+)?armario\s+superior(?:,|\s+)([^.]*?)(?=$|\b(?:e\s+)?(?:agora|depois)\b)/i);
+  const upperSegment = upperMatch?.[1] ?? '';
+  const upper = componentFromSegment(upperSegment, 'armario_superior', 'component-armario-superior-01');
+  if (upper) components.push(upper);
+
+  const benchMatch = normalized.match(/(?:essa|esta|a)\s+bancada(?:,|\s+)([^.]*?)(?=$|\b(?:no|na)\s+armario\b)/i);
+  const benchSegment = benchMatch?.[1] ?? '';
+  const bench = componentFromSegment(benchSegment, 'bancada', 'component-bancada-01');
+  if (bench) components.push(bench);
+
+  return components;
 }
 
 /**
- * Converts a natural-language turn into a small, deterministic state patch.
- * This is intentionally not an LLM parser: it is the cheap memory layer that
- * preserves facts between turns and never invents missing dimensions.
+ * Cheap deterministic memory layer for IARA.
+ * It extracts facts without inventing missing values and can be replayed over
+ * multiple turns, which is suitable for text today and voice transcripts later.
  */
 export function extractProjectStatePatch(text: string): ProjectStatePatch {
   const normalized = normalize(text);
   const named = findNamedDimensions(normalized);
-  const ordered = Object.keys(named).some(key => named[key as ProjectDimensionKey] !== undefined)
+  const ordered = findDimensionsByOrder(normalized);
+  const dimensions = Object.keys(named).some(key => named[key as ProjectDimensionKey] !== undefined)
     ? named
-    : findDimensionsByOrder(normalized);
+    : {
+        ...(ordered[0] !== undefined ? { width: ordered[0] } : {}),
+        ...(ordered[1] !== undefined ? { height: ordered[1] } : {}),
+        ...(ordered[2] !== undefined ? { depth: ordered[2] } : {}),
+      };
   const type = inferType(normalized);
-  const projectDimensions = normalized.includes('bancada') && normalized.includes('armario superior')
-    ? findDimensionsByOrder(normalized)
-    : ordered;
+  const components = extractComponents(normalized);
 
   return {
     ...(hasCreateIntent(normalized) ? { intent: 'create_project' } : {}),
     project: {
       ...(type ? { type } : {}),
-      dimensions: projectDimensions,
+      dimensions,
     },
+    ...(components.length ? { components } : {}),
   };
 }
 
@@ -131,12 +149,23 @@ export function applyProjectStatePatch(state: ProjectState, patch: ProjectStateP
     ? {
         ...state.project,
         ...patch.project,
-        dimensions: mergeDefined(state.project.dimensions, patch.project.dimensions ?? {}),
+        dimensions: { ...state.project.dimensions, ...(patch.project.dimensions ?? {}) },
       }
     : state.project;
 
   const components = patch.components?.length
-    ? [...state.components, ...patch.components.filter(component => !state.components.some(existing => existing.id === component.id))]
+    ? patch.components.reduce((result, component) => {
+        const index = result.findIndex(existing => existing.id === component.id);
+        if (index === -1) return [...result, component];
+        const next = [...result];
+        next[index] = {
+          ...next[index],
+          ...component,
+          dimensions: { ...next[index].dimensions, ...component.dimensions },
+          properties: { ...next[index].properties, ...component.properties },
+        };
+        return next;
+      }, [...state.components])
     : state.components;
 
   return {
