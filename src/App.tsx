@@ -10,6 +10,7 @@ import SeoRoute from "@/components/SeoRoute";
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Landing = lazy(() => import("./pages/LandingV2"));
+const ProfessionalProfileSelection = lazy(() => import("./pages/ProfessionalProfileSelection"));
 const ClientReview = lazy(() => import("./pages/ClientReview"));
 const AdminAgents = lazy(() => import("./pages/AdminAgents"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -43,6 +44,7 @@ const App = () => (
               <Route path="/register" element={<Auth />} />
               <Route path="/forgot-password" element={<Auth />} />
               <Route path="/reset-password" element={<Auth />} />
+              <Route path="/perfil-profissional" element={<ProfessionalProfileSelection />} />
               <Route path="/cliente/revisao" element={<ClientReview />} />
               <Route path="/admin/agentes" element={<AdminAgents />} />
               <Route path="/" element={<HomeRoute />} />
