@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
@@ -14,6 +14,9 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
+const CHAT_PAGE_SIZE = 50;
+
+type ChatCursor = { createdAt: string; id: string };
 
 function rawErrorMessage(error: unknown): string { return error instanceof Error ? error.message : ''; }
 function humanizeError(error: unknown): string {
@@ -31,6 +34,8 @@ function toolFailureMessage(tool: string, error: unknown): string {
 export const useIaraChat = (factors: { L: number; A: number; P?: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void }, projectId: string | null = null, activeContext?: IaraContext) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -39,6 +44,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload; smartAction?: SmartAction } | null>(null);
+  const chatCursorRef = useRef<ChatCursor | null>(null);
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const executionGenerationRef = useRef(0);
@@ -78,17 +84,52 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   }, [commandHistory, context.userId, context.projectId, context.environmentId, context.versionId]);
 
   useEffect(() => {
-    if (!user) { setMessages([]); return; }
+    if (!user) { setMessages([]); setHasOlderMessages(false); chatCursorRef.current = null; return; }
     let cancelled = false;
-    setMessages([]); setError(null);
+    setMessages([]); setError(null); setHasOlderMessages(false); chatCursorRef.current = null;
     let query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
     query = context.projectId ? query.eq('project_id', context.projectId) : query.is('project_id', null);
     query = context.environmentId ? query.eq('environment_id', context.environmentId) : query.is('environment_id', null);
     query = context.versionId ? query.eq('version_id', context.versionId) : query.is('version_id', null);
-    query.order('created_at', { ascending: true }).then(({ data, error: loadError }) => { if (cancelled) return; if (loadError) { setError('Não foi possível carregar o histórico. Verifique sua conexão.'); return; } if (data) setMessages(data as ChatMessage[]); });
+    query.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(CHAT_PAGE_SIZE).then(({ data, error: loadError }) => {
+      if (cancelled) return;
+      if (loadError) { setError('Não foi possível carregar o histórico. Verifique sua conexão.'); return; }
+      const page = (data ?? []) as ChatMessage[];
+      if (page.length > 0) {
+        const oldest = page[page.length - 1];
+        chatCursorRef.current = { createdAt: oldest.created_at, id: oldest.id };
+      }
+      setHasOlderMessages(page.length === CHAT_PAGE_SIZE);
+      setMessages(page.reverse());
+    });
     const channel = supabase.channel(`chat_messages_${context.projectId ?? 'none'}_${context.environmentId ?? 'none'}_${context.versionId ?? 'none'}_${user.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => { const msg = payload.new as ChatMessage; if (msg.user_id !== user.id || (msg.project_id ?? null) !== (context.projectId ?? null) || (msg.environment_id ?? null) !== (context.environmentId ?? null) || (msg.version_id ?? null) !== (context.versionId ?? null)) return; setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]); }).subscribe();
     return () => { cancelled = true; void supabase.removeChannel(channel); };
   }, [user, context.projectId, context.environmentId, context.versionId]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!user || isLoadingOlderMessages || !hasOlderMessages || !chatCursorRef.current) return;
+    setIsLoadingOlderMessages(true);
+    const cursor = chatCursorRef.current;
+    try {
+      let query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
+      query = context.projectId ? query.eq('project_id', context.projectId) : query.is('project_id', null);
+      query = context.environmentId ? query.eq('environment_id', context.environmentId) : query.is('environment_id', null);
+      query = context.versionId ? query.eq('version_id', context.versionId) : query.is('version_id', null);
+      const { data, error: loadError } = await query.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(CHAT_PAGE_SIZE);
+      if (loadError) throw loadError;
+      const page = (data ?? []) as ChatMessage[];
+      if (page.length > 0) {
+        const oldest = page[page.length - 1];
+        chatCursorRef.current = { createdAt: oldest.created_at, id: oldest.id };
+        setMessages(prev => [...page.reverse(), ...prev.filter(existing => !page.some(older => older.id === existing.id))]);
+      }
+      setHasOlderMessages(page.length === CHAT_PAGE_SIZE);
+    } catch (loadError) {
+      setError('Não foi possível carregar mensagens anteriores. Tente novamente.');
+    } finally {
+      setIsLoadingOlderMessages(false);
+    }
+  }, [user, context.projectId, context.environmentId, context.versionId, hasOlderMessages, isLoadingOlderMessages]);
 
   const saveMessage = async (msg: Partial<ChatMessage>, execution?: IaraExecutionIdentity) => {
     if (!user) return;
@@ -137,5 +178,5 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, kind: 'environment' | 'reference' | 'sketch' | 'plan' = 'environment') => { const file = e.target.files?.[0]; if (!file) return; e.target.value = ''; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; }; reader.readAsDataURL(file); };
   useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`); recognitionRef.current = r; }, []);
   const toggleRecording = () => { if (isListening) recognitionRef.current?.stop(); else recognitionRef.current?.start(); };
-  return { messages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError };
+  return { messages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError };
 };
