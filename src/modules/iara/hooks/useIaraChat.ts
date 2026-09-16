@@ -7,6 +7,7 @@ import { runIaraConversation } from '@/lib/agents/domain';
 import { loadMarcenariaContext } from '@/modules/marcenaria/marcenariaContext';
 import { isIaraCommandForExecution, isIaraExecutionCurrent, type IaraExecutionIdentity } from './iaraExecutionScope';
 import { persistIaraContext, type IaraContext } from '../services/iaraContext';
+import { createProjectStateFromConversation, projectStateSummary, type ProjectState } from '../services/projectState';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
@@ -43,13 +44,17 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
   const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [projectState, setProjectState] = useState<ProjectState>({ intent: null, project: { dimensions: {} }, components: [], pending: [], selectedComponentId: null, sourceTurns: 0 });
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload; smartAction?: SmartAction } | null>(null);
   const chatCursorRef = useRef<ChatCursor | null>(null);
   const commandHistory = useMarcenappOS(state => state.commandHistory);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const executionGenerationRef = useRef(0);
   const pendingExecutionsRef = useRef(new Map<string, IaraExecutionIdentity>());
+  const projectStateRef = useRef<ProjectState>(projectState);
   const context = { userId: user?.id ?? null, projectId: activeContext?.projectId ?? projectId, environmentId: activeContext?.environmentId ?? null, versionId: activeContext?.versionId ?? null };
+
+  useEffect(() => { projectStateRef.current = projectState; }, [projectState]);
 
   useEffect(() => {
     executionGenerationRef.current += 1;
@@ -58,6 +63,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       if (!isIaraExecutionCurrent(identity, context, generation - 1)) pendingExecutionsRef.current.delete(correlationId);
     }
     setLastContext(null);
+    setProjectState({ intent: null, project: { dimensions: {} }, components: [], pending: [], selectedComponentId: null, sourceTurns: 0 });
   }, [context.userId, context.projectId, context.environmentId, context.versionId]);
 
   useEffect(() => {
@@ -100,9 +106,11 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
         chatCursorRef.current = { createdAt: oldest.created_at, id: oldest.id };
       }
       setHasOlderMessages(page.length === CHAT_PAGE_SIZE);
-      setMessages(page.reverse());
+      const chronological = page.reverse();
+      setMessages(chronological);
+      setProjectState(createProjectStateFromConversation(chronological.map(message => message.sender === 'user' ? message.text ?? '' : '').filter(Boolean).slice(-50)));
     });
-    const channel = supabase.channel(`chat_messages_${context.projectId ?? 'none'}_${context.environmentId ?? 'none'}_${context.versionId ?? 'none'}_${user.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => { const msg = payload.new as ChatMessage; if (msg.user_id !== user.id || (msg.project_id ?? null) !== (context.projectId ?? null) || (msg.environment_id ?? null) !== (context.environmentId ?? null) || (msg.version_id ?? null) !== (context.versionId ?? null)) return; setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]); }).subscribe();
+    const channel = supabase.channel(`chat_messages_${context.projectId ?? 'none'}_${context.environmentId ?? 'none'}_${context.versionId ?? 'none'}_${user.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => { const msg = payload.new as ChatMessage; if (msg.user_id !== user.id || (msg.project_id ?? null) !== (context.projectId ?? null) || (msg.environment_id ?? null) !== (context.environmentId ?? null) || (msg.version_id ?? null) !== (context.versionId ?? null)) return; setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]); if (msg.sender === 'user' && msg.text) setProjectState(prev => { const next = createProjectStateFromConversation([msg.text!], prev); projectStateRef.current = next; return next; }); }).subscribe();
     return () => { cancelled = true; void supabase.removeChannel(channel); };
   }, [user, context.projectId, context.environmentId, context.versionId]);
 
@@ -124,11 +132,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
         setMessages(prev => [...page.reverse(), ...prev.filter(existing => !page.some(older => older.id === existing.id))]);
       }
       setHasOlderMessages(page.length === CHAT_PAGE_SIZE);
-    } catch (loadError) {
-      setError('Não foi possível carregar mensagens anteriores. Tente novamente.');
-    } finally {
-      setIsLoadingOlderMessages(false);
-    }
+    } catch { setError('Não foi possível carregar mensagens anteriores. Tente novamente.'); } finally { setIsLoadingOlderMessages(false); }
   }, [user, context.projectId, context.environmentId, context.versionId, hasOlderMessages, isLoadingOlderMessages]);
 
   const saveMessage = async (msg: Partial<ChatMessage>, execution?: IaraExecutionIdentity) => {
@@ -150,13 +154,17 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       const correlationId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       execution = { userId: user.id, projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId, correlationId, generation: executionGenerationRef.current };
       pendingExecutionsRef.current.set(correlationId, execution);
-      const intentInput = { message: promptText, projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId, ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
-      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested' } : { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested' } }, execution);
+      const nextProjectState = createProjectStateFromConversation([promptText], projectStateRef.current);
+      projectStateRef.current = nextProjectState;
+      setProjectState(nextProjectState);
+      const projectStateSummaryText = projectStateSummary(nextProjectState);
+      const intentInput = { message: promptText, projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId, ...(projectStateSummaryText ? { projectState: nextProjectState, projectStateSummary: projectStateSummaryText } : {}), ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
+      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) } : { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) } }, execution);
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       await persistIaraContext(user.id, { ...(activeContext ?? {}), projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId } as IaraContext, correlationId).catch(() => undefined);
       const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
       const marcenaria = await loadMarcenariaContext(user.id);
-      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, correlationId, execution: { userId: user.id, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, correlationId, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, clientId: activeContext?.clientId ?? undefined, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, currentProject: { id: context.projectId, largura: factors.L, altura: factors.A }, conversation, marcenaria } });
+      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, correlationId, execution: { userId: user.id, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, correlationId, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, clientId: activeContext?.clientId ?? undefined, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, currentProject: { id: context.projectId, largura: factors.L, altura: factors.A }, conversation, marcenaria, projectState: nextProjectState, projectStateSummary: projectStateSummaryText } });
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       const lines = response.run.results.map(({ tool, result }) => { if (result.ok === false) return toolFailureMessage(tool, result.error); const data = result.data as Record<string, unknown>; switch (tool) { case 'createCliente': return `Cliente **${String(data.nome ?? 'sem nome')}** cadastrado.`; case 'createProjeto': { const width = Number(data.width); const height = Number(data.height); const depth = Number(data.depth); if (Number.isFinite(width) && Number.isFinite(height) && Number.isFinite(depth)) hooks?.onProjectCreated?.({ width, height, depth }); return `Projeto **${String(data.nome ?? 'Projeto')}** criado.`; } case 'gerarRender': return typeof data.imageUrl === 'string' && data.imageUrl ? 'O render foi gerado e está pronto.' : 'A solicitação de render foi recebida. Aviso quando estiver pronto.'; case 'calcularOrcamento': { const precoVenda = Number(data.precoVenda); const materiais = Number(data.materiais); const ferragens = Number(data.ferragens); const maoDeObra = Number(data.maoDeObra); const outros = Number(data.outros); const lucro = Number(data.lucro); const margemPct = Number(data.margemPct); return `Orçamento atualizado: **R$ ${precoVenda.toLocaleString('pt-BR')}**. Custos: R$ ${materiais.toLocaleString('pt-BR')} em materiais, R$ ${ferragens.toLocaleString('pt-BR')} em ferragens, R$ ${maoDeObra.toLocaleString('pt-BR')} de mão de obra e R$ ${outros.toLocaleString('pt-BR')} em outros custos. Lucro: R$ ${lucro.toLocaleString('pt-BR')} (${margemPct.toLocaleString('pt-BR')}%).`; } case 'gerarContrato': return `Documento preparado para **${String(data.cliente ?? 'cliente')}**.`; case 'operationalIntelligence': return 'Informações operacionais do projeto atualizadas.'; default: return 'Ação concluída.'; } });
       const directRenderResult = response.run.results.find(({ tool, result }) => tool === 'gerarRender' && result.ok === true)?.result;
@@ -176,7 +184,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
   const dismissError = () => setError(null);
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, kind: 'environment' | 'reference' | 'sketch' | 'plan' = 'environment') => { const file = e.target.files?.[0]; if (!file) return; e.target.value = ''; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; }; reader.readAsDataURL(file); };
-  useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`); recognitionRef.current = r; }, []);
-  const toggleRecording = () => { if (isListening) recognitionRef.current?.stop(); else recognitionRef.current?.start(); };
-  return { messages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError };
+  useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`.trim()); recognitionRef.current = r; return () => { r.stop(); recognitionRef.current = null; }; }, []);
+  const toggleRecording = () => { if (!recognitionRef.current) { setError('Seu navegador não disponibilizou reconhecimento de voz. Você pode continuar pelo texto.'); return; } if (isListening) recognitionRef.current.stop(); else recognitionRef.current.start(); };
+  return { messages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, projectState, projectStateSummary: projectStateSummary(projectState) };
 };
