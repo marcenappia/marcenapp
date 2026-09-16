@@ -1,155 +1,23 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
-import { buildCorsHeaders, guardRequest, jsonResponse, readJsonBody } from "../_shared/guard.ts";
 
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const MAX_PROMPT_CHARS = 12000;
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BASE64 = 15 * 1024 * 1024;
-const VERCEL_GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_MODEL = "openai/gpt-5.5";
-
-const BodySchema = z.object({
-  prompt: z.string().trim().min(1, "prompt is required").max(MAX_PROMPT_CHARS),
-  images: z.array(z.object({
-    mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp|gif)$/i),
-    data: z.string().min(1).max(MAX_IMAGE_BASE64),
-  })).max(MAX_IMAGES).optional(),
-  jsonMode: z.boolean().optional().default(false),
-});
-
-type GatewayResult = { text: string; model: string; provider: string };
-
-const extractResult = (data: any, fallbackModel: string, provider: string): GatewayResult => {
-  const message = data?.choices?.[0]?.message?.content;
-  const text = Array.isArray(message)
-    ? message.map((part: { text?: string }) => part?.text ?? "").join("")
-    : (message ?? "");
-  return { text, model: data?.model ?? fallbackModel, provider };
-};
-
-const callChatCompletions = async (
-  url: string,
-  key: string,
-  model: string,
-  content: Array<Record<string, unknown>>,
-  jsonMode: boolean,
-  headers: Record<string, string> = {},
-) => {
-  const body: Record<string, unknown> = {
-    model,
-    messages: [{ role: "user", content }],
-  };
-  if (jsonMode) body.response_format = { type: "json_object" };
-
-  return fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-      ...headers,
-    },
-    body: JSON.stringify(body),
-  });
-};
-
-serve(async (req) => {
-  const cors = buildCorsHeaders(req);
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
-  if (req.method !== "POST") return jsonResponse(cors, { error: "Method not allowed" }, 405);
-
-  const guard = await guardRequest(req, cors, { fn: "ai-text", limit: 30, windowSeconds: 60 });
-  if (!guard.ok) return guard.response;
-
-  try {
-    const read = await readJsonBody(req, MAX_BODY_BYTES);
-    if (!read.ok) {
-      return read.reason === "too_large"
-        ? jsonResponse(cors, { error: "Corpo da requisição muito grande.", code: "payload_too_large" }, 413)
-        : jsonResponse(cors, { error: "JSON inválido.", code: "invalid_json" }, 400);
-    }
-
-    const parsed = BodySchema.safeParse(read.body);
-    if (!parsed.success) {
-      return jsonResponse(cors, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
-    }
-
-    const content: Array<Record<string, unknown>> = [{ type: "text", text: parsed.data.prompt }];
-    for (const img of parsed.data.images ?? []) {
-      content.push({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.data}` } });
-    }
-
-    // Primary provider path: Vercel AI Gateway. The model is intentionally
-    // configured outside source control so the Yara stack can change models
-    // without a code deployment and without coupling the domain to Vercel.
-    const vercelGatewayKey = Deno.env.get("AI_GATEWAY_API_KEY");
-    if (vercelGatewayKey) {
-      const vercelModel = Deno.env.get("AI_GATEWAY_MODEL");
-      if (!vercelModel) {
-        return jsonResponse(cors, {
-          error: "AI Gateway configurado, mas AI_GATEWAY_MODEL não foi definido.",
-          code: "provider_not_configured",
-          provider: "vercel-ai-gateway",
-        }, 500);
-      }
-
-      const response = await callChatCompletions(
-        VERCEL_GATEWAY_URL,
-        vercelGatewayKey,
-        vercelModel,
-        content,
-        parsed.data.jsonMode,
-      );
-
-      if (!response.ok) {
-        const status = response.status;
-        console.error("Vercel AI Gateway error:", status, await response.text());
-        if (status === 401 || status === 403) {
-          return jsonResponse(cors, { error: "A autenticação do AI Gateway foi rejeitada.", code: "provider_auth_error", provider: "vercel-ai-gateway" }, 502);
-        }
-        if (status === 429) {
-          return jsonResponse(cors, { error: "O limite do AI Gateway/provedor foi atingido.", code: "rate_limited", provider: "vercel-ai-gateway" }, 429, { "Retry-After": "10" });
-        }
-        if (status === 402) {
-          return jsonResponse(cors, { error: "Os créditos do AI Gateway/provedor acabaram.", code: "credits_exhausted", provider: "vercel-ai-gateway" }, 402);
-        }
-        return jsonResponse(cors, { error: "O AI Gateway/provedor está indisponível no momento.", code: "upstream_error", provider: "vercel-ai-gateway" }, 502);
-      }
-
-      const data = await response.json();
-      const result = extractResult(data, vercelModel, "vercel-ai-gateway");
-      return jsonResponse(cors, result);
-    }
-
-    // Compatibility path: keep the existing Lovable Gateway until the Vercel
-    // Gateway credentials are configured in the Supabase Edge Function.
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) {
-      return jsonResponse(cors, { error: "Nenhum provedor de IA está configurado.", code: "provider_not_configured" }, 500);
-    }
-
-    const response = await callChatCompletions(
-      LOVABLE_GATEWAY_URL,
-      lovableKey,
-      LOVABLE_MODEL,
-      content,
-      parsed.data.jsonMode,
-      { "Lovable-API-Key": lovableKey },
-    );
-
-    if (!response.ok) {
-      const status = response.status;
-      console.error("Lovable AI Gateway error:", status, await response.text());
-      if (status === 402) return jsonResponse(cors, { error: "Créditos da IA esgotados.", code: "credits_exhausted" }, 402);
-      if (status === 429) return jsonResponse(cors, { error: "Limite de uso da IA atingido. Tente novamente em alguns segundos.", code: "rate_limited" }, 429, { "Retry-After": "10" });
-      return jsonResponse(cors, { error: "O serviço de IA está indisponível no momento.", code: "upstream_error" }, 502);
-    }
-
-    const data = await response.json();
-    return jsonResponse(cors, extractResult(data, LOVABLE_MODEL, "lovable"));
-  } catch (e) {
-    console.error("ai-text error:", e);
-    return jsonResponse(cors, { error: "Erro interno ao processar texto.", code: "internal_error" }, 500);
-  }
-});
+const GEMINI_MODEL = Deno.env.get("GEMINI_TEXT_MODEL") ?? "gemini-3.7-flash";
+const VERCEL_GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
+type Provider = "lovable" | "gemini" | "vercel";
+const BodySchema = z.object({ prompt: z.string().trim().min(1).max(MAX_PROMPT_CHARS), images: z.array(z.object({ mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp|gif)$/i), data: z.string().min(1).max(MAX_IMAGE_BASE64) })).max(MAX_IMAGES).optional(), jsonMode: z.boolean().optional().default(false) });
+const cors = (req: Request) => { const origin = req.headers.get("origin"); let allowed = "null"; try { if (origin) { const normalized = origin.replace(/\/$/, ""); const extras = ["https://marcenapp.com.br", "https://www.marcenapp.com.br", Deno.env.get("ALLOWED_ORIGINS") ?? "", Deno.env.get("APP_URL") ?? "", Deno.env.get("PUBLIC_APP_URL") ?? ""].flatMap(v => v.split(",")).map(v => v.trim().replace(/\/$/, "")).filter(Boolean); const local = new URL(origin).hostname === "localhost" || new URL(origin).hostname === "127.0.0.1"; if (local || extras.includes(normalized)) allowed = origin; } } catch { } return { "Access-Control-Allow-Origin": allowed, "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS", Vary: "Origin" }; };
+const json = (h: Record<string, string>, body: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { ...h, ...extra, "Content-Type": "application/json" } });
+const adminClient = () => { const url = Deno.env.get("SUPABASE_URL"), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"); if (!url || !key) throw new Error("server_config_incomplete"); return createClient(url, key, { auth: { persistSession: false } }); };
+async function guard(req: Request, h: Record<string, string>) { const auth = req.headers.get("Authorization") ?? ""; const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : ""; if (!token) return { ok: false as const, response: json(h, { error: "Autenticação necessária." }, 401) }; const admin = adminClient(); const { data, error } = await admin.auth.getUser(token); if (error || !data.user) return { ok: false as const, response: json(h, { error: "Sessão inválida ou expirada." }, 401) }; const { data: rl, error: rlError } = await admin.rpc("consume_ai_rate_limit", { _user_id: data.user.id, _fn: "ai-text", _limit: 30, _window_seconds: 60 }); if (rlError) return { ok: false as const, response: json(h, { error: "Não foi possível validar o limite de uso da IA.", code: "rate_limit_unavailable" }, 503); const row = Array.isArray(rl) ? rl[0] : rl; if (!row || row.allowed === false) return { ok: false as const, response: json(h, { error: "Limite de uso atingido.", retryAfterSeconds: Math.max(1, Number(row?.retry_after_seconds ?? 60)) }, 429) }; return { ok: true as const, userId: data.user.id }; }
+async function resolveProvider(userId: string): Promise<{ primary: Provider; fallback: Provider | null }> { const { data } = await adminClient().from("ai_provider_settings").select("provider").eq("user_id", userId).maybeSingle(); const configured = data?.provider as string | undefined; const lovableAvailable = Boolean(Deno.env.get("LOVABLE_API_KEY")); const geminiAvailable = Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY")); const vercelAvailable = Boolean(Deno.env.get("AI_GATEWAY_API_KEY") && Deno.env.get("AI_GATEWAY_MODEL")); if (vercelAvailable) { if (configured === "lovable") return { primary: "vercel", fallback: lovableAvailable ? "lovable" : (geminiAvailable ? "gemini" : null) }; if (configured === "gemini") return { primary: "vercel", fallback: geminiAvailable ? "gemini" : (lovableAvailable ? "lovable" : null) }; return { primary: "vercel", fallback: lovableAvailable ? "lovable" : (geminiAvailable ? "gemini" : null) }; } if (configured === "lovable") return { primary: "lovable", fallback: geminiAvailable ? "gemini" : null }; if (configured === "gemini") return { primary: "gemini", fallback: lovableAvailable ? "lovable" : null }; return { primary: lovableAvailable ? "lovable" : "gemini", fallback: lovableAvailable && geminiAvailable ? "gemini" : null }; }
+async function callLovable(prompt: string, images: Array<{ mimeType: string; data: string }> | undefined, jsonMode: boolean) { const key = Deno.env.get("LOVABLE_API_KEY"); if (!key) throw new Error("provider_not_configured:lovable"); const content: Array<Record<string, unknown>> = [{ type: "text", text: prompt }]; for (const img of images ?? []) content.push({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.data}` } }); const body: Record<string, unknown> = { model: LOVABLE_MODEL, messages: [{ role: "user", content }] }; if (jsonMode) body.response_format = { type: "json_object" }; const response = await fetch(LOVABLE_GATEWAY_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "Lovable-API-Key": key }, body: JSON.stringify(body) }); if (!response.ok) throw new Error(`provider_http:${response.status}`); const data = await response.json(); const message = data.choices?.[0]?.message?.content; const text = Array.isArray(message) ? message.map((part: { text?: string }) => part?.text ?? "").join("") : (message ?? ""); if (!text) throw new Error("empty_text_result"); return { text, model: data.model ?? LOVABLE_MODEL }; }
+async function callGemini(prompt: string, images: Array<{ mimeType: string; data: string }> | undefined, jsonMode: boolean) { const key = Deno.env.get("GOOGLE_GEMINI_API_KEY"); if (!key) throw new Error("provider_not_configured:gemini"); const parts: Array<Record<string, unknown>> = [{ text: prompt }]; for (const img of images ?? []) parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } }); const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined }) }); if (!response.ok) throw new Error(`provider_http:${response.status}`); const data = await response.json(); const text = (data.candidates?.[0]?.content?.parts ?? []).map((part: { text?: string }) => part.text ?? "").join(""); if (!text) throw new Error("empty_text_result"); return { text, model: GEMINI_MODEL }; }
+async function callVercel(prompt: string, images: Array<{ mimeType: string; data: string }> | undefined, jsonMode: boolean) { const key = Deno.env.get("AI_GATEWAY_API_KEY"); const model = Deno.env.get("AI_GATEWAY_MODEL"); if (!key || !model) throw new Error("provider_not_configured:vercel"); const parts: Array<Record<string, unknown>> = [{ type: "text", text: prompt }]; for (const img of images ?? []) parts.push({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.data}` } }); const body: Record<string, unknown> = { model, messages: [{ role: "user", content: parts }] }; if (jsonMode) body.response_format = { type: "json_object" }; const response = await fetch(VERCEL_GATEWAY_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` }, body: JSON.stringify(body) }); if (!response.ok) throw new Error(`provider_http:${response.status}`); const data = await response.json(); const message = data.choices?.[0]?.message?.content; const text = Array.isArray(message) ? message.map((part: { text?: string }) => part?.text ?? "").join("") : (message ?? ""); if (!text) throw new Error("empty_text_result"); return { text, model: data.model ?? model }; }
+serve(async req => { const h = cors(req); if (req.method === "OPTIONS") return new Response(null, { headers: h }); if (req.method !== "POST") return json(h, { error: "Method not allowed" }, 405); const g = await guard(req, h); if (!g.ok) return g.response; try { const declared = Number(req.headers.get("content-length") ?? 0); if (declared > MAX_BODY_BYTES) return json(h, { error: "Corpo da requisição muito grande.", code: "payload_too_large" }, 413); const raw = await req.text(); if (raw.length > MAX_BODY_BYTES) return json(h, { error: "Corpo da requisição muito grande.", code: "payload_too_large" }, 413); let body: unknown; try { body = JSON.parse(raw || "{}"); } catch { return json(h, { error: "JSON inválido.", code: "invalid_json" }, 400); } const parsed = BodySchema.safeParse(body); if (!parsed.success) return json(h, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400); const { primary, fallback } = await resolveProvider(g.userId); const providers: Provider[] = fallback ? [primary, fallback] : [primary]; let lastError: unknown = null; for (const provider of providers) { try { const result = provider === "lovable" ? await callLovable(parsed.data.prompt, parsed.data.images, parsed.data.jsonMode) : provider === "gemini" ? await callGemini(parsed.data.prompt, parsed.data.images, parsed.data.jsonMode) : await callVercel(parsed.data.prompt, parsed.data.images, parsed.data.jsonMode); return json(h, { ...result, provider }); } catch (error) { lastError = error; console.error(`AI text provider ${provider} failed`, error); } } const message = lastError instanceof Error ? lastError.message : String(lastError); if (message.startsWith("provider_not_configured")) return json(h, { error: "Nenhum provedor de IA de texto está configurado. Configure AI Gateway, Lovable AI ou Google Gemini.", code: "provider_not_configured" }, 500); if (message.includes("provider_http:402")) return json(h, { error: "Os créditos do provedor de IA acabaram.", code: "provider_credits_exhausted" }, 402); if (message.includes("provider_http:429")) return json(h, { error: "Limite do provedor de IA atingido.", code: "rate_limited" }, 429); return json(h, { error: "O provedor de IA está indisponível no momento.", code: "upstream_error" }, 502); } catch (e) { console.error("ai-text error:", e); return json(h, { error: "Erro interno ao processar texto.", code: "internal_error" }, 500); } });
