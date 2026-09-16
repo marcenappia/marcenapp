@@ -13,7 +13,14 @@ const cors = (req: Request) => {
       const { hostname, protocol } = new URL(origin);
       const suffixes = [".lovable.app", ".lovableproject.com", ".lovable.dev"];
       const extra = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
-      const official = ["https://www.marcenapp.com.br", "https://marcenapp.com.br"];
+      const official = [
+        "https://www.marcenapp.com.br",
+        "https://marcenapp.com.br",
+        "https://marcenapp.vercel.app",
+        "https://marcenapp-marcenapp.vercel.app",
+        "https://marcenapp-git-main-marcenapp.vercel.app",
+        "https://marcenapp.workers.dev",
+      ];
       if (hostname === "localhost" || hostname === "127.0.0.1" || official.includes(origin) || extra.includes(origin) || (protocol === "https:" && suffixes.some((s) => hostname.endsWith(s)))) allowed = origin;
     }
   } catch { /* malformed origin */ }
