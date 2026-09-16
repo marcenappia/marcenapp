@@ -22,9 +22,11 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const [profile, setProfile] = useState<AuthContextType['profile']>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+
+  const loading = authLoading || profileLoading;
 
   const fetchProfile = async (userId: string) => {
     setProfileLoading(true);
@@ -61,8 +63,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!mounted) return;
       const nextUser = nextSession?.user ?? null;
       setSession(nextSession);
-      setUser(nextUser);
       setProfileLoading(Boolean(nextUser));
+      setUser(nextUser);
       if (!nextUser) setProfile(null);
     });
 
@@ -78,15 +80,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setProfileLoading(false);
       } else if (data.session?.user) {
         setSession(data.session);
+        setProfileLoading(true);
         setUser(data.session.user);
-        await fetchProfile(data.session.user.id);
+        // Profile hydration is owned by the user effect below. Keeping a
+        // single fetch path prevents concurrent initialization races.
       } else {
         setSession(null);
         setUser(null);
         setProfile(null);
         setProfileLoading(false);
       }
-      if (mounted) setLoading(false);
+      setAuthLoading(false);
     };
 
     void initialize();
@@ -103,8 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfileLoading(false);
       return;
     }
-    // Auth-state changes mark hydration as pending synchronously; fetch the
-    // profile here without exposing an authenticated route prematurely.
+    // Every authenticated user transition hydrates exactly once here.
     void fetchProfile(user.id);
   }, [user]);
 
