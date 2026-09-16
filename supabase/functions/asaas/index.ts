@@ -6,6 +6,7 @@ const MAX_BODY_BYTES = 512 * 1024;
 const ASAAS_SANDBOX_URL = "https://api-sandbox.asaas.com/v3";
 const ASAAS_PRODUCTION_URL = "https://api.asaas.com/v3";
 const BILLING_TYPES = ["UNDEFINED", "BOLETO", "CREDIT_CARD", "PIX"] as const;
+const validPlans = ["essencial", "profissional", "empresa", "pro_factory"] as const;
 
 type AsaasPayment = Record<string, unknown> & { id?: string; customer?: string; status?: string; subscription?: string; externalReference?: string };
 type AsaasSubscription = Record<string, unknown> & { id?: string; customer?: string; status?: string; externalReference?: string; nextDueDate?: string; invoiceUrl?: string };
