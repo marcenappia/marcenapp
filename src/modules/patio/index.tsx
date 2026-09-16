@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, RefreshCcw, AlertTriangle } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
 import type { ProjectData } from '@/modules/projetos/types';
-interface Part { id: number; name: string; w: number; h: number; qtd: number; mat: 'white' | 'wood'; }
+export interface Part { id: number; name: string; w: number; h: number; qtd: number; mat: 'white' | 'wood'; }
 interface ExplodedPart extends Part { uid: string; }
 interface SheetItem extends ExplodedPart { x: number; y: number; rotated: boolean; }
 interface Sheet { items: SheetItem[]; usedArea: number; }
