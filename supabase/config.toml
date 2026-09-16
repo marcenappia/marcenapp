@@ -1,1 +1,9 @@
 project_id = "uzhqhieqlcyncelltfjw"
+
+# The Asaas function validates the signed-in user's Supabase JWT itself and
+# also accepts the external Asaas webhook, which cannot send a Supabase JWT.
+[functions.asaas]
+verify_jwt = false
+
+[functions.asaas-webhook]
+verify_jwt = false
