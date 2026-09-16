@@ -14,7 +14,7 @@ export const PROFESSIONAL_PROFILES = [
 
 export type ProfessionalProfile = typeof PROFESSIONAL_PROFILES[number]['value'];
 
-export function ProfessionalProfileCard({ userId, profession, onSaved }: { userId?: string; profession?: string | null; onSaved?: (profession: string) => void }) {
+export function ProfessionalProfileCard({ userId, profession, avatarUrl, onSaved }: { userId?: string; profession?: string | null; avatarUrl?: string | null; onSaved?: (profession: string) => void }) {
   const [selected, setSelected] = useState(profession ?? '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -36,7 +36,9 @@ export function ProfessionalProfileCard({ userId, profession, onSaved }: { userI
   return (
     <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
       <div className="mb-5 flex min-w-0 items-start gap-3">
-        <div className="shrink-0 rounded-xl bg-indigo-50 p-2.5 text-indigo-600"><BriefcaseBusiness size={20} /></div>
+        <div className="relative shrink-0">
+          {avatarUrl ? <img src={avatarUrl} alt="Foto do perfil" className="h-11 w-11 rounded-xl object-cover ring-1 ring-slate-200" /> : <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600"><BriefcaseBusiness size={20} /></div>}
+        </div>
         <div className="min-w-0">
           <h2 className="break-words font-black text-slate-800">Perfil profissional</h2>
           <p className="mt-1 break-words text-xs leading-5 text-slate-500">Isso define a experiência principal do Master App e o contexto que a IARA deve priorizar.</p>
