@@ -7,12 +7,13 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   profile: { name: string; company: string; phone: string; avatar_url: string; onboarding_completed: string[]; reduce_motion: boolean; onboarding_step: number; profession: string | null } | null;
+  profileLoading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: null, session: null, loading: true, profile: null,
+  user: null, session: null, loading: true, profile: null, profileLoading: false,
   signOut: async () => {}, refreshProfile: async () => {},
 });
 
@@ -23,8 +24,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<AuthContextType['profile']>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   const fetchProfile = async (userId: string) => {
+    setProfileLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -40,6 +43,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile(data ?? null);
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -54,7 +59,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!mounted) return;
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
-      if (!nextSession?.user) setProfile(null);
+      if (!nextSession?.user) {
+        setProfile(null);
+        setProfileLoading(false);
+      }
     });
 
     const initialize = async () => {
@@ -84,6 +92,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!user) {
       setProfile(null);
+      setProfileLoading(false);
       return;
     }
     void fetchProfile(user.id);
@@ -95,10 +104,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setSession(null);
     setProfile(null);
+    setProfileLoading(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, profile, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, loading, profile, profileLoading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
