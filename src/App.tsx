@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import SeoRoute from "@/components/SeoRoute";
+import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
@@ -57,6 +58,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+          <PwaInstallPrompt />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
