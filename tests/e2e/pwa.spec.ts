@@ -20,5 +20,9 @@ test('PWA manifest and service worker are published', async ({ page, request }) 
 
   await page.goto('/');
   await expect(page).toHaveTitle(/Marcenapp/);
-  await expect.poll(async () => page.evaluate(() => 'serviceWorker' in navigator)).toBeTruthy();
+  await expect.poll(async () => page.evaluate(async () => {
+    if (!("serviceWorker" in navigator)) return false;
+    const registration = await navigator.serviceWorker.ready;
+    return Boolean(registration.active);
+  })).toBeTruthy();
 });
