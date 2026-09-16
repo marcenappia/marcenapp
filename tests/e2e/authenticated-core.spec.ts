@@ -27,6 +27,6 @@ test.describe('Marcenapp authenticated core', () => {
   test('authenticated mobile navigation exposes the primary work areas', async ({ authenticatedPage: page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
-    await expect(page.getByRole('navigation', { name: /Navegação principal/i })).toBeVisible();
+    await expect(page.locator('[id^="mobile-nav-"]')).toHaveCount(3);
   });
 });
