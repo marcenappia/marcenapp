@@ -22,9 +22,12 @@ const RouteFallback = () => (
     aria-busy="true"
     aria-live="polite"
   >
-    <div className="flex flex-col items-center gap-4 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 shadow-2xl">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+    <div className="flex flex-col items-center gap-5 text-center">
+      <div className="relative flex h-20 w-20 items-center justify-center">
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-white/10 border-t-white/70" aria-hidden="true" />
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-3 shadow-2xl">
+          <img src="/marcenapp-logo.svg" alt="Marcenapp" className="h-full w-full object-contain" />
+        </div>
       </div>
       <div>
         <p className="text-sm font-black tracking-wide">MARCENAPP</p>
