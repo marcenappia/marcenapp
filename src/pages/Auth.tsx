@@ -35,7 +35,7 @@ const describeAuthError = (authError: { code?: string; message?: string; status?
 };
 
 const Auth = () => {
-  const { user } = useAuth();
+  const { user, profileLoading, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const path = location.pathname;
@@ -99,8 +99,8 @@ const Auth = () => {
   }, []);
 
   useEffect(() => {
-    if (user && !isRecoveryPath) redirectAfterAuth();
-  }, [user, isRecoveryPath]);
+    if (user && !profileLoading && !isRecoveryPath) redirectAfterAuth();
+  }, [user, profileLoading, isRecoveryPath]);
 
   const title = useMemo(() => {
     if (isRecoveryPath) return 'Redefinir senha';
@@ -149,7 +149,7 @@ const Auth = () => {
       if (isLogin) {
         const { data, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (authError) { setError(describeAuthError(authError)); return; }
-        if (data.user && data.session) { redirectAfterAuth(); return; }
+        if (data.user && data.session) return;
         setError('A autenticação não retornou uma sessão. Tente novamente.');
         return;
       }
@@ -159,7 +159,7 @@ const Auth = () => {
       if (authError) { setError(describeAuthError(authError)); return; }
       if (data.session && data.user) {
         await supabase.from('profiles').update({ profession }).eq('user_id', data.user.id);
-        redirectAfterAuth();
+        await refreshProfile();
         return;
       }
       if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) { setError('Este e-mail já possui uma conta. Entre com sua senha ou use “Esqueceu a senha?”.'); return; }
@@ -186,8 +186,8 @@ const Auth = () => {
           {success && <p className="text-emerald-400 text-sm bg-emerald-950/50 p-3 rounded-lg">{success}</p>}
           <button type="submit" disabled={loading || googleLoading || (isReset && countdown > 0)} className="w-full py-3 rounded-xl bg-[hsl(var(--sidebar-active))] text-white font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">{loading && <Loader2 className="animate-spin" size={18} />}{isRecoveryPath ? 'Atualizar senha' : isReset ? (countdown > 0 ? `Aguarde ${countdown}s` : 'Enviar Recuperação') : isLogin ? 'Entrar' : 'Criar conta'}</button>
         </form>
-        <p className="text-center text-[hsl(var(--sidebar-text))] text-sm">{isRecoveryPath || isReset ? <button type="button" onClick={() => navigate('/auth')} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">Voltar para o login</button> : <>{isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}<button type="button" onClick={() => navigate(isLogin ? '/perfil-profissional' : '/auth')} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">{isLogin ? 'Cadastre-se' : 'Entrar'}</button></>}</p>
-        <p className="text-center text-white/30 text-[11px]">{appOrigin.replace('https://', '')}</p>
+        <p className="text-center text-[hsl(var(--sidebar-text))] text-sm">{isRecoveryPath || isReset ? <button type="button" onClick={() => navigate('/auth')} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">Voltar para o login</button> : <>{isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}<button type="button" onClick={() => navigate(isLogin ? '/perfil-profissional' : '/auth')} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">{isLogin ? 'Criar conta' : 'Entrar'}</button></>}</p>
+        {appOrigin !== window.location.origin && <p className="text-center text-[10px] text-white/20">Ambiente oficial: {appOrigin}</p>}
       </div>
     </div>
   );
