@@ -1,15 +1,19 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, HardHat, Palette, Ruler, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, Factory, HardHat, Home, Palette, Ruler, ShoppingBag, Store, Users, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { PROFESSIONAL_PROFILES } from '@/modules/admin/ProfessionalProfiles';
 
-const OPTIONS = [
-  { value: 'marceneiro', label: 'Marceneiro', description: 'Projeto e produção', icon: HardHat },
-  { value: 'projetista', label: 'Projetista', description: 'Projeto e detalhamento', icon: Ruler },
-  { value: 'arquiteto', label: 'Arquiteto / Design de interiores', description: 'Ambientes e especificações', icon: Palette },
-  { value: 'outros', label: 'Outros', description: 'Outras formas de trabalhar', icon: BriefcaseBusiness },
-] as const;
+const ICONS = {
+  marceneiro: HardHat,
+  loja_planejados: Store,
+  arquiteto: Home,
+  designer_interiores: Palette,
+  projetista: Ruler,
+  vendedor_planejados: ShoppingBag,
+  fabrica: Factory,
+} as const;
 
 export default function ProfessionalProfileSelection() {
   const navigate = useNavigate();
@@ -45,14 +49,43 @@ export default function ProfessionalProfileSelection() {
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-6 text-white">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-md flex-col justify-center">
-        <button type="button" onClick={() => navigate(user ? '/' : '/')} className="mb-5 inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-white"><ArrowLeft size={14} /> Voltar</button>
-        <div className="mb-6"><p className="text-[10px] font-black uppercase tracking-[.2em] text-blue-300">{user ? 'Primeiro acesso' : 'Cadastro'}</p><h1 className="mt-2 text-3xl font-black tracking-[-.04em]">Como você trabalha?</h1><p className="mt-2 text-sm text-slate-400">Escolha seu perfil para preparar sua experiência.</p></div>
-        <section aria-label="Perfil profissional" className="grid gap-2">
-          {OPTIONS.map(({ value, label, description, icon: Icon }) => <button key={value} type="button" disabled={saving} onClick={() => void chooseProfile(value)} className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[.045] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-wait disabled:opacity-60"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-slate-300"><Icon size={17} strokeWidth={1.8} aria-hidden="true" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-black">{label}</span><span className="block text-xs text-slate-500">{description}</span></span>{saving ? <Loader2 size={15} className="animate-spin text-blue-300" aria-hidden="true" /> : <ArrowRight size={15} className="text-slate-600 group-hover:text-slate-300" aria-hidden="true" />}</button>)}
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-3xl flex-col justify-center">
+        <button type="button" onClick={() => navigate('/')} className="mb-5 inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-white">
+          <ArrowLeft size={14} /> Voltar
+        </button>
+        <div className="mb-7">
+          <p className="text-[10px] font-black uppercase tracking-[.2em] text-blue-300">{user ? 'Primeiro acesso' : 'Cadastro'}</p>
+          <h1 className="mt-2 text-3xl font-black tracking-[-.04em]">Como você trabalha?</h1>
+          <p className="mt-2 max-w-2xl text-sm text-slate-400">Escolha o perfil que mais representa sua rotina. Isso orienta a experiência principal do Marcenapp e o contexto profissional da IARA.</p>
+        </div>
+        <section aria-label="Perfil profissional" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {PROFESSIONAL_PROFILES.map((profile) => {
+            const Icon = ICONS[profile.value] ?? BriefcaseBusiness;
+            return (
+              <button
+                key={profile.value}
+                type="button"
+                disabled={saving}
+                onClick={() => void chooseProfile(profile.value)}
+                className="group flex min-h-32 flex-col items-start rounded-2xl border border-white/10 bg-white/[.045] p-4 text-left transition hover:border-white/20 hover:bg-white/[.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-wait disabled:opacity-60"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-slate-300">
+                  <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+                </span>
+                <span className="mt-4 min-w-0 flex-1">
+                  <span className="block text-sm font-black">{profile.label}</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">{profile.description}</span>
+                </span>
+                <span className="mt-3 flex w-full items-center justify-between text-slate-600 group-hover:text-slate-300">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Selecionar</span>
+                  {saving ? <Loader2 size={15} className="animate-spin text-blue-300" aria-hidden="true" /> : <ArrowRight size={15} aria-hidden="true" />}
+                </span>
+              </button>
+            );
+          })}
         </section>
         {error && <p role="alert" className="mt-4 rounded-xl border border-red-400/20 bg-red-950/30 px-4 py-3 text-sm text-red-300">{error}</p>}
-        <p className="mt-5 text-center text-[11px] text-slate-600">O perfil pode ser ajustado depois na Central da marcenaria.</p>
+        <p className="mt-5 text-center text-[11px] text-slate-600">Você pode alterar o perfil depois na Central da marcenaria.</p>
       </div>
     </main>
   );
