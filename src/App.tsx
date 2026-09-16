@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { PROFESSIONAL_PROFILES } from "@/modules/admin/ProfessionalProfiles";
 import SeoRoute from "@/components/SeoRoute";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -16,6 +17,7 @@ const AdminAgents = lazy(() => import("./pages/AdminAgents"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
+const PROFESSIONAL_PROFILE_VALUES = new Set(PROFESSIONAL_PROFILES.map(({ value }) => value));
 
 const RouteFallback = () => (
   <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white" aria-busy="true" aria-live="polite">
@@ -30,7 +32,7 @@ const HomeRoute = () => {
   const { user, loading, profile, profileLoading } = useAuth();
   if (loading || (user && profileLoading)) return <RouteFallback />;
   if (!user) return <Landing />;
-  if (!profile || !profile.profession) return <ProfessionalProfileSelection />;
+  if (!profile || !PROFESSIONAL_PROFILE_VALUES.has(profile.profession ?? '')) return <ProfessionalProfileSelection />;
   return <Index />;
 };
 
