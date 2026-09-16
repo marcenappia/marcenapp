@@ -26,7 +26,13 @@ const RouteFallback = () => (
   </main>
 );
 
-const HomeRoute = () => { const { user, loading } = useAuth(); if (loading) return <RouteFallback />; return user ? <Index /> : <Landing />; };
+const HomeRoute = () => {
+  const { user, loading, profile, profileLoading } = useAuth();
+  if (loading || (user && profileLoading)) return <RouteFallback />;
+  if (!user) return <Landing />;
+  if (!profile || !profile.profession) return <ProfessionalProfileSelection />;
+  return <Index />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
