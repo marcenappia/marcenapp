@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useStudioStore, type RenderCommand } from '@/store/useStudioStore';
 import { OSCommand, useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
@@ -6,12 +7,29 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { isIaraCommandExecutionCurrent } from '@/modules/iara/hooks/iaraExecutionScope';
 
+const EMPTY_COMMANDS: OSCommand[] = [];
+
 export const StudioWorker = () => {
+  const { search } = useLocation();
   const { user } = useAuth();
-  const commandHistory = useMarcenappOS(state => state.commandHistory);
+  const activeModule = useMemo(() => {
+    const module = new URLSearchParams(search).get('module');
+    return module === 'chat' ? 'studio' : module || 'dashboard';
+  }, [search]);
+  const isStudioActive = activeModule === 'studio';
+
+  // Keep the worker mounted for command continuity, but do not subscribe to or
+  // process Studio state while the user is in another module. This prevents
+  // background renders and store updates from forcing the whole app to work.
+  const commandHistory = useMarcenappOS(state => isStudioActive ? state.commandHistory : EMPTY_COMMANDS);
   const updateOSStatus = useMarcenappOS(state => state.updateCommandStatus);
-  const commandQueue = useMemo(() => commandHistory.filter(cmd => cmd.target === 'studio' && cmd.payload?.userId === user?.id), [commandHistory, user?.id]);
-  const isRendering = useStudioStore(state => state.isRendering);
+  const commandQueue = useMemo(
+    () => isStudioActive
+      ? commandHistory.filter(cmd => cmd.target === 'studio' && cmd.payload?.userId === user?.id)
+      : EMPTY_COMMANDS,
+    [commandHistory, user?.id, isStudioActive]
+  );
+  const isRendering = useStudioStore(state => isStudioActive ? state.isRendering : false);
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
   const failCommand = useStudioStore(state => state.failCommand);
@@ -19,9 +37,10 @@ export const StudioWorker = () => {
   const currentlyProcessing = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!isStudioActive) return;
     const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
     if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
-  }, [commandQueue, isRendering]);
+  }, [commandQueue, isRendering, isStudioActive]);
 
   const readCurrentContext = async () => {
     if (!user) return null;
