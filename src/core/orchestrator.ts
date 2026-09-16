@@ -80,10 +80,13 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       const error = spatial.results.find((item) => item.status === 'failed')?.error
         ?? spatial.results.find((item) => item.status === 'needs_input')?.blockers?.[0]
         ?? 'Os agentes espaciais não conseguiram validar o contexto do ambiente.';
+      const failedAgent = spatial.results.find((item) => item.status !== 'completed')?.agentId ?? 'spatial';
+      const failureResult: ToolResult = { ok: false, error };
+      const failureResults: Array<{ tool: string; result: ToolResult }> = [{ tool: `spatial.${failedAgent}`, result: failureResult }];
       if (runId) {
         try { await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: spatial.results as unknown as Json, used_fallback: false, status: spatial.status }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado espacial:', e); }
       }
-      return { runId, plan, summary, results, usedFallback: false, provider: result.provider, error, status: spatial.status };
+      return { runId, plan, summary, results: failureResults, usedFallback: false, provider: result.provider, error, status: spatial.status };
     }
   }
 
