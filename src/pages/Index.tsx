@@ -1,31 +1,39 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, User, LogIn, Sparkles, ChevronRight, MessageCircle, EllipsisVertical, Building2, Settings2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/marcenapp-logo.svg';
-import CreditRules from '@/modules/admin/CreditRules';
-import BillingPortal from '@/modules/billing/BillingPortal';
-import OperationalIntelligence from '@/modules/inteligencia/OperationalIntelligence';
 import Onboarding from '../components/marcenaria/Onboarding';
 import ProfessionalProfileGate from '@/components/marcenaria/ProfessionalProfileGate';
-import Home from '@/modules/jornada/Home';
-import NovoProjeto from '@/modules/jornada/NovoProjeto';
-import { StudioHub } from '@/modules/ambientes/StudioHub';
-import { Elevator } from '@/modules/ambientes/components/Elevator';
-import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
-import OrcamentoModule from '@/modules/orcamentos';
-import CorteModule from '@/modules/patio';
-import { Contrato } from '@/modules/projetos/components/Contrato';
-import ClientesModule from '@/modules/projetos/components/Clientes';
-import DiarioModule from '@/modules/projetos/components/Diario';
-import ConfiguracoesModule from '@/modules/configuracoes';
 import { modules, CATEGORY_LABELS, ModuleCategory, MOBILE_NAV_IDS } from '@/modules/config';
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
 import { ProjectData } from '@/modules/projetos/types';
+import type { Part } from '@/modules/patio';
+import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
+
+const CreditRules = lazy(() => import('@/modules/admin/CreditRules'));
+const BillingPortal = lazy(() => import('@/modules/billing/BillingPortal'));
+const OperationalIntelligence = lazy(() => import('@/modules/inteligencia/OperationalIntelligence'));
+const Home = lazy(() => import('@/modules/jornada/Home'));
+const NovoProjeto = lazy(() => import('@/modules/jornada/NovoProjeto'));
+const StudioHub = lazy(() => import('@/modules/ambientes/StudioHub').then(m => ({ default: m.StudioHub })));
+const Elevator = lazy(() => import('@/modules/ambientes/components/Elevator').then(m => ({ default: m.Elevator })));
+const OrcamentoModule = lazy(() => import('@/modules/orcamentos'));
+const CorteModule = lazy(() => import('@/modules/patio'));
+const Contrato = lazy(() => import('@/modules/projetos/components/Contrato').then(m => ({ default: m.Contrato })));
+const ClientesModule = lazy(() => import('@/modules/projetos/components/Clientes'));
+const DiarioModule = lazy(() => import('@/modules/projetos/components/Diario'));
+const ConfiguracoesModule = lazy(() => import('@/modules/configuracoes'));
 
 const emptyProject: ProjectData = { width: 0, height: 0, depth: 0, modules: 0, drawers: 0, doors: 0, internalMaterial: '', externalMaterial: '', backMaterial: '', handleType: '', profitMargin: 0, laborRate: 0 };
+
+const ModuleFallback = () => (
+  <div className="min-h-[320px] flex items-center justify-center rounded-2xl border border-slate-200 bg-white" aria-busy="true" aria-live="polite">
+    <div className="flex items-center gap-3 text-sm font-semibold text-slate-500"><div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600" aria-hidden="true" />Abrindo módulo…</div>
+  </div>
+);
 
 const Index = () => {
   const { user, profile, signOut } = useAuth();
@@ -36,7 +44,7 @@ const Index = () => {
   const projetoParam = searchParams.get('projeto');
   const setActiveModule = (id: string, params: Record<string, string> = {}) => setSearchParams({ module: id, ...params });
   const [budgetProject, setBudgetProject] = useState<ProjectData>(emptyProject);
-  const [parts, setParts] = useState<React.ComponentProps<typeof CorteModule>['parts']>([]);
+  const [parts, setParts] = useState<Part[]>([]);
   const [gallery, setGallery] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMakerData, setShowMakerData] = useState(false);
@@ -118,7 +126,7 @@ const Index = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 pb-24 md:pb-8 scroll-smooth"><div className="max-w-7xl mx-auto"><AnimatePresence mode="wait"><motion.div key={activeModule} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>{renderModule()}</motion.div></AnimatePresence></div></div>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 pb-24 md:pb-8 scroll-smooth"><div className="max-w-7xl mx-auto"><AnimatePresence mode="wait"><motion.div key={activeModule} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}><Suspense fallback={<ModuleFallback />}>{renderModule()}</Suspense></motion.div></AnimatePresence></div></div>
 
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-1 z-50 flex justify-around items-center pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">{mobileModules.map(m => <button key={m.id} id={`mobile-nav-${m.id}`} aria-label={m.mobileLabel} aria-current={activeModule === m.id ? 'page' : undefined} onClick={() => setActiveModule(m.id)} onKeyDown={e => handleMobileKeyDown(e, m.id)} className={`flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all flex-1 max-w-[120px] focus-visible:outline-none ${activeModule === m.id ? 'text-indigo-600' : 'text-slate-400'}`}><div className={`p-1.5 rounded-xl transition-colors ${activeModule === m.id ? 'bg-indigo-50' : 'bg-transparent'}`}>{m.id === 'studio' ? <img src={logo} alt="M" className="w-5 h-5 object-contain" /> : <m.icon size={20} strokeWidth={activeModule === m.id ? 2.5 : 2} aria-hidden="true" />}</div><span className="text-[9px] font-bold tracking-tight uppercase">{m.mobileLabel}</span></button>)}</nav>
       </main>
