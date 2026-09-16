@@ -59,12 +59,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
+      const nextUser = nextSession?.user ?? null;
       setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      if (!nextSession?.user) {
-        setProfile(null);
-        setProfileLoading(false);
-      }
+      setUser(nextUser);
+      setProfileLoading(Boolean(nextUser));
+      if (!nextUser) setProfile(null);
     });
 
     const initialize = async () => {
@@ -80,7 +79,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else if (data.session?.user) {
         setSession(data.session);
         setUser(data.session.user);
-        setProfileLoading(true);
         await fetchProfile(data.session.user.id);
       } else {
         setSession(null);
@@ -105,9 +103,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfileLoading(false);
       return;
     }
-    // The initial session path hydrates the profile itself. Auth state changes
-    // (login, OAuth callback, refresh) still need an explicit profile fetch.
-    if (!profile && !profileLoading) void fetchProfile(user.id);
+    // Auth-state changes mark hydration as pending synchronously; fetch the
+    // profile here without exposing an authenticated route prematurely.
+    void fetchProfile(user.id);
   }, [user]);
 
   const signOut = async () => {
