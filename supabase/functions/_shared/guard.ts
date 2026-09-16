@@ -39,7 +39,14 @@ export const jsonResponse = (
   extra: Record<string, string> = {},
 ) => new Response(JSON.stringify(body), {
   status,
-  headers: { ...cors, ...extra, "Content-Type": "application/json" },
+  headers: {
+    ...cors,
+    ...extra,
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store, max-age=0",
+    "Pragma": "no-cache",
+    "X-Content-Type-Options": "nosniff",
+  },
 });
 
 export async function guardRequest(req: Request, cors: Record<string, string>, opts: { fn: string; limit: number; windowSeconds: number }) {
