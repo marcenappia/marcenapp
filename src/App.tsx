@@ -9,7 +9,7 @@ import SeoRoute from "@/components/SeoRoute";
 
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
-const Landing = lazy(() => import("./pages/Landing"));
+const Landing = lazy(() => import("./pages/LandingV2"));
 const ClientReview = lazy(() => import("./pages/ClientReview"));
 const AdminAgents = lazy(() => import("./pages/AdminAgents"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -17,40 +17,21 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const queryClient = new QueryClient();
 
 const RouteFallback = () => (
-  <main
-    className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white"
-    aria-busy="true"
-    aria-live="polite"
-  >
+  <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white" aria-busy="true" aria-live="polite">
     <div className="flex flex-col items-center gap-5 text-center">
-      <div className="relative flex h-20 w-20 items-center justify-center">
-        <div className="absolute inset-0 animate-spin rounded-full border-2 border-white/10 border-t-white/70" aria-hidden="true" />
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-3 shadow-2xl">
-          <img src="/marcenapp-logo.svg" alt="Marcenapp" className="h-full w-full object-contain" />
-        </div>
-      </div>
-      <div>
-        <p className="text-sm font-black tracking-wide">MARCENAPP</p>
-        <p className="mt-1 text-xs text-slate-400">Abrindo seu espaço de trabalho…</p>
-      </div>
+      <div className="relative flex h-20 w-20 items-center justify-center"><div className="absolute inset-0 animate-spin rounded-full border-2 border-white/10 border-t-white/70" aria-hidden="true" /><div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-3 shadow-2xl"><img src="/marcenapp-logo.svg" alt="Marcenapp" className="h-full w-full object-contain" /></div></div>
+      <div><p className="text-sm font-black tracking-wide">MARCENAPP</p><p className="mt-1 text-xs text-slate-400">Abrindo seu espaço de trabalho…</p></div>
     </div>
   </main>
 );
 
-const HomeRoute = () => {
-  const { user, loading } = useAuth();
-  if (loading) {
-    return <RouteFallback />;
-  }
-  return user ? <Index /> : <Landing />;
-};
+const HomeRoute = () => { const { user, loading } = useAuth(); if (loading) return <RouteFallback />; return user ? <Index /> : <Landing />; };
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
+        <Toaster /><Sonner />
         <BrowserRouter>
           <SeoRoute />
           <Suspense fallback={<RouteFallback />}>
