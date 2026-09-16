@@ -39,18 +39,19 @@ function toMillimeters(value: string, unit?: string): number {
   const n = Number(value.replace(',', '.'));
   if (!Number.isFinite(n) || n <= 0) return NaN;
   const normalizedUnit = unit?.toLocaleLowerCase('pt-BR');
-  if (normalizedUnit === 'm') return n * 1000;
-  if (normalizedUnit === 'cm') return n * 10;
+  if (normalizedUnit === 'm' || normalizedUnit === 'metro' || normalizedUnit === 'metros') return n * 1000;
+  if (normalizedUnit === 'cm' || normalizedUnit === 'centímetro' || normalizedUnit === 'centímetros') return n * 10;
+  if (normalizedUnit === 'mm' || normalizedUnit === 'milímetro' || normalizedUnit === 'milímetros') return n;
   return n;
 }
 
 function extractAxisDimension(text: string, axis: 'width' | 'height' | 'depth'): number | undefined {
   const axisWords = axis === 'width' ? '(?:largura|largo|comprimento)' : axis === 'height' ? '(?:altura|alto)' : '(?:profundidade|profundo)';
   const number = '(\\d+(?:[.,]\\d+)?)';
-  const unit = '(mm|cm|m)?';
+  const unit = '(mm|milímetros?|cm|centímetros?|m|metros?)?';
   const patterns = [
-    new RegExp(`${axisWords}\\s*(?:é|e|de|:|=)?\\s*${number}\\s*(?:${unit})\\b`, 'i'),
-    new RegExp(`${number}\\s*(?:${unit})\\s*(?:de\\s+)?${axisWords}\\b`, 'i'),
+    new RegExp(`${axisWords}\\s*(?:é|e|de|:|=)?\\s*${number}\\s*${unit}\\b`, 'i'),
+    new RegExp(`${number}\\s*${unit}\\s*(?:de\\s+)?${axisWords}\\b`, 'i'),
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);
@@ -66,7 +67,7 @@ function extractAxisDimension(text: string, axis: 'width' | 'height' | 'depth'):
 }
 
 function extractOrderedDimensions(text: string): { width: number; height: number; depth: number } | undefined {
-  const match = text.match(/(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\s*[x×]\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\s*[x×]\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?/i);
+  const match = text.match(/(\\d+(?:[.,]\\d+)?)\\s*(mm|milímetros?|cm|centímetros?|m|metros?)?\\s*[x×]\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|milímetros?|cm|centímetros?|m|metros?)?\\s*[x×]\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|milímetros?|cm|centímetros?|m|metros?)?/i);
   if (!match) return undefined;
   const width = toMillimeters(match[1], match[2]);
   const height = toMillimeters(match[3], match[4]);
@@ -97,7 +98,7 @@ function inferProjectCreationFromConversation(userPrompt: string, context?: Reco
 }
 
 function projectNameFromText(text: string): string {
-  const match = text.match(/(?:crie|criar|cria|novo)\s+(?:um|uma)?\s*([a-záàâãéêíóôõúç][a-záàâãéêíóôõúç0-9 -]{1,80}?)(?=\s+(?:de|com|medindo|nas medidas|medidas de)\b|\s+\\d|$)/i);
+  const match = text.match(/(?:crie|criar|cria|novo)\s+(?:um|uma)?\s*([a-záàâãéêíóôõúç][a-záàâãéêíóôõúç0-9 -]{1,80}?)(?=\s+(?:de|com|medindo|nas medidas|medidas de)\b|\s+\d|$)/i);
   return match?.[1]?.trim() || 'Novo projeto';
 }
 
