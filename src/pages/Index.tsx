@@ -11,8 +11,8 @@ import { modules, CATEGORY_LABELS, ModuleCategory, MOBILE_NAV_IDS } from '@/modu
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
 import { ProjectData } from '@/modules/projetos/types';
 import type { Part } from '@/modules/patio';
-import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
 
+const StudioWorker = lazy(() => import('@/modules/ambientes/components/StudioWorker').then(m => ({ default: m.StudioWorker })));
 const CreditRules = lazy(() => import('@/modules/admin/CreditRules'));
 const BillingPortal = lazy(() => import('@/modules/billing/BillingPortal'));
 const OperationalIntelligence = lazy(() => import('@/modules/inteligencia/OperationalIntelligence'));
@@ -104,7 +104,7 @@ const Index = () => {
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
       <h1 className="sr-only">Marcenapp — do projeto à produção, tudo no lugar.</h1>
-      <StudioWorker /><ProfessionalProfileGate /><Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
+      <Suspense fallback={null}><StudioWorker /></Suspense><ProfessionalProfileGate /><Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
       <aside className="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col border-r border-slate-800 z-20 shrink-0 shadow-2xl">
         <div className="p-4 flex items-center gap-3 font-bold text-white border-b border-slate-800 h-16"><img src={logo} alt="Marcenapp" className="w-9 h-9 rounded-xl" /><div className="leading-tight"><span className="tracking-tight text-sm">MARCENAPP</span><p className="text-[10px] text-slate-400 font-normal tracking-tight">Do projeto à produção</p></div></div>
         <nav className="flex-1 p-3 space-y-6 overflow-y-auto scrollbar-thin">{(Object.keys(groupedModules) as ModuleCategory[]).map(cat => <div key={cat} className="space-y-1"><h3 className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center justify-between">{CATEGORY_LABELS[cat]}<ChevronRight size={10} className="opacity-50" /></h3>{groupedModules[cat]!.map(m => <button key={m.id} id={`nav-${m.id}`} aria-label={m.label} aria-current={activeModule === m.id ? 'page' : undefined} onClick={() => setActiveModule(m.id)} onKeyDown={e => handleKeyDown(e, m.id)} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${activeModule === m.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'hover:bg-white/5 hover:text-white text-slate-400'}`}><m.icon size={18} aria-hidden="true" /><span className="font-semibold text-sm">{m.label}</span></button>)}</div>)}</nav>
