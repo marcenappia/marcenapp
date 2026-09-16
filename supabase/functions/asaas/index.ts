@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@^2/cors";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const MAX_BODY_BYTES = 512 * 1024;
@@ -24,7 +25,12 @@ const cors = (req: Request) => {
       if (hostname === "localhost" || hostname === "127.0.0.1" || official.includes(origin) || extra.includes(origin) || (protocol === "https:" && suffixes.some((s) => hostname.endsWith(s)))) allowed = origin;
     }
   } catch { /* malformed origin */ }
-  return { "Access-Control-Allow-Origin": allowed, "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, asaas-access-token", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", Vary: "Origin" };
+  return {
+    ...corsHeaders,
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    Vary: "Origin",
+  };
 };
 
 const json = (h: Record<string, string>, b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...h, "Content-Type": "application/json" } });
@@ -125,7 +131,8 @@ serve(async (req) => {
       const payment = await asaasJson("/payments", { method: "POST", body: JSON.stringify({ customer, billingType, value: product.amount, dueDate: body.dueDate ?? new Date().toISOString().slice(0, 10), description: product.name, externalReference, callback: { successUrl: "https://www.marcenapp.com.br/?module=billing&payment=success", autoRedirect: true } }) });
       const { error } = await admin().from("billing_purchases").insert({ user_id: user.id, product_key: key, product_name: product.name, credit_type: product.creditType, credits: product.credits, amount: product.amount, asaas_customer_id: customer, asaas_payment_id: String(payment.id), status: String(payment.status ?? "PENDING") });
       if (error) return json(h, { error: "Cobrança criada, mas não foi possível registrar a compra no MARCENAPP." }, 502);
-      return json(h, { payment, product });
+      const checkoutUrl = payment?.invoiceUrl ?? payment?.bankSlipUrl ?? payment?.transactionReceiptUrl ?? null;
+      return json(h, { payment, product, checkoutUrl });
     }
 
     if (action === "get_wallet") {
@@ -148,7 +155,8 @@ serve(async (req) => {
       const subscription = await asaasJson("/subscriptions", { method: "POST", body: JSON.stringify({ customer, billingType, value, cycle: "MONTHLY", nextDueDate, description: String(planRow.name).slice(0, 500), externalReference, callback: { successUrl: "https://www.marcenapp.com.br/?module=billing&payment=success", autoRedirect: true } }) });
       const { error } = await admin().from("billing_subscriptions").insert({ user_id: user.id, plan, asaas_customer_id: customer, asaas_subscription_id: String(subscription.id), status: String(subscription.status ?? "ACTIVE"), trial_ends_at: nextDueDate });
       if (error) return json(h, { error: "Assinatura criada no Asaas, mas não foi possível registrar no MARCENAPP." }, 502);
-      return json(h, { subscription, plan: planRow });
+      const checkoutUrl = subscription?.invoiceUrl ?? subscription?.bankSlipUrl ?? subscription?.transactionReceiptUrl ?? null;
+      return json(h, { subscription, plan: planRow, checkoutUrl });
     }
 
     if (action === "get_payment" || action === "get_pix_qr") {
