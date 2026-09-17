@@ -58,9 +58,7 @@ function extractAxisDimension(text: string, axis: 'width' | 'height' | 'depth'):
     if (!match) continue;
     const numericIndex = match.findIndex((value, index) => index > 0 && /^\\d/.test(value));
     if (numericIndex < 0) continue;
-    const rawNumber = match[numericIndex];
-    const unitValue = match[numericIndex + 1];
-    const result = toMillimeters(rawNumber, unitValue);
+    const result = toMillimeters(match[numericIndex], match[numericIndex + 1]);
     if (Number.isFinite(result)) return result;
   }
   return undefined;
@@ -89,11 +87,7 @@ function inferProjectCreationFromConversation(userPrompt: string, context?: Reco
   const current = normalizeText(userPrompt);
   if (/\b(crie|criar|cria|novo projeto|novo móvel|novo movel|monte um projeto|faça um projeto|faca um projeto)\b/i.test(current)) return true;
   const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
-  const recentUserText = conversation
-    .filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string')
-    .slice(-6)
-    .map((item) => item.text)
-    .join(' ');
+  const recentUserText = conversation.filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string').slice(-6).map((item) => item.text).join(' ');
   return /\b(crie|criar|cria|novo projeto|novo móvel|novo movel|monte um projeto|faça um projeto|faca um projeto)\b/i.test(recentUserText);
 }
 
@@ -105,11 +99,7 @@ function projectNameFromText(text: string): string {
 function deterministicCreateProjectPlan(userPrompt: string, context?: Record<string, unknown>): ToolCall[] {
   if (!inferProjectCreationFromConversation(userPrompt, context)) return [];
   const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
-  const recentText = conversation
-    .filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string')
-    .slice(-6)
-    .map((item) => item.text)
-    .join(' ');
+  const recentText = conversation.filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string').slice(-6).map((item) => item.text).join(' ');
   const combined = `${recentText} ${userPrompt}`.trim();
   const dimensions = extractTextProjectDimensions(combined);
   if (!dimensions) return [];
@@ -140,27 +130,14 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(userPrompt, context);
-    const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs
-      ? [{ tool: 'createProjeto', args: iara.createProjectArgs }]
-      : fastCreateProjectPlan;
+    const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : fastCreateProjectPlan;
     const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: userPrompt, estilo: ctx.decorStyle } }] : [];
     const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: userPrompt } }] : [];
     const deterministicEnvironmentPlan: ToolCall[] = iara?.action === 'analyze_environment' ? [{ tool: 'iara.analyze_environment', args: {} }] : [];
     const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
-    const deterministicPlan = deterministicProjectPlan.length
-      ? deterministicProjectPlan
-      : deterministicFloorPlan.length
-        ? deterministicFloorPlan
-        : deterministicRenderPlan.length
-          ? deterministicRenderPlan
-          : deterministicEnvironmentPlan.length
-            ? deterministicEnvironmentPlan
-            : deterministicSmartPlan;
+    const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan.length ? deterministicRenderPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan;
 
-    const result = deterministicPlan.length
-      ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] }
-      : await planWithLLM(userPrompt, context);
-
+    const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(userPrompt, context);
     plan = result.plan;
     summary = result.summary;
     provider = result.provider;
@@ -175,65 +152,43 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     if (iara?.action === 'analyze_environment' && !images.length) {
       const error = 'Para analisar o ambiente, envie uma foto do ambiente. Assim a IARA pode avaliar o espaço real sem inventar informações.';
       const failureResults: Array<{ tool: string; result: ToolResult }> = [{ tool: 'iara.analyze_environment', result: { ok: false, error } }];
-      if (runId) {
-        try { await supabase.from('orchestrator_runs').update({ plan: [], results: failureResults as unknown as Json, used_fallback: false, status: 'needs_input' }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar necessidade de imagem:', e); }
-      }
+      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: failureResults as unknown as Json, used_fallback: false, status: 'needs_input', error }).eq('id', runId);
       return { runId, plan: [], summary: error, results: failureResults, usedFallback: false, provider, error, status: 'needs_input' };
     }
-
     if (iara?.action === 'analyze_environment' && images.length) {
       const spatial = await runSpatialJourney({ prompt: userPrompt, projectId: ctx.projectId, environmentId: ctx.environmentId, versionId: ctx.versionId, images }, ctx.correlationId ?? undefined);
       const environmentResults: Array<{ tool: string; result: ToolResult }> = spatial.results.map((item) => ({ tool: `spatial.${item.agentId}`, result: { ok: item.status === 'completed', data: item.data, error: item.status === 'failed' ? item.blockers?.[0] : undefined } }));
       const failed = spatial.results.find((item) => item.status !== 'completed');
       const status: OrchestratorRun['status'] = spatial.status === 'completed' ? 'completed' : spatial.status;
       const error = failed?.blockers?.[0];
-      if (runId) {
-        try { await supabase.from('orchestrator_runs').update({ plan: [], results: environmentResults as unknown as Json, used_fallback: false, status, ...(error ? { error } : {}) }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar análise do ambiente:', e); }
-      }
+      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: environmentResults as unknown as Json, used_fallback: false, status, ...(error ? { error } : {}) }).eq('id', runId);
       return { runId, plan: [], summary: summary || 'Ambiente analisado a partir da imagem enviada.', results: environmentResults, usedFallback: false, provider, ...(error ? { error } : {}), status };
     }
-
     if (!plan.length) {
       const error = 'A IARA não conseguiu transformar o pedido em uma ação executável. Reformule o pedido ou informe os dados necessários.';
       const failureResults: Array<{ tool: string; result: ToolResult }> = [{ tool: 'iara', result: { ok: false, error } }];
-      if (runId) {
-        try { await supabase.from('orchestrator_runs').update({ plan: [], results: failureResults as unknown as Json, used_fallback: false, status: 'needs_input' }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado do orchestrator_run:', e); }
-      }
+      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: failureResults as unknown as Json, used_fallback: false, status: 'needs_input', error }).eq('id', runId);
       return { runId, plan, summary, results: failureResults, usedFallback: false, provider, error, status: 'needs_input' };
     }
-
     if (spatialAction && images.length) {
       const spatial = await runSpatialJourney({ prompt: userPrompt, projectId: ctx.projectId, environmentId: ctx.environmentId, versionId: ctx.versionId, images }, ctx.correlationId ?? undefined);
       if (spatial.status !== 'completed') {
-        const error = spatial.results.find((item) => item.status === 'failed')?.error
-          ?? spatial.results.find((item) => item.status === 'needs_input')?.blockers?.[0]
-          ?? 'Os agentes espaciais não conseguiram validar o contexto do ambiente.';
+        const error = spatial.results.find((item) => item.status === 'failed')?.error ?? spatial.results.find((item) => item.status === 'needs_input')?.blockers?.[0] ?? 'Os agentes espaciais não conseguiram validar o contexto do ambiente.';
         const failedAgent = spatial.results.find((item) => item.status !== 'completed')?.agentId ?? 'spatial';
         const failureResult: ToolResult = { ok: false, error };
         const failureResults: Array<{ tool: string; result: ToolResult }> = [{ tool: `spatial.${failedAgent}`, result: failureResult }];
-        if (runId) {
-          try { await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: spatial.results as unknown as Json, used_fallback: false, status: spatial.status }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado espacial:', e); }
-        }
+        if (runId) await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: spatial.results as unknown as Json, used_fallback: false, status: spatial.status, error }).eq('id', runId);
         return { runId, plan, summary, results: failureResults, usedFallback: false, provider, error, status: spatial.status };
       }
     }
-
     const results: Array<{ tool: string; result: ToolResult }> = [];
     for (const call of plan) {
-      const r = call.tool === 'iaraSmartAction'
-        ? await executeIaraSmartAction(String(call.args.action) as SmartAction, typeof call.args.projectId === 'string' ? call.args.projectId : ctx.projectId)
-        : call.tool.startsWith('iara.')
-          ? await executeIaraSmartAction(call.tool.slice(5) as SmartAction, ctx.projectId)
-          : await executeToolCall(call.tool, call.args, ctx);
+      const r = call.tool === 'iaraSmartAction' ? await executeIaraSmartAction(String(call.args.action) as SmartAction, typeof call.args.projectId === 'string' ? call.args.projectId : ctx.projectId) : call.tool.startsWith('iara.') ? await executeIaraSmartAction(call.tool.slice(5) as SmartAction, ctx.projectId) : await executeToolCall(call.tool, call.args, ctx);
       results.push({ tool: call.tool, result: r });
       if (!r.ok) break;
     }
-    const status: OrchestratorRun['status'] = results.every(r => r.result.ok) ? 'completed' : 'failed';
-
-    if (runId) {
-      try { await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status }).eq('id', runId); }
-      catch (e) { console.warn('Falha ao registrar resultado do orchestrator_run:', e); }
-    }
+    const status: OrchestratorRun['status'] = results.length > 0 && results.every(r => r.result.ok) ? 'completed' : 'failed';
+    if (runId) await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status, ...(status === 'failed' ? { error: results.find(r => !r.result.ok)?.result.error ?? 'A execução falhou.' } : {}) }).eq('id', runId);
     return { runId, plan, summary, results, usedFallback: false, provider, status };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Falha inesperada na execução do orquestrador.';
