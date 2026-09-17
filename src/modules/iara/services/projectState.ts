@@ -124,13 +124,13 @@ export function extractProjectStatePatch(text: string): ProjectStatePatch {
   const normalized = normalize(text);
   const named = findNamedDimensions(normalized);
   const ordered = findDimensionsByOrder(normalized);
-  const dimensions = Object.keys(named).some(key => named[key as ProjectDimensionKey] !== undefined)
-    ? named
-    : {
-        ...(ordered[0] !== undefined ? { width: ordered[0] } : {}),
-        ...(ordered[1] !== undefined ? { height: ordered[1] } : {}),
-        ...(ordered[2] !== undefined ? { depth: ordered[2] } : {}),
-      };
+  // Keep both strategies: ordered values fill missing axes and named values win for their axis.
+  const dimensions: Partial<Record<ProjectDimensionKey, number>> = {
+    ...(ordered[0] !== undefined ? { width: ordered[0] } : {}),
+    ...(ordered[1] !== undefined ? { height: ordered[1] } : {}),
+    ...(ordered[2] !== undefined ? { depth: ordered[2] } : {}),
+    ...Object.fromEntries(Object.entries(named).filter(([, value]) => value !== undefined)),
+  };
   const type = inferType(normalized);
   const components = extractComponents(normalized);
 
