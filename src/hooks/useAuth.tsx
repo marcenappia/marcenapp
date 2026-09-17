@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 
@@ -11,6 +11,26 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
+
+const AUTH_INIT_TIMEOUT_MS = 12_000;
+const PROFILE_FETCH_TIMEOUT_MS = 12_000;
+
+const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
+const isAbortError = (error: unknown) => error instanceof Error && error.name === 'AbortError';
 
 const AuthContext = createContext<AuthContextType>({
   user: null, session: null, loading: true, profile: null, profileLoading: false,
@@ -25,30 +45,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [authLoading, setAuthLoading] = useState(true);
   const [profile, setProfile] = useState<AuthContextType['profile']>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const profileRequestRef = useRef<AbortController | null>(null);
 
   const loading = authLoading || profileLoading;
 
   const fetchProfile = async (userId: string) => {
+    profileRequestRef.current?.abort();
+    const controller = new AbortController();
+    profileRequestRef.current = controller;
     setProfileLoading(true);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     try {
-      const { data, error } = await supabase
+      const profileRequest = supabase
         .from('profiles')
         .select('name, company, phone, avatar_url, onboarding_completed, reduce_motion, onboarding_step, profession')
         .eq('user_id', userId)
-        .maybeSingle();
+        .maybeSingle()
+        .abortSignal(controller.signal);
+
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          console.error(`Profile hydration exceeded ${PROFILE_FETCH_TIMEOUT_MS}ms; aborting request.`);
+          controller.abort();
+          reject(new Error(`Profile hydration timed out after ${PROFILE_FETCH_TIMEOUT_MS}ms`));
+        }, PROFILE_FETCH_TIMEOUT_MS);
+      });
+
+      const { data, error } = await Promise.race([profileRequest, timeout]);
 
       if (error) {
         console.error('Error fetching profile:', error);
-        setProfile(null);
+        if (profileRequestRef.current === controller) setProfile(null);
         return;
       }
 
-      setProfile(data ?? null);
+      if (profileRequestRef.current === controller) setProfile(data ?? null);
     } catch (err) {
-      console.error('Unexpected error fetching profile:', err);
-      setProfile(null);
+      if (isAbortError(err)) {
+        console.error('Profile hydration was cancelled or timed out.');
+      } else {
+        console.error('Unexpected error fetching profile:', err);
+      }
+      if (profileRequestRef.current === controller) setProfile(null);
     } finally {
-      setProfileLoading(false);
+      if (timeoutId) clearTimeout(timeoutId);
+      if (profileRequestRef.current === controller) {
+        profileRequestRef.current = null;
+        setProfileLoading(false);
+      }
     }
   };
 
@@ -63,55 +108,73 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!mounted) return;
       const nextUser = nextSession?.user ?? null;
       setSession(nextSession);
-      setProfileLoading(Boolean(nextUser));
       setUser(nextUser);
-      if (!nextUser) setProfile(null);
-    });
-
-    const initialize = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (!mounted) return;
-
-      if (error) {
-        console.error('Error restoring auth session:', error);
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setProfileLoading(false);
-      } else if (data.session?.user) {
-        setSession(data.session);
-        setProfileLoading(true);
-        setUser(data.session.user);
-        // Profile hydration is owned by the user effect below. Keeping a
-        // single fetch path prevents concurrent initialization races.
-      } else {
-        setSession(null);
-        setUser(null);
+      if (!nextUser) {
+        profileRequestRef.current?.abort();
         setProfile(null);
         setProfileLoading(false);
       }
-      setAuthLoading(false);
+    });
+
+    const initialize = async () => {
+      try {
+        const { data, error } = await withTimeout(
+          supabase.auth.getSession(),
+          AUTH_INIT_TIMEOUT_MS,
+          'Auth session initialization',
+        );
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error('Error restoring auth session:', error);
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setProfileLoading(false);
+        } else if (data.session?.user) {
+          setSession(data.session);
+          setUser(data.session.user);
+        } else {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setProfileLoading(false);
+        }
+      } catch (err) {
+        if (mounted) {
+          console.error('Auth initialization failed:', err);
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setProfileLoading(false);
+        }
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
     };
 
     void initialize();
 
     return () => {
       mounted = false;
+      profileRequestRef.current?.abort();
       subscription.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
     if (!user) {
+      profileRequestRef.current?.abort();
       setProfile(null);
       setProfileLoading(false);
       return;
     }
-    // Every authenticated user transition hydrates exactly once here.
     void fetchProfile(user.id);
   }, [user]);
 
   const signOut = async () => {
+    profileRequestRef.current?.abort();
     const { error } = await supabase.auth.signOut();
     if (error) console.error('Error signing out:', error);
     setUser(null);
