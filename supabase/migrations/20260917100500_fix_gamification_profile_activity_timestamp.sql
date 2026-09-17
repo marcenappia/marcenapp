@@ -2,7 +2,7 @@
 -- The original function referenced a removed/nonexistent `last_activity_date`
 -- column while `gamification_profiles` stores `last_activity_at` (timestamptz).
 
-create or replace function public.register_gamification_activity(p_user_id uuid, p_xp integer)
+create or replace function public.register_gamification_activity(p_user_id uuid, p_xp integer default 10)
 returns public.gamification_profiles
 language plpgsql
 security definer
@@ -12,7 +12,6 @@ declare
   r public.gamification_profiles;
   today date := current_date;
   delta integer := greatest(0, least(coalesce(p_xp, 10), 100));
-  previous_activity_date date;
 begin
   if auth.uid() is null or auth.uid() <> p_user_id then
     raise exception 'not_authorized';
@@ -28,7 +27,7 @@ begin
   values (
     p_user_id,
     delta,
-    greatest(1, floor(delta / 100.0)::int + 1),
+    1,
     1,
     now()
   )
