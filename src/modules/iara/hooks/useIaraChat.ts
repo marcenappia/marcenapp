@@ -70,22 +70,28 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
 
   useEffect(() => {
     if (commandHistory.length === 0) return;
-    const lastCommand = commandHistory[0];
-    const correlationId = typeof lastCommand.payload?.correlationId === 'string' ? lastCommand.payload.correlationId : null;
-    const execution = correlationId ? pendingExecutionsRef.current.get(correlationId) : undefined;
-    if (!execution || !isIaraCommandForExecution(lastCommand, execution) || !isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) return;
+    const pendingResults = commandHistory.flatMap(command => {
+      const correlationId = typeof command.payload?.correlationId === 'string' ? command.payload.correlationId : null;
+      const execution = correlationId ? pendingExecutionsRef.current.get(correlationId) : undefined;
+      if (!execution || !isIaraCommandForExecution(command, execution) || !isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) return [];
+      return [{ command, execution }];
+    });
+    if (pendingResults.length === 0) return;
     const notifyChat = async () => {
-      const lastProcessedId = localStorage.getItem('last_processed_command_id');
-      if (lastProcessedId === lastCommand.id && lastCommand.status === 'completed') return;
-      if (lastCommand.status === 'completed' && lastCommand.result?.resultUrl) {
-        if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) return;
-        localStorage.setItem('last_processed_command_id', lastCommand.id);
-        await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: lastCommand.result.resultUrl, metadata: { commandId: lastCommand.id, correlationId: execution.correlationId, projectId: execution.projectId ?? undefined, environmentId: execution.environmentId ?? undefined, versionId: execution.versionId ?? undefined, resultUrl: lastCommand.result.resultUrl, imageUrl: lastCommand.result.resultUrl, artifact: { type: 'render', id: lastCommand.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } }, execution);
-        pendingExecutionsRef.current.delete(execution.correlationId); setIsTyping(false);
-      } else if (lastCommand.status === 'failed') {
-        if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) return;
-        await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', correlationId: execution.correlationId, projectId: execution.projectId ?? undefined, environmentId: execution.environmentId ?? undefined, versionId: execution.versionId ?? undefined, actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } }, execution);
-        pendingExecutionsRef.current.delete(execution.correlationId); setIsTyping(false);
+      for (const { command, execution } of pendingResults) {
+        if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
+        const lastProcessedId = localStorage.getItem('last_processed_command_id');
+        if (lastProcessedId === command.id && command.status === 'completed') continue;
+        if (command.status === 'completed' && command.result?.resultUrl) {
+          if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
+          localStorage.setItem('last_processed_command_id', command.id);
+          await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: command.result.resultUrl, metadata: { commandId: command.id, correlationId: execution.correlationId, projectId: execution.projectId ?? undefined, environmentId: execution.environmentId ?? undefined, versionId: execution.versionId ?? undefined, resultUrl: command.result.resultUrl, imageUrl: command.result.resultUrl, artifact: { type: 'render', id: command.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } }, execution);
+          pendingExecutionsRef.current.delete(execution.correlationId); setIsTyping(false);
+        } else if (command.status === 'failed') {
+          if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
+          await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { status: 'error', correlationId: execution.correlationId, projectId: execution.projectId ?? undefined, environmentId: execution.environmentId ?? undefined, versionId: execution.versionId ?? undefined, actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } }, execution);
+          pendingExecutionsRef.current.delete(execution.correlationId); setIsTyping(false);
+        }
       }
     };
     void notifyChat();
