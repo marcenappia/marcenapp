@@ -1,4 +1,5 @@
 import { render, act as renderAct } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
 import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
@@ -18,6 +19,7 @@ describe('IARA-Studio Architecture', () => {
     const osId = useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: 'Test', studioCommandId: studioId, userId: 'u1', projectId: 'A', environmentId: 'E1', versionId: 'V1', correlationId: 'corr-test', generation: 1 } });
     return { studioId, osId };
   };
+  const renderWorker = () => render(<MemoryRouter><StudioWorker /></MemoryRouter>);
 
   it('StudioWorker executes commands from the queue and syncs both stores', async () => {
     vi.mocked(studioService.generateVisual).mockResolvedValue('url1');
@@ -25,7 +27,7 @@ describe('IARA-Studio Architecture', () => {
     from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-test', last_execution_generation: 1 }, error: null })), insert: vi.fn(() => Promise.resolve({ error: null })) }) as never);
     let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
     renderAct(() => { ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }]); });
-    render(<StudioWorker />);
+    renderWorker();
     await renderAct(async () => { await new Promise(r => setTimeout(r, 100)); });
     const studioCmd = useStudioStore.getState().commandQueue.find(c => c.id === ids.studioId);
     const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
@@ -42,7 +44,7 @@ describe('IARA-Studio Architecture', () => {
     from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-test', last_execution_generation: 1 }, error: null })), insert: vi.fn(() => Promise.resolve({ error: null })) }) as never);
     let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
     renderAct(() => { ids = dispatchRender(undefined); });
-    render(<StudioWorker />);
+    renderWorker();
     await renderAct(async () => { await new Promise(r => setTimeout(r, 50)); });
     const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
     expect(osCmd?.status).toBe('completed');
@@ -56,7 +58,7 @@ describe('IARA-Studio Architecture', () => {
     from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-missing', last_execution_generation: 1 }, error: null })), insert: vi.fn(() => Promise.resolve({ error: null })) }) as never);
     const studioId = useStudioStore.getState().enqueueCommand({ prompt: 'Missing generation', metadata: { origin: 'iara', originalPrompt: 'Missing generation', targetModule: 'studio' } });
     const osId = useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: 'Missing generation', studioCommandId: studioId, userId: 'u1', projectId: 'A', environmentId: 'E1', versionId: 'V1', correlationId: 'corr-missing' } });
-    render(<StudioWorker />);
+    renderWorker();
     await renderAct(async () => { await new Promise(r => setTimeout(r, 50)); });
     const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === osId);
     expect(osCmd?.status).toBe('cancelled');
@@ -69,7 +71,7 @@ describe('IARA-Studio Architecture', () => {
     const osId = useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: 'Old A render', studioCommandId: studioId, userId: 'u1', projectId: 'A', environmentId: 'E1', versionId: 'V1', correlationId: 'corr-old-a', generation: 1 } });
     const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
     from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-new-a', last_execution_generation: 3 }, error: null })), insert: vi.fn(() => Promise.resolve({ error: null })) }) as never);
-    render(<StudioWorker />);
+    renderWorker();
     await renderAct(async () => { await new Promise(r => setTimeout(r, 50)); });
     const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === osId);
     expect(osCmd?.status).toBe('cancelled');
