@@ -52,8 +52,10 @@ function toMillimeters(value: string, unit?: string): number {
 
 function findDimension(text: string, labels: string[]): number | undefined {
   const label = labels.join('|');
-  const match = text.match(new RegExp(`(?:${label})\\s*(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
-  return match ? toMillimeters(match[1], match[2]) : undefined;
+  const labelFirst = text.match(new RegExp(`(?:${label})\\s*(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
+  if (labelFirst) return toMillimeters(labelFirst[1], labelFirst[2]);
+  const valueFirst = text.match(new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)\\s*(?:de\\s+)?(?:${label})\\b`, 'i'));
+  return valueFirst ? toMillimeters(valueFirst[1], valueFirst[2]) : undefined;
 }
 
 function findNamedDimensions(text: string): Partial<Record<ProjectDimensionKey, number>> {
@@ -115,16 +117,10 @@ function extractComponents(text: string): ProjectComponentState[] {
   return components;
 }
 
-/**
- * Cheap deterministic memory layer for IARA.
- * It extracts facts without inventing missing values and can be replayed over
- * multiple turns, which is suitable for text today and voice transcripts later.
- */
 export function extractProjectStatePatch(text: string): ProjectStatePatch {
   const normalized = normalize(text);
   const named = findNamedDimensions(normalized);
   const ordered = findDimensionsByOrder(normalized);
-  // Keep both strategies: ordered values fill missing axes and named values win for their axis.
   const dimensions: Partial<Record<ProjectDimensionKey, number>> = {
     ...(ordered[0] !== undefined ? { width: ordered[0] } : {}),
     ...(ordered[1] !== undefined ? { height: ordered[1] } : {}),
