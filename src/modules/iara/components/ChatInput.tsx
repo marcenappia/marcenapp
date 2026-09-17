@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scissors, PackageCheck, Calculator, FileText, ShoppingCart, Wrench, Truck, ListChecks, Camera, PencilLine, Plus, ArrowUpFromLine } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scissors, PackageCheck, Calculator, FileText, ShoppingCart, Wrench, Truck, ListChecks, Camera, PencilLine, Plus, ArrowUpFromLine, HelpCircle } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
 
@@ -21,6 +21,8 @@ const ICONS: Record<string, React.ComponentType<LucideProps>> = {
   'execution.checklist': ListChecks, 'execution.delivery': Truck,
 };
 
+const ONBOARDING_KEY = 'marcenapp.iara.attachments.onboarding.v1';
+
 interface ChatInputProps {
   chatInput: string; setChatInput: (val: string) => void; onSend: () => void;
   onImageSelect: (e: React.ChangeEvent<HTMLInputElement>, kind?: PendingUpload['kind']) => void;
@@ -30,12 +32,28 @@ interface ChatInputProps {
 
 export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction }: ChatInputProps) => {
   const [open, setOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const environmentInputRef = useRef<HTMLInputElement>(null);
   const referenceInputRef = useRef<HTMLInputElement>(null);
   const sketchInputRef = useRef<HTMLInputElement>(null);
   const planInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!open) return;
+    try {
+      setShowOnboarding(window.localStorage.getItem(ONBOARDING_KEY) !== 'seen');
+    } catch {
+      setShowOnboarding(false);
+    }
+  }, [open]);
+
+  const dismissOnboarding = () => {
+    setShowOnboarding(false);
+    try { window.localStorage.setItem(ONBOARDING_KEY, 'seen'); } catch { /* non-blocking */ }
+  };
+
   const selectImage = (ref: React.RefObject<HTMLInputElement | null>, kind: PendingUpload['kind'], prompt?: string) => {
+    dismissOnboarding();
     setOpen(false);
     if (prompt) setChatInput(prompt);
     ref.current?.click();
@@ -60,6 +78,24 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         <button type="button" aria-label="Fechar menu adicionar" onClick={() => setOpen(false)} className="p-2 rounded-lg hover:bg-muted"><X size={16} /></button>
       </div>
 
+      {showOnboarding && <div className="mb-3 rounded-xl border border-primary/20 bg-primary/5 p-3" role="note" aria-label="Como usar os anexos da IARA">
+        <div className="flex items-start gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background text-primary border border-primary/15"><HelpCircle size={15} /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold">Primeira vez por aqui?</p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">Você não precisa saber mexer com IA. É só mandar o que já tem do projeto:</p>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              <div className="rounded-lg bg-background/80 px-2 py-1.5"><strong className="block text-[10px]">📷 Ambiente</strong><span className="text-[9px] text-muted-foreground">foto do local</span></div>
+              <div className="rounded-lg bg-background/80 px-2 py-1.5"><strong className="block text-[10px]">🖼️ Referência</strong><span className="text-[9px] text-muted-foreground">modelo ou inspiração</span></div>
+              <div className="rounded-lg bg-background/80 px-2 py-1.5"><strong className="block text-[10px]">✏️ Rascunho</strong><span className="text-[9px] text-muted-foreground">desenho à mão</span></div>
+              <div className="rounded-lg bg-background/80 px-2 py-1.5"><strong className="block text-[10px]">📐 Planta</strong><span className="text-[9px] text-muted-foreground">planta ou medidas</span></div>
+            </div>
+            <p className="mt-2 text-[9px] text-muted-foreground">Depois, conte para a IARA o que você quer fazer. Ela usa esse contexto na conversa.</p>
+          </div>
+        </div>
+        <button type="button" onClick={dismissOnboarding} className="mt-2 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-[10px] font-semibold hover:bg-muted transition-colors">Entendi</button>
+      </div>}
+
       <div className="grid grid-cols-2 gap-1.5 mb-3">
         <button type="button" onClick={() => selectImage(environmentInputRef, 'environment')} className="flex items-center gap-2 text-left px-2.5 py-3 min-h-12 rounded-xl border border-border hover:border-primary hover:bg-muted transition-colors">
           <Camera size={17} className="shrink-0 text-muted-foreground" /><span><strong className="block text-[11px]">Foto do ambiente</strong><small className="text-[9px] text-muted-foreground">Câmera ou galeria</small></span>
@@ -83,7 +119,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         <div className="grid grid-cols-2 gap-1.5">
           {SMART_ACTIONS.flatMap(group => group.items.map(action => ({ group, action }))).map(({ group, action }) => {
             const Icon = ICONS[action.id] ?? Command;
-            return <button key={action.id} type="button" onClick={() => { setOpen(false); onSmartAction?.(action); }} aria-label={`${action.label} — ${group.title}`} className="group flex items-center gap-2 text-left px-2.5 py-2.5 min-h-11 rounded-xl border border-border bg-background/70 hover:border-primary/40 hover:bg-primary/5 transition-colors">
+            return <button key={action.id} type="button" onClick={() => { dismissOnboarding(); setOpen(false); onSmartAction?.(action); }} aria-label={`${action.label} — ${group.title}`} className="group flex items-center gap-2 text-left px-2.5 py-2.5 min-h-11 rounded-xl border border-border bg-background/70 hover:border-primary/40 hover:bg-primary/5 transition-colors">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 transition-colors"><Icon size={15} /></span>
               <span className="text-[11px] font-semibold leading-tight">{action.label}</span>
             </button>;
@@ -94,7 +130,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
 
     <input ref={environmentInputRef} type="file" className="hidden" accept="image/*" capture="environment" onChange={e => onImageSelect(e, 'environment')} />
     <input ref={referenceInputRef} type="file" className="hidden" accept="image/*" onChange={e => onImageSelect(e, 'reference')} />
-    <input ref={sketchInputRef} type="file" className="hidden" accept="image/*" onChange={e => onImageSelect(e, 'sketch')} />
+    <input ref={sketchInputRef} type="file" className="hidden" accept="image/*" capture="environment" onChange={e => onImageSelect(e, 'sketch')} />
     <input ref={planInputRef} type="file" className="hidden" accept="image/*" onChange={e => onImageSelect(e, 'plan')} />
 
     <div className="flex items-end gap-2">
