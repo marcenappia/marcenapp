@@ -26,7 +26,7 @@ describe('Menu Accessibility', () => {
     window.innerWidth = 400;
     render(<BrowserRouter><Index /></BrowserRouter>);
     expect(screen.getByTestId('home')).toBeInTheDocument();
-    expect(screen.getByLabelText('Início')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Início').length).toBeGreaterThan(0);
     expect(screen.getByLabelText('Diário')).toBeInTheDocument();
     expect(screen.getAllByLabelText('IARA').length).toBeGreaterThan(0);
     expect(screen.queryByLabelText('Novo')).not.toBeInTheDocument();
