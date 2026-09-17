@@ -43,7 +43,12 @@ export const useMarcenappOS = create<OSState>()(
         set(state => ({ commandHistory: [newCmd, ...state.commandHistory].slice(0, 100) }));
         return id;
       },
-      updateCommandStatus: (id, status, result, error) => set(state => ({ commandHistory: state.commandHistory.map(cmd => cmd.id === id ? { ...cmd, status, result, error } : cmd) })),
+      updateCommandStatus: (id, status, result, error) => set(state => {
+        const updated = state.commandHistory.find(cmd => cmd.id === id);
+        if (!updated) return state;
+        const next = { ...updated, status, result, error };
+        return { commandHistory: [next, ...state.commandHistory.filter(cmd => cmd.id !== id)].slice(0, 100) };
+      }),
       setActiveModule: (id) => set({ activeModule: id }),
       clearHistory: () => set({ commandHistory: [] }),
     }),
