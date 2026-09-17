@@ -8,6 +8,11 @@ describe('projectState', () => {
     expect(patch.project?.dimensions).toEqual({ width: 1600, height: 2500, depth: 450 });
   });
 
+  it('preserves all dimensions from ordered measurements even when one axis is named', () => {
+    const patch = extractProjectStatePatch('Crie um armário com largura 2 m x 2,40 m x 60 cm.');
+    expect(patch.project?.dimensions).toEqual({ width: 2000, height: 2400, depth: 600 });
+  });
+
   it('keeps facts across turns instead of replacing the whole project', () => {
     const state = createProjectStateFromConversation([
       'Quero um armário de 1,60 m de largura e 2,50 m de altura.',
