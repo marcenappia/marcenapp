@@ -52,8 +52,7 @@ function toMillimeters(value: string, unit?: string): number {
 
 function findDimension(text: string, labels: string[]): number | undefined {
   const label = labels.join('|');
-  // Keep the original text here: normalizing removes the accent from "é" and
-  // would make the conjunction "e" indistinguishable from "é".
+  // Keep original text so the conjunction "e" cannot be confused with accented "é".
   const labelFirst = text.match(
     new RegExp(`(?:${label})\\s*(?:(?:é|eh|sera|vai\\s+ser|fica|ficara|deve\\s+ser)\\s*)?(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'),
   );
@@ -108,14 +107,13 @@ function componentFromSegment(segment: string, type: string, id: string): Projec
 }
 
 function extractComponents(text: string): ProjectComponentState[] {
-  const normalized = normalize(text);
   const components: ProjectComponentState[] = [];
-  const upperMatch = normalized.match(/(?:no|na)?\s*armario\s+superior(?:,|\s+)([^.]*?)(?=$|\b(?:e\s+)?(?:agora|depois)\b)/i);
+  const upperMatch = text.match(/(?:no|na)?\s*arm[áa]rio\s+superior(?:,|\s+)([^.]*?)(?=$|\b(?:e\s+)?(?:agora|depois)\b)/i);
   const upperSegment = upperMatch?.[1] ?? '';
   const upper = componentFromSegment(upperSegment, 'armario_superior', 'component-armario-superior-01');
   if (upper) components.push(upper);
 
-  const benchMatch = normalized.match(/(?:essa|esta|a)\s+bancada(?:,|\s+)([^.]*?)(?=$|\b(?:no|na)\s+armario\b)/i);
+  const benchMatch = text.match(/(?:essa|esta|a)\s+bancada(?:,|\s+)([^.]*?)(?=$|\b(?:no|na)\s+arm[áa]rio\b)/i);
   const benchSegment = benchMatch?.[1] ?? '';
   const bench = componentFromSegment(benchSegment, 'bancada', 'component-bancada-01');
   if (bench) components.push(bench);
@@ -123,18 +121,33 @@ function extractComponents(text: string): ProjectComponentState[] {
   return components;
 }
 
+function dimensionsFromMeasurements(
+  text: string,
+  named: Partial<Record<ProjectDimensionKey, number>>,
+): Partial<Record<ProjectDimensionKey, number>> {
+  const dimensions: Partial<Record<ProjectDimensionKey, number>> = { ...named };
+  const remaining = findDimensionsByOrder(text);
+  const namedValues = new Set(Object.values(named).filter((value): value is number => value !== undefined));
+  const unmatched = remaining.map(value => {
+    if (namedValues.has(value)) {
+      namedValues.delete(value);
+      return undefined;
+    }
+    return value;
+  }).filter((value): value is number => value !== undefined);
+  const missingKeys: ProjectDimensionKey[] = (['width', 'height', 'depth'] as const).filter(key => dimensions[key] === undefined);
+  missingKeys.forEach((key, index) => {
+    if (unmatched[index] !== undefined) dimensions[key] = unmatched[index];
+  });
+  return dimensions;
+}
+
 export function extractProjectStatePatch(text: string): ProjectStatePatch {
   const normalized = normalize(text);
   const named = findNamedDimensions(text);
-  const ordered = findDimensionsByOrder(normalized);
-  const dimensions: Partial<Record<ProjectDimensionKey, number>> = {
-    ...(ordered[0] !== undefined ? { width: ordered[0] } : {}),
-    ...(ordered[1] !== undefined ? { height: ordered[1] } : {}),
-    ...(ordered[2] !== undefined ? { depth: ordered[2] } : {}),
-    ...Object.fromEntries(Object.entries(named).filter(([, value]) => value !== undefined)),
-  };
+  const dimensions = dimensionsFromMeasurements(text, named);
   const type = inferType(normalized);
-  const components = extractComponents(normalized);
+  const components = extractComponents(text);
 
   return {
     ...(hasCreateIntent(normalized) ? { intent: 'create_project' } : {}),
