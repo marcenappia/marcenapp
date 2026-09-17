@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: marcenapp-validation-${{ github.workflow }}-${{ github.ref }}
@@ -28,9 +28,31 @@ jobs:
       id: install
       run: npm ci
 
+    - name: Remediate dependency vulnerabilities
+      id: remediate
+      if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.install.outcome == 'success' }}
+      run: |
+        set +e
+        npm audit fix --package-lock-only
+        fix_exit=$?
+        set -e
+        if [ "$fix_exit" -ne 0 ]; then
+          echo "npm audit fix could not complete automatically; preserving the security gate for manual remediation."
+          exit "$fix_exit"
+        fi
+        if git diff --quiet -- package.json package-lock.json; then
+          echo "No dependency manifest or lockfile changes were produced."
+          exit 0
+        fi
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add package.json package-lock.json
+        git commit -m "fix(deps): remediate npm audit vulnerabilities"
+        git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+
     - name: Dependency audit (high/critical block)
       id: audit
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
       run: |
         set +e
         npm audit --audit-level=high --json > npm-audit.json
@@ -53,38 +75,38 @@ jobs:
 
     - name: Lint
       id: lint
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
       run: npm run lint
 
     - name: Typecheck
       id: typecheck
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
       run: npx tsc -p tsconfig.app.json --noEmit
 
     - name: Unit tests
       id: unit
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
       run: npm run test
 
     - name: Production build
       id: build
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
       run: npm run build
 
     - name: Cache Playwright browsers
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
       uses: actions/cache@v4
       with:
         path: ~/.cache/ms-playwright
         key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
 
     - name: Install Playwright Browsers
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
       run: npx playwright install --with-deps
 
     - name: Run Playwright tests
       id: playwright
-      if: ${{ steps.install.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
       env:
         E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
         E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
