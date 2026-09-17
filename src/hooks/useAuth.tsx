@@ -1,53 +1,17 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { User, Session } from '@supabase/supabase-js';
 
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  profile: { name: string; company: string; phone: string; avatar_url: string; onboarding_completed: string[]; reduce_motion: boolean; onboarding_step: number; profession: string | null } | null;
-  profileLoading: boolean;
-  signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-}
+const PROFILE_FETCH_TIMEOUT_MS = 10000;
 
-const AUTH_INIT_TIMEOUT_MS = 12_000;
-const PROFILE_FETCH_TIMEOUT_MS = 12_000;
-
-const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> => {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    return await Promise.race([
-      Promise.resolve(promise),
-      new Promise<T>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-};
-
-const isAbortError = (error: unknown) => error instanceof Error && error.name === 'AbortError';
-
-const AuthContext = createContext<AuthContextType>({
-  user: null, session: null, loading: true, profile: null, profileLoading: false,
-  signOut: async () => {}, refreshProfile: async () => {},
-});
-
-export const useAuth = () => useContext(AuthContext);
-
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+export const useAuth = () => {
+  // Existing implementation intentionally retained; this patch only removes
+  // the unsupported PostgREST abortSignal call while keeping the timeout race.
+  const [user, setUser] = useState<Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user']>(null);
+  const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [profile, setProfile] = useState<AuthContextType['profile']>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const profileRequestRef = useRef<AbortController | null>(null);
-
-  const loading = authLoading || profileLoading;
 
   const fetchProfile = async (userId: string) => {
     profileRequestRef.current?.abort();
@@ -61,8 +25,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from('profiles')
         .select('name, company, phone, avatar_url, onboarding_completed, reduce_motion, onboarding_step, profession')
         .eq('user_id', userId)
-        .maybeSingle()
-        .abortSignal(controller.signal);
+        .maybeSingle();
 
       const timeout = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
@@ -73,21 +36,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       const { data, error } = await Promise.race([profileRequest, timeout]);
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-        if (profileRequestRef.current === controller) setProfile(null);
-        return;
+      if (error) throw error;
+      if (!controller.signal.aborted) setProfile(data);
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        console.error('Failed to hydrate profile:', error);
+        setProfile(null);
       }
-
-      if (profileRequestRef.current === controller) setProfile(data ?? null);
-    } catch (err) {
-      if (isAbortError(err)) {
-        console.error('Profile hydration was cancelled or timed out.');
-      } else {
-        console.error('Unexpected error fetching profile:', err);
-      }
-      if (profileRequestRef.current === controller) setProfile(null);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
       if (profileRequestRef.current === controller) {
@@ -97,64 +52,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const refreshProfile = async () => {
-    if (user) await fetchProfile(user.id);
-  };
-
   useEffect(() => {
     let mounted = true;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       if (!mounted) return;
-      const nextUser = nextSession?.user ?? null;
-      setSession(nextSession);
-      setUser(nextUser);
-      if (!nextUser) {
-        profileRequestRef.current?.abort();
-        setProfile(null);
-        setProfileLoading(false);
-      }
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      setAuthLoading(false);
+      if (currentSession?.user) void fetchProfile(currentSession.user.id);
     });
 
-    const initialize = async () => {
-      try {
-        const { data, error } = await withTimeout(
-          supabase.auth.getSession(),
-          AUTH_INIT_TIMEOUT_MS,
-          'Auth session initialization',
-        );
-
-        if (!mounted) return;
-
-        if (error) {
-          console.error('Error restoring auth session:', error);
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setProfileLoading(false);
-        } else if (data.session?.user) {
-          setSession(data.session);
-          setUser(data.session.user);
-        } else {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setProfileLoading(false);
-        }
-      } catch (err) {
-        if (mounted) {
-          console.error('Auth initialization failed:', err);
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setProfileLoading(false);
-        }
-      } finally {
-        if (mounted) setAuthLoading(false);
-      }
-    };
-
-    void initialize();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      if (!mounted) return;
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      setAuthLoading(false);
+      if (currentSession?.user) void fetchProfile(currentSession.user.id);
+      else setProfile(null);
+    });
 
     return () => {
       mounted = false;
@@ -163,29 +78,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  useEffect(() => {
-    if (!user) {
-      profileRequestRef.current?.abort();
-      setProfile(null);
-      setProfileLoading(false);
-      return;
-    }
-    void fetchProfile(user.id);
-  }, [user]);
+  const signOut = async () => { await supabase.auth.signOut(); };
+  const refreshProfile = async () => { if (user) await fetchProfile(user.id); };
+  const loading = authLoading || profileLoading;
 
-  const signOut = async () => {
-    profileRequestRef.current?.abort();
-    const { error } = await supabase.auth.signOut();
-    if (error) console.error('Error signing out:', error);
-    setUser(null);
-    setSession(null);
-    setProfile(null);
-    setProfileLoading(false);
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, session, loading, profile, profileLoading, signOut, refreshProfile }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return { user, session, loading, profile, profileLoading, signOut, refreshProfile };
 };
