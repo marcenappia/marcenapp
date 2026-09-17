@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures/authenticated';
 
 test.describe('YARA → AI → provider', () => {
-  test('uses a real Supabase session, provider and conversation context @yara', async ({ authenticatedPage: page }) {
+  test('uses a real Supabase session, provider and conversation context @yara', async ({ authenticatedPage }) => {
+    const page = authenticatedPage;
     await page.getByRole('button', { name: 'Estúdio' }).click();
     const input = page.getByPlaceholder('Descreva seu móvel...');
     await expect(input).toBeVisible();
