@@ -14,6 +14,7 @@ const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const GEMINI_IMAGE_MODEL = Deno.env.get("GEMINI_IMAGE_MODEL") ?? "gemini-3-pro-image";
 const GEMINI_IMAGE_SIZE = Deno.env.get("GEMINI_IMAGE_SIZE") ?? "2K";
 const TEST_ACCOUNT_EMAIL = "marcenapp.ia@gmail.com";
+const E2E_TEST_MODE = Deno.env.get("E2E_TEST_MODE") === "true";
 type Provider = "lovable" | "gemini";
 
 const ImageSchema = z.object({
@@ -239,7 +240,7 @@ serve(async (req: Request) => {
     }
 
     const admin = adminClient();
-    const isTestAccount = guard.email.trim().toLowerCase() === TEST_ACCOUNT_EMAIL;
+    const isTestAccount = E2E_TEST_MODE && guard.email.trim().toLowerCase() === TEST_ACCOUNT_EMAIL;
     let consumed: unknown;
     if (isTestAccount) {
       consumed = { testAccount: true, creditCost: 0 };
