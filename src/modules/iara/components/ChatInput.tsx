@@ -130,7 +130,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
 
     <input ref={environmentInputRef} type="file" className="hidden" accept="image/*" capture="environment" onChange={e => onImageSelect(e, 'environment')} />
     <input ref={referenceInputRef} type="file" className="hidden" accept="image/*" onChange={e => onImageSelect(e, 'reference')} />
-    <input ref={sketchInputRef} type="file" className="hidden" accept="image/*" capture="environment" onChange={e => onImageSelect(e, 'sketch')} />
+    <input ref={sketchInputRef} type="file" className="hidden" accept="image/*" onChange={e => onImageSelect(e, 'sketch')} />
     <input ref={planInputRef} type="file" className="hidden" accept="image/*" onChange={e => onImageSelect(e, 'plan')} />
 
     <div className="flex items-end gap-2">
