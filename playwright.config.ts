@@ -10,7 +10,9 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html'], ['list']],
   webServer: {
-    command: `VITE_SUPABASE_URL=${SUPABASE_URL} npm run build && VITE_SUPABASE_URL=${SUPABASE_URL} npm run preview -- --host 127.0.0.1 --port 4173 --strictPort`,
+    // The CI workflow already performs the production build immediately
+    // before Playwright. Reuse that build instead of compiling the app again.
+    command: `VITE_SUPABASE_URL=${SUPABASE_URL} npm run preview -- --host 127.0.0.1 --port 4173 --strictPort`,
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
