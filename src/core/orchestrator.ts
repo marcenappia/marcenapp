@@ -157,7 +157,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     }
     if (iara?.action === 'analyze_environment' && images.length) {
       const spatial = await runSpatialJourney({ prompt: userPrompt, projectId: ctx.projectId, environmentId: ctx.environmentId, versionId: ctx.versionId, images }, ctx.correlationId ?? undefined);
-      const environmentResults: Array<{ tool: string; result: ToolResult }> = spatial.results.map((item) => ({ tool: `spatial.${item.agentId}`, result: { ok: item.status === 'completed', data: item.data, error: item.status === 'failed' ? item.blockers?.[0] : undefined } }));
+      const environmentResults: Array<{ tool: string; result: ToolResult }> = spatial.results.map((item) => ({ tool: `spatial.${item.agentId}`, result: { ok: item.status === 'completed', data: item.data, ...(item.status === 'failed' ? { error: item.blockers?.[0] } : {}) } }));
       const failed = spatial.results.find((item) => item.status !== 'completed');
       const status: OrchestratorRun['status'] = spatial.status === 'completed' ? 'completed' : spatial.status;
       const error = failed?.blockers?.[0];
@@ -188,7 +188,9 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       if (!r.ok) break;
     }
     const status: OrchestratorRun['status'] = results.length > 0 && results.every(r => r.result.ok) ? 'completed' : 'failed';
-    if (runId) await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status, ...(status === 'failed' ? { error: results.find(r => !r.result.ok)?.result.error ?? 'A execução falhou.' } : {}) }).eq('id', runId);
+    const failedResult = results.find(({ result }) => !result.ok)?.result;
+    const failureError = failedResult && !failedResult.ok ? failedResult.error : 'A execução falhou.';
+    if (runId) await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status, ...(status === 'failed' ? { error: failureError } : {}) }).eq('id', runId);
     return { runId, plan, summary, results, usedFallback: false, provider, status };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Falha inesperada na execução do orquestrador.';
