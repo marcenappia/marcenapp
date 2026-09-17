@@ -52,7 +52,6 @@ function toMillimeters(value: string, unit?: string): number {
 
 function findDimension(text: string, labels: string[]): number | undefined {
   const label = labels.join('|');
-  // Keep original text so the conjunction "e" cannot be confused with accented "é".
   const labelFirst = text.match(
     new RegExp(`(?:${label})\\s*(?:(?:é|eh|sera|vai\\s+ser|fica|ficara|deve\\s+ser)\\s*)?(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'),
   );
@@ -62,11 +61,14 @@ function findDimension(text: string, labels: string[]): number | undefined {
 }
 
 function findNamedDimensions(text: string): Partial<Record<ProjectDimensionKey, number>> {
-  return {
-    width: findDimension(text, ['largura', 'largo']),
-    height: findDimension(text, ['altura', 'alto']),
-    depth: findDimension(text, ['profundidade', 'profundo']),
-  };
+  const dimensions: Partial<Record<ProjectDimensionKey, number>> = {};
+  const width = findDimension(text, ['largura', 'largo']);
+  const height = findDimension(text, ['altura', 'alto']);
+  const depth = findDimension(text, ['profundidade', 'profundo']);
+  if (width !== undefined) dimensions.width = width;
+  if (height !== undefined) dimensions.height = height;
+  if (depth !== undefined) dimensions.depth = depth;
+  return dimensions;
 }
 
 function findDimensionsByOrder(text: string): number[] {
@@ -94,26 +96,23 @@ function hasCreateIntent(text: string): boolean {
 function componentFromSegment(segment: string, type: string, id: string): ProjectComponentState | null {
   const dimensions = findNamedDimensions(segment);
   const ordered = findDimensionsByOrder(segment);
-  const merged: Partial<Record<ProjectDimensionKey, number>> = {
-    ...(dimensions.width !== undefined ? { width: dimensions.width } : {}),
-    ...(dimensions.height !== undefined ? { height: dimensions.height } : {}),
-    ...(dimensions.depth !== undefined ? { depth: dimensions.depth } : {}),
-  };
-  if (merged.width === undefined && ordered[0] !== undefined) merged.width = ordered[0];
-  if (merged.height === undefined && ordered[1] !== undefined) merged.height = ordered[1];
-  if (merged.depth === undefined && ordered[2] !== undefined) merged.depth = ordered[2];
+  const merged: Partial<Record<ProjectDimensionKey, number>> = { ...dimensions };
+  const missingKeys: ProjectDimensionKey[] = (['width', 'height', 'depth'] as const).filter(key => merged[key] === undefined);
+  missingKeys.forEach((key, index) => {
+    if (ordered[index] !== undefined) merged[key] = ordered[index];
+  });
   if (Object.keys(merged).length === 0) return null;
   return { id, type, dimensions: merged, properties: {} };
 }
 
 function extractComponents(text: string): ProjectComponentState[] {
   const components: ProjectComponentState[] = [];
-  const upperMatch = text.match(/(?:no|na)?\s*arm[áa]rio\s+superior(?:,|\s+)([^.]*?)(?=$|\b(?:e\s+)?(?:agora|depois)\b)/i);
+  const upperMatch = text.match(/(?:^|\b(?:no|na)\s+)arm[áa]rio\s+superior(?:,|\s+)([^.]+)/i);
   const upperSegment = upperMatch?.[1] ?? '';
   const upper = componentFromSegment(upperSegment, 'armario_superior', 'component-armario-superior-01');
   if (upper) components.push(upper);
 
-  const benchMatch = text.match(/(?:essa|esta|a)\s+bancada(?:,|\s+)([^.]*?)(?=$|\b(?:no|na)\s+arm[áa]rio\b)/i);
+  const benchMatch = text.match(/(?:^|\b(?:essa|esta|a)\s+)bancada(?:,|\s+)([^.]+)/i);
   const benchSegment = benchMatch?.[1] ?? '';
   const bench = componentFromSegment(benchSegment, 'bancada', 'component-bancada-01');
   if (bench) components.push(bench);
@@ -127,7 +126,7 @@ function dimensionsFromMeasurements(
 ): Partial<Record<ProjectDimensionKey, number>> {
   const dimensions: Partial<Record<ProjectDimensionKey, number>> = { ...named };
   const remaining = findDimensionsByOrder(text);
-  const namedValues = new Set(Object.values(named).filter((value): value is number => value !== undefined));
+  const namedValues = new Set(Object.values(named));
   const unmatched = remaining.map(value => {
     if (namedValues.has(value)) {
       namedValues.delete(value);
