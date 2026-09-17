@@ -33,8 +33,7 @@ jobs:
       if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.install.outcome == 'success' }}
       run: |
         set -e
-        # Generate the remediation against the exact PR merge tree, then apply only
-        # the dependency-file diff onto the real PR branch so the fix is persisted.
+        # Generate the remediation against the exact PR merge tree.
         npm audit fix --package-lock-only || true
         npm install react-router-dom@7.18.4 --save --package-lock-only
 
@@ -43,10 +42,16 @@ jobs:
           exit 0
         fi
 
-        git diff -- package.json package-lock.json > /tmp/dependency-remediation.patch
+        # Preserve the generated dependency files outside the working tree, then
+        # reset completely to the real PR branch before applying them. A checkout
+        # alone does not discard modifications to tracked files.
+        cp package.json /tmp/remediated-package.json
+        cp package-lock.json /tmp/remediated-package-lock.json
         git fetch origin "${{ github.event.pull_request.head.ref }}"
-        git checkout --detach "origin/${{ github.event.pull_request.head.ref }}"
-        git apply /tmp/dependency-remediation.patch
+        git reset --hard "origin/${{ github.event.pull_request.head.ref }}"
+        cp /tmp/remediated-package.json package.json
+        cp /tmp/remediated-package-lock.json package-lock.json
+
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add package.json package-lock.json
