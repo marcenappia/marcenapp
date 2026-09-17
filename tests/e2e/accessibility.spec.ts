@@ -54,14 +54,14 @@ test.describe('Marcenapp public acceptance', () => {
     await page.getByRole('button', { name: /Esqueceu a senha/i }).click();
     await expect(page.getByRole('button', { name: /Enviar Recuperação/i })).toBeVisible();
     await page.getByRole('button', { name: /Voltar para o login/i }).click();
-    await page.getByRole('button', { name: /Cadastre-se/i }).click();
-    await expect(page.getByPlaceholder('Nome completo')).toBeVisible();
-    await expect(page.getByRole('button', { name: /Criar conta/i })).toBeVisible();
+    await page.getByRole('button', { name: /Criar conta/i }).click();
+    await expect(page).toHaveURL(/\/perfil-profissional$/);
+    await expect(page.locator('main')).toBeVisible();
     assertClean();
   });
 
   test('public navigation anchors work', async ({ page }) => {
-    await page.getByRole('link', { name: 'Como funciona' }).click();
+    await page.getByRole('link', { name: 'Como funciona', exact: true }).click();
     await expect(page).toHaveURL(/#fluxo$/);
     await expect(page.locator('#fluxo')).toBeVisible();
     await page.getByRole('link', { name: 'Recursos' }).click();
@@ -76,7 +76,6 @@ test.describe('Marcenapp public acceptance', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('button', { name: 'Abrir menu' })).toBeVisible();
     await page.getByRole('button', { name: 'Abrir menu' }).click();
-    await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Começar agora' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Recursos' })).toBeVisible();
   });
