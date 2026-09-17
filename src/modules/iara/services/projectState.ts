@@ -52,7 +52,7 @@ function toMillimeters(value: string, unit?: string): number {
 
 function findDimension(text: string, labels: string[]): number | undefined {
   const label = labels.join('|');
-  const labelFirst = text.match(new RegExp(`(?:${label})\\s*(?:(?:e|é|eh|sera|será|vai\\s+ser|fica|ficara|ficará|deve\\s+ser)\\s*)?(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
+  const labelFirst = text.match(new RegExp(`(?:${label})\\s*(?:(?:e|eh|sera|vai\\s+ser|fica|ficara|deve\\s+ser)\\s*)?(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
   if (labelFirst) return toMillimeters(labelFirst[1], labelFirst[2]);
   const valueFirst = text.match(new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)\\s*(?:(?:de|do|da)\\s+)?(?:${label})\\b`, 'i'));
   return valueFirst ? toMillimeters(valueFirst[1], valueFirst[2]) : undefined;
@@ -91,12 +91,14 @@ function hasCreateIntent(text: string): boolean {
 function componentFromSegment(segment: string, type: string, id: string): ProjectComponentState | null {
   const dimensions = findNamedDimensions(normalize(segment));
   const ordered = findDimensionsByOrder(normalize(segment));
-  const merged = {
-    ...dimensions,
-    ...(dimensions.width === undefined && ordered[0] !== undefined ? { width: ordered[0] } : {}),
-    ...(dimensions.height === undefined && ordered[1] !== undefined ? { height: ordered[1] } : {}),
-    ...(dimensions.depth === undefined && ordered[2] !== undefined ? { depth: ordered[2] } : {}),
+  const merged: Partial<Record<ProjectDimensionKey, number>> = {
+    ...(dimensions.width !== undefined ? { width: dimensions.width } : {}),
+    ...(dimensions.height !== undefined ? { height: dimensions.height } : {}),
+    ...(dimensions.depth !== undefined ? { depth: dimensions.depth } : {}),
   };
+  if (merged.width === undefined && ordered[0] !== undefined) merged.width = ordered[0];
+  if (merged.height === undefined && ordered[1] !== undefined) merged.height = ordered[1];
+  if (merged.depth === undefined && ordered[2] !== undefined) merged.depth = ordered[2];
   if (Object.keys(merged).length === 0) return null;
   return { id, type, dimensions: merged, properties: {} };
 }
@@ -104,7 +106,7 @@ function componentFromSegment(segment: string, type: string, id: string): Projec
 function extractComponents(text: string): ProjectComponentState[] {
   const normalized = normalize(text);
   const components: ProjectComponentState[] = [];
-  const upperMatch = normalized.match(/(?:no|no\s+|na|na\s+)?armario\s+superior(?:,|\s+)([^.]*?)(?=$|\b(?:e\s+)?(?:agora|depois)\b)/i);
+  const upperMatch = normalized.match(/(?:no|na)?\s*armario\s+superior(?:,|\s+)([^.]*?)(?=$|\b(?:e\s+)?(?:agora|depois)\b)/i);
   const upperSegment = upperMatch?.[1] ?? '';
   const upper = componentFromSegment(upperSegment, 'armario_superior', 'component-armario-superior-01');
   if (upper) components.push(upper);
