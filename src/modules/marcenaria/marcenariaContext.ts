@@ -10,7 +10,7 @@ export interface MarcenariaContext {
 }
 
 export async function loadMarcenariaContext(userId: string): Promise<MarcenariaContext> {
-  const [materials, suppliers, stock, documents, dna, rules] = await Promise.all([
+  const results = await Promise.allSettled([
     supabase.from('marcenaria_materiais').select('nome,categoria,unidade,espessura,preco,fornecedor').eq('user_id', userId).eq('ativo', true).limit(200),
     supabase.from('marcenaria_fornecedores').select('nome,contato,site').eq('user_id', userId).limit(100),
     supabase.from('marcenaria_estoque').select('nome_item,quantidade,unidade,localizacao').eq('user_id', userId).limit(200),
@@ -19,15 +19,23 @@ export async function loadMarcenariaContext(userId: string): Promise<MarcenariaC
     loadDnaRules(userId),
   ]);
 
-  const structuredRules = (rules ?? []) as DnaRule[];
-  const baseDna = dna.data ? (dna.data as Record<string, unknown>) : {};
-  const enrichedDna = structuredRules.length ? { ...baseDna, structured: dnaContext(structuredRules) } : dna.data ? baseDna : null;
+  const unwrap = <T,>(index: number, fallback: T): T => {
+    const result = results[index];
+    if (result?.status !== 'fulfilled') return fallback;
+    const value = result.value as { data?: T; error?: unknown };
+    return value.error ? fallback : (value.data ?? fallback);
+  };
+
+  const structuredRules = unwrap(5, [] as DnaRule[]) as DnaRule[];
+  const dnaRow = unwrap(4, null as Record<string, unknown> | null);
+  const baseDna = dnaRow ? (dnaRow as Record<string, unknown>) : {};
+  const enrichedDna = structuredRules.length ? { ...baseDna, structured: dnaContext(structuredRules) } : dnaRow ? baseDna : null;
 
   return {
-    materiais: materials.data || [],
-    fornecedores: suppliers.data || [],
-    estoque: stock.data || [],
-    documentos: documents.data || [],
+    materiais: unwrap(0, []),
+    fornecedores: unwrap(1, []),
+    estoque: unwrap(2, []),
+    documentos: unwrap(3, []),
     dna: enrichedDna,
   };
 }
