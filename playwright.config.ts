@@ -32,23 +32,33 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      grepInvert: /@yara/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'firefox',
+      grepInvert: /@yara/,
       use: { ...devices['Desktop Firefox'] },
     },
     {
       name: 'webkit',
+      grepInvert: /@yara/,
       use: { ...devices['Desktop Safari'] },
     },
     {
       name: 'Mobile Chrome',
+      grepInvert: /@yara/,
       use: { ...devices['Pixel 5'] },
     },
     {
       name: 'Mobile Safari',
+      grepInvert: /@yara/,
       use: { ...devices['iPhone 12'] },
+    },
+    {
+      name: 'YARA Chromium',
+      grep: /@yara/,
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
 });
