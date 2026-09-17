@@ -76,7 +76,7 @@ test.describe('Marcenapp public acceptance', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('button', { name: 'Abrir menu' })).toBeVisible();
     await page.getByRole('button', { name: 'Abrir menu' }).click();
-    await expect(page.getByRole('button', { name: 'Começar agora' })).toBeVisible();
+    await expect(page.locator('header').getByRole('button', { name: 'Começar agora' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Recursos' })).toBeVisible();
   });
 
