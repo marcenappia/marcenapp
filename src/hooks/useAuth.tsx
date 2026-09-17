@@ -54,30 +54,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const controller = new AbortController();
     profileRequestRef.current = controller;
     setProfileLoading(true);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     try {
-      const { data, error } = await supabase
+      const profileRequest = supabase
         .from('profiles')
         .select('name, company, phone, avatar_url, onboarding_completed, reduce_motion, onboarding_step, profession')
         .eq('user_id', userId)
         .maybeSingle()
         .abortSignal(controller.signal);
 
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          console.error(`Profile hydration exceeded ${PROFILE_FETCH_TIMEOUT_MS}ms; aborting request.`);
+          controller.abort();
+          reject(new Error(`Profile hydration timed out after ${PROFILE_FETCH_TIMEOUT_MS}ms`));
+        }, PROFILE_FETCH_TIMEOUT_MS);
+      });
+
+      const { data, error } = await Promise.race([profileRequest, timeout]);
+
       if (error) {
         console.error('Error fetching profile:', error);
-        setProfile(null);
+        if (profileRequestRef.current === controller) setProfile(null);
         return;
       }
 
-      setProfile(data ?? null);
+      if (profileRequestRef.current === controller) setProfile(data ?? null);
     } catch (err) {
       if (isAbortError(err)) {
-        console.error('Profile hydration timed out or was cancelled.');
+        console.error('Profile hydration was cancelled or timed out.');
       } else {
         console.error('Unexpected error fetching profile:', err);
       }
-      setProfile(null);
+      if (profileRequestRef.current === controller) setProfile(null);
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       if (profileRequestRef.current === controller) {
         profileRequestRef.current = null;
         setProfileLoading(false);
@@ -160,17 +172,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     void fetchProfile(user.id);
   }, [user]);
-
-  useEffect(() => {
-    if (!profileLoading) return;
-    const timeoutId = setTimeout(() => {
-      if (profileRequestRef.current) {
-        console.error(`Profile hydration exceeded ${PROFILE_FETCH_TIMEOUT_MS}ms; aborting request.`);
-        profileRequestRef.current.abort();
-      }
-    }, PROFILE_FETCH_TIMEOUT_MS);
-    return () => clearTimeout(timeoutId);
-  }, [profileLoading]);
 
   const signOut = async () => {
     profileRequestRef.current?.abort();
