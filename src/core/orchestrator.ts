@@ -192,7 +192,8 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     }
     const status: OrchestratorRun['status'] = results.length > 0 && results.every(r => r.result.ok) ? 'completed' : 'failed';
     const failedResult = results.find(({ result }) => !result.ok)?.result;
-    const failureError = failedResult && !failedResult.ok ? failedResult.error : 'A execução falhou.';
+    let failureError = 'A execução falhou.';
+    if (failedResult?.ok === false) failureError = failedResult.error;
     if (runId) await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status, ...(status === 'failed' ? { error: failureError } : {}) }).eq('id', runId);
     return { runId, plan, summary, results, usedFallback: false, provider, status };
   } catch (error: unknown) {
