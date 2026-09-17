@@ -6,6 +6,9 @@ on:
     paths:
       - "supabase/functions/asaas/**"
       - "supabase/functions/asaas-webhook/**"
+      - "supabase/functions/ai-orchestrator/**"
+      - "supabase/functions/ai-text/**"
+      - "supabase/functions/_shared/**"
       - "supabase/config.toml"
   workflow_dispatch:
 
@@ -36,3 +39,8 @@ jobs:
         run: |
           supabase functions deploy asaas --project-ref "$SUPABASE_PROJECT_ID"
           supabase functions deploy asaas-webhook --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Deploy IARA AI functions
+        run: |
+          supabase functions deploy ai-orchestrator --project-ref "$SUPABASE_PROJECT_ID"
+          supabase functions deploy ai-text --project-ref "$SUPABASE_PROJECT_ID"
