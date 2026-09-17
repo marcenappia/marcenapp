@@ -145,6 +145,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       : fastCreateProjectPlan;
     const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: userPrompt, estilo: ctx.decorStyle } }] : [];
     const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: userPrompt } }] : [];
+    const deterministicEnvironmentPlan: ToolCall[] = iara?.action === 'analyze_environment' ? [{ tool: 'iara.analyze_environment', args: {} }] : [];
     const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
     const deterministicPlan = deterministicProjectPlan.length
       ? deterministicProjectPlan
@@ -152,10 +153,12 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
         ? deterministicFloorPlan
         : deterministicRenderPlan.length
           ? deterministicRenderPlan
-          : deterministicSmartPlan;
+          : deterministicEnvironmentPlan.length
+            ? deterministicEnvironmentPlan
+            : deterministicSmartPlan;
 
     const result = deterministicPlan.length
-      ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] }
+      ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] }
       : await planWithLLM(userPrompt, context);
 
     plan = result.plan;
@@ -167,16 +170,6 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       return call;
     });
 
-    if (!plan.length) {
-      const error = 'A IARA não conseguiu transformar o pedido em uma ação executável. Reformule o pedido ou informe os dados necessários.';
-      const failureResults: Array<{ tool: string; result: ToolResult }> = [{ tool: 'iara', result: { ok: false, error } }];
-      if (runId) {
-        try { await supabase.from('orchestrator_runs').update({ plan: [], results: failureResults as unknown as Json, used_fallback: false, status: 'needs_input' }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado do orchestrator_run:', e); }
-      }
-      return { runId, plan, summary, results: failureResults, usedFallback: false, provider, error, status: 'needs_input' };
-    }
-
-    const iara = context?.iara as { action?: string } | undefined;
     const spatialAction = iara?.action === 'analyze_plan' || iara?.action === 'analyze_environment' || iara?.action === 'render';
     const images = spatialImages(ctx);
     if (iara?.action === 'analyze_environment' && !images.length) {
@@ -198,6 +191,15 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
         try { await supabase.from('orchestrator_runs').update({ plan: [], results: environmentResults as unknown as Json, used_fallback: false, status, ...(error ? { error } : {}) }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar análise do ambiente:', e); }
       }
       return { runId, plan: [], summary: summary || 'Ambiente analisado a partir da imagem enviada.', results: environmentResults, usedFallback: false, provider, ...(error ? { error } : {}), status };
+    }
+
+    if (!plan.length) {
+      const error = 'A IARA não conseguiu transformar o pedido em uma ação executável. Reformule o pedido ou informe os dados necessários.';
+      const failureResults: Array<{ tool: string; result: ToolResult }> = [{ tool: 'iara', result: { ok: false, error } }];
+      if (runId) {
+        try { await supabase.from('orchestrator_runs').update({ plan: [], results: failureResults as unknown as Json, used_fallback: false, status: 'needs_input' }).eq('id', runId); } catch (e) { console.warn('Falha ao registrar resultado do orchestrator_run:', e); }
+      }
+      return { runId, plan, summary, results: failureResults, usedFallback: false, provider, error, status: 'needs_input' };
     }
 
     if (spatialAction && images.length) {
