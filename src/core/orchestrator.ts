@@ -157,7 +157,10 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     }
     if (iara?.action === 'analyze_environment' && images.length) {
       const spatial = await runSpatialJourney({ prompt: userPrompt, projectId: ctx.projectId, environmentId: ctx.environmentId, versionId: ctx.versionId, images }, ctx.correlationId ?? undefined);
-      const environmentResults: Array<{ tool: string; result: ToolResult }> = spatial.results.map((item) => ({ tool: `spatial.${item.agentId}`, result: { ok: item.status === 'completed', data: item.data, ...(item.status === 'failed' ? { error: item.blockers?.[0] } : {}) } }));
+      const environmentResults: Array<{ tool: string; result: ToolResult }> = spatial.results.map((item) => {
+        if (item.status === 'completed') return { tool: `spatial.${item.agentId}`, result: { ok: true, data: item.data } };
+        return { tool: `spatial.${item.agentId}`, result: { ok: false, error: item.blockers?.[0] ?? item.error ?? 'A etapa espacial não foi concluída.' } };
+      });
       const failed = spatial.results.find((item) => item.status !== 'completed');
       const status: OrchestratorRun['status'] = spatial.status === 'completed' ? 'completed' : spatial.status;
       const error = failed?.blockers?.[0];
