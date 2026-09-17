@@ -1,6 +1,6 @@
 ---
 name: marcenapp-master
-version: 1.0.0
+version: 1.1.0
 description: Master forensic engineering orchestrator for Marcenapp. Coordinates repository audit, root-cause analysis, implementation, browser verification, responsive validation, design-system safety, IARA/domain safety, and GitHub change-set reconciliation. Prevents parallel work from creating stacked or duplicate commits and only closes work with evidence.
 ---
 
@@ -59,6 +59,24 @@ In that situation, inspect and validate the existing PR first.
 If an open PR is based on an older `main` SHA, treat it as stale until compared against current `main`.
 
 Do not assume that its implementation is still missing. Current `main` may already contain part or all of the fix.
+
+## External skill isolation — mandatory
+
+Marcenapp must not depend on external skill repositories for its business, runtime, or engineering control plane.
+
+- External skill managers such as `npx skills` are discovery/reference tools only.
+- Never add an external skill manager as a production/runtime dependency merely to obtain agent instructions.
+- Never auto-install, auto-update, remote-import, or dynamically fetch an upstream `SKILL.md` for repository operation.
+- When an external skill is useful, import its *ideas* into a reviewed Marcenapp-owned skill under `.agents/skills/` rather than making the repository depend on the upstream source.
+- The committed Marcenapp copy is the authoritative version for Marcenapp agents.
+- Upstream changes must never silently overwrite Marcenapp instructions, business rules, architecture, or design decisions.
+- Updating an internal skill is a deliberate engineering change: inspect the upstream material, adapt only what is useful, validate it against Marcenapp constraints, and commit the intentional result.
+
+### Current owned frontend design capability
+
+Use `marcenapp-frontend-design` for frontend craft and visual-quality execution. It is a Marcenapp-owned, internally versioned skill and must be treated as the local source of truth.
+
+Do not route Marcenapp work directly to an upstream `frontend-design` package when the owned skill is present.
 
 ## Current incident example: mobile startup loading
 
@@ -145,21 +163,11 @@ Use the strongest available evidence:
 
 A green build is not proof of a visual/runtime fix.
 
-### Stage F — GitHub reconciliation
-
-After validation:
-
-- compare the branch with current `main`;
-- check whether another PR landed the same or overlapping change;
-- avoid creating a second PR for an already-fixed issue;
-- keep the logical history compact;
-- document exactly what was changed and what evidence proves it.
-
 ## Skill routing
 
 When the environment provides specialized skills, use them as focused workers under this orchestration model:
 
-- `frontend-design` — production-grade interface quality, hierarchy, typography, layout, and avoidance of generic AI aesthetics.
+- `marcenapp-frontend-design` — Marcenapp-owned production frontend craft, hierarchy, typography, layout, states, accessibility, responsive behavior, iconography, and avoidance of generic AI aesthetics.
 - `frontend-design-systems` — shared tokens, components, variants, states, consistency, and regression safety.
 - `browser-verification` / Playwright workflows — runtime reproduction, screenshots, console/network inspection, and interaction proof.
 - `responsive-audit` — viewport/orientation/mobile/tablet/desktop behavior.
