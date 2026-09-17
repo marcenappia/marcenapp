@@ -80,7 +80,7 @@ function detectOperation(input: string): PrecisionOperation {
   const normalized = normalize(input);
   if (/\b(?:aumente|aumentar|aumenta|acrescente|acrescentar)\b/.test(normalized)) return 'increase';
   if (/\b(?:diminua|diminuir|diminui|reduza|reduzir)\b/.test(normalized)) return 'decrease';
-  if (/\b(?:troque|trocar|substitua|substituir)\b/.test(normalized)) return 'replace';
+  if (/\b(?:troque|trocar|troca|substitua|substituir|substitua)\b/.test(normalized)) return 'replace';
   return 'set';
 }
 
@@ -99,8 +99,10 @@ function detectProperty(input: string, targetType: PrecisionTargetType): string 
 
 function detectValue(input: string, property: string): unknown {
   const normalized = normalize(input);
-  if (property === 'color') return ['preto', 'branco', 'cinza', 'grafite', 'amadeirado', 'carvalho', 'nogueira'].find((color) => normalized.includes(color));
-  if (property === 'material') return ['vidro', 'espelho', 'madeira', 'mdf'].find((material) => normalized.includes(material));
+  const colors = ['preto', 'branco', 'cinza', 'grafite', 'amadeirado', 'carvalho', 'nogueira'];
+  const materials = ['vidro', 'espelho', 'madeira', 'mdf'];
+  if (property === 'color' || property === 'handle') return colors.find((color) => normalized.includes(color));
+  if (property === 'material') return materials.find((material) => normalized.includes(material));
   const dimension = normalized.match(/(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\b/);
   if (dimension) {
     const number = Number(dimension[1].replace(',', '.'));
@@ -115,7 +117,7 @@ export function parsePrecisionEdit(input: string, context: PrecisionParseContext
   const ordinal = detectOrdinal(input);
   const side = detectSide(input);
   const selectedObjectId = context.selectedObjectId;
-  const editVerb = /\b(?:mude|mudar|muda|troque|trocar|troca|coloque|colocar|aumente|aumentar|diminua|diminuir|reduza|reduzir|substitua|substituir)\b/.test(normalized);
+  const editVerb = /\b(?:mude|mudar|muda|troque|trocar|troca|coloque|colocar|aumente|aumentar|aumenta|diminua|diminuir|diminui|reduza|reduzir|substitua|substituir)\b/.test(normalized);
   if (!editVerb) return undefined;
   if (!(selectedObjectId || type !== 'unknown' || ordinal || side)) return undefined;
   const resolvedType = type !== 'unknown' ? type : context.selectedObjectType ?? 'unknown';
