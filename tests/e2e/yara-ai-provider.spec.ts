@@ -1,9 +1,7 @@
 import { test, expect } from './fixtures/authenticated';
 
 test.describe('YARA → AI → provider', () => {
-  test.skip(({ browserName }) => browserName !== 'chromium', 'The authenticated proof runs once in Chromium.');
-
-  test('uses a real Supabase session, provider and conversation context', async ({ authenticatedPage: page }) => {
+  test('uses a real Supabase session, provider and conversation context', { tag: '@yara' }, async ({ authenticatedPage: page }) {
     await page.getByRole('button', { name: 'Estúdio' }).click();
     const input = page.getByPlaceholder('Descreva seu móvel...');
     await expect(input).toBeVisible();
