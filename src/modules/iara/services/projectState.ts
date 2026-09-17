@@ -52,7 +52,11 @@ function toMillimeters(value: string, unit?: string): number {
 
 function findDimension(text: string, labels: string[]): number | undefined {
   const label = labels.join('|');
-  const labelFirst = text.match(new RegExp(`(?:${label})\\s*(?:(?:e|eh|sera|vai\\s+ser|fica|ficara|deve\\s+ser)\\s*)?(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
+  // Keep the original text here: normalizing removes the accent from "é" and
+  // would make the conjunction "e" indistinguishable from "é".
+  const labelFirst = text.match(
+    new RegExp(`(?:${label})\\s*(?:(?:é|eh|sera|vai\\s+ser|fica|ficara|deve\\s+ser)\\s*)?(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'),
+  );
   if (labelFirst) return toMillimeters(labelFirst[1], labelFirst[2]);
   const valueFirst = text.match(new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)\\s*(?:(?:de|do|da)\\s+)?(?:${label})\\b`, 'i'));
   return valueFirst ? toMillimeters(valueFirst[1], valueFirst[2]) : undefined;
@@ -89,8 +93,8 @@ function hasCreateIntent(text: string): boolean {
 }
 
 function componentFromSegment(segment: string, type: string, id: string): ProjectComponentState | null {
-  const dimensions = findNamedDimensions(normalize(segment));
-  const ordered = findDimensionsByOrder(normalize(segment));
+  const dimensions = findNamedDimensions(segment);
+  const ordered = findDimensionsByOrder(segment);
   const merged: Partial<Record<ProjectDimensionKey, number>> = {
     ...(dimensions.width !== undefined ? { width: dimensions.width } : {}),
     ...(dimensions.height !== undefined ? { height: dimensions.height } : {}),
@@ -121,7 +125,7 @@ function extractComponents(text: string): ProjectComponentState[] {
 
 export function extractProjectStatePatch(text: string): ProjectStatePatch {
   const normalized = normalize(text);
-  const named = findNamedDimensions(normalized);
+  const named = findNamedDimensions(text);
   const ordered = findDimensionsByOrder(normalized);
   const dimensions: Partial<Record<ProjectDimensionKey, number>> = {
     ...(ordered[0] !== undefined ? { width: ordered[0] } : {}),
