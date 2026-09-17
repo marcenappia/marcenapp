@@ -55,7 +55,7 @@ describe('IARA-Studio Architecture', () => {
     expect(call?.[1]).toBeUndefined();
     expect(call?.[2]).toBeUndefined();
     expect(call?.[3]).toBeUndefined();
-    expect(call?.[4]).toMatch(/^b81ddm/);
+    expect(call?.[4]).toBeUndefined();
   });
 
   it('rejects an IARA render whose generation is missing', async () => {
