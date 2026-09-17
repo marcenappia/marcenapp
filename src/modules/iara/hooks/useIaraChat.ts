@@ -167,34 +167,52 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       setProjectState(nextProjectState);
       const projectStateSummaryText = projectStateSummary(nextProjectState);
       const intentInput = { message: promptText, projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId, ...(uploadKind ? { uploadKind } : {}), ...(projectStateSummaryText ? { projectState: nextProjectState, projectStateSummary: projectStateSummaryText } : {}), ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
-      const userMetadata = { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(uploadKind ? { uploadKind } : {}), ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) };
+      const userMetadata: MessageMetadata = { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(uploadKind ? { uploadKind } : {}), ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) };
       await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: userMetadata }, execution);
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       await persistIaraContext(user.id, { ...(activeContext ?? {}), projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId } as IaraContext, correlationId).catch(() => undefined);
       const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
       const marcenaria = await loadMarcenariaContext(user.id);
-      const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, correlationId, execution: { userId: user.id, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, correlationId, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, clientId: activeContext?.clientId ?? undefined, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, currentProject: { id: context.projectId, largura: factors.L, altura: factors.A }, conversation, marcenaria, projectState: nextProjectState, projectStateSummary: projectStateSummaryText } });
-      if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
-      const lines = response.run.results.map(({ tool, result }) => { if (result.ok === false) return toolFailureMessage(tool, result.error); const data = result.data as Record<string, unknown>; switch (tool) { case 'createCliente': return `Cliente **${String(data.nome ?? 'sem nome')}** cadastrado.`; case 'createProjeto': { const width = Number(data.width); const height = Number(data.height); const depth = Number(data.depth); if (Number.isFinite(width) && Number.isFinite(height) && Number.isFinite(depth)) hooks?.onProjectCreated?.({ width, height, depth }); return `Projeto **${String(data.nome ?? 'Projeto')}** criado.`; } case 'gerarRender': return typeof data.imageUrl === 'string' && data.imageUrl ? 'O render foi gerado e está pronto.' : 'A solicitação de render foi recebida. Aviso quando estiver pronto.'; case 'calcularOrcamento': { const precoVenda = Number(data.precoVenda); const materiais = Number(data.materiais); const ferragens = Number(data.ferragens); const maoDeObra = Number(data.maoDeObra); const outros = Number(data.outros); const lucro = Number(data.lucro); const margemPct = Number(data.margemPct); return `Orçamento atualizado: **R$ ${precoVenda.toLocaleString('pt-BR')}**. Custos: R$ ${materiais.toLocaleString('pt-BR')} em materiais, R$ ${ferragens.toLocaleString('pt-BR')} em ferragens, R$ ${maoDeObra.toLocaleString('pt-BR')} de mão de obra e R$ ${outros.toLocaleString('pt-BR')} em outros custos. Lucro: R$ ${lucro.toLocaleString('pt-BR')} (${margemPct.toLocaleString('pt-BR')}%).`; } case 'gerarContrato': return `Documento preparado para **${String(data.cliente ?? 'cliente')}**.`; case 'operationalIntelligence': return 'Informações operacionais do projeto atualizadas.'; default: return 'Ação concluída.'; } });
-      const directRenderResult = response.run.results.find(({ tool, result }) => tool === 'gerarRender' && result.ok === true)?.result;
-      const directRenderImageUrl = directRenderResult && 'data' in directRenderResult && typeof (directRenderResult.data as Record<string, unknown>)?.imageUrl === 'string' ? String((directRenderResult.data as Record<string, unknown>)?.imageUrl) : null;
-      const artifact = response.artifacts[0];
-      const responseStatus: MessageMetadata['status'] = response.run.status === 'completed' ? 'ready' : response.run.status;
-      const metadata: MessageMetadata = { domain: response.domain, action: response.action, agent: response.domainAgent, correlationId: response.correlationId, clientId: activeContext?.clientId ?? undefined, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: responseStatus, ...(uploadKind ? { uploadKind } : {}), artifacts: response.artifacts, panel: response.panel, ...(artifact ? { artifact: { type: artifact.type, id: artifact.id } } : {}), ...(artifact ? { actions: [{ id: 'open', label: artifact.type === 'render' ? 'Abrir render' : 'Abrir artefato', kind: 'open-panel' }] } : {}), ...(directRenderImageUrl ? { resultUrl: directRenderImageUrl, imageUrl: directRenderImageUrl } : {}) };
-      const header = response.run.status === 'needs_input' ? 'Preciso confirmar uma informação antes de continuar.' : response.run.status === 'failed' ? 'Não foi possível concluir esta ação.' : directRenderImageUrl ? 'Pronto.' : response.action === 'render' ? 'Solicitação recebida.' : 'Pronto.';
-      const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?';
-      if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
-      await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, ...(directRenderImageUrl ? { image_url: directRenderImageUrl } : {}), metadata }, execution);
-      pendingExecutionsRef.current.delete(correlationId); lastFailedRef.current = null;
-    } catch (error: unknown) { lastFailedRef.current = { text: promptText, upload, smartAction }; if (execution) pendingExecutionsRef.current.delete(execution.correlationId); setError(humanizeError(error)); } finally { setIsTyping(false); }
+      const response = await runIaraConversation({ ...intentInput, userId: user.id, factors, decorStyle, baseImage: currentBaseRaw, maskImage: currentMaskRaw, correlationId, marcenaria, conversation });
+      if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) return;
+      if (response.error) throw new Error(response.error);
+      const toolFailure = response.results?.find(({ result }) => !result.ok);
+      if (toolFailure) {
+        const message = toolFailureMessage(toolFailure.tool, toolFailure.result.ok === false ? toolFailure.result.error : undefined);
+        throw new Error(message);
+      }
+      if (response.status === 'failed') throw new Error(response.error ?? 'A IARA não conseguiu concluir a solicitação.');
+      if (response.results?.some(({ tool }) => tool === 'gerarRender')) { setIsTyping(true); return; }
+      const assistantText = response.summary || 'Entendi. Vou seguir com o próximo passo.';
+      await saveMessage({ sender: 'iara', text: assistantText, metadata: { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'completed' } }, execution);
+      pendingExecutionsRef.current.delete(correlationId); setIsTyping(false); setPendingUpload(null); setMaskingImage(null);
+    } catch (e) {
+      const message = humanizeError(e); setError(message); if (execution) pendingExecutionsRef.current.delete(execution.correlationId); setIsTyping(false); lastFailedRef.current = { text: promptText, upload: upload ?? pendingUpload, smartAction };
+      try { await saveMessage({ sender: 'iara', text: message, metadata: { status: 'error', ...(execution ? { correlationId: execution.correlationId } : {}) } }, execution ?? undefined); } catch { /* keep the original user-facing error */ }
+    }
   };
 
-  const handleSend = async () => { if (!chatInput.trim() && !pendingUpload) return; if (!user) { setShowAuthDialog(true); return; } const promptText = chatInput.trim() || 'Analise a imagem anexada e me diga como podemos seguir.'; const upload = pendingUpload; setChatInput(''); setPendingUpload(null); await sendPrompt(promptText, upload); };
-  const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
-  const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
-  const dismissError = () => setError(null);
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, kind: UploadKind = 'environment') => { const file = e.target.files?.[0]; if (!file) return; e.target.value = ''; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => { if (kind === 'environment') { setMaskingImage({ src: result, img, kind }); return; } const baseRaw = result.split(',')[1] ?? ''; setPendingUpload({ base64: result, baseRaw, maskRaw: '', kind }); }; img.src = result; }; reader.readAsDataURL(file); };
-  useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`.trim()); recognitionRef.current = r; return () => { r.stop(); recognitionRef.current = null; }; }, []);
-  const toggleRecording = () => { if (!recognitionRef.current) { setError('Seu navegador não disponibilizou reconhecimento de voz. Você pode continuar pelo texto.'); return; } if (isListening) recognitionRef.current.stop(); else recognitionRef.current.start(); };
-  return { messages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, projectState, projectStateSummary: projectStateSummary(projectState) };
+  const retryLast = () => { if (!lastFailedRef.current) return; const retry = lastFailedRef.current; setError(null); void sendPrompt(retry.text, retry.upload, retry.smartAction); };
+  const handleSend = () => { const text = chatInput.trim(); if (!text || isTyping) return; setChatInput(''); void sendPrompt(text, pendingUpload ?? lastContext ? pendingUpload : null); };
+  const handleSuggestion = (text: string) => { if (isTyping) return; setChatInput(text); };
+  const handleSmartAction = (action: SmartAction) => { if (isTyping) return; setChatInput(action.prompt); void sendPrompt(action.prompt, pendingUpload ?? lastContext ? pendingUpload : null, action); };
+  const handleImageSelected = (file: File, kind: UploadKind = 'environment') => {
+    if (!user) { setShowAuthDialog(true); return; }
+    const reader = new FileReader();
+    reader.onload = () => { const src = String(reader.result ?? ''); const img = new Image(); img.onload = () => setMaskingImage({ src, img, kind }); img.src = src; };
+    reader.readAsDataURL(file);
+  };
+  const confirmMask = (baseRaw: string, maskRaw: string, base64: string, kind: UploadKind) => { setPendingUpload({ base64, baseRaw, maskRaw, kind }); setMaskingImage(null); };
+  const cancelMask = () => setMaskingImage(null);
+  const toggleListening = () => {
+    const browser = window as BrowserWithSpeechRecognition;
+    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
+    const Recognition = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
+    if (!Recognition) { setError('O reconhecimento de voz não está disponível neste navegador.'); return; }
+    const recognition = new Recognition(); recognition.lang = 'pt-BR'; recognition.onstart = () => setIsListening(true); recognition.onend = () => setIsListening(false); recognition.onresult = event => { const transcript = Array.from(event.results).map(result => result[0].transcript).join(' ').trim(); if (transcript) setChatInput(prev => `${prev}${prev ? ' ' : ''}${transcript}`); }; recognitionRef.current = recognition; recognition.start();
+  };
+  useEffect(() => () => { recognitionRef.current?.stop(); }, []);
+  const onSend = () => handleSend();
+  const send = (text: string) => void sendPrompt(text, pendingUpload ?? lastContext ? pendingUpload : null);
+  return { messages, chatInput, setChatInput, isTyping, isListening, toggleListening, onSend, send, handleSend, handleSuggestion, handleSmartAction, handleImageSelected, confirmMask, cancelMask, maskingImage, pendingUpload, setPendingUpload, error, setError, retryLast, loadOlderMessages, hasOlderMessages, isLoadingOlderMessages, projectState };
 };
