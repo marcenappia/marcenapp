@@ -32,23 +32,29 @@ jobs:
       id: remediate
       if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.install.outcome == 'success' }}
       run: |
-        set +e
-        npm audit fix --package-lock-only
-        fix_exit=$?
         set -e
-        if [ "$fix_exit" -ne 0 ]; then
-          echo "npm audit fix left vulnerabilities requiring a dependency-range change; continuing with targeted remediation."
-        fi
+        # Generate the remediation against the exact PR merge tree, then apply only
+        # the dependency-file diff onto the real PR branch so the fix is persisted.
+        npm audit fix --package-lock-only || true
         npm install react-router-dom@7.18.4 --save --package-lock-only
+
         if git diff --quiet -- package.json package-lock.json; then
           echo "No dependency manifest or lockfile changes were produced."
           exit 0
         fi
+
+        git diff -- package.json package-lock.json > /tmp/dependency-remediation.patch
+        git fetch origin "${{ github.event.pull_request.head.ref }}"
+        git checkout --detach "origin/${{ github.event.pull_request.head.ref }}"
+        git apply /tmp/dependency-remediation.patch
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add package.json package-lock.json
         git commit -m "fix(deps): remediate npm audit vulnerabilities"
         git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+
+        # Reinstall from the now-remediated lockfile before continuing validation.
+        npm ci
 
     - name: Dependency audit (high/critical block)
       id: audit
