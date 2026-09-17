@@ -19,7 +19,7 @@ describe('IARA-Studio Architecture', () => {
     const osId = useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: 'Test', studioCommandId: studioId, userId: 'u1', projectId: 'A', environmentId: 'E1', versionId: 'V1', correlationId: 'corr-test', generation: 1 } });
     return { studioId, osId };
   };
-  const renderWorker = () => render(<MemoryRouter><StudioWorker /></MemoryRouter>);
+  const renderWorker = () => render(<MemoryRouter initialEntries={['/?module=studio']}><StudioWorker /></MemoryRouter>);
 
   it('StudioWorker executes commands from the queue and syncs both stores', async () => {
     vi.mocked(studioService.generateVisual).mockResolvedValue('url1');
@@ -50,7 +50,7 @@ describe('IARA-Studio Architecture', () => {
     expect(osCmd?.status).toBe('completed');
     expect(osCmd?.result?.resultUrl).toBe('url-text-only');
     expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(studioService.generateVisual).mock.calls[0]?.[1]).toBeUndefined();
+    expect(studioService.generateVisual).toHaveBeenCalledWith('Test', undefined, undefined, undefined, undefined);
   });
 
   it('rejects an IARA render whose generation is missing', async () => {
