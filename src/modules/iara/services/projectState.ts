@@ -52,9 +52,9 @@ function toMillimeters(value: string, unit?: string): number {
 
 function findDimension(text: string, labels: string[]): number | undefined {
   const label = labels.join('|');
-  const labelFirst = text.match(new RegExp(`(?:${label})\\s*(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
+  const labelFirst = text.match(new RegExp(`(?:${label})\\s*(?:(?:e|é|eh|sera|será|vai\\s+ser|fica|ficara|ficará|deve\\s+ser)\\s*)?(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
   if (labelFirst) return toMillimeters(labelFirst[1], labelFirst[2]);
-  const valueFirst = text.match(new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)\\s*(?:de\\s+)?(?:${label})\\b`, 'i'));
+  const valueFirst = text.match(new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)\\s*(?:(?:de|do|da)\\s+)?(?:${label})\\b`, 'i'));
   return valueFirst ? toMillimeters(valueFirst[1], valueFirst[2]) : undefined;
 }
 
