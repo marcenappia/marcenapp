@@ -1,17 +1,53 @@
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { User, Session } from '@supabase/supabase-js';
 
-const PROFILE_FETCH_TIMEOUT_MS = 10000;
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+  profile: { name: string; company: string; phone: string; avatar_url: string; onboarding_completed: string[]; reduce_motion: boolean; onboarding_step: number; profession: string | null } | null;
+  profileLoading: boolean;
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+}
 
-export const useAuth = () => {
-  // Existing implementation intentionally retained; this patch only removes
-  // the unsupported PostgREST abortSignal call while keeping the timeout race.
-  const [user, setUser] = useState<Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user']>(null);
-  const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>(null);
+const AUTH_INIT_TIMEOUT_MS = 12_000;
+const PROFILE_FETCH_TIMEOUT_MS = 12_000;
+
+const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
+const isAbortError = (error: unknown) => error instanceof Error && error.name === 'AbortError';
+
+const AuthContext = createContext<AuthContextType>({
+  user: null, session: null, loading: true, profile: null, profileLoading: false,
+  signOut: async () => {}, refreshProfile: async () => {},
+});
+
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<AuthContextType['profile']>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const profileRequestRef = useRef<AbortController | null>(null);
+
+  const loading = authLoading || profileLoading;
 
   const fetchProfile = async (userId: string) => {
     profileRequestRef.current?.abort();
@@ -36,13 +72,21 @@ export const useAuth = () => {
       });
 
       const { data, error } = await Promise.race([profileRequest, timeout]);
-      if (error) throw error;
-      if (!controller.signal.aborted) setProfile(data);
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        console.error('Failed to hydrate profile:', error);
-        setProfile(null);
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        if (profileRequestRef.current === controller) setProfile(null);
+        return;
       }
+
+      if (profileRequestRef.current === controller) setProfile(data ?? null);
+    } catch (err) {
+      if (isAbortError(err)) {
+        console.error('Profile hydration was cancelled or timed out.');
+      } else {
+        console.error('Unexpected error fetching profile:', err);
+      }
+      if (profileRequestRef.current === controller) setProfile(null);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
       if (profileRequestRef.current === controller) {
@@ -52,24 +96,64 @@ export const useAuth = () => {
     }
   };
 
+  const refreshProfile = async () => {
+    if (user) await fetchProfile(user.id);
+  };
+
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      setAuthLoading(false);
-      if (currentSession?.user) void fetchProfile(currentSession.user.id);
+      const nextUser = nextSession?.user ?? null;
+      setSession(nextSession);
+      setUser(nextUser);
+      if (!nextUser) {
+        profileRequestRef.current?.abort();
+        setProfile(null);
+        setProfileLoading(false);
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      if (!mounted) return;
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      setAuthLoading(false);
-      if (currentSession?.user) void fetchProfile(currentSession.user.id);
-      else setProfile(null);
-    });
+    const initialize = async () => {
+      try {
+        const { data, error } = await withTimeout(
+          supabase.auth.getSession(),
+          AUTH_INIT_TIMEOUT_MS,
+          'Auth session initialization',
+        );
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error('Error restoring auth session:', error);
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setProfileLoading(false);
+        } else if (data.session?.user) {
+          setSession(data.session);
+          setUser(data.session.user);
+        } else {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setProfileLoading(false);
+        }
+      } catch (err) {
+        if (mounted) {
+          console.error('Auth initialization failed:', err);
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setProfileLoading(false);
+        }
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
+    };
+
+    void initialize();
 
     return () => {
       mounted = false;
@@ -78,9 +162,29 @@ export const useAuth = () => {
     };
   }, []);
 
-  const signOut = async () => { await supabase.auth.signOut(); };
-  const refreshProfile = async () => { if (user) await fetchProfile(user.id); };
-  const loading = authLoading || profileLoading;
+  useEffect(() => {
+    if (!user) {
+      profileRequestRef.current?.abort();
+      setProfile(null);
+      setProfileLoading(false);
+      return;
+    }
+    void fetchProfile(user.id);
+  }, [user]);
 
-  return { user, session, loading, profile, profileLoading, signOut, refreshProfile };
+  const signOut = async () => {
+    profileRequestRef.current?.abort();
+    const { error } = await supabase.auth.signOut();
+    if (error) console.error('Error signing out:', error);
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setProfileLoading(false);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, session, loading, profile, profileLoading, signOut, refreshProfile }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
