@@ -29,6 +29,18 @@ function clampConfidence(value: unknown): number | null {
   return Math.max(0, Math.min(1, n));
 }
 
+async function markPlanFailed(planId: string, projectId: string, error: unknown): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error || 'Falha na análise da planta.');
+  try {
+    await supabase.from('project_plans').update({
+      status: 'failed',
+      metadata: { origin: 'iara', error: message },
+    }).eq('id', planId).eq('project_id', projectId);
+  } catch {
+    // O erro original continua sendo retornado ao chamador.
+  }
+}
+
 async function recentVisualReferences(ctx: ExecutionContext, currentPlan: string) {
   if (!ctx.projectId) return [{ mimeType: 'image/png', data: currentPlan }];
   const { data } = await supabase.from('chat_messages').select('image_url,metadata,created_at').eq('user_id', ctx.userId).eq('project_id', ctx.projectId).not('image_url', 'is', null).order('created_at', { ascending: false }).limit(8);
@@ -76,7 +88,7 @@ export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; pla
   try {
     analysis = parseJson(await callAIText(analysisPrompt, references.map((reference) => ({ mimeType: reference.mimeType, data: reference.data })), true));
   } catch (error) {
-    await supabase.from('project_plans').update({ status: 'failed', metadata: { origin: 'iara', correlationId: ctx.correlationId ?? null, error: error instanceof Error ? error.message : 'erro' } }).eq('id', planId).eq('project_id', ctx.projectId);
+    await markPlanFailed(planId, ctx.projectId, error);
     return { ok: false as const, error: error instanceof Error ? error.message : 'Falha ao analisar a planta.' };
   }
 
@@ -84,16 +96,26 @@ export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; pla
   const modules = analysis.modules ?? [];
   const analysisId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const { error: analysisError } = await supabase.from('project_plan_analyses').insert({ id: analysisId, project_plan_id: planId, project_id: ctx.projectId, status: 'completed', provider: 'marcenapp-ai', model: 'configured-ai-text', result: { ...analysis, geometry, modules, sourceReferences: references.length }, completed_at: new Date().toISOString() });
-  if (analysisError) return { ok: false as const, error: analysisError.message };
+  if (analysisError) {
+    await markPlanFailed(planId, ctx.projectId, analysisError);
+    return { ok: false as const, error: analysisError.message };
+  }
 
   const environments = analysis.environments ?? [];
   if (environments.length) {
     const rows = environments.map((environment, index) => ({ id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`, project_plan_id: planId, analysis_id: analysisId, project_id: ctx.projectId!, name: String(environment.name || `Ambiente ${index + 1}`), type: environment.type ? String(environment.type) : null, position: Number.isFinite(Number(environment.position)) ? Number(environment.position) : index, confidence: clampConfidence(environment.confidence), status: 'suggested', metadata: { origin: 'iara', source: 'floor_plan_analysis', referenceCount: references.length } }));
     const { error } = await supabase.from('project_plan_environment_suggestions').insert(rows);
-    if (error) return { ok: false as const, error: error.message };
+    if (error) {
+      await markPlanFailed(planId, ctx.projectId, error);
+      return { ok: false as const, error: error.message };
+    }
   }
 
-  await supabase.from('project_plans').update({ status: 'analyzed', metadata: { origin: 'iara', correlationId: ctx.correlationId ?? null, analysisId, environmentCount: environments.length, moduleCount: modules.length, referenceCount: references.length, analysis, geometry, modules } }).eq('id', planId).eq('project_id', ctx.projectId);
+  const { error: planUpdateError } = await supabase.from('project_plans').update({ status: 'analyzed', metadata: { origin: 'iara', correlationId: ctx.correlationId ?? null, analysisId, environmentCount: environments.length, moduleCount: modules.length, referenceCount: references.length, analysis, geometry, modules } }).eq('id', planId).eq('project_id', ctx.projectId);
+  if (planUpdateError) {
+    await markPlanFailed(planId, ctx.projectId, planUpdateError);
+    return { ok: false as const, error: planUpdateError.message };
+  }
 
   const environmentSummary = JSON.stringify({ project: (project as { nome?: string | null; name?: string | null }).nome || (project as { name?: string | null }).name || 'Projeto', geometry, dimensions: analysis.dimensions ?? {}, walls: analysis.walls ?? [], openings: analysis.openings ?? [], environments, modules, notes: analysis.notes ?? [] });
   const idempotencyKey = ctx.correlationId || `${planId}-${Date.now()}`;
