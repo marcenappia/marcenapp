@@ -30,6 +30,12 @@ const RouteFallback = () => (
 
 const HomeRoute = () => {
   const { user, loading, profile, profileLoading } = useAuth();
+
+  // The root route is also the public landing page. It must not be blocked by
+  // auth/session restoration: a stalled mobile auth request must never turn
+  // the public site into an infinite spinner. Once auth resolves, an existing
+  // session naturally transitions to the authenticated workspace.
+  if (!user && loading) return <Landing />;
   if (loading || (user && profileLoading)) return <RouteFallback />;
   if (!user) return <Landing />;
   if (!profile || !PROFESSIONAL_PROFILE_VALUES.has(profile.profession ?? '')) return <ProfessionalProfileSelection />;
