@@ -25,6 +25,15 @@ export default tseslint.config(
   },
   {
     files: [
+      "supabase/functions/**/*.ts",
+      "tests/e2e/accessibility.spec.ts",
+    ],
+    rules: {
+      "no-empty": ["error", { allowEmptyCatch: true }],
+    },
+  },
+  {
+    files: [
       "src/modules/projetos/components/DiarioIntake.tsx",
       "src/integrations/supabase/runtime-types.ts",
     ],
