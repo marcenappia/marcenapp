@@ -15,6 +15,8 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
+type UploadKind = 'environment' | 'reference' | 'sketch' | 'plan';
+type PendingUpload = { base64: string; baseRaw: string; maskRaw: string; kind: UploadKind };
 const CHAT_PAGE_SIZE = 50;
 
 type ChatCursor = { createdAt: string; id: string };
@@ -40,9 +42,9 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement } | null>(null);
-  const [pendingUpload, setPendingUpload] = useState<{ base64: string; baseRaw: string; maskRaw: string } | null>(null);
-  const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string } | null>(null);
+  const [maskingImage, setMaskingImage] = useState<{ src: string; img: HTMLImageElement; kind: UploadKind } | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
+  const [lastContext, setLastContext] = useState<{ baseRaw: string; maskRaw: string; kind: UploadKind } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [projectState, setProjectState] = useState<ProjectState>({ intent: null, project: { dimensions: {} }, components: [], pending: [], selectedComponentId: null, sourceTurns: 0 });
   const lastFailedRef = useRef<{ text: string; upload: typeof pendingUpload; smartAction?: SmartAction } | null>(null);
@@ -147,8 +149,8 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const sendPrompt = async (promptText: string, upload: typeof pendingUpload, smartAction?: SmartAction) => {
     if (!user) return;
     setIsTyping(true); setError(null);
-    let currentBaseRaw: string | null = null; let currentMaskRaw: string | null = null; let previewImg: string | null = null;
-    if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw }); } else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; }
+    let currentBaseRaw: string | null = null; let currentMaskRaw: string | null = null; let previewImg: string | null = null; let uploadKind: UploadKind | null = null;
+    if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; uploadKind = upload.kind; setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw, kind: upload.kind }); } else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; uploadKind = lastContext.kind; }
     let execution: IaraExecutionIdentity | null = null;
     try {
       const correlationId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -158,8 +160,9 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       projectStateRef.current = nextProjectState;
       setProjectState(nextProjectState);
       const projectStateSummaryText = projectStateSummary(nextProjectState);
-      const intentInput = { message: promptText, projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId, ...(projectStateSummaryText ? { projectState: nextProjectState, projectStateSummary: projectStateSummaryText } : {}), ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
-      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' }, correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) } : { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) } }, execution);
+      const intentInput = { message: promptText, projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId, ...(uploadKind ? { uploadKind } : {}), ...(projectStateSummaryText ? { projectState: nextProjectState, projectStateSummary: projectStateSummaryText } : {}), ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
+      const userMetadata = { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(uploadKind ? { uploadKind } : {}), ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) };
+      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: userMetadata }, execution);
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       await persistIaraContext(user.id, { ...(activeContext ?? {}), projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId } as IaraContext, correlationId).catch(() => undefined);
       const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
@@ -170,7 +173,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       const directRenderResult = response.run.results.find(({ tool, result }) => tool === 'gerarRender' && result.ok === true)?.result;
       const directRenderImageUrl = directRenderResult && 'data' in directRenderResult && typeof (directRenderResult.data as Record<string, unknown>)?.imageUrl === 'string' ? String((directRenderResult.data as Record<string, unknown>)?.imageUrl) : null;
       const artifact = response.artifacts[0];
-      const metadata: MessageMetadata = { domain: response.domain, action: response.action, agent: response.domainAgent, correlationId: response.correlationId, clientId: activeContext?.clientId ?? undefined, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: response.run.status === 'completed' ? 'ready' : response.run.status, artifacts: response.artifacts, panel: response.panel, ...(artifact ? { artifact: { type: artifact.type, id: artifact.id } } : {}), ...(artifact ? { actions: [{ id: 'open', label: artifact.type === 'render' ? 'Abrir render' : 'Abrir artefato', kind: 'open-panel' }] } : {}), ...(directRenderImageUrl ? { resultUrl: directRenderImageUrl, imageUrl: directRenderImageUrl } : {}) };
+      const metadata: MessageMetadata = { domain: response.domain, action: response.action, agent: response.domainAgent, correlationId: response.correlationId, clientId: activeContext?.clientId ?? undefined, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: response.run.status === 'completed' ? 'ready' : response.run.status, ...(uploadKind ? { uploadKind } : {}), artifacts: response.artifacts, panel: response.panel, ...(artifact ? { artifact: { type: artifact.type, id: artifact.id } } : {}), ...(artifact ? { actions: [{ id: 'open', label: artifact.type === 'render' ? 'Abrir render' : 'Abrir artefato', kind: 'open-panel' }] } : {}), ...(directRenderImageUrl ? { resultUrl: directRenderImageUrl, imageUrl: directRenderImageUrl } : {}) };
       const header = response.run.status === 'needs_input' ? 'Preciso confirmar uma informação antes de continuar.' : response.run.status === 'failed' ? 'Não foi possível concluir esta ação.' : directRenderImageUrl ? 'Pronto.' : response.action === 'render' ? 'Solicitação recebida.' : 'Pronto.';
       const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?';
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
@@ -183,7 +186,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
   const dismissError = () => setError(null);
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, kind: 'environment' | 'reference' | 'sketch' | 'plan' = 'environment') => { const file = e.target.files?.[0]; if (!file) return; e.target.value = ''; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => setMaskingImage({ src: result, img }); img.src = result; }; reader.readAsDataURL(file); };
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, kind: UploadKind = 'environment') => { const file = e.target.files?.[0]; if (!file) return; e.target.value = ''; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => { if (kind === 'environment') { setMaskingImage({ src: result, img, kind }); return; } const baseRaw = result.split(',')[1] ?? ''; setPendingUpload({ base64: result, baseRaw, maskRaw: '', kind }); }; img.src = result; }; reader.readAsDataURL(file); };
   useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`.trim()); recognitionRef.current = r; return () => { r.stop(); recognitionRef.current = null; }; }, []);
   const toggleRecording = () => { if (!recognitionRef.current) { setError('Seu navegador não disponibilizou reconhecimento de voz. Você pode continuar pelo texto.'); return; } if (isListening) recognitionRef.current.stop(); else recognitionRef.current.start(); };
   return { messages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, projectState, projectStateSummary: projectStateSummary(projectState) };
