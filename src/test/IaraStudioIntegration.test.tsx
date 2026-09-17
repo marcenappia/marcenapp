@@ -50,7 +50,12 @@ describe('IARA-Studio Architecture', () => {
     expect(osCmd?.status).toBe('completed');
     expect(osCmd?.result?.resultUrl).toBe('url-text-only');
     expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
-    expect(studioService.generateVisual).toHaveBeenCalledWith('Test', undefined, undefined, undefined, undefined);
+    const call = vi.mocked(studioService.generateVisual).mock.calls[0];
+    expect(call?.[0]).toBe('Test');
+    expect(call?.[1]).toBeUndefined();
+    expect(call?.[2]).toBeUndefined();
+    expect(call?.[3]).toBeUndefined();
+    expect(call?.[4]).toMatch(/^b81ddm/);
   });
 
   it('rejects an IARA render whose generation is missing', async () => {
