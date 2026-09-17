@@ -117,7 +117,7 @@ export function parsePrecisionEdit(input: string, context: PrecisionParseContext
   const selectedObjectId = context.selectedObjectId;
   const editVerb = /\b(?:mude|mudar|muda|troque|trocar|troca|coloque|colocar|aumente|aumentar|diminua|diminuir|reduza|reduzir|substitua|substituir)\b/.test(normalized);
   if (!editVerb) return undefined;
-  if (!Boolean(selectedObjectId || type !== 'unknown' || ordinal || side)) return undefined;
+  if (!(selectedObjectId || type !== 'unknown' || ordinal || side)) return undefined;
   const resolvedType = type !== 'unknown' ? type : context.selectedObjectType ?? 'unknown';
   const property = detectProperty(input, resolvedType);
   const value = detectValue(input, property);
