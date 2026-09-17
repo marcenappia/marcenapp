@@ -1,5 +1,5 @@
 name: Playwright Tests
-# Full validation gate for the release branch; never deploys or merges.
+# Full validation gate for the release branch; never deploys, merges, or mutates PR branches.
 on:
   push:
     branches: [ main, master ]
@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: marcenapp-validation-${{ github.workflow }}-${{ github.ref }}
@@ -28,42 +28,9 @@ jobs:
       id: install
       run: npm ci
 
-    - name: Remediate dependency vulnerabilities
-      id: remediate
-      if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.install.outcome == 'success' }}
-      run: |
-        set -e
-        # Generate the remediation against the exact PR merge tree.
-        npm audit fix --package-lock-only || true
-        npm install react-router-dom@7.18.4 --save --package-lock-only
-
-        if git diff --quiet -- package.json package-lock.json; then
-          echo "No dependency manifest or lockfile changes were produced."
-          exit 0
-        fi
-
-        # Preserve the generated dependency files outside the working tree, then
-        # reset completely to the real PR branch before applying them. A checkout
-        # alone does not discard modifications to tracked files.
-        cp package.json /tmp/remediated-package.json
-        cp package-lock.json /tmp/remediated-package-lock.json
-        git fetch origin "${{ github.event.pull_request.head.ref }}"
-        git reset --hard "origin/${{ github.event.pull_request.head.ref }}"
-        cp /tmp/remediated-package.json package.json
-        cp /tmp/remediated-package-lock.json package-lock.json
-
-        git config user.name "github-actions[bot]"
-        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add package.json package-lock.json
-        git commit -m "fix(deps): remediate npm audit vulnerabilities"
-        git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
-
-        # Reinstall from the now-remediated lockfile before continuing validation.
-        npm ci
-
     - name: Dependency audit (high/critical block)
       id: audit
-      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       run: |
         set +e
         npm audit --audit-level=high --json > npm-audit.json
@@ -80,44 +47,44 @@ jobs:
         }
         NODE
         if [ "$audit_exit" -ne 0 ]; then
-          echo "High/critical dependency vulnerabilities detected."
+          echo "High/critical dependency vulnerabilities detected. Remediate through a reviewed dependency change, not from CI."
           exit "$audit_exit"
         fi
 
     - name: Lint
       id: lint
-      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       run: npm run lint
 
     - name: Typecheck
       id: typecheck
-      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       run: npx tsc -p tsconfig.app.json --noEmit
 
     - name: Unit tests
       id: unit
-      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       run: npm run test
 
     - name: Production build
       id: build
-      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       run: npm run build
 
     - name: Cache Playwright browsers
-      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       uses: actions/cache@v4
       with:
         path: ~/.cache/ms-playwright
         key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
 
     - name: Install Playwright Browsers
-      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       run: npx playwright install --with-deps
 
     - name: Run Playwright tests
       id: playwright
-      if: ${{ steps.install.outcome == 'success' && steps.remediate.outcome == 'success' }}
+      if: ${{ steps.install.outcome == 'success' }}
       env:
         E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
         E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
