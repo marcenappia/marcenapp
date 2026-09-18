@@ -55,7 +55,9 @@ Deno.serve(async (req) => {
     if (body?.action === "create") {
       const runId = String(claims.run_id ?? crypto.randomUUID());
       const email = "e2e+" + runId + "@marcenapp.invalid";
-      const password = crypto.randomUUID() + "A!9z_" + crypto.randomUUID();
+      // Supabase/Auth password storage is capped at 72 characters.
+      // Two UUIDs are unnecessary here; this remains high-entropy while staying within the limit.
+      const password = crypto.randomUUID() + "A!9z_";
 
       const { data: created, error: createError } =
         await admin.auth.admin.createUser({
