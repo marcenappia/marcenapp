@@ -137,6 +137,14 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
     const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan.length ? deterministicRenderPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan;
 
+    if (iara?.action === 'create_project' && !iara.createProjectArgs && !deterministicProjectPlan.length) {
+      const error = 'Para criar o projeto, preciso do nome do projeto e das medidas: largura × altura × profundidade. Exemplo: "Criar cozinha 2400 × 2200 × 600 mm".';
+      const needsInputResult: ToolResult = { ok: false, error };
+      const needsInputResults: Array<{ tool: string; result: ToolResult }> = [{ tool: 'createProjeto', result: needsInputResult }];
+      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: needsInputResults as unknown as Json, used_fallback: false, status: 'needs_input', error }).eq('id', runId);
+      return { runId, plan: [], summary: error, results: needsInputResults, usedFallback: false, provider, error, status: 'needs_input' };
+    }
+
     const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(userPrompt, context);
     plan = result.plan;
     summary = result.summary;
