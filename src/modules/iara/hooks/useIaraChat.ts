@@ -168,7 +168,21 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       const projectStateSummaryText = projectStateSummary(nextProjectState);
       const intentInput = { message: promptText, projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId, ...(uploadKind ? { uploadKind } : {}), ...(projectStateSummaryText ? { projectState: nextProjectState, projectStateSummary: projectStateSummaryText } : {}), ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
       const userMetadata: MessageMetadata = { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(uploadKind ? { uploadKind } : {}), ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) };
-      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: userMetadata }, execution);
+      const userMessage: ChatMessage = {
+        id: globalThis.crypto?.randomUUID?.() ?? `local-user-${Date.now()}`,
+        user_id: user.id,
+        project_id: context.projectId,
+        environment_id: context.environmentId,
+        version_id: context.versionId,
+        sender: 'user',
+        text: promptText,
+        image_url: previewImg,
+        budget: null,
+        created_at: new Date().toISOString(),
+        metadata: userMetadata,
+      };
+      await saveMessage(userMessage, execution);
+      setMessages(prev => prev.some(message => message.id === userMessage.id) ? prev : [...prev, userMessage]);
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       await persistIaraContext(user.id, { ...(activeContext ?? {}), projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId } as IaraContext, correlationId).catch(() => undefined);
       const conversation = [...messages, { sender: 'user', text: promptText }].filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim() }));
@@ -184,7 +198,21 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       const header = response.run.status === 'needs_input' ? 'Preciso confirmar uma informação antes de continuar.' : response.run.status === 'failed' ? 'Não foi possível concluir esta ação.' : directRenderImageUrl ? 'Pronto.' : response.action === 'render' ? 'Solicitação recebida.' : 'Pronto.';
       const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?';
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
-      await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, ...(directRenderImageUrl ? { image_url: directRenderImageUrl } : {}), metadata }, execution);
+      const iaraMessage: ChatMessage = {
+        id: globalThis.crypto?.randomUUID?.() ?? `local-iara-${Date.now()}`,
+        user_id: user.id,
+        project_id: context.projectId,
+        environment_id: context.environmentId,
+        version_id: context.versionId,
+        sender: 'iara',
+        text: `${header}\n\n${body}`,
+        image_url: directRenderImageUrl,
+        budget: null,
+        created_at: new Date().toISOString(),
+        metadata,
+      };
+      await saveMessage(iaraMessage, execution);
+      setMessages(prev => prev.some(message => message.id === iaraMessage.id) ? prev : [...prev, iaraMessage]);
       pendingExecutionsRef.current.delete(correlationId); lastFailedRef.current = null;
     } catch (error: unknown) { lastFailedRef.current = { text: promptText, upload, smartAction }; if (execution) pendingExecutionsRef.current.delete(execution.correlationId); setError(humanizeError(error)); } finally { setIsTyping(false); }
   };
