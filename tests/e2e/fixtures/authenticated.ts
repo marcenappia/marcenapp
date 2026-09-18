@@ -106,7 +106,7 @@ export const test = base.extend<AuthenticatedFixtures, TestFixtures>({
 
     const page = await context.newPage();
     await page.goto('/');
-    await expect(page).toHaveURL(/\\/$/);
+    await expect(page).toHaveURL(/\/$/);
 
     try {
       await fixtureUse(page);
