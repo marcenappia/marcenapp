@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { emptyIaraContext, loadIaraContext, persistIaraContext, type IaraContext } from '@/modules/iara/services/iaraContext';
 
-interface StudioHubProps { setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>; navigateTo: (id: string) => void; gallery: string[]; setGallery: React.Dispatch<React.SetStateAction<string[]>>; budgetProject: ProjectData; projectId?: string | null; }
+interface StudioHubProps { setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>; navigateTo: (id: string, params?: Record<string, string>) => void; gallery: string[]; setGallery: React.Dispatch<React.SetStateAction<string[]>>; budgetProject: ProjectData; projectId?: string | null; }
 type EnvironmentOption = { id: string; name: string; position: number };
 type VersionOption = { id: string; version_number: number; environment_id: string };
 type ProjectOption = { id: string; nome: string };
