@@ -150,7 +150,18 @@ async function callLovable(prompt: string, images?: Array<{ mimeType: string; da
     throw new Error(`provider_http:${status}`);
   }
   const data = await response.json();
-  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
+  const message = data.choices?.[0]?.message ?? {};
+  const imageCandidates = [
+    message.images?.[0]?.image_url?.url,
+    message.images?.[0]?.url,
+    ...(Array.isArray(message.content)
+      ? message.content.map((part: Record<string, unknown>) => {
+          const imageUrl = part.image_url;
+          return typeof imageUrl === "string" ? imageUrl : (imageUrl as Record<string, unknown> | undefined)?.url;
+        })
+      : []),
+  ];
+  const imageUrl = imageCandidates.find((value): value is string => typeof value === "string" && value.startsWith("data:image/")) ?? null;
   if (!imageUrl) throw new Error("empty_image_result");
   return { imageUrl, model: data.model ?? LOVABLE_IMAGE_MODEL };
 }
