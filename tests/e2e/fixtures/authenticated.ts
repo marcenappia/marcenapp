@@ -85,7 +85,7 @@ async function cleanupSession(userId: string): Promise<void> {
 }
 
 export const test = base.extend<AuthenticatedFixtures, TestFixtures>({
-  e2eSession: async ({}, fixtureUse) => {
+  e2eSession: async (_fixtures, fixtureUse) => {
     const bootstrap = await bootstrapSession();
     try {
       await fixtureUse(bootstrap);
