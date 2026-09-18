@@ -69,4 +69,32 @@ test.describe('YARA → AI → provider', () => {
     expect(secondSummary).toMatch(/cozinha|planejad/i);
     await expect(page.getByText(secondSummary, { exact: false })).toBeVisible();
   });
+
+  test('executes a real IARA photorealistic render and surfaces the generated image @yara @render', async ({ authenticatedPage: page }) => {
+    await page.locator('#nav-studio').click();
+    const input = page.getByRole('textbox', { name: 'Mensagem para a IARA' });
+    await expect(input).toBeVisible();
+
+    const requestPromise = page.waitForRequest((request) =>
+      request.method() === 'POST' && request.url().includes('/functions/v1/ai-orchestrator'),
+    );
+    const responsePromise = page.waitForResponse((response) =>
+      response.request().method() === 'POST' && response.url().includes('/functions/v1/ai-orchestrator'),
+    );
+
+    const prompt = 'Gere um render fotorrealista de uma cozinha planejada contemporânea, com marcenaria sob medida, iluminação natural e acabamento realista.';
+    await input.fill(prompt);
+    await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+
+    const request = await requestPromise;
+    expect(request.headers().authorization).toMatch(/^Bearer\s+\S+$/);
+
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+
+    await expect(page.getByText(/render/i).last()).toBeVisible({ timeout: 15_000 });
+    const generatedImage = page.locator('img[src^="data:image/"]');
+    await expect(generatedImage.first()).toBeVisible({ timeout: 120_000 });
+  });
+
 });
