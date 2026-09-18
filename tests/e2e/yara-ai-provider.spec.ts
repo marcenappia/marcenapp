@@ -42,8 +42,7 @@ test.describe('YARA → AI → provider', () => {
       expect(body).not.toHaveProperty('token');
 
       await expect(page.getByText(prompt, { exact: true })).toBeVisible();
-      await expect(page.locator('main').getByText(/./).last()).toBeVisible();
-
+      expect((body.summary ?? '').trim().length).toBeGreaterThan(0);
       return { request, body };
     };
 
@@ -73,10 +72,10 @@ test.describe('YARA → AI → provider', () => {
     await expect(input).toBeVisible();
 
     const requestPromise = page.waitForRequest((request) =>
-      request.method() === 'POST' && request.url().includes('/functions/v1/ai-orchestrator'),
+      request.method() === 'POST' && request.url().includes('/functions/v1/ai-image'),
     );
     const responsePromise = page.waitForResponse((response) =>
-      response.request().method() === 'POST' && response.url().includes('/functions/v1/ai-orchestrator'),
+      response.request().method() === 'POST' && response.url().includes('/functions/v1/ai-image'),
     );
 
     const prompt = 'Gere um render fotorrealista de uma cozinha planejada contemporânea, com marcenaria sob medida, iluminação natural e acabamento realista.';
@@ -88,6 +87,10 @@ test.describe('YARA → AI → provider', () => {
 
     const response = await responsePromise;
     expect(response.status()).toBe(200);
+    const body = await response.json() as { imageUrl?: string; provider?: string; model?: string; operationType?: string };
+    expect(body.operationType).toBe('gerarRender');
+    expect(body.imageUrl).toMatch(/^data:image\//);
+    expect(body.provider).toMatch(/^(lovable|gemini)$/);
 
     const generatedImage = page.locator('img[src^="data:image/"]');
     await expect(generatedImage.first()).toBeVisible({ timeout: 120_000 });
