@@ -64,13 +64,15 @@ Deno.serve(async (req) => {
           email_confirm: true,
           user_metadata: { e2e: true, github_run_id: runId },
         });
-      if (createError || !created.user) return json({ error: "Unable to create E2E user" }, 500);
+      if (createError || !created.user) {
+        return json({ error: createError?.message ?? "Unable to create E2E user" }, 500);
+      }
 
       const { data: signedIn, error: signInError } =
         await publicClient.auth.signInWithPassword({ email, password });
       if (signInError || !signedIn.session) {
         await admin.auth.admin.deleteUser(created.user.id);
-        return json({ error: "Unable to create E2E session" }, 500);
+        return json({ error: signInError?.message ?? "Unable to create E2E session" }, 500);
       }
 
       return json({
@@ -90,7 +92,7 @@ Deno.serve(async (req) => {
       const userId = typeof body?.user_id === "string" ? body.user_id : "";
       if (!userId) return json({ error: "Missing user_id" }, 400);
       const { error } = await admin.auth.admin.deleteUser(userId);
-      if (error) return json({ error: "Unable to delete E2E user" }, 500);
+      if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
     }
 
