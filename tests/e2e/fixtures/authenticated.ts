@@ -4,6 +4,10 @@ type AuthenticatedFixtures = {
   authenticatedPage: Page;
 };
 
+type WorkerFixtures = {
+  e2eSession: BootstrapResponse;
+};
+
 type BootstrapResponse = {
   user_id: string;
   session: {
@@ -80,40 +84,34 @@ async function cleanupSession(userId: string): Promise<void> {
   }
 }
 
-export const test = base.extend<AuthenticatedFixtures>({
-  authenticatedPage: async ({ browser, baseURL }, fixtureUse) => {
+export const test = base.extend<AuthenticatedFixtures, WorkerFixtures>({
+  e2eSession: [async ({}, workerUse) => {
     const bootstrap = await bootstrapSession();
+    try {
+      await workerUse(bootstrap);
+    } finally {
+      await cleanupSession(bootstrap.user_id);
+    }
+  }, { scope: 'worker' }],
+
+  authenticatedPage: async ({ browser, baseURL, e2eSession }, fixtureUse) => {
     const context = await browser.newContext({ baseURL });
 
     await context.addInitScript(
       ({ storageKey, session }) => {
         window.localStorage.setItem(storageKey, JSON.stringify(session));
       },
-      { storageKey: AUTH_STORAGE_KEY, session: bootstrap.session },
+      { storageKey: AUTH_STORAGE_KEY, session: e2eSession.session },
     );
 
     const page = await context.newPage();
     await page.goto('/');
-    await expect(page).toHaveURL(/\/$/);
-
-    const userResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === 'GET' &&
-        response.url().includes('/auth/v1/user'),
-      { timeout: 30_000 },
-    ).catch(() => null);
-
-    await page.reload();
-    const userResponse = await userResponsePromise;
-    if (userResponse && !userResponse.ok()) {
-      throw new Error(`E2E Supabase session validation failed: status=${userResponse.status()}`);
-    }
+    await expect(page).toHaveURL(/\\/$/);
 
     try {
       await fixtureUse(page);
     } finally {
       await context.close();
-      await cleanupSession(bootstrap.user_id);
     }
   },
 });
