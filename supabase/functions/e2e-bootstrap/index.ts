@@ -81,6 +81,18 @@ Deno.serve(async (req) => {
         return json({ error: profileError.message }, 500);
       }
 
+      // Provision only the ephemeral CI user so the E2E render exercises the
+      // real billing authorization path without weakening production billing.
+      const { error: creditError } = await admin.rpc("grant_billing_credits", {
+        p_user_id: created.user.id,
+        p_credit_type: "image",
+        p_credits: 10,
+      });
+      if (creditError) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        return json({ error: creditError.message }, 500);
+      }
+
       const { data: signedIn, error: signInError } =
         await publicClient.auth.signInWithPassword({ email, password });
       if (signInError || !signedIn.session) {
