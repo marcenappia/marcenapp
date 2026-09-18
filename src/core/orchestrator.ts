@@ -130,7 +130,12 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(userPrompt, context);
-    const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : fastCreateProjectPlan;
+    const directCreateProjectArgs = iara?.action === 'create_project' ? parseCreateProjectInput({ ...context, message: userPrompt }, userPrompt) : undefined;
+    const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs
+      ? [{ tool: 'createProjeto', args: iara.createProjectArgs }]
+      : directCreateProjectArgs
+        ? [{ tool: 'createProjeto', args: directCreateProjectArgs }]
+        : fastCreateProjectPlan;
     const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: userPrompt, estilo: ctx.decorStyle } }] : [];
     const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: userPrompt } }] : [];
     const deterministicEnvironmentPlan: ToolCall[] = iara?.action === 'analyze_environment' ? [{ tool: 'iara.analyze_environment', args: {} }] : [];
