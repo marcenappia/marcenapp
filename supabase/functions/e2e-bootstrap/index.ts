@@ -54,9 +54,11 @@ Deno.serve(async (req) => {
 
     if (body?.action === "create") {
       const runId = String(claims.run_id ?? crypto.randomUUID());
-      const email = "e2e+" + runId + "@marcenapp.invalid";
+      // A single workflow run fans out across browsers and retries, so run_id alone
+      // is not unique. Keep each ephemeral Auth user isolated per bootstrap attempt.
+      const attemptId = crypto.randomUUID();
+      const email = `e2e+${runId}-${attemptId}@marcenapp.invalid`;
       // Supabase/Auth password storage is capped at 72 characters.
-      // Two UUIDs are unnecessary here; this remains high-entropy while staying within the limit.
       const password = crypto.randomUUID() + "A!9z_";
 
       const { data: created, error: createError } =
@@ -64,7 +66,7 @@ Deno.serve(async (req) => {
           email,
           password,
           email_confirm: true,
-          user_metadata: { e2e: true, github_run_id: runId },
+          user_metadata: { e2e: true, github_run_id: runId, github_attempt_id: attemptId },
         });
       if (createError || !created.user) {
         return json({ error: createError?.message ?? "Unable to create E2E user" }, 500);
