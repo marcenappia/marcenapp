@@ -18,7 +18,7 @@ test.describe('Marcenapp authenticated core', () => {
 
   test('professional navigation reaches IARA and client area', async ({ authenticatedPage: page }) => {
     await page.goto('/?module=studio');
-    await expect(page.getByRole('heading', { name: /^IARA\b/i })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'IARA — trabalho no contexto' }).getByRole('heading', { name: 'IARA' })).toBeVisible();
 
     await page.goto('/?module=clientes');
     await expect(page.locator('main')).toBeVisible();
