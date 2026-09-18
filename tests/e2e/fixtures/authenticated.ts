@@ -4,7 +4,7 @@ type AuthenticatedFixtures = {
   authenticatedPage: Page;
 };
 
-type WorkerFixtures = {
+type TestFixtures = {
   e2eSession: BootstrapResponse;
 };
 
@@ -84,16 +84,15 @@ async function cleanupSession(userId: string): Promise<void> {
   }
 }
 
-export const test = base.extend<AuthenticatedFixtures, WorkerFixtures>({
-  e2eSession: [async ({ browser }, workerUse) => {
-    void browser;
+export const test = base.extend<AuthenticatedFixtures, TestFixtures>({
+  e2eSession: async ({}, use) => {
     const bootstrap = await bootstrapSession();
     try {
-      await workerUse(bootstrap);
+      await use(bootstrap);
     } finally {
       await cleanupSession(bootstrap.user_id);
     }
-  }, { scope: 'worker' }],
+  },
 
   authenticatedPage: async ({ browser, baseURL, e2eSession }, fixtureUse) => {
     const context = await browser.newContext({ baseURL });
@@ -107,7 +106,7 @@ export const test = base.extend<AuthenticatedFixtures, WorkerFixtures>({
 
     const page = await context.newPage();
     await page.goto('/');
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\\/$/);
 
     try {
       await fixtureUse(page);
