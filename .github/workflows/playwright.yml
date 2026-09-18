@@ -17,6 +17,9 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
     - uses: actions/checkout@v5
     - uses: actions/setup-node@v5
@@ -85,7 +88,4 @@ jobs:
     - name: Run Playwright tests
       id: playwright
       if: ${{ steps.install.outcome == 'success' }}
-      env:
-        E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
-        E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
       run: npx playwright test
