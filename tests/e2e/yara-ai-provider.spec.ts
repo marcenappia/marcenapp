@@ -4,7 +4,7 @@ test.describe('YARA → AI → provider', () => {
   test('uses a real Supabase session, provider and conversation context @yara', async ({ authenticatedPage }) => {
     const page = authenticatedPage;
     await page.locator('#nav-studio').click();
-    const input = page.getByPlaceholder('Descreva seu móvel...');
+    const input = page.getByRole('textbox', { name: 'Mensagem para a IARA' });
     await expect(input).toBeVisible();
 
     const sendRealPrompt = async (prompt: string) => {
