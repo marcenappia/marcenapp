@@ -14,6 +14,7 @@ const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const GEMINI_IMAGE_MODEL = Deno.env.get("GEMINI_IMAGE_MODEL") ?? "gemini-3-pro-image";
 const GEMINI_IMAGE_SIZE = Deno.env.get("GEMINI_IMAGE_SIZE") ?? "2K";
 const TEST_ACCOUNT_EMAIL = "marcenapp.ia@gmail.com";
+const PROVIDER_TIMEOUT_MS = 90_000;
 const E2E_TEST_MODE = Deno.env.get("E2E_TEST_MODE") === "true";
 type Provider = "lovable" | "gemini";
 
@@ -134,12 +135,44 @@ async function resolveProvider(userId: string): Promise<{ primary: Provider; fal
   return { primary: lovableAvailable ? "lovable" : "gemini", fallback: lovableAvailable && geminiAvailable ? "gemini" : null };
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = PROVIDER_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("provider_timeout");
+    throw new Error("provider_connection_error");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function findDataImage(value: unknown): string | null {
+  if (typeof value === "string") return value.startsWith("data:image/") ? value : null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findDataImage(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["url", "image_url", "imageUrl", "text", "content"]) {
+      const found = findDataImage(record[key]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 async function callLovable(prompt: string, images?: Array<{ mimeType: string; data: string }>) {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("provider_not_configured:lovable");
   const content: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
   for (const image of images ?? []) content.push({ type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } });
-  const response = await fetch(LOVABLE_GATEWAY_URL, {
+  const response = await fetchWithTimeout(LOVABLE_GATEWAY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "Lovable-API-Key": key },
     body: JSON.stringify({ model: LOVABLE_IMAGE_MODEL, messages: [{ role: "user", content }], modalities: ["image", "text"] }),
@@ -151,17 +184,7 @@ async function callLovable(prompt: string, images?: Array<{ mimeType: string; da
   }
   const data = await response.json();
   const message = data.choices?.[0]?.message ?? {};
-  const imageCandidates = [
-    message.images?.[0]?.image_url?.url,
-    message.images?.[0]?.url,
-    ...(Array.isArray(message.content)
-      ? message.content.map((part: Record<string, unknown>) => {
-          const imageUrl = part.image_url;
-          return typeof imageUrl === "string" ? imageUrl : (imageUrl as Record<string, unknown> | undefined)?.url;
-        })
-      : []),
-  ];
-  const imageUrl = imageCandidates.find((value): value is string => typeof value === "string" && value.startsWith("data:image/")) ?? null;
+  const imageUrl = findDataImage(message.images) ?? findDataImage(message.content);
   if (!imageUrl) throw new Error("empty_image_result");
   return { imageUrl, model: data.model ?? LOVABLE_IMAGE_MODEL };
 }
@@ -171,7 +194,7 @@ async function callGemini(prompt: string, images?: Array<{ mimeType: string; dat
   if (!key) throw new Error("provider_not_configured:gemini");
   const parts: Array<Record<string, unknown>> = [{ text: prompt }];
   for (const image of images ?? []) parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${GEMINI_IMAGE_MODEL}:generateContent`, {
+  const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1/models/${GEMINI_IMAGE_MODEL}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["TEXT", "IMAGE"], responseFormat: { image: { imageSize: GEMINI_IMAGE_SIZE } } } }),
@@ -285,6 +308,8 @@ serve(async (req: Request) => {
       if (message.startsWith("provider_not_configured")) return json(headers, { message: "Nenhum provedor de IA de imagem está configurado. Ative Lovable AI ou configure o Google Gemini.", code: "provider_not_configured" }, 500);
       if (message.includes("provider_http:402")) return json(headers, { message: "Os créditos do provedor de IA estão esgotados.", code: "provider_credits_exhausted" }, 402);
       if (message.includes("provider_http:429")) return json(headers, { message: "O limite do provedor de IA foi atingido. Tente novamente em instantes.", code: "rate_limited" }, 429);
+      if (message === "provider_timeout") return json(headers, { message: "O provedor de imagens demorou além do limite esperado.", code: "provider_timeout" }, 504);
+      if (message === "provider_connection_error") return json(headers, { message: "Não foi possível comunicar com o provedor de imagens.", code: "provider_connection_error" }, 502);
       return json(headers, { message: "O provedor de imagens está indisponível no momento.", code: "upstream_error" }, 502);
     }
 
