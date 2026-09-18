@@ -4,54 +4,117 @@ type AuthenticatedFixtures = {
   authenticatedPage: Page;
 };
 
+type BootstrapResponse = {
+  user_id: string;
+  session: {
+    access_token: string;
+    refresh_token: string;
+    expires_at?: number;
+    expires_in?: number;
+    token_type?: string;
+    user: Record<string, unknown>;
+  };
+};
+
+const SUPABASE_URL = 'https://uzhqhieqlcyncelltfjw.supabase.co';
+const E2E_BOOTSTRAP_URL = `${SUPABASE_URL}/functions/v1/e2e-bootstrap`;
+const AUTH_STORAGE_KEY = 'sb-uzhqhieqlcyncelltfjw-auth-token';
+const OIDC_AUDIENCE = 'marcenapp-e2e';
+
+async function getGitHubOidcToken(): Promise<string> {
+  const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  if (!requestUrl || !requestToken) {
+    throw new Error('E2E CI authentication requires GitHub Actions OIDC permissions.');
+  }
+
+  const separator = requestUrl.includes('?') ? '&' : '?';
+  const response = await fetch(
+    `${requestUrl}${separator}audience=${encodeURIComponent(OIDC_AUDIENCE)}`,
+    { headers: { Authorization: `Bearer ${requestToken}`, Accept: 'application/json' } },
+  );
+  if (!response.ok) {
+    throw new Error(`E2E GitHub OIDC token request failed: status=${response.status}`);
+  }
+
+  const body = (await response.json()) as { value?: unknown };
+  if (typeof body.value !== 'string' || body.value.length < 20) {
+    throw new Error('E2E GitHub OIDC token response was invalid.');
+  }
+  return body.value;
+}
+
+async function bootstrapSession(): Promise<BootstrapResponse> {
+  const oidcToken = await getGitHubOidcToken();
+  const response = await fetch(E2E_BOOTSTRAP_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${oidcToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action: 'create' }),
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: unknown };
+    const message = typeof body.error === 'string' ? body.error : 'unknown error';
+    throw new Error(`E2E Supabase bootstrap failed: status=${response.status} ${message}`);
+  }
+
+  return (await response.json()) as BootstrapResponse;
+}
+
+async function cleanupSession(userId: string): Promise<void> {
+  try {
+    const oidcToken = await getGitHubOidcToken();
+    await fetch(E2E_BOOTSTRAP_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${oidcToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action: 'delete', user_id: userId }),
+    });
+  } catch {
+    // Cleanup is best-effort; the bootstrap function never exposes credentials.
+  }
+}
+
 export const test = base.extend<AuthenticatedFixtures>({
   authenticatedPage: async ({ browser, baseURL }, fixtureUse) => {
-    const email = process.env.E2E_EMAIL?.trim();
-    const password = process.env.E2E_PASSWORD;
-    if (!email || !password) {
-      throw new Error('E2E authenticated gate requires E2E_EMAIL and E2E_PASSWORD GitHub Actions secrets.');
-    }
-
+    const bootstrap = await bootstrapSession();
     const context = await browser.newContext({ baseURL });
-    const page = await context.newPage();
 
-    const authResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === 'POST' &&
-        response.url().includes('/auth/v1/token'),
-      { timeout: 30_000 },
+    await context.addInitScript(
+      ({ storageKey, session }) => {
+        window.localStorage.setItem(storageKey, JSON.stringify(session));
+      },
+      { storageKey: AUTH_STORAGE_KEY, session: bootstrap.session },
     );
 
-    await page.goto('/auth');
-    await page.getByPlaceholder('E-mail').fill(email);
-    await page.getByPlaceholder('Senha').fill(password);
-    await page.getByRole('button', { name: 'Entrar' }).click();
-
-    const authResponse = await authResponsePromise;
-    if (!authResponse.ok()) {
-      let details = `status=${authResponse.status()}`;
-      try {
-        const body = (await authResponse.json()) as {
-          error?: unknown;
-          error_code?: unknown;
-          msg?: unknown;
-        };
-        const safe = {
-          error: typeof body.error === 'string' ? body.error : undefined,
-          error_code: typeof body.error_code === 'string' ? body.error_code : undefined,
-          msg: typeof body.msg === 'string' ? body.msg : undefined,
-        };
-        details += ` ${JSON.stringify(safe)}`;
-      } catch {
-        // Keep diagnostics free of response bodies when the error payload is unexpected.
-      }
-      throw new Error(`E2E Supabase authentication failed: ${details}`);
-    }
-
+    const page = await context.newPage();
+    await page.goto('/');
     await expect(page).toHaveURL(/\/$/);
 
-    await fixtureUse(page);
-    await context.close();
+    const userResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/auth/v1/user'),
+      { timeout: 30_000 },
+    ).catch(() => null);
+
+    await page.reload();
+    const userResponse = await userResponsePromise;
+    if (userResponse && !userResponse.ok()) {
+      throw new Error(`E2E Supabase session validation failed: status=${userResponse.status()}`);
+    }
+
+    try {
+      await fixtureUse(page);
+    } finally {
+      await context.close();
+      await cleanupSession(bootstrap.user_id);
+    }
   },
 });
 
