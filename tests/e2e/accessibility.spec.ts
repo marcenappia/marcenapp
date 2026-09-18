@@ -33,6 +33,7 @@ test.describe('Marcenapp public acceptance', () => {
   });
 
   test('public landing page passes an axe accessibility audit', async ({ page }) => {
+    await expect(page.getByRole('heading', { level: 1, name: /Sua marcenaria trabalha\./i })).toBeVisible();
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
