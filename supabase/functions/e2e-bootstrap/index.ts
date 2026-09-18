@@ -72,6 +72,15 @@ Deno.serve(async (req) => {
         return json({ error: createError?.message ?? "Unable to create E2E user" }, 500);
       }
 
+      const { error: profileError } = await admin
+        .from("profiles")
+        .update({ profession: "marceneiro" })
+        .eq("user_id", created.user.id);
+      if (profileError) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        return json({ error: profileError.message }, 500);
+      }
+
       const { data: signedIn, error: signInError } =
         await publicClient.auth.signInWithPassword({ email, password });
       if (signInError || !signedIn.session) {
