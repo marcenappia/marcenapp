@@ -11,14 +11,14 @@ test.describe('Marcenapp authenticated core', () => {
   test('professional navigation reaches billing without exposing admin navigation', async ({ authenticatedPage: page }) => {
     await page.goto('/?module=billing');
     await expect(page.getByRole('heading', { name: /Planos e Central de Uso/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Créditos avulsos/i })).toBeVisible();
+    await expect(page.getByText('Créditos avulsos', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Comprar' }).first()).toBeVisible();
     await expect(page.locator('#nav-admin-billing')).toHaveCount(0);
   });
 
   test('professional navigation reaches IARA and client area', async ({ authenticatedPage: page }) => {
     await page.goto('/?module=studio');
-    await expect(page.getByText('IARA', { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('region', { name: 'IARA — trabalho no contexto' }).getByRole('heading', { name: 'IARA' })).toBeVisible();
 
     await page.goto('/?module=clientes');
     await expect(page.locator('main')).toBeVisible();

@@ -5,7 +5,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: vi.fn(() => ({ update: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })) })) } }));
 const mockRefreshProfile = vi.fn();
-vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'test-user' }, profile: { onboarding_step: 0, onboarding_completed: [], reduce_motion: false }, refreshProfile: mockRefreshProfile }) }));
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'test-user' }, profile: { onboarding_step: 0, onboarding_completed: [], reduce_motion: false }, refreshProfile: mockRefreshProfile, profileLoading: false }) }));
 
 describe('Onboarding Component', () => {
   const mockOnNavigate = vi.fn();
@@ -20,7 +20,7 @@ describe('Onboarding Component', () => {
   });
   it('restores progress from localStorage when not logged in', async () => {
     const useAuthMock = await import('@/hooks/useAuth');
-    vi.spyOn(useAuthMock, 'useAuth').mockReturnValue({ user: null, session: null, loading: false, profile: null, signOut: vi.fn(async () => undefined), refreshProfile: vi.fn(async () => undefined) });
+    vi.spyOn(useAuthMock, 'useAuth').mockReturnValue({ user: null, session: null, loading: false, profile: null, profileLoading: false, signOut: vi.fn(async () => undefined), refreshProfile: vi.fn(async () => undefined) });
     localStorage.setItem('marcenapp_onboarding_step', '2'); localStorage.setItem('marcenapp_onboarding_seen', 'false');
     renderOnboarding('chat'); expect(screen.getByText(/Cliente e obra ficam organizados/i)).toBeInTheDocument();
   });

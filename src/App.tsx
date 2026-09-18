@@ -17,7 +17,6 @@ const AdminAgents = lazy(() => import("./pages/AdminAgents"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
-const PROFESSIONAL_PROFILE_VALUES = new Set(PROFESSIONAL_PROFILES.map(({ value }) => value));
 
 const RouteFallback = () => (
   <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white" aria-busy="true" aria-live="polite">
@@ -38,7 +37,7 @@ const HomeRoute = () => {
   if (!user && loading) return <Landing />;
   if (loading || (user && profileLoading)) return <RouteFallback />;
   if (!user) return <Landing />;
-  if (!profile || !PROFESSIONAL_PROFILE_VALUES.has(profile.profession ?? '')) return <ProfessionalProfileSelection />;
+  if (!profile || !PROFESSIONAL_PROFILES.some(({ value }) => value === profile.profession)) return <ProfessionalProfileSelection />;
   return <Index />;
 };
 

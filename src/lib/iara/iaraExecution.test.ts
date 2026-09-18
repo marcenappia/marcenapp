@@ -1,0 +1,6 @@
+import { describe, expect, it } from 'vitest';
+import { appendIaraExecutionArtifact, canTransition, createIaraExecution, transitionIaraExecution } from './iaraExecution';
+describe('IaraExecution',()=>{
+it('modela o ciclo real de uma execução',()=>{ let e=createIaraExecution({id:'e1',correlationId:'c1',userId:'u1',projectId:'p1',intent:'gerar render',action:'render',agent:'IARA',now:'2026-09-18T10:00:00.000Z'}); e=transitionIaraExecution(e,'planning',{},'2026-09-18T10:00:01.000Z'); e=transitionIaraExecution(e,'executing',{},'2026-09-18T10:00:02.000Z'); e=appendIaraExecutionArtifact(e,{type:'render',id:'cmd-1',url:'data:image/png;base64,test'},'2026-09-18T10:00:03.000Z'); e=transitionIaraExecution(e,'completed',{result:{imageUrl:'data:image/png;base64,test'}},'2026-09-18T10:00:04.000Z'); expect(e.status).toBe('completed'); expect(e.progress).toBe(100); expect(e.completedAt).toBe('2026-09-18T10:00:04.000Z'); expect(e.artifacts[0].type).toBe('render'); });
+it('bloqueia saltos de estado que escondem falhas',()=>{ expect(canTransition('understanding','completed')).toBe(false); const e=createIaraExecution({id:'e2',correlationId:'c2',userId:'u1'}); expect(()=>transitionIaraExecution(e,'completed')).toThrow('Transição de execução inválida'); });
+});

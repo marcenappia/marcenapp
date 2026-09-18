@@ -130,12 +130,25 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(userPrompt, context);
-    const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : fastCreateProjectPlan;
+    const directCreateProjectArgs = iara?.action === 'create_project' ? parseCreateProjectInput({ ...context, message: userPrompt }, userPrompt) : undefined;
+    const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs
+      ? [{ tool: 'createProjeto', args: iara.createProjectArgs }]
+      : directCreateProjectArgs
+        ? [{ tool: 'createProjeto', args: directCreateProjectArgs }]
+        : fastCreateProjectPlan;
     const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: userPrompt, estilo: ctx.decorStyle } }] : [];
     const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: userPrompt } }] : [];
     const deterministicEnvironmentPlan: ToolCall[] = iara?.action === 'analyze_environment' ? [{ tool: 'iara.analyze_environment', args: {} }] : [];
     const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
     const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan.length ? deterministicRenderPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan;
+
+    if (iara?.action === 'create_project' && !iara.createProjectArgs && !deterministicProjectPlan.length) {
+      const error = 'Para criar o projeto, preciso do nome do projeto e das medidas: largura × altura × profundidade. Exemplo: "Criar cozinha 2400 × 2200 × 600 mm".';
+      const needsInputResult: ToolResult = { ok: false, error };
+      const needsInputResults: Array<{ tool: string; result: ToolResult }> = [{ tool: 'createProjeto', result: needsInputResult }];
+      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: needsInputResults as unknown as Json, used_fallback: false, status: 'needs_input', error }).eq('id', runId);
+      return { runId, plan: [], summary: error, results: needsInputResults, usedFallback: false, provider, error, status: 'needs_input' };
+    }
 
     const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(userPrompt, context);
     plan = result.plan;
@@ -157,7 +170,10 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     }
     if (iara?.action === 'analyze_environment' && images.length) {
       const spatial = await runSpatialJourney({ prompt: userPrompt, projectId: ctx.projectId, environmentId: ctx.environmentId, versionId: ctx.versionId, images }, ctx.correlationId ?? undefined);
-      const environmentResults: Array<{ tool: string; result: ToolResult }> = spatial.results.map((item) => ({ tool: `spatial.${item.agentId}`, result: { ok: item.status === 'completed', data: item.data, error: item.status === 'failed' ? item.blockers?.[0] : undefined } }));
+      const environmentResults: Array<{ tool: string; result: ToolResult }> = spatial.results.map((item) => {
+        if (item.status === 'completed') return { tool: `spatial.${item.agentId}`, result: { ok: true, data: item.data } };
+        return { tool: `spatial.${item.agentId}`, result: { ok: false, error: item.blockers?.[0] ?? item.error ?? 'A etapa espacial não foi concluída.' } };
+      });
       const failed = spatial.results.find((item) => item.status !== 'completed');
       const status: OrchestratorRun['status'] = spatial.status === 'completed' ? 'completed' : spatial.status;
       const error = failed?.blockers?.[0];
@@ -188,7 +204,10 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       if (!r.ok) break;
     }
     const status: OrchestratorRun['status'] = results.length > 0 && results.every(r => r.result.ok) ? 'completed' : 'failed';
-    if (runId) await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status, ...(status === 'failed' ? { error: results.find(r => !r.result.ok)?.result.error ?? 'A execução falhou.' } : {}) }).eq('id', runId);
+    const failedResult = results.find(({ result }) => !result.ok)?.result;
+    let failureError = 'A execução falhou.';
+    if (failedResult?.ok === false) failureError = failedResult.error;
+    if (runId) await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status, ...(status === 'failed' ? { error: failureError } : {}) }).eq('id', runId);
     return { runId, plan, summary, results, usedFallback: false, provider, status };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Falha inesperada na execução do orquestrador.';
