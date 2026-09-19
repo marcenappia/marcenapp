@@ -35,19 +35,34 @@ function isClarificationPrompt(value: string): boolean {
   return /^(o que você precisa|o que precisa|qual informação você precisa|que informação você precisa|o que falta|qual dado falta|do que você precisa)[?!. ]*$/i.test(normalizeText(value));
 }
 
+function conversationMessages(context?: Record<string, unknown>) {
+  return Array.isArray(context?.conversation) ? context.conversation.filter((item): item is { sender: string; text: string } =>
+    Boolean(item) && typeof item === 'object' && typeof (item as { sender?: unknown }).sender === 'string' && typeof (item as { text?: unknown }).text === 'string'
+  ) : [];
+}
+
+function lastUserMessage(context?: Record<string, unknown>): string | null {
+  const conversation = conversationMessages(context);
+  for (let index = conversation.length - 1; index >= 0; index -= 1) {
+    if (conversation[index].sender === 'user' && conversation[index].text.trim()) return conversation[index].text.trim();
+  }
+  return null;
+}
+
 function lastNeedsInputMessage(context?: Record<string, unknown>): string | null {
-  const conversation = Array.isArray(context?.conversation) ? context.conversation : [];
+  const conversation = conversationMessages(context);
   for (let index = conversation.length - 1; index >= 0; index -= 1) {
     const item = conversation[index];
-    if (!item || typeof item !== 'object') continue;
-    const sender = (item as { sender?: unknown }).sender;
-    const text = (item as { text?: unknown }).text;
-    if (sender !== 'iara' || typeof text !== 'string') continue;
-    if (/preciso confirmar uma informação|aguardando informação|não conseguiu transformar|envie uma foto|informe os dados necessários/i.test(text)) {
-      return text.replace(/^preciso confirmar uma informação antes de continuar\.?\s*/i, '').trim() || text;
+    if (item.sender !== 'iara') continue;
+    if (/preciso confirmar uma informação|aguardando informação|não conseguiu transformar|envie uma foto|informe os dados necessários/i.test(item.text)) {
+      return item.text.replace(/^preciso confirmar uma informação antes de continuar\.?\s*/i, '').trim() || item.text;
     }
   }
   return null;
+}
+
+function isGenericNeed(message: string): boolean {
+  return /^(a iara não conseguiu transformar o pedido em uma ação executável\.? reformule o pedido ou informe os dados necessários\.?|tente novamente\.?|pode me dizer o que você quer fazer no projeto\??)$/i.test(normalizeText(message));
 }
 
 function normalizeText(value: unknown): string {
@@ -148,14 +163,23 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
   try {
     const clarification = isClarificationPrompt(userPrompt);
     const previousNeed = clarification ? lastNeedsInputMessage(context) : null;
-    if (previousNeed) {
-      const result: ToolResult = { ok: false, error: previousNeed };
-      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: [{ tool: 'iara', result }] as unknown as Json, used_fallback: false, status: 'needs_input', error: previousNeed }).eq('id', runId);
-      return { runId, plan: [], summary: previousNeed, results: [{ tool: 'iara', result }], usedFallback: false, status: 'needs_input', error: previousNeed };
+    let effectiveUserPrompt = userPrompt;
+    if (clarification) {
+      // A pergunta "o que você precisa?" is a continuation, not a new action.
+      // If the previous blocker was already specific, return it. If it was only
+      // the generic fallback, replay the last concrete user request so the
+      // orchestrator can resolve it instead of trapping the chat in a loop.
+      if (previousNeed && !isGenericNeed(previousNeed)) {
+        const result: ToolResult = { ok: false, error: previousNeed };
+        if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: [{ tool: 'iara', result }] as unknown as Json, used_fallback: false, status: 'needs_input', error: previousNeed }).eq('id', runId);
+        return { runId, plan: [], summary: previousNeed, results: [{ tool: 'iara', result }], usedFallback: false, status: 'needs_input', error: previousNeed };
+      }
+      const previousUserPrompt = lastUserMessage(context);
+      if (previousUserPrompt) effectiveUserPrompt = previousUserPrompt;
     }
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
-    const fastCreateProjectPlan = deterministicCreateProjectPlan(userPrompt, context);
+    const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
     const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : fastCreateProjectPlan;
     const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: userPrompt, estilo: ctx.decorStyle } }] : [];
     const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: userPrompt } }] : [];
@@ -163,7 +187,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
     const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan.length ? deterministicRenderPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan;
 
-    const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(userPrompt, context);
+    const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(effectiveUserPrompt, context);
     plan = result.plan;
     summary = result.summary;
     provider = result.provider;
@@ -182,7 +206,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       return { runId, plan: [], summary: error, results: failureResults, usedFallback: false, provider, error, status: 'needs_input' };
     }
     if (iara?.action === 'analyze_environment' && images.length) {
-      const spatial = await runSpatialJourney({ prompt: userPrompt, projectId: ctx.projectId, environmentId: ctx.environmentId, versionId: ctx.versionId, images }, ctx.correlationId ?? undefined);
+      const spatial = await runSpatialJourney({ prompt: effectiveUserPrompt, projectId: ctx.projectId, environmentId: ctx.environmentId, versionId: ctx.versionId, images }, ctx.correlationId ?? undefined);
       const environmentResults: Array<{ tool: string; result: ToolResult }> = spatial.results.map((item) => ({ tool: `spatial.${item.agentId}`, result: { ok: item.status === 'completed', data: item.data, error: item.status === 'failed' ? item.blockers?.[0] : undefined } }));
       const failed = spatial.results.find((item) => item.status !== 'completed');
       const status: OrchestratorRun['status'] = spatial.status === 'completed' ? 'completed' : spatial.status;
