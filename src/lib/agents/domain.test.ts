@@ -40,7 +40,7 @@ describe('IARA/YARA domain orchestration', () => {
   });
 
   it('encaminha materiais/corte para BENTO', async () => {
-    const response = await runIara({ input: { ...baseInput, intent: 'calcular MDF e corte' }, correlationId: 'iara-bento' });
+    const response = await runDomainPlan({ input: { ...baseInput, intent: 'calcular MDF e corte' }, correlationId: 'iara-bento' });
     expect(response.domain).toBe('production');
     expect(response.domainAgent).toBe('BENTO');
     expect(response.plan.results.some((result) => result.agentId === 'materials')).toBe(true);
@@ -48,14 +48,14 @@ describe('IARA/YARA domain orchestration', () => {
   });
 
   it('encaminha orçamento/documentação/pedido para ESTELA', async () => {
-    const response = await runIara({ input: { ...baseInput, intent: 'calcular orçamento e preparar documentos' }, correlationId: 'iara-estela' });
+    const response = await runDomainPlan({ input: { ...baseInput, intent: 'calcular orçamento e preparar documentos' }, correlationId: 'iara-estela' });
     expect(response.domain).toBe('business');
     expect(response.domainAgent).toBe('ESTELA');
     expect(response.plan.results.some((result) => result.agentId === 'budget')).toBe(true);
   });
 
   it('reconhece JUCA sem inventar especialista técnico de montagem', async () => {
-    const response = await runIara({ input: { projectId: 'project-1', intent: 'montagem e instalação' }, correlationId: 'iara-juca' });
+    const response = await runDomainPlan({ input: { projectId: 'project-1', intent: 'montagem e instalação' }, correlationId: 'iara-juca' });
     expect(response.domain).toBe('execution');
     expect(response.domainAgent).toBe('JUCA');
     expect(domainAgentRegistry.execution.technicalAgents).toEqual([]);
@@ -108,14 +108,14 @@ describe('IARA/YARA domain orchestration', () => {
   });
 
   it('propaga correlationId, evidências e bloqueadores pelo contrato existente', async () => {
-    const response = await runIara({ input: { ...baseInput, intent: 'calcular MDF e corte' }, correlationId: 'trace-domain' });
+    const response = await runDomainPlan({ input: { ...baseInput, intent: 'calcular MDF e corte' }, correlationId: 'trace-domain' });
     expect(response.plan.correlationId).toBe('trace-domain');
     expect(response.plan.results.every((result) => result.correlationId === 'trace-domain')).toBe(true);
     expect(response.plan.results.some((result) => result.warnings !== undefined)).toBe(true);
   });
 
   it('mantém o contrato de artefato/painel preparado para a UI contextual', async () => {
-    const response = await runIara({ input: { ...baseInput, intent: 'gerar render', artifactId: 'render-1' }, correlationId: 'ui-contract' });
+    const response = await runDomainPlan({ input: { ...baseInput, intent: 'gerar render', artifactId: 'render-1' }, correlationId: 'ui-contract' });
     expect(response.artifacts).toEqual([{ type: 'render', id: 'render-1', context: { projectId: 'project-1', environmentId: undefined, versionId: undefined, correlationId: 'ui-contract' } }]);
     expect(response.panel).toEqual({ type: 'render' });
     expect(response.projectId).toBe('project-1');
