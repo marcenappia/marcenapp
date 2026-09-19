@@ -21,15 +21,16 @@ export const StudioWorker = () => {
   // Keep the worker mounted for command continuity, but do not subscribe to or
   // process Studio state while the user is in another module. This prevents
   // background renders and store updates from forcing the whole app to work.
-  const commandHistory = useMarcenappOS(state => isStudioActive ? state.commandHistory : EMPTY_COMMANDS);
+  // The worker is an application-level execution worker, not a Studio-screen worker.
+  // IARA can enqueue a render while the user remains in the conversation, so render
+  // execution must not depend on the Studio route being active.
+  const commandHistory = useMarcenappOS(state => state.commandHistory);
   const updateOSStatus = useMarcenappOS(state => state.updateCommandStatus);
   const commandQueue = useMemo(
-    () => isStudioActive
-      ? commandHistory.filter(cmd => cmd.target === 'studio' && cmd.payload?.userId === user?.id)
-      : EMPTY_COMMANDS,
-    [commandHistory, user?.id, isStudioActive]
+    () => commandHistory.filter(cmd => cmd.target === 'studio' && cmd.payload?.userId === user?.id),
+    [commandHistory, user?.id]
   );
-  const isRendering = useStudioStore(state => isStudioActive ? state.isRendering : false);
+  const isRendering = useStudioStore(state => state.isRendering);
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
   const failCommand = useStudioStore(state => state.failCommand);
@@ -37,10 +38,9 @@ export const StudioWorker = () => {
   const currentlyProcessing = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isStudioActive) return;
     const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
     if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
-  }, [commandQueue, isRendering, isStudioActive]);
+  }, [commandQueue, isRendering]);
 
   const readCurrentContext = async () => {
     if (!user) return null;
