@@ -31,6 +31,25 @@ function smartActionFor(iaraAction?: string): SmartAction | null {
   return iaraAction && SMART_ACTIONS.has(iaraAction as SmartAction) ? iaraAction as SmartAction : null;
 }
 
+function isClarificationPrompt(value: string): boolean {
+  return /^(o que você precisa|o que precisa|qual informação você precisa|que informação você precisa|o que falta|qual dado falta|do que você precisa)[?!. ]*$/i.test(normalizeText(value));
+}
+
+function lastNeedsInputMessage(context?: Record<string, unknown>): string | null {
+  const conversation = Array.isArray(context?.conversation) ? context.conversation : [];
+  for (let index = conversation.length - 1; index >= 0; index -= 1) {
+    const item = conversation[index];
+    if (!item || typeof item !== 'object') continue;
+    const sender = (item as { sender?: unknown }).sender;
+    const text = (item as { text?: unknown }).text;
+    if (sender !== 'iara' || typeof text !== 'string') continue;
+    if (/preciso confirmar uma informação|aguardando informação|não conseguiu transformar|envie uma foto|informe os dados necessários/i.test(text)) {
+      return text.replace(/^preciso confirmar uma informação antes de continuar\.?\s*/i, '').trim() || text;
+    }
+  }
+  return null;
+}
+
 function normalizeText(value: unknown): string {
   return String(value ?? '').toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim();
 }
@@ -127,6 +146,13 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
   let summary = '';
   let provider: OrchestratorPlan['provider'];
   try {
+    const clarification = isClarificationPrompt(userPrompt);
+    const previousNeed = clarification ? lastNeedsInputMessage(context) : null;
+    if (previousNeed) {
+      const result: ToolResult = { ok: false, error: previousNeed };
+      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: [{ tool: 'iara', result }] as unknown as Json, used_fallback: false, status: 'needs_input', error: previousNeed }).eq('id', runId);
+      return { runId, plan: [], summary: previousNeed, results: [{ tool: 'iara', result }], usedFallback: false, status: 'needs_input', error: previousNeed };
+    }
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(userPrompt, context);
