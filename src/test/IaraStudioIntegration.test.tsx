@@ -111,32 +111,26 @@ describe('IARA-Studio Architecture', () => {
     vi.mocked(studioService.generateVisual).mockResolvedValue('url-project-a');
     const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
     from.mockImplementation((table?: string) => {
-      if (table === 'project_iara_contexts') {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockImplementation((column: string, value: unknown) => {
-            if (column === 'project_id' && value === 'A') {
-              return Promise.resolve({
-                data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-a', last_execution_generation: 2 },
-                error: null,
-              });
-            }
-            return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })) };
-          }),
-          order: vi.fn().mockReturnThis(),
-          limit: vi.fn().mockReturnThis(),
-          maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'B', environment_id: 'E2', version_id: 'V2', last_correlation_id: 'corr-b', last_execution_generation: 9 }, error: null })),
-          insert: vi.fn(() => Promise.resolve({ error: null })),
-        } as never;
-      }
-      return {
+      let selectedProject: string | null = null;
+      const builder = {
         select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockImplementation((column: string, value: unknown) => {
+          if (column === 'project_id') selectedProject = String(value);
+          return builder;
+        }),
         order: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({
+          data: table === 'project_iara_contexts'
+            ? selectedProject === 'A'
+              ? { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-a', last_execution_generation: 2 }
+              : { project_id: 'B', environment_id: 'E2', version_id: 'V2', last_correlation_id: 'corr-b', last_execution_generation: 9 }
+            : null,
+          error: null,
+        })),
         insert: vi.fn(() => Promise.resolve({ error: null })),
-      } as never;
+      };
+      return builder as never;
     });
 
     let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
