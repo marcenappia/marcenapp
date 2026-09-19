@@ -48,7 +48,7 @@ The project is the durable context. IARA is the conversational coordinator. Doma
 
 ### Major current experience gaps
 
-1. The active chat path still calls the older `src/core/orchestrator.ts` through `useIaraChat`, while the new domain experience is implemented separately in `src/lib/agents/domain.ts`. This means the new domain architecture is not yet the canonical UI execution path. **P0 integration gap.**
+1. The active chat path now enters through `runIaraConversation` in `src/lib/agents/domain.ts`, which is the single canonical IARA application entry point. `src/core/orchestrator.ts` is an internal execution engine behind that contract; it is not a second UI-facing IARA path. The legacy `runIara` domain-plan entry point was removed from production exports.
 2. The IARA UI is currently embedded inside `StudioHub`, making IARA visually and conceptually subordinate to the Studio rather than the primary experience. (`src/modules/ambientes/StudioHub.tsx`)
 3. `ChatInput` has attachment, microphone and send controls, but no Smart Action Button. (`src/modules/iara/components/ChatInput.tsx`)
 4. `ChatMessages` supports text/image messages and a simple typing state, but has no first-class message/action/artifact model or contextual artifact panel. (`src/modules/iara/components/ChatMessages.tsx`)
@@ -860,7 +860,7 @@ Every event should eventually carry project/context identifiers and a correlatio
 
 ### R0 — Two orchestration paths
 
-The biggest current risk is that the new domain architecture and the active IARA chat path are separate. `useIaraChat` currently imports `runOrchestrator` from `src/core/orchestrator.ts`, while the new domain experience is in `src/lib/agents/domain.ts`. This can create divergent routing, artifacts and specialist behavior.
+The active UI now has one IARA entry contract: `useIaraChat` → `runIaraConversation` → internal execution engine. Domain planning helpers remain internal/testable components, while the legacy top-level `runIara` path is no longer exposed. This prevents a second UI-facing orchestration path from being introduced accidentally.
 
 **Recommendation:** Frontend integration must consume one canonical application-level IARA/domain contract. Do not create another orchestrator.
 
