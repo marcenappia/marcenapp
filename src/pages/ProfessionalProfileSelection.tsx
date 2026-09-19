@@ -34,9 +34,21 @@ export default function ProfessionalProfileSelection() {
     );
   }
 
+  useEffect(() => {
+    if (isLogin && !loading && !user) {
+      navigate('/auth', { replace: true });
+    }
+  }, [isLogin, loading, user, navigate]);
+
   if (isLogin && !user) {
-    navigate('/auth', { replace: true });
-    return null;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white" aria-busy="true">
+        <div className="text-center">
+          <p className="text-sm font-black tracking-wide">MARCENAPP</p>
+          <p className="mt-2 text-xs text-slate-400">Abrindo a autenticação…</p>
+        </div>
+      </main>
+    );
   }
 
   const chooseProfile = async (value: string) => {
