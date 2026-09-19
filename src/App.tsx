@@ -24,7 +24,9 @@ const lazyWithRetry = <T extends React.ComponentType<any>>(importer: LazyImporte
       // browser gets a consistent asset set instead of rendering a blank app.
       if (!sessionStorage.getItem(retryKey)) {
         sessionStorage.setItem(retryKey, "1");
-        window.location.reload();
+        const url = new URL(window.location.href);
+        url.searchParams.set('marcenapp_reload', String(Date.now()));
+        window.location.replace(url.toString());
       }
       throw error;
     }
