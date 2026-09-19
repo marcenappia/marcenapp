@@ -111,6 +111,43 @@ jobs:
         session_b64="$(grep '^E2E_SESSION_B64=' "$GITHUB_ENV" | tail -1 | cut -d= -f2-)"
         echo "::add-mask::$session_b64"
 
+    - name: Billing Sandbox smoke test
+      id: billing_smoke
+      if: ${{ steps.e2e_bootstrap.outcome == 'success' }}
+      env:
+        SUPABASE_URL: https://uzhqhieqlcyncelltfjw.supabase.co
+        E2E_SESSION_B64: ${{ env.E2E_SESSION_B64 }}
+      run: |
+        set -euo pipefail
+        access_token="$(printf '%s' "$E2E_SESSION_B64" | base64 -d | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>process.stdout.write(JSON.parse(s).access_token))")"
+
+        status="$(curl -fsSL -X POST           "$SUPABASE_URL/functions/v1/asaas"           -H "Authorization: Bearer $access_token"           -H "Content-Type: application/json"           --data '{"action":"connection_status"}')"
+        node - "$status" <<'NODE'
+        const body = JSON.parse(process.argv[2]);
+        if (!body.connected || body.environment !== 'sandbox') {
+          throw new Error(`Asaas Sandbox is not ready: ${JSON.stringify(body)}`);
+        }
+        NODE
+
+        customer="$(curl -fsSL -X POST           "$SUPABASE_URL/functions/v1/asaas"           -H "Authorization: Bearer $access_token"           -H "Content-Type: application/json"           --data '{"action":"create_customer"}')"
+        customer_id="$(node - "$customer" <<'NODE'
+        const body = JSON.parse(process.argv[2]);
+        const id = body.customer?.id;
+        if (!id) throw new Error(`Asaas customer creation failed: ${JSON.stringify(body)}`);
+        process.stdout.write(String(id));
+        NODE
+        )"
+
+        payment="$(node -e 'console.log(JSON.stringify({action:"create_product_payment",productKey:"render_unit",customerId:process.argv[1],billingType:"UNDEFINED",idempotencyKey:"ci-"+process.env.GITHUB_RUN_ID+"-"+process.env.GITHUB_RUN_ATTEMPT}))' "$customer_id")"
+        payment_response="$(curl -fsSL -X POST           "$SUPABASE_URL/functions/v1/asaas"           -H "Authorization: Bearer $access_token"           -H "Content-Type: application/json"           --data "$payment")"
+        node - "$payment_response" <<'NODE'
+        const body = JSON.parse(process.argv[2]);
+        if (!body.payment?.id || !body.checkoutUrl) {
+          throw new Error(`Asaas Sandbox payment creation failed: ${JSON.stringify(body)}`);
+        }
+        console.log(`Billing Sandbox PASS: payment ${body.payment.id} created and persisted.`);
+        NODE
+
     - name: Run Playwright tests
       id: playwright
       if: ${{ steps.install.outcome == 'success' && steps.e2e_bootstrap.outcome == 'success' }}
