@@ -181,8 +181,8 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const smartAction = smartActionFor(iara?.action);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
     const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : fastCreateProjectPlan;
-    const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: userPrompt, estilo: ctx.decorStyle } }] : [];
-    const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: userPrompt } }] : [];
+    const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: effectiveUserPrompt, estilo: ctx.decorStyle } }] : [];
+    const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: effectiveUserPrompt } }] : [];
     const deterministicEnvironmentPlan: ToolCall[] = iara?.action === 'analyze_environment' ? [{ tool: 'iara.analyze_environment', args: {} }] : [];
     const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
     const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan.length ? deterministicRenderPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan;
