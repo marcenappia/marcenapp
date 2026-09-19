@@ -16,7 +16,7 @@ vi.mock('@/lib/production/versionFreeze', () => ({
 }));
 
 import { agents, getAgent } from './registry';
-import { createDomainIntent, domainAgents, domainAgentRegistry, parseCreateProjectInput, resolveDomain, runIara } from './domain';
+import { createDomainIntent, domainAgents, domainAgentRegistry, parseCreateProjectInput, resolveDomain, runDomainPlan } from './domain';
 import { runProjectJourney } from './orchestrator';
 
 const baseInput = {
@@ -32,7 +32,7 @@ const baseInput = {
 
 describe('IARA/YARA domain orchestration', () => {
   it('encaminha projeto para Inteligência do Projeto e usa agentes existentes', async () => {
-    const response = await runIara({ input: { ...baseInput, intent: 'analisar o projeto e as medidas' }, correlationId: 'iara-project' });
+    const response = await runDomainPlan({ input: { ...baseInput, intent: 'analisar o projeto e as medidas' }, correlationId: 'iara-project' });
     expect(response.orchestrator).toBe('IARA');
     expect(response.domain).toBe('project');
     expect(response.domainAgent).toBe('IARA');
