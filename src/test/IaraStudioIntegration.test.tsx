@@ -57,7 +57,7 @@ describe('IARA-Studio Architecture', () => {
     expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
   });
 
-  it('completed IARA render is published back to chat with the image', async () => {
+  it('StudioWorker completes the render without writing a duplicate chat message', async () => {
     vi.mocked(studioService.generateVisual).mockResolvedValue('data:image/png;base64,rendered');
     const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
     const inserts: Array<Record<string, unknown>> = [];
@@ -75,10 +75,8 @@ describe('IARA-Studio Architecture', () => {
     render(<StudioWorker />);
     await renderAct(async () => { await new Promise(r => setTimeout(r, 100)); });
 
-    const chatResult = inserts.find(row => row.sender === 'iara' && row.image_url === 'data:image/png;base64,rendered');
-    expect(chatResult).toBeTruthy();
-    expect((chatResult?.metadata as Record<string, unknown>)?.correlationId).toBe('corr-chat');
-    expect((chatResult?.metadata as Record<string, unknown>)?.status).toBe('ready');
+    expect(inserts.some(row => row.sender === 'iara')).toBe(false);
+    expect(inserts.some(row => row.image_url === 'data:image/png;base64,rendered')).toBe(true);
     expect(useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId)?.status).toBe('completed');
   });
 
