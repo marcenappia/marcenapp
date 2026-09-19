@@ -8,6 +8,7 @@ on:
       - "supabase/functions/asaas-webhook/**"
       - "supabase/functions/ai-orchestrator/**"
       - "supabase/functions/ai-text/**"
+      - "supabase/functions/ai-image/**"
       - "supabase/functions/_shared/**"
       - "supabase/config.toml"
   workflow_dispatch:
@@ -44,3 +45,4 @@ jobs:
         run: |
           supabase functions deploy ai-orchestrator --project-ref "$SUPABASE_PROJECT_ID"
           supabase functions deploy ai-text --project-ref "$SUPABASE_PROJECT_ID"
+          supabase functions deploy ai-image --project-ref "$SUPABASE_PROJECT_ID"
