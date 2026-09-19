@@ -5,7 +5,6 @@ type AIErrorBody = { error?: string; message?: string; code?: string };
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://uzhqhieqlcyncelltfjw.supabase.co';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_o9A9xyvRYXt-Rl9MZfdArA_SdYOAySX';
-const AI_TIMEOUT_MS = 90_000;
 
 export const requireAuth = async (): Promise<boolean> => {
   const { data: { session } } = await supabase.auth.getSession();
@@ -69,12 +68,8 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Pr
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error('A comunicação com o serviço de IA excedeu o tempo limite. Tente novamente.');
-    }
     throw new Error('Não foi possível comunicar com o serviço de IA. Verifique sua conexão e tente novamente.');
   }
 

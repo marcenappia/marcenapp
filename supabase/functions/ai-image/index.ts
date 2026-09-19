@@ -1,6 +1,6 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { buildCorsHeaders, guardRequest, jsonResponse, readJsonBody } from "../_shared/guard.ts";
 
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const MIN_DIM = 64;
@@ -9,101 +9,205 @@ const DEFAULT_DIM = 1024;
 const MAX_PROMPT_CHARS = 4000;
 const MAX_PROMPT_WORDS = 800;
 const OPERATION_TYPE = "gerarRender";
-const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
-const GEMINI_IMAGE_MODEL = Deno.env.get("GEMINI_IMAGE_MODEL") ?? "gemini-3-pro-image";
-const GEMINI_IMAGE_SIZE = Deno.env.get("GEMINI_IMAGE_SIZE") ?? "2K";
 const TEST_ACCOUNT_EMAIL = "marcenapp.ia@gmail.com";
-type Provider = "lovable" | "gemini";
+const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2.5-sunburst";
+const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 
-const ImageSchema = z.object({ mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp|gif)$/i), data: z.string().min(1).max(15_000_000) });
-const BodySchema = z.object({ prompt: z.string().min(1), images: z.array(ImageSchema).max(8).optional(), size: z.object({ width: z.number().int().min(MIN_DIM).max(MAX_DIM).optional(), height: z.number().int().min(MIN_DIM).max(MAX_DIM).optional() }).optional(), idempotencyKey: z.string().trim().min(8).max(200) });
-const allowedSuffixes = [".lovable.app", ".lovableproject.com", ".lovable.dev", ".vercel.app"];
-const cors = (req: Request) => { const origin = req.headers.get("origin"); let allowed = "null"; try { if (origin) { const u = new URL(origin); const normalized = origin.replace(/\/$/, ""); const extras = ["https://marcenapp.com.br", "https://www.marcenapp.com.br", Deno.env.get("ALLOWED_ORIGINS") ?? "", Deno.env.get("APP_URL") ?? "", Deno.env.get("PUBLIC_APP_URL") ?? ""].flatMap(v => v.split(",")).map(v => v.trim().replace(/\/$/, "")).filter(Boolean); if (u.hostname === "localhost" || u.hostname === "127.0.0.1" || extras.includes(normalized) || (u.protocol === "https:" && allowedSuffixes.some(s => u.hostname.endsWith(s)))) allowed = origin; } } catch { } return { "Access-Control-Allow-Origin": allowed, "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS", Vary: "Origin" }; };
-const json = (h: Record<string, string>, body: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { ...h, ...extra, "Content-Type": "application/json", "Cache-Control": "no-store, max-age=0", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff" } });
-const adminClient = () => { const url = Deno.env.get("SUPABASE_URL"), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"); if (!url || !key) throw new Error("server_config_incomplete"); return createClient(url, key, { auth: { persistSession: false } }); };
-async function guardRequest(req: Request, h: Record<string, string>) {
-  const auth = req.headers.get("Authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-  if (!token) return { ok: false as const, response: json(h, { error: "Autenticação necessária." }, 401) };
-  const admin = adminClient();
-  const { data, error } = await admin.auth.getUser(token);
-  if (error || !data.user) return { ok: false as const, response: json(h, { error: "Sessão inválida ou expirada." }, 401) };
-  const { data: rl, error: rlError } = await admin.rpc("consume_ai_rate_limit", { _user_id: data.user.id, _fn: "ai-image", _limit: 10, _window_seconds: 60 });
-  if (rlError) return { ok: false as const, response: json(h, { error: "Não foi possível validar o limite de uso da IA.", code: "rate_limit_unavailable" }, 503, { "Retry-After": "10" }) };
-  const row = Array.isArray(rl) ? rl[0] : rl;
-  if (!row || row.allowed === false) { const retry = Math.max(1, Number(row?.retry_after_seconds ?? 60)); return { ok: false as const, response: json(h, { error: "Limite de uso atingido.", retryAfterSeconds: retry }, 429, { "Retry-After": String(retry) }) }
-  return { ok: true as const, userId: data.user.id, email: data.user.email ?? "" };
+const ImageSchema = z.object({
+  mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp)$/i),
+  data: z.string().min(1).max(15_000_000),
+});
+const BodySchema = z.object({
+  prompt: z.string().trim().min(1).max(MAX_PROMPT_CHARS),
+  images: z.array(ImageSchema).max(8).optional(),
+  size: z.object({
+    width: z.number().int().min(MIN_DIM).max(MAX_DIM).optional(),
+    height: z.number().int().min(MIN_DIM).max(MAX_DIM).optional(),
+  }).optional(),
+  idempotencyKey: z.string().trim().min(8).max(200),
+});
+
+type ImageInput = z.infer<typeof ImageSchema>;
+type GatewayError = Error & { status?: number; retryAfter?: string };
+
+function imageExtension(mimeType: string): string {
+  if (/jpeg|jpg/i.test(mimeType)) return "jpg";
+  if (/webp/i.test(mimeType)) return "webp";
+  return "png";
 }
-async function refund(userId: string, key: string) { await adminClient().rpc("refund_billing_credit", { p_user_id: userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: key }); }
-async function resolveProvider(userId: string): Promise<{ primary: Provider; fallback: Provider | null }> {
-  const admin = adminClient();
-  const { data } = await admin.from("ai_provider_settings").select("provider").eq("user_id", userId).maybeSingle();
-  const configured = data?.provider as string | undefined;
-  const lovableAvailable = Boolean(Deno.env.get("LOVABLE_API_KEY"));
-  const geminiAvailable = Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY"));
-  if (configured === "lovable") return { primary: "lovable", fallback: geminiAvailable ? "gemini" : null };
-  if (configured === "gemini") return { primary: "gemini", fallback: lovableAvailable ? "lovable" : null };
-  return { primary: lovableAvailable ? "lovable" : "gemini", fallback: lovableAvailable && geminiAvailable ? "gemini" : null };
+
+function imageBlob(image: ImageInput): Blob {
+  const binary = atob(image.data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: image.mimeType });
 }
-async function callLovable(prompt: string, images?: Array<{ mimeType: string; data: string }>) {
-  const key = Deno.env.get("LOVABLE_API_KEY"); if (!key) throw new Error("provider_not_configured:lovable");
-  const content: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
-  for (const img of images ?? []) content.push({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.data}` } });
-  const response = await fetch(LOVABLE_GATEWAY_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "Lovable-API-Key": key }, body: JSON.stringify({ model: LOVABLE_IMAGE_MODEL, messages: [{ role: "user", content }], modalities: ["image", "text"] }) });
-  if (!response.ok) { const status = response.status; console.error("Lovable image error:", status, await response.text()); throw new Error(`provider_http:${status}`); }
-  const data = await response.json(); const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? null;
-  if (!imageUrl) throw new Error("empty_image_result"); return { imageUrl, model: data.model ?? LOVABLE_IMAGE_MODEL };
+
+function retryDelay(response: Response, attempt: number): number {
+  const retryAfter = Number(response.headers.get("Retry-After"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return Math.min(retryAfter * 1000, 10_000);
+  return Math.min(750 * (2 ** attempt) + Math.floor(Math.random() * 250), 5_000);
 }
-async function callGemini(prompt: string, images?: Array<{ mimeType: string; data: string }>) {
-  const key = Deno.env.get("GOOGLE_GEMINI_API_KEY"); if (!key) throw new Error("provider_not_configured:gemini");
-  const parts: Array<Record<string, unknown>> = [{ text: prompt }]; for (const img of images ?? []) parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${GEMINI_IMAGE_MODEL}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["TEXT", "IMAGE"], responseFormat: { image: { imageSize: GEMINI_IMAGE_SIZE } } } }) });
-  if (!response.ok) { const status = response.status; console.error("Gemini image error:", status, await response.text()); throw new Error(`provider_http:${status}`); }
-  const data = await response.json(); const candidate = data.candidates?.[0]?.content?.parts ?? []; let imageUrl: string | null = null;
-  for (const part of candidate) { const inline = part.inlineData || part.inline_data; if (inline?.data) imageUrl = `data:${inline.mimeType || inline.mime_type || "image/png"};base64,${inline.data}`; }
-  if (!imageUrl) throw new Error("empty_image_result"); return { imageUrl, model: GEMINI_IMAGE_MODEL };
+
+async function gatewayFetch(url: string, init: RequestInit): Promise<Response> {
+  let response: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    response = await fetch(url, init);
+    if (response.ok || (response.status !== 429 && response.status < 500)) return response;
+    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, retryDelay(response as Response, attempt)));
+  }
+  return response as Response;
 }
-async function generateWithFallback(userId: string, prompt: string, images?: Array<{ mimeType: string; data: string }>) {
-  const { primary, fallback } = await resolveProvider(userId); const providers: Provider[] = fallback ? [primary, fallback] : [primary]; let lastError: unknown = null;
-  for (const provider of providers) { try { return provider === "lovable" ? { provider, ...(await callLovable(prompt, images)) } : { provider, ...(await callGemini(prompt, images)) }; } catch (error) { lastError = error; console.error(`AI image provider ${provider} failed`, error); } }
-  throw lastError ?? new Error("provider_unavailable");
+
+async function readImageStream(response: Response): Promise<string> {
+  if (!response.body) throw new Error("empty_image_stream");
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  let completedImage: string | null = null;
+  let eventCount = 0;
+  let streamError: string | null = null;
+
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += chunk.value;
+    const frames = buffer.split(/\r?\n\r?\n/);
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const eventName = frame.split(/\r?\n/).find(line => line.startsWith("event:"))?.slice(6).trim();
+      const data = frame.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trim()).join("\n");
+      if (!data || data === "[DONE]") continue;
+      let payload: { type?: string; b64_json?: string; error?: { message?: string } };
+      try { payload = JSON.parse(data); } catch { continue; }
+      eventCount += 1;
+      if (eventName === "error" || payload.type === "error") {
+        streamError = payload.error?.message ?? "Falha no provedor de imagens.";
+        continue;
+      }
+      if ((eventName === "image_generation.completed" || eventName === "image_edit.completed" || payload.type === "image_generation.completed" || payload.type === "image_edit.completed") && payload.b64_json) {
+        completedImage = payload.b64_json;
+      }
+    }
+  }
+  if (streamError) throw new Error(`provider_stream:${streamError}`);
+  if (completedImage) return completedImage;
+  if (eventCount === 0) throw new Error("zero_image_events");
+  throw new Error("incomplete_image_stream");
 }
-serve(async req => {
-  const h = cors(req); if (req.method === "OPTIONS") return new Response(null, { headers: h }); if (req.method !== "POST") return json(h, { message: "Method not allowed", code: "method_not_allowed" }, 405);
-  const guard = await guardRequest(req, h); if (!guard.ok) return guard.response;
-  let creditConsumed = false; let idempotencyKey = "";
+
+async function readBufferedImage(response: Response): Promise<string> {
+  const body = await response.json().catch(() => null) as { data?: Array<{ b64_json?: string }> } | null;
+  const image = body?.data?.[0]?.b64_json;
+  if (!image) throw new Error("empty_image_result");
+  return image;
+}
+
+function gatewayError(response: Response, body: string): GatewayError {
+  let safeMessage = "O provedor de imagens recusou a solicitação.";
   try {
-    const declared = Number(req.headers.get("content-length") ?? 0); if (declared > MAX_BODY_BYTES) return json(h, { message: "Request body too large.", code: "payload_too_large" }, 413);
-    const raw = await req.text(); if (raw.length > MAX_BODY_BYTES) return json(h, { message: "Request body too large.", code: "payload_too_large" }, 413);
-    let body: unknown; try { body = JSON.parse(raw || "{}"); } catch { return json(h, { message: "Invalid JSON body", code: "invalid_json" }, 400); }
-    const parsed = BodySchema.safeParse(body); if (!parsed.success) return json(h, { message: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
-    const { prompt: rawPrompt, images, size } = parsed.data; idempotencyKey = parsed.data.idempotencyKey; const prompt = rawPrompt.trim();
-    if (prompt.length === 0 || prompt.length > MAX_PROMPT_CHARS) return json(h, { message: "Validation failed", code: "validation_error" }, 400);
-    const wordCount = prompt.split(/\s+/).filter(Boolean).length; if (wordCount > MAX_PROMPT_WORDS) return json(h, { message: "Validation failed", code: "validation_error" }, 400);
-    let width = DEFAULT_DIM, height = DEFAULT_DIM; if (size && (size.width !== undefined || size.height !== undefined)) { width = size.width ?? size.height ?? DEFAULT_DIM; height = size.height ?? size.width ?? DEFAULT_DIM; }
-    const admin = adminClient(); const isTestAccount = guard.email.trim().toLowerCase() === TEST_ACCOUNT_EMAIL;
-    let consumed: unknown;
-    if (isTestAccount) {
-      consumed = { testAccount: true, creditCost: 0 };
-    } else {
-      const { data, error: consumeError } = await admin.rpc("consume_billing_credit", { p_user_id: guard.userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
-      if (consumeError) { const missing = consumeError.message.includes("commercial_rule_missing"), insufficient = consumeError.message.includes("insufficient_credits"); return json(h, { message: missing ? "Esta operação ainda não possui uma regra comercial configurada." : insufficient ? "Créditos insuficientes para gerar o render." : "Não foi possível autorizar o consumo de créditos.", code: missing ? "commercial_rule_missing" : insufficient ? "insufficient_credits" : "credit_authorization_failed" }, 402); }
-      creditConsumed = true; consumed = Array.isArray(data) ? data[0] : data;
+    const parsed = JSON.parse(body) as { error?: { message?: string }; message?: string };
+    safeMessage = parsed.error?.message ?? parsed.message ?? safeMessage;
+  } catch { /* Keep the safe default. */ }
+  const error = new Error(safeMessage) as GatewayError;
+  error.status = response.status;
+  error.retryAfter = response.headers.get("Retry-After") ?? undefined;
+  return error;
+}
+
+async function requestGateway(prompt: string, images: ImageInput[], stream: boolean): Promise<Response> {
+  const key = Deno.env.get("LOVABLE_API_KEY");
+  if (!key) throw new Error("provider_not_configured");
+  const headers = { Authorization: `Bearer ${key}`, "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "fetch" };
+  if (images.length > 0) {
+    const form = new FormData();
+    form.set("model", LOVABLE_IMAGE_MODEL);
+    form.set("prompt", prompt);
+    if (stream) {
+      form.set("stream", "true");
+      form.set("partial_images", "1");
     }
-    let result;
-    try { result = await generateWithFallback(guard.userId, prompt, images); }
-    catch (error) {
-      if (creditConsumed) { await refund(guard.userId, idempotencyKey); creditConsumed = false; }
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.startsWith("provider_not_configured")) return json(h, { message: "Nenhum provedor de IA de imagem está configurado. Ative Lovable AI ou configure o Google Gemini.", code: "provider_not_configured" }, 500);
-      if (message.includes("provider_http:402")) return json(h, { message: "Os créditos do provedor de IA estão esgotados.", code: "provider_credits_exhausted" }, 402);
-      if (message.includes("provider_http:429")) return json(h, { message: "O limite do provedor de IA foi atingido. Tente novamente em instantes.", code: "rate_limited" }, 429);
-      return json(h, { message: "O provedor de imagens está indisponível no momento.", code: "upstream_error" }, 502);
+    images.forEach((image, index) => form.append(images.length === 1 ? "image" : "image[]", imageBlob(image), `reference-${index}.${imageExtension(image.mimeType)}`));
+    return gatewayFetch(`${LOVABLE_GATEWAY_BASE_URL}/images/edits`, { method: "POST", headers, body: form });
+  }
+  return gatewayFetch(`${LOVABLE_GATEWAY_BASE_URL}/images/generations`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: LOVABLE_IMAGE_MODEL, prompt, ...(stream ? { stream: true, partial_images: 1 } : {}) }),
+  });
+}
+
+async function generateImage(prompt: string, images: ImageInput[]): Promise<string> {
+  const streamed = await requestGateway(prompt, images, true);
+  if (!streamed.ok) throw gatewayError(streamed, await streamed.text());
+  try {
+    return await readImageStream(streamed);
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "zero_image_events") throw error;
+    const replay = await requestGateway(prompt, images, false);
+    if (!replay.ok) throw gatewayError(replay, await replay.text());
+    return readBufferedImage(replay);
+  }
+}
+
+async function refund(userId: string, idempotencyKey: string) {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return;
+  const { createClient } = await import("npm:@supabase/supabase-js@2");
+  const admin = createClient(url, key, { auth: { persistSession: false } });
+  await admin.rpc("refund_billing_credit", { p_user_id: userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
+}
+
+serve(async request => {
+  const cors = buildCorsHeaders(request);
+  if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (request.method !== "POST") return jsonResponse(cors, { message: "Método não permitido.", code: "method_not_allowed" }, 405);
+
+  const guard = await guardRequest(request, cors, { fn: "ai-image", limit: 10, windowSeconds: 60 });
+  if (!guard.ok) return guard.response;
+  let creditConsumed = false;
+  let idempotencyKey = "";
+  try {
+    const body = await readJsonBody(request, MAX_BODY_BYTES);
+    if (!body.ok) return jsonResponse(cors, { message: body.reason === "too_large" ? "Corpo da solicitação muito grande." : "JSON inválido.", code: body.reason === "too_large" ? "payload_too_large" : "invalid_json" }, body.reason === "too_large" ? 413 : 400);
+    const parsed = BodySchema.safeParse(body.body);
+    if (!parsed.success) return jsonResponse(cors, { message: "Dados inválidos.", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
+    const { prompt, images = [], size } = parsed.data;
+    idempotencyKey = parsed.data.idempotencyKey;
+    const wordCount = prompt.split(/\s+/).filter(Boolean).length;
+    if (wordCount > MAX_PROMPT_WORDS) return jsonResponse(cors, { message: "O pedido é muito longo.", code: "validation_error" }, 400);
+    const width = size?.width ?? size?.height ?? DEFAULT_DIM;
+    const height = size?.height ?? size?.width ?? DEFAULT_DIM;
+
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !key) return jsonResponse(cors, { message: "Configuração do servidor incompleta.", code: "server_config_incomplete" }, 500);
+    const { createClient } = await import("npm:@supabase/supabase-js@2");
+    const admin = createClient(url, key, { auth: { persistSession: false } });
+    let data: unknown = { testAccount: true, creditCost: 0 };
+    if (guard.email.trim().toLowerCase() !== TEST_ACCOUNT_EMAIL) {
+      const consumed = await admin.rpc("consume_billing_credit", { p_user_id: guard.userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
+      if (consumed.error) {
+        const missing = consumed.error.message.includes("commercial_rule_missing");
+        const insufficient = consumed.error.message.includes("insufficient_credits");
+        console.error("ai-image credit authorization failed", consumed.error.message);
+        return jsonResponse(cors, { message: missing ? "Esta operação ainda não possui uma regra comercial configurada." : insufficient ? "Créditos insuficientes para gerar o render." : "Não foi possível autorizar o consumo de créditos.", code: missing ? "commercial_rule_missing" : insufficient ? "insufficient_credits" : "credit_authorization_failed" }, 402);
+      }
+      creditConsumed = true;
+      data = consumed.data;
     }
-    return json(h, { imageUrl: result.imageUrl, width, height, operationType: OPERATION_TYPE, model: result.model, provider: result.provider, creditConsumption: consumed, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
-  } catch (e) {
-    if (creditConsumed && idempotencyKey) { try { await refund(guard.userId, idempotencyKey); } catch (refundError) { console.error("ai-image refund error:", refundError); } }
-    console.error("ai-image error:", e); return json(h, { message: "Erro interno ao gerar imagem.", code: "internal_error" }, 500);
+    const imageBase64 = await generateImage(prompt, images);
+    return jsonResponse(cors, { imageUrl: `data:image/png;base64,${imageBase64}`, width, height, operationType: OPERATION_TYPE, model: LOVABLE_IMAGE_MODEL, provider: "lovable", creditConsumption: Array.isArray(data) ? data[0] : data, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
+  } catch (caught) {
+    if (creditConsumed && idempotencyKey) await refund(guard.userId, idempotencyKey).catch(error => console.error("ai-image refund error", error));
+    const error = caught as GatewayError;
+    console.error("ai-image error", error.message);
+    if (error.message === "provider_not_configured") return jsonResponse(cors, { message: "A conexão com a IA não está configurada nesta publicação.", code: "provider_not_configured" }, 500);
+    if (error.status === 400) return jsonResponse(cors, { message: error.message, code: "invalid_image_request" }, 400);
+    if (error.status === 401) return jsonResponse(cors, { message: "A chave do serviço de IA não está configurada corretamente.", code: "provider_auth_error" }, 401);
+    if (error.status === 402) return jsonResponse(cors, { message: error.message, code: "provider_credits_exhausted" }, 402);
+    if (error.status === 403) return jsonResponse(cors, { message: error.message, code: "provider_access_denied" }, 403);
+    if (error.status === 429) return jsonResponse(cors, { message: error.message, code: "rate_limited" }, 429, error.retryAfter ? { "Retry-After": error.retryAfter } : {});
+    return jsonResponse(cors, { message: error.message.startsWith("provider_stream:") ? error.message.slice(16) : "O provedor de imagens está indisponível no momento.", code: "upstream_error" }, 502);
   }
 });

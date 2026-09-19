@@ -47,6 +47,22 @@ export const useMarcenappOS = create<OSState>()(
       setActiveModule: (id) => set({ activeModule: id }),
       clearHistory: () => set({ commandHistory: [] }),
     }),
-    { name: 'marcenapp-os-core', storage: createJSONStorage(() => localStorage), version: 1 }
+    {
+      name: 'marcenapp-os-core',
+      storage: createJSONStorage(() => localStorage),
+      version: 2,
+      migrate: (persistedState: unknown) => {
+        if (!persistedState || typeof persistedState !== 'object') return { commandHistory: [], activeModule: 'chat' };
+        const state = persistedState as Partial<OSState>;
+        return {
+          ...state,
+          commandHistory: (state.commandHistory ?? []).map(command => command.status === 'processing' ? { ...command, status: 'pending' as const } : command),
+        };
+      },
+      partialize: (state) => ({
+        commandHistory: state.commandHistory.map(command => command.status === 'processing' ? { ...command, status: 'pending' as const } : command),
+        activeModule: state.activeModule,
+      }),
+    }
   )
 );

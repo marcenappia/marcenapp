@@ -13,9 +13,9 @@ vi.mock('@/modules/ambientes/services/studioService', () => ({ studioService: { 
 
 describe('IARA-Studio Architecture', () => {
   beforeEach(() => { vi.clearAllMocks(); useStudioStore.getState().clearQueue(); useStudioStore.setState({ isRendering: false }); useMarcenappOS.getState().clearHistory(); });
-  const dispatchRender = (images?: { mimeType: string; data: string }[]) => {
+  const dispatchRender = (images?: { mimeType: string; data: string }[], correlationId = 'corr-test') => {
     const studioId = useStudioStore.getState().enqueueCommand({ prompt: 'Test', images, metadata: { origin: 'iara', originalPrompt: 'Test', targetModule: 'studio' } });
-    const osId = useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: 'Test', studioCommandId: studioId, userId: 'u1', projectId: 'A', environmentId: 'E1', versionId: 'V1', correlationId: 'corr-test', generation: 1 } });
+    const osId = useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', payload: { prompt: 'Test', studioCommandId: studioId, userId: 'u1', projectId: 'A', environmentId: 'E1', versionId: 'V1', correlationId, generation: 1 } });
     return { studioId, osId };
   };
 
@@ -43,7 +43,7 @@ describe('IARA-Studio Architecture', () => {
 
     let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
     renderAct(() => {
-      ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }]);
+      ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }], 'corr-chat');
     });
     window.history.pushState({}, '', '?module=chat');
     render(<StudioWorker />);
@@ -71,7 +71,7 @@ describe('IARA-Studio Architecture', () => {
     }) as never);
 
     let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
-    renderAct(() => { ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }]); });
+    renderAct(() => { ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }], 'corr-chat'); });
     render(<StudioWorker />);
     await renderAct(async () => { await new Promise(r => setTimeout(r, 100)); });
 

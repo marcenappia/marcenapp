@@ -20,3 +20,9 @@ Fases 1–3 técnicas: ver `.lovable/plan/auditoria-técnica-completa-marcenapp-
 - [ ] Guardar foto do ambiente em Storage para retomar a obra
 - [ ] Produção: lista de peças + ferragens + plano de corte a partir da obra aprovada
 - [ ] Exportar/compartilhar PDF (apresentação, orçamento, contrato)
+
+## IARA render end-to-end — em validação
+- [x] Alinhar contexto persistente de execução e galeria no backend conectado
+- [x] Atualizar `ai-image` para o contrato atual do Lovable AI Gateway
+- [x] Recuperar conclusões assíncronas após remontagem/reload e publicar uma única mensagem final
+- [ ] Validar testes, qualidade, deploy e uma geração real com evidências

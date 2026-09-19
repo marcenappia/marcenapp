@@ -83,7 +83,7 @@ export async function guardRequest(req: Request, cors: Record<string, string>, o
     return { ok: false as const, response: jsonResponse(cors, { error: row ? `Limite de uso atingido. Tente novamente em ${retry}s.` : "Não foi possível validar o limite de uso da IA.", retryAfterSeconds: retry }, 429, { "Retry-After": String(retry) }) };
   }
 
-  return { ok: true as const, userId: userData.user.id };
+  return { ok: true as const, userId: userData.user.id, email: userData.user.email ?? "" };
 }
 
 export async function readJsonBody(req: Request, maxBytes: number) {
