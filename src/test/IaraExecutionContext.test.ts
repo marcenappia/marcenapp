@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { persistIaraContext } from '@/modules/iara/services/iaraContext';
 
-const update = vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) }));
+const update = vi.fn(() => ({ eq: vi.fn().mockReturnThis(), then: (resolve: (value: { error: null }) => void) => resolve({ error: null }) }));
 const insert = vi.fn(() => Promise.resolve({ error: null }));
 const select = vi.fn(() => ({
   eq: vi.fn().mockReturnThis(),

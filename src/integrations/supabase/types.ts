@@ -39,6 +39,7 @@ export type Database = {
         Row: {
           budget: string | null
           created_at: string
+          environment_id: string | null
           id: string
           image_url: string | null
           metadata: Json | null
@@ -46,10 +47,12 @@ export type Database = {
           sender: string
           text: string | null
           user_id: string
+          version_id: string | null
         }
         Insert: {
           budget?: string | null
           created_at?: string
+          environment_id?: string | null
           id?: string
           image_url?: string | null
           metadata?: Json | null
@@ -57,10 +60,12 @@ export type Database = {
           sender?: string
           text?: string | null
           user_id: string
+          version_id?: string | null
         }
         Update: {
           budget?: string | null
           created_at?: string
+          environment_id?: string | null
           id?: string
           image_url?: string | null
           metadata?: Json | null
@@ -68,6 +73,7 @@ export type Database = {
           sender?: string
           text?: string | null
           user_id?: string
+          version_id?: string | null
         }
         Relationships: [
           {
@@ -139,29 +145,108 @@ export type Database = {
         }
         Relationships: []
       }
-      gallery_images: {
+      diario_entradas: {
         Row: {
+          categoria: string | null
           created_at: string
+          evidencia: string | null
+          foto_path: string | null
           id: string
-          image_url: string
-          prompt: string | null
+          importante: boolean
+          metadata: Json
+          pendencia_resolvida: boolean
+          project_id: string | null
+          texto: string
+          tipo: string
+          updated_at: string
           user_id: string
         }
         Insert: {
+          categoria?: string | null
           created_at?: string
+          evidencia?: string | null
+          foto_path?: string | null
           id?: string
-          image_url: string
-          prompt?: string | null
+          importante?: boolean
+          metadata?: Json
+          pendencia_resolvida?: boolean
+          project_id?: string | null
+          texto?: string
+          tipo?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
+          categoria?: string | null
           created_at?: string
+          evidencia?: string | null
+          foto_path?: string | null
           id?: string
-          image_url?: string
-          prompt?: string | null
+          importante?: boolean
+          metadata?: Json
+          pendencia_resolvida?: boolean
+          project_id?: string | null
+          texto?: string
+          tipo?: string
+          updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "diario_entradas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gallery_images: {
+        Row: {
+          correlation_id: string | null
+          created_at: string
+          environment_id: string | null
+          execution_generation: number | null
+          id: string
+          image_url: string
+          project_id: string | null
+          prompt: string | null
+          user_id: string
+          version_id: string | null
+        }
+        Insert: {
+          correlation_id?: string | null
+          created_at?: string
+          environment_id?: string | null
+          execution_generation?: number | null
+          id?: string
+          image_url: string
+          project_id?: string | null
+          prompt?: string | null
+          user_id: string
+          version_id?: string | null
+        }
+        Update: {
+          correlation_id?: string | null
+          created_at?: string
+          environment_id?: string | null
+          execution_generation?: number | null
+          id?: string
+          image_url?: string
+          project_id?: string | null
+          prompt?: string | null
+          user_id?: string
+          version_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gallery_images_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       orchestrator_runs: {
         Row: {
@@ -243,6 +328,60 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      project_iara_contexts: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          environment_id: string | null
+          id: string
+          last_correlation_id: string | null
+          last_execution_generation: number | null
+          project_id: string
+          updated_at: string
+          user_id: string
+          version_id: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          environment_id?: string | null
+          id?: string
+          last_correlation_id?: string | null
+          last_execution_generation?: number | null
+          project_id: string
+          updated_at?: string
+          user_id: string
+          version_id?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          environment_id?: string | null
+          id?: string
+          last_correlation_id?: string | null
+          last_execution_generation?: number | null
+          project_id?: string
+          updated_at?: string
+          user_id?: string
+          version_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_iara_contexts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_iara_contexts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       projects: {
         Row: {

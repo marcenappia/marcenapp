@@ -119,8 +119,6 @@ export const StudioWorker = () => {
         updateOSStatus(osCommand.id, 'cancelled', undefined, 'Resultado descartado: a identidade de execução mudou durante a geração.');
         return;
       }
-      completeCommand(storeCommandId, result);
-      updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
       const context = await readCurrentContext();
       const projectId = typeof payload.projectId === 'string' ? payload.projectId : context?.project_id ?? null;
       const environmentId = typeof payload.environmentId === 'string' ? payload.environmentId : context?.environment_id ?? null;
@@ -138,7 +136,9 @@ export const StudioWorker = () => {
         correlation_id: correlationId,
         execution_generation: generation,
       });
-      if (error) console.error('Falha ao salvar o render na galeria após conclusão:', error);
+      if (error) throw new Error(`A imagem foi gerada, mas não pôde ser salva na galeria: ${error.message}`);
+      completeCommand(storeCommandId, result);
+      updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
 
     } catch (error: unknown) {
       console.error('StudioWorker Error:', error);

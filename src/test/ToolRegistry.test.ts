@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const callAIContractClause = vi.fn();
+const enqueueCommand = vi.fn(() => 'studio-test');
+const dispatchCommand = vi.fn(() => 'os-test');
 
 vi.mock('@/services/ai', () => ({ callAIContractClause }));
 vi.mock('@/integrations/supabase/client', () => ({
@@ -11,8 +13,8 @@ vi.mock('@/integrations/supabase/client', () => ({
     })),
   },
 }));
-vi.mock('@/store/useStudioStore', () => ({ useStudioStore: { getState: () => ({ enqueueCommand: vi.fn(() => 'studio-test') }) } }));
-vi.mock('@/store/useMarcenappOS', () => ({ useMarcenappOS: { getState: () => ({ dispatchCommand: vi.fn() }) } }));
+vi.mock('@/store/useStudioStore', () => ({ useStudioStore: { getState: () => ({ enqueueCommand }) } }));
+vi.mock('@/store/useMarcenappOS', () => ({ useMarcenappOS: { getState: () => ({ dispatchCommand }) } }));
 
 describe('gerarContrato tool', () => {
   it('returns ok=false when AI fails', async () => {
@@ -58,5 +60,26 @@ describe('gerarContrato tool', () => {
       expect(data.clausulasGeradas).toBe(2);
       expect(data.clausulas).toEqual(['Cláusula um', 'Cláusula dois']);
     }
+  });
+});
+
+describe('gerarRender tool', () => {
+  it('rejects a render without its complete persistent execution identity', async () => {
+    const { executeToolCall } = await import('@/core/toolRegistry');
+    const result = await executeToolCall('gerarRender', { prompt: 'Cozinha planejada' }, { userId: 'user-a', correlationId: 'correlation-a' });
+    expect(result).toEqual({ ok: false, error: 'Identidade de execução incompleta para gerar o render.' });
+    expect(dispatchCommand).not.toHaveBeenCalled();
+  });
+
+  it('dispatches correlation, generation and idempotency to the global Studio worker', async () => {
+    const { executeToolCall } = await import('@/core/toolRegistry');
+    const result = await executeToolCall('gerarRender', { prompt: 'Cozinha planejada' }, {
+      userId: 'user-a', projectId: 'project-a', correlationId: 'correlation-a', generation: 3,
+    });
+    expect(result.ok).toBe(true);
+    expect(dispatchCommand).toHaveBeenCalledWith(expect.objectContaining({
+      idempotencyKey: 'correlation-a',
+      payload: expect.objectContaining({ userId: 'user-a', projectId: 'project-a', correlationId: 'correlation-a', generation: 3, idempotencyKey: 'correlation-a' }),
+    }));
   });
 });
