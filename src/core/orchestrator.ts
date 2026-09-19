@@ -152,7 +152,10 @@ function deterministicCreateProjectPlan(userPrompt: string, context?: Record<str
   const dimensions = extractTextProjectDimensions(combined);
   if (!dimensions) return [];
   const name = projectNameFromText(combined);
-  return [{ tool: 'createProjeto', args: { nome: name, ...dimensions, tipo: name, confirmado: true } }];
+  const doorsMatch = normalizePortugueseNumberWords(normalizeText(combined)).match(/(\\d+)\\s+portas?\\b/i);
+  const doors = doorsMatch ? Number(doorsMatch[1]) : undefined;
+  const args = { nome: name, ...dimensions, ...(Number.isInteger(doors) && doors > 0 ? { doors } : {}), tipo: name, confirmado: true };
+  return [{ tool: 'createProjeto', args }];
 }
 
 async function persistRunFailure(runId: string | null, plan: ToolCall[], error: string): Promise<void> {
