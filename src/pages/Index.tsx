@@ -6,7 +6,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/marcenapp-logo.svg';
 import Onboarding from '../components/marcenaria/Onboarding';
-import ProfessionalProfileGate from '@/components/marcenaria/ProfessionalProfileGate';
 import { modules, CATEGORY_LABELS, ModuleCategory, MOBILE_NAV_IDS } from '@/modules/config';
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
 import { ProjectData } from '@/modules/projetos/types';
@@ -28,6 +27,16 @@ const DiarioModule = lazy(() => import('@/modules/projetos/components/Diario'));
 const ConfiguracoesModule = lazy(() => import('@/modules/configuracoes'));
 
 const emptyProject: ProjectData = { width: 0, height: 0, depth: 0, modules: 0, drawers: 0, doors: 0, internalMaterial: '', externalMaterial: '', backMaterial: '', handleType: '', profitMargin: 0, laborRate: 0 };
+
+class ModuleErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: React.ErrorInfo) { console.error('[workspace-module] crashed', error, info.componentStack); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return <div className="min-h-[320px] flex flex-col items-center justify-center rounded-2xl border border-red-200 bg-white p-8 text-center"><p className="text-sm font-black text-slate-900">Este módulo encontrou um erro.</p><p className="mt-1 text-xs text-slate-500">O restante do espaço de trabalho continua disponível.</p><button type="button" onClick={() => this.setState({ error: null })} className="mt-4 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white">Tentar novamente</button></div>;
+  }
+}
 
 const ModuleFallback = () => (
   <div className="min-h-[320px] flex items-center justify-center rounded-2xl border border-slate-200 bg-white" aria-busy="true" aria-live="polite">
@@ -91,7 +100,7 @@ const Index = () => {
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
       <h1 className="sr-only">Marcenapp — do projeto à produção, tudo no lugar.</h1>
-      <Suspense fallback={null}><StudioWorker /></Suspense><ProfessionalProfileGate /><Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
+      <Suspense fallback={null}><StudioWorker /></Suspense><Onboarding onNavigate={setActiveModule} activeModule={activeModule} />
       <aside className="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col border-r border-slate-800 z-20 shrink-0 shadow-2xl">
         <div className="p-4 flex items-center gap-3 font-bold text-white border-b border-slate-800 h-16"><img src={logo} alt="Marcenapp" className="w-9 h-9 rounded-xl" /><div className="leading-tight"><span className="tracking-tight text-sm">MARCENAPP</span><p className="text-[10px] text-slate-400 font-normal tracking-tight">Do projeto à produção</p></div></div>
         <nav className="flex-1 p-3 space-y-6 overflow-y-auto scrollbar-thin">{(Object.keys(groupedModules) as ModuleCategory[]).map(cat => <div key={cat} className="space-y-1"><h3 className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center justify-between">{CATEGORY_LABELS[cat]}<ChevronRight size={10} className="opacity-50" /></h3>{groupedModules[cat]!.map(m => <button key={m.id} id={`nav-${m.id}`} aria-label={m.label} aria-current={activeModule === m.id ? 'page' : undefined} onClick={() => setActiveModule(m.id)} onKeyDown={e => handleKeyDown(e, m.id)} className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${activeModule === m.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'hover:bg-white/5 hover:text-white text-slate-400'}`}><m.icon size={18} aria-hidden="true" /><span className="font-semibold text-sm">{m.label}</span></button>)}</div>)}</nav>
@@ -109,7 +118,7 @@ const Index = () => {
           </div>
         </header>
 
-        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-8 pb-24 md:pb-8 scroll-smooth"><div className="w-full min-w-0 max-w-7xl mx-auto"><AnimatePresence mode="wait"><motion.div className="min-w-0" key={activeModule} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}><Suspense fallback={<ModuleFallback />}>{renderModule()}</Suspense></motion.div></AnimatePresence></div></div>
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-8 pb-24 md:pb-8 scroll-smooth"><div className="w-full min-w-0 max-w-7xl mx-auto"><AnimatePresence mode="wait"><motion.div className="min-w-0" key={activeModule} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}><ModuleErrorBoundary key={activeModule}><Suspense fallback={<ModuleFallback />}>{renderModule()}</Suspense></ModuleErrorBoundary></motion.div></AnimatePresence></div></div>
 
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-1 z-50 flex justify-around items-center pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">{mobileModules.map(m => <button key={m.id} id={`mobile-nav-${m.id}`} aria-label={m.mobileLabel} aria-current={activeModule === m.id ? 'page' : undefined} onClick={() => setActiveModule(m.id)} onKeyDown={e => handleMobileKeyDown(e, m.id)} className={`flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all flex-1 max-w-[120px] focus-visible:outline-none ${activeModule === m.id ? 'text-indigo-600' : 'text-slate-400'}`}><div className={`p-1.5 rounded-xl transition-colors ${activeModule === m.id ? 'bg-indigo-50' : 'bg-transparent'}`}>{m.id === 'studio' ? <img src={logo} alt="M" className="w-5 h-5 object-contain" /> : <m.icon size={20} strokeWidth={activeModule === m.id ? 2.5 : 2} aria-hidden="true" />}</div><span className="text-[9px] font-bold tracking-tight uppercase">{m.mobileLabel}</span></button>)}</nav>
       </main>
