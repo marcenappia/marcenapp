@@ -107,6 +107,56 @@ describe('IARA-Studio Architecture', () => {
     expect(studioService.generateVisual).not.toHaveBeenCalled();
   });
 
+  it('keeps an IARA render bound to its project when another project is newer', async () => {
+    vi.mocked(studioService.generateVisual).mockResolvedValue('url-project-a');
+    const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
+    from.mockImplementation((table?: string) => {
+      if (table === 'project_iara_contexts') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockImplementation((column: string, value: unknown) => {
+            if (column === 'project_id' && value === 'A') {
+              return Promise.resolve({
+                data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-a', last_execution_generation: 2 },
+                error: null,
+              });
+            }
+            return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })) };
+          }),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'B', environment_id: 'E2', version_id: 'V2', last_correlation_id: 'corr-b', last_execution_generation: 9 }, error: null })),
+          insert: vi.fn(() => Promise.resolve({ error: null })),
+        } as never;
+      }
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+        insert: vi.fn(() => Promise.resolve({ error: null })),
+      } as never;
+    });
+
+    let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
+    renderAct(() => {
+      ids = dispatchRender(undefined, 'corr-a');
+      useMarcenappOS.setState(state => ({
+        commandHistory: state.commandHistory.map(command => command.id === ids.osId
+          ? { ...command, payload: { ...command.payload, projectId: 'A', environmentId: 'E1', versionId: 'V1', generation: 2 } }
+          : command),
+      }));
+    });
+    render(<StudioWorker />);
+    await renderAct(async () => { await new Promise(r => setTimeout(r, 100)); });
+
+    const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
+    expect(osCmd?.status).toBe('completed');
+    expect(osCmd?.result?.resultUrl).toBe('url-project-a');
+    expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects an IARA render whose persisted correlation is stale after returning to the same project', async () => {
     vi.mocked(studioService.generateVisual).mockResolvedValue('must-not-run');
     const studioId = useStudioStore.getState().enqueueCommand({ prompt: 'Old A render', metadata: { origin: 'iara', originalPrompt: 'Old A render', targetModule: 'studio' } });
