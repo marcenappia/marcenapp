@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, Factory, HardHat, Home, Palette, Ruler, ShoppingBag, Store, Users, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, Factory, HardHat, Home, Palette, Ruler, ShoppingBag, Store, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,10 +18,21 @@ const ICONS = {
 export default function ProfessionalProfileSelection() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, refreshProfile } = useAuth();
+  const { user, loading, refreshProfile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const isLogin = new URLSearchParams(location.search).get('mode') === 'login';
+
+  if (isLogin && loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white" aria-busy="true">
+        <div className="text-center">
+          <p className="text-sm font-black tracking-wide">MARCENAPP</p>
+          <p className="mt-2 text-xs text-slate-400">Restaurando sua sessão…</p>
+        </div>
+      </main>
+    );
+  }
 
   if (isLogin && !user) {
     navigate('/auth', { replace: true });
