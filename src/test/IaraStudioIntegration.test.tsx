@@ -36,6 +36,27 @@ describe('IARA-Studio Architecture', () => {
     expect(vi.mocked(studioService.generateVisual).mock.calls[0]?.[1]).toEqual([{ mimeType: 'image/png', data: 'abc' }]);
   });
 
+  it('IARA render executes while the user remains in the conversation module', async () => {
+    vi.mocked(studioService.generateVisual).mockResolvedValue('url-from-chat');
+    const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
+    from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-chat', last_execution_generation: 1 }, error: null })), insert: vi.fn(() => Promise.resolve({ error: null })) }) as never);
+
+    let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
+    renderAct(() => {
+      ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }]);
+    });
+    window.history.pushState({}, '', '?module=chat');
+    render(<StudioWorker />);
+    await renderAct(async () => { await new Promise(r => setTimeout(r, 100)); });
+
+    const studioCmd = useStudioStore.getState().commandQueue.find(c => c.id === ids.studioId);
+    const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
+    expect(studioCmd?.status).toBe('completed');
+    expect(osCmd?.status).toBe('completed');
+    expect(osCmd?.result?.resultUrl).toBe('url-from-chat');
+    expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
+  });
+
   it('IARA command without visual context is accepted for text-only rendering', async () => {
     vi.mocked(studioService.generateVisual).mockResolvedValue('url-text-only');
     const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
