@@ -95,13 +95,16 @@ jobs:
         const fs = require('fs');
         const file = process.argv[2];
         const response = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (!response.user_id) {
+          throw new Error('e2e-bootstrap did not return a user id');
+        }
+        fs.appendFileSync(process.env.GITHUB_ENV, `E2E_USER_ID=${response.user_id}\n`);
         const session = response.session;
-        if (!response.user_id || !session?.access_token || !session?.refresh_token || !session?.user?.email) {
+        if (!session?.access_token || !session?.refresh_token || !session?.user?.email) {
           throw new Error('e2e-bootstrap returned an invalid session payload');
         }
         const encoded = Buffer.from(JSON.stringify(session), 'utf8').toString('base64');
         fs.appendFileSync(process.env.GITHUB_ENV, `E2E_SESSION_B64=${encoded}\n`);
-        fs.appendFileSync(process.env.GITHUB_ENV, `E2E_USER_ID=${response.user_id}\n`);
         console.log('Ephemeral E2E session bootstrapped.');
         NODE
 
