@@ -1,6 +1,7 @@
 name: Playwright Tests
 # Full validation gate for the release branch; never deploys or merges.
 on:
+  workflow_dispatch:
   push:
     branches: [ main, master ]
   pull_request:
