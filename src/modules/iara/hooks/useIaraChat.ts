@@ -184,7 +184,15 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       const body = lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?';
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, ...(directRenderImageUrl ? { image_url: directRenderImageUrl } : {}), metadata }, execution);
-      pendingExecutionsRef.current.delete(correlationId); lastFailedRef.current = null;
+      const renderQueued = response.run.results.some(({ tool, result }) => {
+        if (tool !== 'gerarRender' || result.ok === false) return false;
+        const data = result.data as Record<string, unknown>;
+        return data.status === 'queued' && typeof data.imageUrl !== 'string';
+      });
+      // Keep the execution identity alive until the asynchronous Studio command
+      // finishes. The commandHistory effect publishes the final image (or failure).
+      if (!renderQueued) pendingExecutionsRef.current.delete(correlationId);
+      lastFailedRef.current = null;
     } catch (error: unknown) { lastFailedRef.current = { text: promptText, upload, smartAction }; if (execution) pendingExecutionsRef.current.delete(execution.correlationId); setError(humanizeError(error)); } finally { setIsTyping(false); }
   };
 
