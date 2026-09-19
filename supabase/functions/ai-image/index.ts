@@ -9,7 +9,6 @@ const DEFAULT_DIM = 1024;
 const MAX_PROMPT_CHARS = 4000;
 const MAX_PROMPT_WORDS = 800;
 const OPERATION_TYPE = "gerarRender";
-const TEST_ACCOUNT_EMAIL = "marcenapp.ia@gmail.com";
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2.5-sunburst";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 
@@ -184,18 +183,15 @@ serve(async request => {
     if (!url || !key) return jsonResponse(cors, { message: "Configuração do servidor incompleta.", code: "server_config_incomplete" }, 500);
     const { createClient } = await import("npm:@supabase/supabase-js@2");
     const admin = createClient(url, key, { auth: { persistSession: false } });
-    let data: unknown = { testAccount: true, creditCost: 0 };
-    if (guard.email.trim().toLowerCase() !== TEST_ACCOUNT_EMAIL) {
-      const consumed = await admin.rpc("consume_billing_credit", { p_user_id: guard.userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
-      if (consumed.error) {
-        const missing = consumed.error.message.includes("commercial_rule_missing");
-        const insufficient = consumed.error.message.includes("insufficient_credits");
-        console.error("ai-image credit authorization failed", consumed.error.message);
-        return jsonResponse(cors, { message: missing ? "Esta operação ainda não possui uma regra comercial configurada." : insufficient ? "Créditos insuficientes para gerar o render." : "Não foi possível autorizar o consumo de créditos.", code: missing ? "commercial_rule_missing" : insufficient ? "insufficient_credits" : "credit_authorization_failed" }, 402);
-      }
-      creditConsumed = true;
-      data = consumed.data;
+    const consumed = await admin.rpc("consume_billing_credit", { p_user_id: guard.userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
+    if (consumed.error) {
+      const missing = consumed.error.message.includes("commercial_rule_missing");
+      const insufficient = consumed.error.message.includes("insufficient_credits");
+      console.error("ai-image credit authorization failed", consumed.error.message);
+      return jsonResponse(cors, { message: missing ? "Esta operação ainda não possui uma regra comercial configurada." : insufficient ? "Créditos insuficientes para gerar o render." : "Não foi possível autorizar o consumo de créditos.", code: missing ? "commercial_rule_missing" : insufficient ? "insufficient_credits" : "credit_authorization_failed" }, 402);
     }
+    creditConsumed = true;
+    const data: unknown = consumed.data;
     const imageBase64 = await generateImage(prompt, images);
     return jsonResponse(cors, { imageUrl: `data:image/png;base64,${imageBase64}`, width, height, operationType: OPERATION_TYPE, model: LOVABLE_IMAGE_MODEL, provider: "lovable", creditConsumption: Array.isArray(data) ? data[0] : data, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
