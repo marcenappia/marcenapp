@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: marcenapp-validation-${{ github.workflow }}-${{ github.ref }}
@@ -76,10 +77,51 @@ jobs:
       if: ${{ steps.install.outcome == 'success' }}
       run: npx playwright install --with-deps
 
-    - name: Run Playwright tests
-      id: playwright
+    - name: Bootstrap ephemeral E2E session
+      id: e2e_bootstrap
       if: ${{ steps.install.outcome == 'success' }}
       env:
-        E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
-        E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        SUPABASE_URL: https://uzhqhieqlcyncelltfjw.supabase.co
+        OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+        OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+      run: |
+        set -euo pipefail
+        oidc_token="$(curl -fsSL           -H "Authorization: bearer $OIDC_REQUEST_TOKEN"           "$OIDC_REQUEST_URL&audience=marcenapp-e2e" |
+          node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>process.stdout.write(JSON.parse(s).value))")"
+
+        curl -fsSL -X POST           "$SUPABASE_URL/functions/v1/e2e-bootstrap"           -H "Authorization: Bearer $oidc_token"           -H "Content-Type: application/json"           --data '{"action":"create"}'           > "$RUNNER_TEMP/e2e-session.json"
+
+        node - "$RUNNER_TEMP/e2e-session.json" <<'NODE'
+        const fs = require('fs');
+        const file = process.argv[2];
+        const response = JSON.parse(fs.readFileSync(file, 'utf8'));
+        const session = response.session;
+        if (!response.user_id || !session?.access_token || !session?.refresh_token || !session?.user?.email) {
+          throw new Error('e2e-bootstrap returned an invalid session payload');
+        }
+        const encoded = Buffer.from(JSON.stringify(session), 'utf8').toString('base64');
+        fs.appendFileSync(process.env.GITHUB_ENV, `E2E_SESSION_B64=${encoded}\n`);
+        fs.appendFileSync(process.env.GITHUB_ENV, `E2E_USER_ID=${response.user_id}\n`);
+        console.log('Ephemeral E2E session bootstrapped.');
+        NODE
+
+        session_b64="$(grep '^E2E_SESSION_B64=' "$GITHUB_ENV" | tail -1 | cut -d= -f2-)"
+        echo "::add-mask::$session_b64"
+
+    - name: Run Playwright tests
+      id: playwright
+      if: ${{ steps.install.outcome == 'success' && steps.e2e_bootstrap.outcome == 'success' }}
       run: npx playwright test
+
+    - name: Cleanup ephemeral E2E user
+      if: ${{ always() && steps.e2e_bootstrap.outcome == 'success' }}
+      env:
+        SUPABASE_URL: https://uzhqhieqlcyncelltfjw.supabase.co
+        OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+        OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+        E2E_USER_ID: ${{ env.E2E_USER_ID }}
+      run: |
+        set -euo pipefail
+        oidc_token="$(curl -fsSL           -H "Authorization: bearer $OIDC_REQUEST_TOKEN"           "$OIDC_REQUEST_URL&audience=marcenapp-e2e" |
+          node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>process.stdout.write(JSON.parse(s).value))")"
+        curl -fsSL -X POST           "$SUPABASE_URL/functions/v1/e2e-bootstrap"           -H "Authorization: Bearer $oidc_token"           -H "Content-Type: application/json"           --data "$(node -e 'console.log(JSON.stringify({action:"delete",user_id:process.env.E2E_USER_ID}))')"
