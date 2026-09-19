@@ -123,17 +123,54 @@ export const StudioWorker = () => {
       completeCommand(storeCommandId, result);
       updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
       const context = await readCurrentContext();
+      const projectId = typeof payload.projectId === 'string' ? payload.projectId : context?.project_id ?? null;
+      const environmentId = typeof payload.environmentId === 'string' ? payload.environmentId : context?.environment_id ?? null;
+      const versionId = typeof payload.versionId === 'string' ? payload.versionId : context?.version_id ?? null;
+      const correlationId = typeof payload.correlationId === 'string' ? payload.correlationId : null;
+      const generation = typeof payload.generation === 'number' ? payload.generation : null;
+
       const { error } = await supabase.from('gallery_images').insert({
         user_id: user.id,
         image_url: result,
         prompt: command.prompt,
-        project_id: typeof payload.projectId === 'string' ? payload.projectId : context?.project_id ?? null,
-        environment_id: typeof payload.environmentId === 'string' ? payload.environmentId : context?.environment_id ?? null,
-        version_id: typeof payload.versionId === 'string' ? payload.versionId : context?.version_id ?? null,
-        correlation_id: typeof payload.correlationId === 'string' ? payload.correlationId : null,
-        execution_generation: typeof payload.generation === 'number' ? payload.generation : null,
+        project_id: projectId,
+        environment_id: environmentId,
+        version_id: versionId,
+        correlation_id: correlationId,
+        execution_generation: generation,
       });
       if (error) console.error('Falha ao salvar o render na galeria após conclusão:', error);
+
+      // gerarRender is asynchronous: publish the provider result back into the
+      // same IARA conversation after the image is actually available.
+      if (correlationId) {
+        const { error: chatError } = await supabase.from('chat_messages').insert({
+          user_id: user.id,
+          project_id: projectId,
+          environment_id: environmentId,
+          version_id: versionId,
+          sender: 'iara',
+          text: 'Pronto. O render foi gerado.',
+          image_url: result,
+          metadata: {
+            domain: 'project',
+            action: 'render',
+            agent: 'IARA',
+            correlationId,
+            projectId: projectId ?? undefined,
+            environmentId: environmentId ?? undefined,
+            versionId: versionId ?? undefined,
+            status: 'ready',
+            resultUrl: result,
+            imageUrl: result,
+            commandId: osCommand.id,
+            studioCommandId: storeCommandId,
+            generation: generation ?? undefined,
+            artifact: { type: 'render', id: storeCommandId },
+          },
+        });
+        if (chatError) console.error('Falha ao devolver o render concluído para a conversa da IARA:', chatError);
+      }
     } catch (error: unknown) {
       console.error('StudioWorker Error:', error);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
