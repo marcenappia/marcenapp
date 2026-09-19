@@ -30,14 +30,29 @@ export const StudioWorker = () => {
     if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
   }, [commandQueue, isRendering]);
 
-  const readCurrentContext = async () => {
+  const readCurrentContext = async (payload?: Record<string, unknown>) => {
     if (!user) return null;
-    const { data } = await supabase.from('project_iara_contexts')
+
+    // A user can have several projects. Never compare a command carrying an
+    // explicit project identity against whichever project was edited most
+    // recently; that can cancel a valid render before the image service runs.
+    const payloadProjectId = typeof payload?.projectId === 'string' ? payload.projectId : null;
+    const payloadEnvironmentId = typeof payload?.environmentId === 'string' ? payload.environmentId : null;
+    const payloadVersionId = typeof payload?.versionId === 'string' ? payload.versionId : null;
+
+    let query = supabase.from('project_iara_contexts')
       .select('project_id,environment_id,version_id,last_correlation_id,last_execution_generation')
-      .eq('user_id', user.id)
+      .eq('user_id', user.id);
+
+    if (payloadProjectId) query = query.eq('project_id', payloadProjectId);
+    if (payloadEnvironmentId) query = query.eq('environment_id', payloadEnvironmentId);
+    if (payloadVersionId) query = query.eq('version_id', payloadVersionId);
+
+    const { data } = await query
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
     return data as {
       project_id: string | null;
       environment_id: string | null;
@@ -56,7 +71,7 @@ export const StudioWorker = () => {
     // intentionally global. Do not compare it against the user's last persisted
     // project context, otherwise a text-only render is incorrectly cancelled.
     if (!payloadProjectId && !payloadEnvironmentId && !payloadVersionId) return true;
-    const current = await readCurrentContext();
+    const current = await readCurrentContext(payload);
     if (typeof payload.correlationId === 'string' || typeof payload.generation === 'number') {
       return isIaraCommandExecutionCurrent({ payload }, {
         userId: user.id,
@@ -119,7 +134,7 @@ export const StudioWorker = () => {
         updateOSStatus(osCommand.id, 'cancelled', undefined, 'Resultado descartado: a identidade de execução mudou durante a geração.');
         return;
       }
-      const context = await readCurrentContext();
+      const context = await readCurrentContext(payload);
       const projectId = typeof payload.projectId === 'string' ? payload.projectId : context?.project_id ?? null;
       const environmentId = typeof payload.environmentId === 'string' ? payload.environmentId : context?.environment_id ?? null;
       const versionId = typeof payload.versionId === 'string' ? payload.versionId : context?.version_id ?? null;
