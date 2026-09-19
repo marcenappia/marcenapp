@@ -69,6 +69,19 @@ function normalizeText(value: unknown): string {
   return String(value ?? '').toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim();
 }
 
+function normalizePortugueseNumberWords(value: string): string {
+  const replacements: Array<[RegExp, string]> = [
+    [/\bduas\b/g, '2'], [/\bdois\b/g, '2'], [/\btrês\b/g, '3'], [/\btres\b/g, '3'],
+    [/\bquatro\b/g, '4'], [/\bcinco\b/g, '5'], [/\bseis\b/g, '6'],
+    [/\bsete\b/g, '7'], [/\boito\b/g, '8'], [/\bnove\b/g, '9'],
+    [/\bdez\b/g, '10'], [/\bonze\b/g, '11'], [/\bdoze\b/g, '12'],
+    [/\btreze\b/g, '13'], [/\bquatorze\b/g, '14'], [/\bcatorze\b/g, '14'],
+    [/\bquinze\b/g, '15'], [/\bdezesseis\b/g, '16'], [/\bdezessete\b/g, '17'],
+    [/\bdezoito\b/g, '18'], [/\bdezenove\b/g, '19'], [/\bvinte\b/g, '20'],
+  ];
+  return replacements.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
+}
+
 function toMillimeters(value: string, unit?: string): number {
   const n = Number(value.replace(',', '.'));
   if (!Number.isFinite(n) || n <= 0) return NaN;
@@ -108,21 +121,22 @@ function extractOrderedDimensions(text: string): { width: number; height: number
 }
 
 function extractTextProjectDimensions(text: string): { width: number; height: number; depth: number } | undefined {
-  const ordered = extractOrderedDimensions(text);
+  const normalizedText = normalizePortugueseNumberWords(normalizeText(text));
+  const ordered = extractOrderedDimensions(normalizedText);
   if (ordered) return ordered;
-  const width = extractAxisDimension(text, 'width');
-  const height = extractAxisDimension(text, 'height');
-  const depth = extractAxisDimension(text, 'depth');
+  const width = extractAxisDimension(normalizedText, 'width');
+  const height = extractAxisDimension(normalizedText, 'height');
+  const depth = extractAxisDimension(normalizedText, 'depth');
   if (![width, height, depth].every((value) => Number.isFinite(value))) return undefined;
   return { width: width as number, height: height as number, depth: depth as number };
 }
 
 function inferProjectCreationFromConversation(userPrompt: string, context?: Record<string, unknown>): boolean {
   const current = normalizeText(userPrompt);
-  if (/\b(crie|criar|cria|novo projeto|novo móvel|novo movel|monte um projeto|faça um projeto|faca um projeto)\b/i.test(current)) return true;
+  if (/\b(crie|criar|cria|quero|preciso|gostaria|novo projeto|novo móvel|novo movel|monte um projeto|faça um projeto|faca um projeto)\b/i.test(current) && /\b(projeto|móvel|movel|armário|armario|cozinha|bancada)\b/i.test(current)) return true;
   const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
   const recentUserText = conversation.filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string').slice(-6).map((item) => item.text).join(' ');
-  return /\b(crie|criar|cria|novo projeto|novo móvel|novo movel|monte um projeto|faça um projeto|faca um projeto)\b/i.test(recentUserText);
+  return /\b(crie|criar|cria|quero|preciso|gostaria|novo projeto|novo móvel|novo movel|monte um projeto|faça um projeto|faca um projeto)\b/i.test(recentUserText) && /\b(projeto|móvel|movel|armário|armario|cozinha|bancada)\b/i.test(recentUserText);
 }
 
 function projectNameFromText(text: string): string {
