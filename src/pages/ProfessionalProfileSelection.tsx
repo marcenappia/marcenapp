@@ -23,6 +23,12 @@ export default function ProfessionalProfileSelection() {
   const [error, setError] = useState('');
   const isLogin = new URLSearchParams(location.search).get('mode') === 'login';
 
+  useEffect(() => {
+    if (isLogin && !loading && !user) {
+      navigate('/auth', { replace: true });
+    }
+  }, [isLogin, loading, user, navigate]);
+
   if (isLogin && loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white" aria-busy="true">
@@ -33,12 +39,6 @@ export default function ProfessionalProfileSelection() {
       </main>
     );
   }
-
-  useEffect(() => {
-    if (isLogin && !loading && !user) {
-      navigate('/auth', { replace: true });
-    }
-  }, [isLogin, loading, user, navigate]);
 
   if (isLogin && !user) {
     return (
