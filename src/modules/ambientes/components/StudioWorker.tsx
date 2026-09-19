@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
 import { useStudioStore, type RenderCommand } from '@/store/useStudioStore';
 import { OSCommand, useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
@@ -141,36 +140,6 @@ export const StudioWorker = () => {
       });
       if (error) console.error('Falha ao salvar o render na galeria após conclusão:', error);
 
-      // gerarRender is asynchronous: publish the provider result back into the
-      // same IARA conversation after the image is actually available.
-      if (correlationId) {
-        const { error: chatError } = await supabase.from('chat_messages').insert({
-          user_id: user.id,
-          project_id: projectId,
-          environment_id: environmentId,
-          version_id: versionId,
-          sender: 'iara',
-          text: 'Pronto. O render foi gerado.',
-          image_url: result,
-          metadata: {
-            domain: 'project',
-            action: 'render',
-            agent: 'IARA',
-            correlationId,
-            projectId: projectId ?? undefined,
-            environmentId: environmentId ?? undefined,
-            versionId: versionId ?? undefined,
-            status: 'ready',
-            resultUrl: result,
-            imageUrl: result,
-            commandId: osCommand.id,
-            studioCommandId: storeCommandId,
-            generation: generation ?? undefined,
-            artifact: { type: 'render', id: storeCommandId },
-          },
-        });
-        if (chatError) console.error('Falha ao devolver o render concluído para a conversa da IARA:', chatError);
-      }
     } catch (error: unknown) {
       console.error('StudioWorker Error:', error);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
