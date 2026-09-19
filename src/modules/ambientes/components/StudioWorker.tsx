@@ -7,20 +7,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { isIaraCommandExecutionCurrent } from '@/modules/iara/hooks/iaraExecutionScope';
 
-const EMPTY_COMMANDS: OSCommand[] = [];
-
 export const StudioWorker = () => {
-  const { search } = useLocation();
   const { user } = useAuth();
-  const activeModule = useMemo(() => {
-    const module = new URLSearchParams(search).get('module');
-    return module === 'chat' ? 'studio' : module || 'dashboard';
-  }, [search]);
-  const isStudioActive = activeModule === 'studio';
 
-  // Keep the worker mounted for command continuity, but do not subscribe to or
-  // process Studio state while the user is in another module. This prevents
-  // background renders and store updates from forcing the whole app to work.
   // The worker is an application-level execution worker, not a Studio-screen worker.
   // IARA can enqueue a render while the user remains in the conversation, so render
   // execution must not depend on the Studio route being active.
