@@ -61,8 +61,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from('profiles')
         .select('name, company, phone, avatar_url, onboarding_completed, reduce_motion, onboarding_step, profession')
         .eq('user_id', userId)
-        .maybeSingle()
-        .abortSignal(controller.signal);
+        .abortSignal(controller.signal)
+        .maybeSingle();
 
       const timeout = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {

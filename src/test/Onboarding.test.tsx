@@ -20,7 +20,7 @@ describe('Onboarding Component', () => {
   });
   it('restores progress from localStorage when not logged in', async () => {
     const useAuthMock = await import('@/hooks/useAuth');
-    vi.spyOn(useAuthMock, 'useAuth').mockReturnValue({ user: null, session: null, loading: false, profile: null, signOut: vi.fn(async () => undefined), refreshProfile: vi.fn(async () => undefined) });
+    vi.spyOn(useAuthMock, 'useAuth').mockReturnValue({ user: null, session: null, loading: false, profile: null, profileLoading: false, signOut: vi.fn(async () => undefined), refreshProfile: vi.fn(async () => undefined) });
     localStorage.setItem('marcenapp_onboarding_step', '2'); localStorage.setItem('marcenapp_onboarding_seen', 'false');
     renderOnboarding('chat'); expect(screen.getByText(/Cliente e obra ficam organizados/i)).toBeInTheDocument();
   });

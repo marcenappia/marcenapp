@@ -112,7 +112,7 @@ const HomeRoute = () => {
   if (!user && loading) return <Landing />;
   if (loading || (user && profileLoading)) return <RouteFallback />;
   if (!user) return <Landing />;
-  if (!profile || !PROFESSIONAL_PROFILE_VALUES.has(profile.profession ?? "")) return <ProfessionalProfileSelection />;
+  if (!profile || !PROFESSIONAL_PROFILE_VALUES.has(profile.profession as (typeof PROFESSIONAL_PROFILES)[number]['value'])) return <ProfessionalProfileSelection />;
   return <Index />;
 };
 

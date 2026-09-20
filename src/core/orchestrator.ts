@@ -255,7 +255,8 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       if (!r.ok) break;
     }
     const status: OrchestratorRun['status'] = results.length > 0 && results.every(r => r.result.ok) ? 'completed' : 'failed';
-    if (runId) await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status, ...(status === 'failed' ? { error: results.find(r => !r.result.ok)?.result.error ?? 'A execução falhou.' } : {}) }).eq('id', runId);
+    const failedResult = results.find((r): r is { tool: string; result: Extract<ToolResult, { ok: false }> } => !r.result.ok)?.result;
+    if (runId) await supabase.from('orchestrator_runs').update({ plan: plan as unknown as Json, results: results as unknown as Json, used_fallback: false, status, ...(status === 'failed' ? { error: failedResult?.error ?? 'A execução falhou.' } : {}) }).eq('id', runId);
     return { runId, plan, summary, results, usedFallback: false, provider, status };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Falha inesperada na execução do orquestrador.';

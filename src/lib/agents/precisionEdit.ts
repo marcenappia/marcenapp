@@ -169,7 +169,7 @@ export function parsePrecisionEdit(input: string, context: PrecisionParseContext
     type: resolvedType,
     ...(ordinal ? { ordinal } : {}),
     ...(side ? { side } : {}),
-    ...(side ? { spatialRelation: side } : {}),
+    ...(side && side !== 'center' ? { spatialRelation: side } : {}),
   };
 
   const requiresClarification =
