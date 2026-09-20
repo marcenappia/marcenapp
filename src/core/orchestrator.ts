@@ -313,7 +313,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       return call;
     });
 
-    const spatialAction = iara?.action === 'analyze_plan' || iara?.action === 'analyze_environment' || iara?.action === 'render';
+    const spatialAction = iara?.action === 'analyze_plan' || iara?.action === 'analyze_environment';
     const images = spatialImages(ctx);
     if (iara?.action === 'analyze_environment' && !images.length) {
       const error = 'Para analisar o ambiente, envie uma foto do ambiente. Assim a IARA pode avaliar o espaço real sem inventar informações.';
