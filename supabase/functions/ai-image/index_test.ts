@@ -78,3 +78,12 @@ Deno.test("ai-image: 400 for malformed JSON", async () => {
   assertEquals(status, 400);
   assertEquals(json.code, "invalid_json");
 });
+Deno.test("ai-image: provider contract stays buffered and uses supported model", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes('const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";'));
+  assert(!source.includes("gpt-image-2.5-sunburst"));
+  assert(source.includes("data?.[0]"));
+  assert(source.includes("b64_json"));
+  assert(source.includes("image?.url"));
+  assert(!source.includes("readImageStream("));
+});
