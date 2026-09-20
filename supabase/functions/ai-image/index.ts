@@ -9,7 +9,7 @@ const DEFAULT_DIM = 1024;
 const MAX_PROMPT_CHARS = 4000;
 const MAX_PROMPT_WORDS = 800;
 const OPERATION_TYPE = "gerarRender";
-const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2.5-sunburst";
+const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 
 const ImageSchema = z.object({
@@ -58,47 +58,26 @@ async function gatewayFetch(url: string, init: RequestInit): Promise<Response> {
   return response as Response;
 }
 
-async function readImageStream(response: Response): Promise<string> {
-  if (!response.body) throw new Error("empty_image_stream");
-  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-  let buffer = "";
-  let completedImage: string | null = null;
-  let eventCount = 0;
-  let streamError: string | null = null;
-
-  while (true) {
-    const chunk = await reader.read();
-    if (chunk.done) break;
-    buffer += chunk.value;
-    const frames = buffer.split(/\r?\n\r?\n/);
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      const eventName = frame.split(/\r?\n/).find(line => line.startsWith("event:"))?.slice(6).trim();
-      const data = frame.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trim()).join("\n");
-      if (!data || data === "[DONE]") continue;
-      let payload: { type?: string; b64_json?: string; error?: { message?: string } };
-      try { payload = JSON.parse(data); } catch { continue; }
-      eventCount += 1;
-      if (eventName === "error" || payload.type === "error") {
-        streamError = payload.error?.message ?? "Falha no provedor de imagens.";
-        continue;
-      }
-      if ((eventName === "image_generation.completed" || eventName === "image_edit.completed" || payload.type === "image_generation.completed" || payload.type === "image_edit.completed") && payload.b64_json) {
-        completedImage = payload.b64_json;
-      }
-    }
-  }
-  if (streamError) throw new Error(`provider_stream:${streamError}`);
-  if (completedImage) return completedImage;
-  if (eventCount === 0) throw new Error("zero_image_events");
-  throw new Error("incomplete_image_stream");
-}
-
 async function readBufferedImage(response: Response): Promise<string> {
-  const body = await response.json().catch(() => null) as { data?: Array<{ b64_json?: string }> } | null;
-  const image = body?.data?.[0]?.b64_json;
-  if (!image) throw new Error("empty_image_result");
-  return image;
+  const body = await response.json().catch(() => null) as {
+    data?: Array<{ b64_json?: string; url?: string }>;
+  } | null;
+  const image = body?.data?.[0];
+  if (image?.b64_json) return `data:image/png;base64,${image.b64_json}`;
+  if (image?.url) {
+    const imageResponse = await fetch(image.url);
+    if (!imageResponse.ok) throw new Error(`provider_image_download:${imageResponse.status}`);
+    const contentType = imageResponse.headers.get("content-type")?.split(";")[0] ?? "image/png";
+    const bytes = new Uint8Array(await imageResponse.arrayBuffer());
+    if (!bytes.length) throw new Error("empty_image_result");
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, Math.min(index + chunkSize, bytes.length)));
+    }
+    return `data:${contentType};base64,${btoa(binary)}`;
+  }
+  throw new Error("empty_image_result");
 }
 
 function gatewayError(response: Response, body: string): GatewayError {
@@ -113,39 +92,51 @@ function gatewayError(response: Response, body: string): GatewayError {
   return error;
 }
 
-async function requestGateway(prompt: string, images: ImageInput[], stream: boolean): Promise<Response> {
+async function requestGateway(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<Response> {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("provider_not_configured");
-  const headers = { Authorization: `Bearer ${key}`, "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "fetch" };
+
+  const headers = {
+    Authorization: `Bearer ${key}`,
+    "Lovable-API-Key": key,
+    "X-Lovable-AIG-SDK": "fetch",
+  };
+
+  const width = size?.width ?? size?.height ?? DEFAULT_DIM;
+  const height = size?.height ?? size?.width ?? DEFAULT_DIM;
+  const sizeValue = `${width}x${height}`;
+
   if (images.length > 0) {
     const form = new FormData();
     form.set("model", LOVABLE_IMAGE_MODEL);
     form.set("prompt", prompt);
-    if (stream) {
-      form.set("stream", "true");
-      form.set("partial_images", "1");
-    }
-    images.forEach((image, index) => form.append(images.length === 1 ? "image" : "image[]", imageBlob(image), `reference-${index}.${imageExtension(image.mimeType)}`));
-    return gatewayFetch(`${LOVABLE_GATEWAY_BASE_URL}/images/edits`, { method: "POST", headers, body: form });
+    form.set("size", sizeValue);
+    images.forEach((image, index) => {
+      form.append(images.length === 1 ? "image" : "image[]", imageBlob(image), `reference-${index}.${imageExtension(image.mimeType)}`);
+    });
+    return gatewayFetch(`${LOVABLE_GATEWAY_BASE_URL}/images/edits`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
   }
+
   return gatewayFetch(`${LOVABLE_GATEWAY_BASE_URL}/images/generations`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: LOVABLE_IMAGE_MODEL, prompt, ...(stream ? { stream: true, partial_images: 1 } : {}) }),
+    body: JSON.stringify({
+      model: LOVABLE_IMAGE_MODEL,
+      prompt,
+      size: sizeValue,
+      n: 1,
+    }),
   });
 }
 
-async function generateImage(prompt: string, images: ImageInput[]): Promise<string> {
-  const streamed = await requestGateway(prompt, images, true);
-  if (!streamed.ok) throw gatewayError(streamed, await streamed.text());
-  try {
-    return await readImageStream(streamed);
-  } catch (error) {
-    if (!(error instanceof Error) || error.message !== "zero_image_events") throw error;
-    const replay = await requestGateway(prompt, images, false);
-    if (!replay.ok) throw gatewayError(replay, await replay.text());
-    return readBufferedImage(replay);
-  }
+async function generateImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
+  const response = await requestGateway(prompt, images, size);
+  if (!response.ok) throw gatewayError(response, await response.text());
+  return readBufferedImage(response);
 }
 
 async function refund(userId: string, idempotencyKey: string) {
