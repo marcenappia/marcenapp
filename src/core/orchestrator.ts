@@ -9,7 +9,8 @@ import type { Json } from '@/integrations/supabase/runtime-types';
 
 export interface ToolCall { tool: string; args: Record<string, unknown>; }
 export interface OrchestratorPlan { plan: ToolCall[]; summary: string; model?: string; provider?: 'lovable' | 'gemini'; }
-export interface OrchestratorRun { runId: string | null; plan: ToolCall[]; summary: string; results: Array<{ tool: string; result: ToolResult }>; usedFallback: boolean; provider?: 'lovable' | 'gemini'; error?: string; status: 'completed' | 'failed' | 'needs_input'; }
+export interface PendingInput { tool: string; fields: string[]; reason: string; }
+export interface OrchestratorRun { runId: string | null; plan: ToolCall[]; summary: string; results: Array<{ tool: string; result: ToolResult }>; usedFallback: boolean; provider?: 'lovable' | 'gemini'; error?: string; pendingInput?: PendingInput; status: 'completed' | 'failed' | 'needs_input'; }
 
 export async function planWithLLM(userPrompt: string, context?: Record<string, unknown>): Promise<OrchestratorPlan> {
   const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string; provider?: 'lovable' | 'gemini' }>('ai-orchestrator', { userPrompt, context });
@@ -36,9 +37,18 @@ function isClarificationPrompt(value: string): boolean {
 }
 
 function conversationMessages(context?: Record<string, unknown>) {
-  return Array.isArray(context?.conversation) ? context.conversation.filter((item): item is { sender: string; text: string } =>
+  return Array.isArray(context?.conversation) ? context.conversation.filter((item): item is { sender: string; text: string; metadata?: { pendingInput?: PendingInput } } =>
     Boolean(item) && typeof item === 'object' && typeof (item as { sender?: unknown }).sender === 'string' && typeof (item as { text?: unknown }).text === 'string'
   ) : [];
+}
+
+function lastPendingInput(context?: Record<string, unknown>): PendingInput | null {
+  const conversation = conversationMessages(context);
+  for (let index = conversation.length - 1; index >= 0; index -= 1) {
+    const pending = conversation[index].metadata?.pendingInput;
+    if (pending && typeof pending.tool === 'string' && Array.isArray(pending.fields) && pending.fields.length > 0 && typeof pending.reason === 'string') return pending;
+  }
+  return null;
 }
 
 function lastUserMessage(context?: Record<string, unknown>): string | null {
@@ -144,6 +154,21 @@ function projectNameFromText(text: string): string {
   return match?.[1]?.trim() || 'Novo projeto';
 }
 
+function pendingCreateProjectInput(userPrompt: string, context?: Record<string, unknown>): PendingInput | null {
+  if (!inferProjectCreationFromConversation(userPrompt, context)) return null;
+  const conversation = Array.isArray(context?.conversation) ? context.conversation : [];
+  const recentText = conversation.filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string').slice(-6).map((item) => item.text).join(' ');
+  const combined = recentText + ' ' + userPrompt;
+  const normalized = normalizePortugueseNumberWords(normalizeText(combined));
+  if (extractTextProjectDimensions(combined)) return null;
+  const missing: string[] = [];
+  if (extractAxisDimension(normalized, 'width') === undefined) missing.push('width');
+  if (extractAxisDimension(normalized, 'height') === undefined) missing.push('height');
+  if (extractAxisDimension(normalized, 'depth') === undefined) missing.push('depth');
+  if (!missing.length) return null;
+  return { tool: 'createProjeto', fields: missing, reason: 'Para criar o projeto, informe as dimensões que faltam: ' + missing.join(', ') + '.' };
+}
+
 function deterministicCreateProjectPlan(userPrompt: string, context?: Record<string, unknown>): ToolCall[] {
   if (!inferProjectCreationFromConversation(userPrompt, context)) return [];
   const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
@@ -179,7 +204,8 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
   let provider: OrchestratorPlan['provider'];
   try {
     const clarification = isClarificationPrompt(userPrompt);
-    const previousNeed = clarification ? lastNeedsInputMessage(context) : null;
+    const structuredPending = lastPendingInput(context);
+    const previousNeed = structuredPending?.reason ?? (clarification ? lastNeedsInputMessage(context) : null);
     let effectiveUserPrompt = userPrompt;
     if (clarification) {
       // A pergunta "o que você precisa?" is a continuation, not a new action.
@@ -189,7 +215,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       if (previousNeed && !isGenericNeed(previousNeed)) {
         const result: ToolResult = { ok: false, error: previousNeed };
         if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: [{ tool: 'iara', result }] as unknown as Json, used_fallback: false, status: 'needs_input', error: previousNeed }).eq('id', runId);
-        return { runId, plan: [], summary: previousNeed, results: [{ tool: 'iara', result }], usedFallback: false, status: 'needs_input', error: previousNeed };
+        return { runId, plan: [], summary: previousNeed, results: [{ tool: 'iara', result }], usedFallback: false, pendingInput: structuredPending ?? undefined, status: 'needs_input', error: previousNeed };
       }
       const previousUserPrompt = lastUserMessage(context);
       if (previousUserPrompt) effectiveUserPrompt = previousUserPrompt;
@@ -197,12 +223,19 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
+    const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context);
     const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : fastCreateProjectPlan;
     const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: effectiveUserPrompt, estilo: ctx.decorStyle } }] : [];
     const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: effectiveUserPrompt } }] : [];
     const deterministicEnvironmentPlan: ToolCall[] = iara?.action === 'analyze_environment' ? [{ tool: 'iara.analyze_environment', args: {} }] : [];
     const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
     const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan.length ? deterministicRenderPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan;
+
+    if (!deterministicPlan.length && pendingCreateProject) {
+      const result: ToolResult = { ok: false, error: pendingCreateProject.reason };
+      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: [{ tool: pendingCreateProject.tool, result }] as unknown as Json, used_fallback: false, status: 'needs_input', error: pendingCreateProject.reason }).eq('id', runId);
+      return { runId, plan: [], summary: pendingCreateProject.reason, results: [{ tool: pendingCreateProject.tool, result }], usedFallback: false, status: 'needs_input', error: pendingCreateProject.reason, pendingInput: pendingCreateProject };
+    }
 
     const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(effectiveUserPrompt, context);
     plan = result.plan;
