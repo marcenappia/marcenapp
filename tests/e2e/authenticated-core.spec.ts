@@ -24,6 +24,26 @@ test.describe('Marcenapp authenticated core', () => {
     await expect(page.locator('main')).toBeVisible();
   });
 
+  test('IARA workspace mounts without runtime errors and exposes the build version', async ({ authenticatedPage: page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await page.goto('/?module=studio');
+    await expect(page.getByRole('heading', { name: 'IARA', exact: true })).toBeVisible();
+    await expect(page.getByLabel('Mensagem para a IARA')).toBeVisible();
+    await expect(page.getByTestId('build-version')).toHaveText(/Build (dev|[a-f0-9]{8})/i);
+    expect(pageErrors, `IARA runtime errors: ${pageErrors.join(' | ')}`).toEqual([]);
+  });
+
+  test('IARA remains available after switching away and back', async ({ authenticatedPage: page }) => {
+    await page.goto('/?module=studio');
+    await expect(page.getByLabel('Mensagem para a IARA')).toBeVisible();
+    await page.goto('/?module=clientes');
+    await expect(page.locator('main')).toBeVisible();
+    await page.goto('/?module=studio');
+    await expect(page.getByText('IARA', { exact: true }).first()).toBeVisible();
+    await expect(page.getByLabel('Mensagem para a IARA')).toBeVisible();
+  });
+
   test('authenticated mobile navigation exposes the primary work areas', async ({ authenticatedPage: page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');

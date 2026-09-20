@@ -1,0 +1,95 @@
+name: Vercel Production Smoke
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      production_url:
+        description: 'URL de produção a validar'
+        required: false
+        default: 'https://www.marcenapp.com.br'
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: marcenapp-production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment_status.environment == 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: https://uzhqhieqlcyncelltfjw.supabase.co
+      PLAYWRIGHT_BASE_URL: ${{ github.event.inputs.production_url || github.event.deployment_status.environment_url || 'https://www.marcenapp.com.br' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify production version endpoint
+        run: |
+          set -euo pipefail
+          version="$(curl -fsSL "$PLAYWRIGHT_BASE_URL/version.json")"
+          node - "$version" <<'NODE'
+          const manifest = JSON.parse(process.argv[2]);
+          if (!/^[a-f0-9]{40}$/i.test(manifest.commit ?? '')) throw new Error('Invalid production commit SHA');
+          if (!/^[a-f0-9]{8}$/i.test(manifest.shortCommit ?? '')) throw new Error('Invalid production short SHA');
+          if (manifest.environment !== 'production') throw new Error(`Unexpected environment: ${manifest.environment}`);
+          console.log(`Production build ${manifest.shortCommit} verified.`);
+          NODE
+
+      - name: Bootstrap ephemeral authenticated session
+        id: e2e_bootstrap
+        run: |
+          set -euo pipefail
+          oidc_token="$(curl -fsSL \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=marcenapp-e2e" | \
+            node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>process.stdout.write(JSON.parse(s).value))")"
+          curl -fsSL -X POST "$SUPABASE_URL/functions/v1/e2e-bootstrap" \
+            -H "Authorization: Bearer $oidc_token" \
+            -H "Content-Type: application/json" \
+            --data '{"action":"create"}' > "$RUNNER_TEMP/e2e-session.json"
+          node - "$RUNNER_TEMP/e2e-session.json" <<'NODE'
+          const fs = require('fs');
+          const response = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (!response.user_id || !response.session?.access_token || !response.session?.refresh_token || !response.session?.user?.id) {
+            throw new Error('Invalid ephemeral E2E session');
+          }
+          fs.appendFileSync(process.env.GITHUB_ENV, `E2E_USER_ID=${response.user_id}\n`);
+          fs.appendFileSync(process.env.GITHUB_ENV, `E2E_SESSION_B64=${Buffer.from(JSON.stringify(response.session), 'utf8').toString('base64')}\n`);
+          NODE
+          echo "::add-mask::$(grep '^E2E_SESSION_B64=' "$GITHUB_ENV" | cut -d= -f2-)"
+
+      - name: Run production smoke and IARA workspace tests
+        run: npx playwright test tests/e2e/production-smoke.spec.ts tests/e2e/authenticated-core.spec.ts --project=chromium
+
+      - name: Cleanup ephemeral E2E user
+        if: ${{ always() && steps.e2e_bootstrap.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          oidc_token="$(curl -fsSL \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=marcenapp-e2e" | \
+            node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>process.stdout.write(JSON.parse(s).value))")"
+          curl -fsSL -X POST "$SUPABASE_URL/functions/v1/e2e-bootstrap" \
+            -H "Authorization: Bearer $oidc_token" \
+            -H "Content-Type: application/json" \
+            --data "{\"action\":\"delete\",\"user_id\":\"$E2E_USER_ID\"}"

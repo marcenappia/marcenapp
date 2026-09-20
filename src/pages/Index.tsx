@@ -10,6 +10,7 @@ import { modules, CATEGORY_LABELS, ModuleCategory, MOBILE_NAV_IDS } from '@/modu
 import { useProjectPersistence } from '@/modules/projetos/hooks/useProjectPersistence';
 import { ProjectData } from '@/modules/projetos/types';
 import type { Part } from '@/modules/patio';
+import { BuildVersion } from '@/components/BuildVersion';
 
 const StudioWorker = lazy(() => import('@/modules/ambientes/components/StudioWorker').then(m => ({ default: m.StudioWorker })));
 const CreditRules = lazy(() => import('@/modules/admin/CreditRules'));
@@ -119,6 +120,7 @@ const Index = () => {
         </header>
 
         <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-8 pb-24 md:pb-8 scroll-smooth"><div className="w-full min-w-0 max-w-7xl mx-auto"><AnimatePresence mode="wait"><motion.div className="min-w-0" key={activeModule} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}><ModuleErrorBoundary key={activeModule}><Suspense fallback={<ModuleFallback />}>{renderModule()}</Suspense></ModuleErrorBoundary></motion.div></AnimatePresence></div></div>
+        <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-2 text-right text-[10px] font-semibold text-slate-400 md:px-8"><BuildVersion /></footer>
 
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-1 z-50 flex justify-around items-center pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">{mobileModules.map(m => <button key={m.id} id={`mobile-nav-${m.id}`} aria-label={m.mobileLabel} aria-current={activeModule === m.id ? 'page' : undefined} onClick={() => setActiveModule(m.id)} onKeyDown={e => handleMobileKeyDown(e, m.id)} className={`flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all flex-1 max-w-[120px] focus-visible:outline-none ${activeModule === m.id ? 'text-indigo-600' : 'text-slate-400'}`}><div className={`p-1.5 rounded-xl transition-colors ${activeModule === m.id ? 'bg-indigo-50' : 'bg-transparent'}`}>{m.id === 'studio' ? <img src={logo} alt="M" className="w-5 h-5 object-contain" /> : <m.icon size={20} strokeWidth={activeModule === m.id ? 2.5 : 2} aria-hidden="true" />}</div><span className="text-[9px] font-bold tracking-tight uppercase">{m.mobileLabel}</span></button>)}</nav>
       </main>

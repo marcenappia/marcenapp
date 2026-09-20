@@ -32,6 +32,15 @@ test.describe('Marcenapp public acceptance', () => {
     await expect(page.getByRole('heading', { name: /Você não precisa recomeçar o projeto/i })).toBeVisible();
   });
 
+  test('serves a version manifest for production verification', async ({ request }) => {
+    const response = await request.get('/version.json');
+    expect(response.ok()).toBe(true);
+    const manifest = await response.json() as { commit?: string; shortCommit?: string; environment?: string };
+    expect(manifest.commit).toMatch(/^[a-f0-9]{40}$/i);
+    expect(manifest.shortCommit).toMatch(/^[a-f0-9]{8}$/i);
+    expect(manifest.environment).toBeTruthy();
+  });
+
   test('public landing page passes an axe accessibility audit', async ({ page }) => {
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
@@ -76,8 +85,8 @@ test.describe('Marcenapp public acceptance', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('button', { name: 'Abrir menu' })).toBeVisible();
     await page.getByRole('button', { name: 'Abrir menu' }).click();
-    await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Começar agora' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Começar agora' }).last()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Produto' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Recursos' })).toBeVisible();
   });
 
