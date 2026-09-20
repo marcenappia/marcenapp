@@ -87,3 +87,9 @@ Deno.test("ai-image: provider contract stays buffered and uses supported model",
   assert(source.includes("image?.url"));
   assert(!source.includes("readImageStream("));
 });
+
+Deno.test("ai-image: does not double-wrap data URI returned by image decoder", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes("imageUrl: imageBase64"));
+  assert(!source.includes("imageUrl: `data:image/png;base64,${imageBase64}`"));
+});
