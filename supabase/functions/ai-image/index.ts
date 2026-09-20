@@ -184,7 +184,7 @@ serve(async request => {
     creditConsumed = true;
     const data: unknown = consumed.data;
     const imageBase64 = await generateImage(prompt, images);
-    return jsonResponse(cors, { imageUrl: `data:image/png;base64,${imageBase64}`, width, height, operationType: OPERATION_TYPE, model: LOVABLE_IMAGE_MODEL, provider: "lovable", creditConsumption: Array.isArray(data) ? data[0] : data, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
+    return jsonResponse(cors, { imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: LOVABLE_IMAGE_MODEL, provider: "lovable", creditConsumption: Array.isArray(data) ? data[0] : data, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
     if (creditConsumed && idempotencyKey) await refund(guard.userId, idempotencyKey).catch(error => console.error("ai-image refund error", error));
     const error = caught as GatewayError;
