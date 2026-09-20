@@ -84,6 +84,8 @@ async function callGemini(userPrompt: string, contextBlock: string) {
   const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }, contents: [{ role: "user", parts: [{ text: userPrompt + contextBlock }] }], tools: geminiTools(), toolConfig: { functionCallingConfig: { mode: "AUTO" } } }) });
   if (!response.ok) throw new Error(`provider_http:${response.status}`); return await response.json();
 }
+type AIProviderAdapter = (userPrompt: string, contextBlock: string) => Promise<Record<string, unknown>>;
+
 function parseProviderResponse(provider: Provider, data: Record<string, unknown>) {
   const plan: Array<{ tool: string; args: Record<string, unknown> }> = []; let summary = "";
   if (provider === "lovable" || provider === "vercel") {
@@ -106,7 +108,8 @@ serve(async (req) => {
     const contextBlock = parsed.data.context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(parsed.data.context, null, 2)}` : "";
     let resolution: { primary: Provider; fallback: Provider | null }; try { resolution = await resolveProvider(guard.userId); } catch (error) { if (error instanceof Error && error.message === "provider_settings_unavailable") return jsonResponse(corsHeaders, { error: "Não foi possível ler a configuração do provedor de IA.", code: "provider_configuration_error" }, 503); throw error; }
     const providers: Provider[] = resolution.fallback ? [resolution.primary, resolution.fallback] : [resolution.primary]; let lastError: unknown = null;
-    for (const provider of providers) { try { const data = provider === "lovable" ? await callLovable(parsed.data.userPrompt, contextBlock) : provider === "vercel" ? await callVercel(parsed.data.userPrompt, contextBlock) : await callGemini(parsed.data.userPrompt, contextBlock); const result = parseProviderResponse(provider, data); return jsonResponse(corsHeaders, { ...result, provider }); } catch (error) { lastError = error; console.error(`AI orchestrator provider ${provider} failed`, error); } }
+    const providerAdapters: Record<Provider, AIProviderAdapter> = { lovable: callLovable, gemini: callGemini, vercel: callVercel };
+    for (const provider of providers) { try { const data = await providerAdapters[provider](parsed.data.userPrompt, contextBlock); const result = parseProviderResponse(provider, data); return jsonResponse(corsHeaders, { ...result, provider }); } catch (error) { lastError = error; console.error(`AI orchestrator provider ${provider} failed`, error); } }
     const message = lastError instanceof Error ? lastError.message : String(lastError);
     if (message.startsWith("provider_not_configured")) return jsonResponse(corsHeaders, { error: "Nenhum provedor de IA de texto está configurado. Ative um provedor no Admin.", code: "provider_not_configured" }, 500);
     if (message.includes("provider_http:402")) return jsonResponse(corsHeaders, { error: "Os créditos do provedor de IA acabaram.", code: "provider_credits_exhausted" }, 402);
