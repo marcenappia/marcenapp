@@ -6,6 +6,8 @@ import { callAIFunction } from '@/services/ai';
 import { runSpatialJourney } from '@/lib/agents/orchestrator';
 import { executeIaraSmartAction, type SmartAction } from './iaraSmartActions';
 import type { Json } from '@/integrations/supabase/runtime-types';
+import { deterministicResolver } from './iara/intent/deterministicResolver';
+import type { ResolvedIntent } from './iara/intent/types';
 
 export interface ToolCall { tool: string; args: Record<string, unknown>; }
 export interface OrchestratorPlan { plan: ToolCall[]; summary: string; model?: string; provider?: 'lovable' | 'gemini'; }
@@ -169,6 +171,13 @@ function pendingCreateProjectInput(userPrompt: string, context?: Record<string, 
   return { tool: 'createProjeto', fields: missing, reason: 'Para criar o projeto, informe as dimensões que faltam: ' + missing.join(', ') + '.' };
 }
 
+async function resolveArchitectureIntent(userPrompt: string, context?: Record<string, unknown>, ctx?: ExecutionContext): Promise<ResolvedIntent | null> {
+  const conversation = Array.isArray(context?.conversation)
+    ? context.conversation.filter((item): item is { sender: 'user' | 'iara'; text: string } => Boolean(item) && typeof item === 'object' && ((item as { sender?: unknown }).sender === 'user' || (item as { sender?: unknown }).sender === 'iara') && typeof (item as { text?: unknown }).text === 'string').map(item => ({ sender: item.sender, text: item.text }))
+    : [];
+  return deterministicResolver.resolve({ text: userPrompt, context: { projectId: ctx?.projectId, environmentId: ctx?.environmentId, decorStyle: ctx?.decorStyle, recentMessages: conversation }, correlationId: ctx?.correlationId ?? globalThis.crypto?.randomUUID?.() ?? String(Date.now()) });
+}
+
 function deterministicCreateProjectPlan(userPrompt: string, context?: Record<string, unknown>): ToolCall[] {
   if (!inferProjectCreationFromConversation(userPrompt, context)) return [];
   const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
@@ -222,14 +231,18 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     }
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
+    const architectureIntent = await resolveArchitectureIntent(effectiveUserPrompt, context, ctx);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
     const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context);
-    const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : fastCreateProjectPlan;
+    const architectureProjectPlan: ToolCall[] = architectureIntent?.intent === 'create_projeto' && architectureIntent.missingSlots.length === 0 ? [{ tool: 'createProjeto', args: { ...architectureIntent.entities, confirmado: true } }] : [];
+    const architectureRenderPlan: ToolCall[] = architectureIntent?.intent === 'gerar_render' ? [{ tool: 'gerarRender', args: { prompt: String(architectureIntent.entities.prompt ?? effectiveUserPrompt), estilo: ctx.decorStyle } }] : [];
+    const architectureSmartPlan: ToolCall[] = architectureIntent?.intent === 'smart_action' ? [{ tool: 'iaraSmartAction', args: { ...architectureIntent.entities, projectId: ctx.projectId } }] : [];
+    const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : (architectureProjectPlan.length ? architectureProjectPlan : fastCreateProjectPlan);
     const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: effectiveUserPrompt, estilo: ctx.decorStyle } }] : [];
     const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: effectiveUserPrompt } }] : [];
     const deterministicEnvironmentPlan: ToolCall[] = iara?.action === 'analyze_environment' ? [{ tool: 'iara.analyze_environment', args: {} }] : [];
     const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
-    const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan.length ? deterministicRenderPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan;
+    const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan.length ? deterministicRenderPlan : architectureRenderPlan.length ? architectureRenderPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan.length ? deterministicSmartPlan : architectureSmartPlan;
 
     if (!deterministicPlan.length && pendingCreateProject) {
       const result: ToolResult = { ok: false, error: pendingCreateProject.reason };
@@ -237,7 +250,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       return { runId, plan: [], summary: pendingCreateProject.reason, results: [{ tool: pendingCreateProject.tool, result }], usedFallback: false, status: 'needs_input', error: pendingCreateProject.reason, pendingInput: pendingCreateProject };
     }
 
-    const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(effectiveUserPrompt, context);
+    const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : architectureRenderPlan.length ? 'Render solicitado pela IARA.' : architectureSmartPlan.length ? 'Ação contextual identificada pela IARA.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(effectiveUserPrompt, context);
     plan = result.plan;
     summary = result.summary;
     provider = result.provider;
