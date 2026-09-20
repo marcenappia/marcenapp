@@ -10,8 +10,9 @@ export const ThreeScene = ({ factors }: ThreeSceneProps) => {
   const mountRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
-    if (!mountRef.current) return;
-    const width = mountRef.current.clientWidth;
+    const mount = mountRef.current;
+    if (!mount) return;
+    const width = mount.clientWidth;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0d1117);
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
@@ -19,7 +20,7 @@ export const ThreeScene = ({ factors }: ThreeSceneProps) => {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, width);
     renderer.shadowMap.enabled = true;
-    mountRef.current.appendChild(renderer.domElement);
+    mount.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
@@ -43,7 +44,7 @@ export const ThreeScene = ({ factors }: ThreeSceneProps) => {
     let animId: number;
     const animate = () => { animId = requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); };
     animate();
-    return () => { cancelAnimationFrame(animId); if (mountRef.current) mountRef.current.innerHTML = ""; controls.dispose(); renderer.dispose(); };
+    return () => { cancelAnimationFrame(animId); mount.innerHTML = ""; controls.dispose(); renderer.dispose(); };
   }, [factors]);
   
   return <div className="w-full aspect-square rounded-2xl overflow-hidden border border-border bg-card" ref={mountRef} />;

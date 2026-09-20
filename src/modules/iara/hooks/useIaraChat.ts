@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ChatMessage } from '../components/ChatMessages';
@@ -55,12 +55,28 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const pendingExecutionsRef = useRef(new Map<string, IaraExecutionIdentity>());
   const publishingCommandIdsRef = useRef(new Set<string>());
   const projectStateRef = useRef<ProjectState>(projectState);
-  const context = { userId: user?.id ?? null, projectId: activeContext?.projectId ?? projectId, environmentId: activeContext?.environmentId ?? null, versionId: activeContext?.versionId ?? null };
+  const commandHistoryRef = useRef(commandHistory);
+  const context = useMemo(() => ({
+    userId: user?.id ?? null,
+    projectId: activeContext?.projectId ?? projectId,
+    environmentId: activeContext?.environmentId ?? null,
+    versionId: activeContext?.versionId ?? null,
+  }), [user?.id, activeContext?.projectId, activeContext?.environmentId, activeContext?.versionId, projectId]);
+
+  const saveMessage = useCallback(async (msg: Partial<ChatMessage>, execution?: IaraExecutionIdentity) => {
+    if (!user) return;
+    if (execution && (execution.userId !== user.id || !isIaraExecutionCurrent(execution, context, executionGenerationRef.current))) return;
+    const targetUserId = execution?.userId ?? user.id;
+    const target = execution ? { projectId: execution.projectId, environmentId: execution.environmentId, versionId: execution.versionId } : context;
+    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: targetUserId, project_id: target.projectId, environment_id: target.environmentId, version_id: target.versionId, ...msg });
+    if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
+  }, [user, context]);
 
   useEffect(() => { projectStateRef.current = projectState; }, [projectState]);
+  useEffect(() => { commandHistoryRef.current = commandHistory; }, [commandHistory]);
 
   useEffect(() => {
-    const persistedGeneration = commandHistory.reduce((latest, command) => {
+    const persistedGeneration = commandHistoryRef.current.reduce((latest, command) => {
       const payload = command.payload ?? {};
       const sameContext = payload.userId === context.userId
         && (payload.projectId ?? null) === context.projectId
@@ -75,7 +91,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     }
     setLastContext(null);
     setProjectState({ intent: null, project: { dimensions: {} }, components: [], pending: [], selectedComponentId: null, sourceTurns: 0 });
-  }, [context.userId, context.projectId, context.environmentId, context.versionId]);
+  }, [context]);
 
   useEffect(() => {
     if (commandHistory.length === 0) return;
@@ -129,7 +145,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       }
     };
     void notifyChat();
-  }, [commandHistory, context.userId, context.projectId, context.environmentId, context.versionId]);
+  }, [commandHistory, context, saveMessage]);
 
   useEffect(() => {
     if (!user) { setMessages([]); setHasOlderMessages(false); chatCursorRef.current = null; return; }
@@ -154,7 +170,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     });
     const channel = supabase.channel(`chat_messages_${context.projectId ?? 'none'}_${context.environmentId ?? 'none'}_${context.versionId ?? 'none'}_${user.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => { const msg = payload.new as ChatMessage; if (msg.user_id !== user.id || (msg.project_id ?? null) !== (context.projectId ?? null) || (msg.environment_id ?? null) !== (context.environmentId ?? null) || (msg.version_id ?? null) !== (context.versionId ?? null)) return; setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]); if (msg.sender === 'user' && msg.text) setProjectState(prev => { const next = createProjectStateFromConversation([msg.text!], prev); projectStateRef.current = next; return next; }); }).subscribe();
     return () => { cancelled = true; void supabase.removeChannel(channel); };
-  }, [user, context.projectId, context.environmentId, context.versionId]);
+  }, [user, context]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!user || isLoadingOlderMessages || !hasOlderMessages || !chatCursorRef.current) return;
@@ -175,16 +191,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       }
       setHasOlderMessages(page.length === CHAT_PAGE_SIZE);
     } catch { setError('Não foi possível carregar mensagens anteriores. Tente novamente.'); } finally { setIsLoadingOlderMessages(false); }
-  }, [user, context.projectId, context.environmentId, context.versionId, hasOlderMessages, isLoadingOlderMessages]);
-
-  const saveMessage = async (msg: Partial<ChatMessage>, execution?: IaraExecutionIdentity) => {
-    if (!user) return;
-    if (execution && (execution.userId !== user.id || !isIaraExecutionCurrent(execution, context, executionGenerationRef.current))) return;
-    const targetUserId = execution?.userId ?? user.id;
-    const target = execution ? { projectId: execution.projectId, environmentId: execution.environmentId, versionId: execution.versionId } : context;
-    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: targetUserId, project_id: target.projectId, environment_id: target.environmentId, version_id: target.versionId, ...msg });
-    if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
-  };
+  }, [user, context, hasOlderMessages, isLoadingOlderMessages]);
 
   const sendPrompt = async (promptText: string, upload: typeof pendingUpload, smartAction?: SmartAction) => {
     if (!user) return;
