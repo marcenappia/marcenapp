@@ -126,6 +126,14 @@ export async function runIaraTurn(
     };
   }
 
+  if (next.status !== "executing") {
+    return {
+      state: { status: "failed", error: "Não foi possível preparar a execução." },
+      results: [],
+      userFacingMessage: "Não foi possível preparar a execução.",
+    };
+  }
+
   return finish(next.plan, next, params.execution, deps);
 }
 
