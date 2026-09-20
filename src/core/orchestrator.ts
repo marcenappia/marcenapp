@@ -8,6 +8,9 @@ import { executeIaraSmartAction, type SmartAction } from './iaraSmartActions';
 import type { Json } from '@/integrations/supabase/runtime-types';
 import { deterministicResolver } from './iara/intent/deterministicResolver';
 import type { ResolvedIntent } from './iara/intent/types';
+import { defaultResolverChain, resolveIntent } from './iara/intent/resolverChain';
+import { createLlmResolver } from './iara/intent/llmResolver';
+import { marcenappProvider } from './iara/providers/marcenappProvider';
 
 export interface ToolCall { tool: string; args: Record<string, unknown>; }
 export interface OrchestratorPlan { plan: ToolCall[]; summary: string; model?: string; provider?: 'lovable' | 'gemini'; }
@@ -173,11 +176,33 @@ function pendingCreateProjectInput(userPrompt: string, context?: Record<string, 
 
 async function resolveArchitectureIntent(userPrompt: string, context?: Record<string, unknown>, ctx?: ExecutionContext): Promise<ResolvedIntent | null> {
   const conversation = Array.isArray(context?.conversation)
-    ? context.conversation.filter((item): item is { sender: 'user' | 'iara'; text: string } => Boolean(item) && typeof item === 'object' && ((item as { sender?: unknown }).sender === 'user' || (item as { sender?: unknown }).sender === 'iara') && typeof (item as { text?: unknown }).text === 'string').map(item => ({ sender: item.sender, text: item.text }))
+    ? context.conversation
+        .filter((item): item is { sender: 'user' | 'iara'; text: string } =>
+          Boolean(item) &&
+          typeof item === 'object' &&
+          ((item as { sender?: unknown }).sender === 'user' || (item as { sender?: unknown }).sender === 'iara') &&
+          typeof (item as { text?: unknown }).text === 'string'
+        )
+        .map(item => ({ sender: item.sender, text: item.text }))
     : [];
-  return deterministicResolver.resolve({ text: userPrompt, context: { projectId: ctx?.projectId, environmentId: ctx?.environmentId, decorStyle: ctx?.decorStyle, recentMessages: conversation }, correlationId: ctx?.correlationId ?? globalThis.crypto?.randomUUID?.() ?? String(Date.now()) });
-}
 
+  const correlationId = ctx?.correlationId ?? globalThis.crypto?.randomUUID?.() ?? String(Date.now());
+  const chain = defaultResolverChain(
+    deterministicResolver,
+    createLlmResolver({ providers: [marcenappProvider] }),
+  );
+
+  return resolveIntent({
+    text: userPrompt,
+    context: {
+      projectId: ctx?.projectId,
+      environmentId: ctx?.environmentId,
+      decorStyle: ctx?.decorStyle,
+      recentMessages: conversation,
+    },
+    correlationId,
+  }, chain);
+}
 function deterministicCreateProjectPlan(userPrompt: string, context?: Record<string, unknown>): ToolCall[] {
   if (!inferProjectCreationFromConversation(userPrompt, context)) return [];
   const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
