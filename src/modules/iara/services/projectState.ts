@@ -50,10 +50,21 @@ function toMillimeters(value: string, unit?: string): number {
   return n;
 }
 
-function findDimension(text: string, labels: string[]): number | undefined {
+function findDimensionLegacy(text: string, labels: string[]): number | undefined {
   const label = labels.join('|');
   const match = text.match(new RegExp(`(?:${label})\\s*(?:de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
   return match ? toMillimeters(match[1], match[2]) : undefined;
+}
+
+function findDimension(text: string, labels: string[]): number | undefined {
+  const label = labels.join('|');
+  const beforeLabel = text.match(new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)\\s*(?:de|:|=)?\\s*(?:${label})\\b`, 'i'));
+  if (beforeLabel) return toMillimeters(beforeLabel[1], beforeLabel[2]);
+  const copula = text.match(new RegExp(`(?:${label})\\s+e\\s+(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
+  if (copula) return toMillimeters(copula[1], copula[2]);
+  const afterLabel = text.match(new RegExp(`(?:${label})\\s*(?:de|:|=|vai\\s+ser\\s+de)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m)?\\b`, 'i'));
+  if (afterLabel) return toMillimeters(afterLabel[1], afterLabel[2]);
+  return undefined;
 }
 
 function findNamedDimensions(text: string): Partial<Record<ProjectDimensionKey, number>> {
@@ -103,7 +114,7 @@ function extractComponents(text: string): ProjectComponentState[] {
   const normalized = normalize(text);
   const components: ProjectComponentState[] = [];
   const upperMatch = normalized.match(/(?:no|no\s+|na|na\s+)?armario\s+superior(?:,|\s+)([^.]*?)(?=$|\b(?:e\s+)?(?:agora|depois)\b)/i);
-  const upperSegment = upperMatch?.[1] ?? '';
+  const upperSegment = upperMatch?.[1] ?? normalized.match(/armario\s+superior(?:,|\s+)([^.]*)/i)?.[1] ?? '';
   const upper = componentFromSegment(upperSegment, 'armario_superior', 'component-armario-superior-01');
   if (upper) components.push(upper);
 
@@ -124,11 +135,12 @@ export function extractProjectStatePatch(text: string): ProjectStatePatch {
   const normalized = normalize(text);
   const named = findNamedDimensions(normalized);
   const ordered = findDimensionsByOrder(normalized);
+  const useOrderedDimensions = ordered.length > 0 && (ordered.length > 1 || !Object.values(named).some(value => value !== undefined));
   // Keep both strategies: ordered values fill missing axes and named values win for their axis.
   const dimensions: Partial<Record<ProjectDimensionKey, number>> = {
-    ...(ordered[0] !== undefined ? { width: ordered[0] } : {}),
-    ...(ordered[1] !== undefined ? { height: ordered[1] } : {}),
-    ...(ordered[2] !== undefined ? { depth: ordered[2] } : {}),
+    ...(useOrderedDimensions && ordered[0] !== undefined ? { width: ordered[0] } : {}),
+    ...(useOrderedDimensions && ordered[1] !== undefined ? { height: ordered[1] } : {}),
+    ...(useOrderedDimensions && ordered[2] !== undefined ? { depth: ordered[2] } : {}),
     ...Object.fromEntries(Object.entries(named).filter(([, value]) => value !== undefined)),
   };
   const type = inferType(normalized);

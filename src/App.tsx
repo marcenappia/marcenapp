@@ -8,9 +8,9 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { PROFESSIONAL_PROFILES } from "@/modules/admin/ProfessionalProfiles";
 import SeoRoute from "@/components/SeoRoute";
 
-type LazyImporter<T extends React.ComponentType<any>> = () => Promise<{ default: T }>;
+type LazyImporter<T extends React.ComponentType<unknown>> = () => Promise<{ default: T }>;
 
-const lazyWithRetry = <T extends React.ComponentType<any>>(importer: LazyImporter<T>, key: string) =>
+const lazyWithRetry = <T extends React.ComponentType<unknown>>(importer: LazyImporter<T>, key: string) =>
   lazy(async () => {
     const retryKey = `marcenapp:chunk-retry:${key}`;
 

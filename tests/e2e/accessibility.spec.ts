@@ -9,7 +9,7 @@ const assertNoLovableNavigation = (page: import('@playwright/test').Page) => {
     try {
       const hostname = new URL(url).hostname;
       if (FORBIDDEN_LEGACY_HOSTS.test(hostname)) seen.push(url);
-    } catch {}
+    } catch { return; }
   };
   page.on('request', request => check(request.url()));
   page.on('framenavigated', frame => check(frame.url()));

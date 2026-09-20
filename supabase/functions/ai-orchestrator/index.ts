@@ -88,7 +88,7 @@ function parseProviderResponse(provider: Provider, data: Record<string, unknown>
   const plan: Array<{ tool: string; args: Record<string, unknown> }> = []; let summary = "";
   if (provider === "lovable" || provider === "vercel") {
     const message = (data.choices as Array<Record<string, unknown>> | undefined)?.[0]?.message as Record<string, unknown> | undefined;
-    for (const call of (message?.tool_calls as Array<Record<string, unknown>> | undefined) ?? []) { const fn = call.function as Record<string, unknown> | undefined; if (!fn?.name) continue; let args: Record<string, unknown> = {}; try { args = JSON.parse(String(fn.arguments ?? "{}")); } catch {} plan.push({ tool: String(fn.name), args }); }
+    for (const call of (message?.tool_calls as Array<Record<string, unknown>> | undefined) ?? []) { const fn = call.function as Record<string, unknown> | undefined; if (!fn?.name) continue; let args: Record<string, unknown> = {}; try { args = JSON.parse(String(fn.arguments ?? "{}")); } catch { args = {}; } plan.push({ tool: String(fn.name), args }); }
     const content = message?.content; summary = typeof content === "string" ? content : Array.isArray(content) ? content.map((p: { text?: string }) => p?.text ?? "").join("") : "";
     return { plan, summary: summary.trim(), model: String(data.model ?? (provider === "vercel" ? Deno.env.get("AI_GATEWAY_MODEL") ?? "vercel" : LOVABLE_MODEL)) };
   }

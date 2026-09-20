@@ -21,6 +21,6 @@ vi.mock('@/modules/jornada/Home', () => ({ default: () => <div data-testid="home
 
 describe('Menu Accessibility', () => {
   beforeEach(() => { window.innerWidth = 1200; localStorage.setItem('marcenapp_onboarding_seen', 'true'); window.HTMLElement.prototype.scrollIntoView = vi.fn(); });
-  it('nav buttons should have focus indicators', () => { render(<BrowserRouter><Index /></BrowserRouter>); const chatButtons = screen.getAllByLabelText(/^IARA$/i); expect(chatButtons.length).toBeGreaterThan(0); chatButtons.forEach((button) => expect(button).toHaveClass('focus-visible:outline-none')); expect(chatButtons[0]).toHaveClass('focus-visible:ring-2'); });
-  it('home (jornada) is the default module and mobile nav exposes Novo', () => { window.innerWidth = 400; render(<BrowserRouter><Index /></BrowserRouter>); expect(screen.getByTestId('home')).toBeInTheDocument(); expect(screen.getByLabelText('Novo')).toBeInTheDocument(); });
+  it('nav buttons should have focus indicators', async () => { render(<BrowserRouter><Index /></BrowserRouter>); const chatButtons = await screen.findAllByLabelText(/^IARA$/i); expect(chatButtons.length).toBeGreaterThan(0); chatButtons.forEach((button) => expect(button).toHaveClass('focus-visible:outline-none')); expect(chatButtons[0]).toHaveClass('focus-visible:ring-2'); });
+  it('home (jornada) is the default module and mobile nav exposes Diário', async () => { window.innerWidth = 400; render(<BrowserRouter><Index /></BrowserRouter>); expect(await screen.findByTestId('home')).toBeInTheDocument(); expect(await screen.findByLabelText('Diário')).toBeInTheDocument(); });
 });

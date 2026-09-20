@@ -6,8 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import logo from '@/assets/marcenapp-logo.svg';
 import { PROFESSIONAL_PROFILES } from '@/modules/admin/ProfessionalProfiles';
 
-// Use the apex domain: the www hostname is currently not serving the Vercel deployment.
-const PRODUCTION_ORIGIN = 'https://marcenapp.com.br';
+const PRODUCTION_ORIGIN = 'https://www.marcenapp.com.br';
 const AUTH_CALLBACK = `${PRODUCTION_ORIGIN}/auth`;
 const PURCHASE_STORAGE_KEY = 'marcenapp_pending_purchase';
 
