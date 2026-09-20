@@ -9,8 +9,6 @@ import type { Json } from '@/integrations/supabase/runtime-types';
 import { deterministicResolver } from './iara/intent/deterministicResolver';
 import type { ResolvedIntent } from './iara/intent/types';
 import { defaultResolverChain, resolveIntent } from './iara/intent/resolverChain';
-import { createLlmResolver } from './iara/intent/llmResolver';
-import { marcenappProvider } from './iara/providers/marcenappProvider';
 
 export interface ToolCall { tool: string; args: Record<string, unknown>; }
 export interface OrchestratorPlan { plan: ToolCall[]; summary: string; model?: string; provider?: 'lovable' | 'gemini'; }
@@ -187,11 +185,39 @@ async function resolveArchitectureIntent(userPrompt: string, context?: Record<st
     : [];
 
   const correlationId = ctx?.correlationId ?? globalThis.crypto?.randomUUID?.() ?? String(Date.now());
-  const chain = defaultResolverChain(
-    deterministicResolver,
-    createLlmResolver({ providers: [marcenappProvider] }),
-  );
+  const llmResolver = {
+    name: 'llm',
+    async resolve(input: Parameters<typeof resolveIntent>[0]): Promise<ResolvedIntent | null> {
+      const contextBlock = JSON.stringify({
+        projectId: input.context.projectId,
+        environmentId: input.context.environmentId,
+        decorStyle: input.context.decorStyle,
+        conversation: input.context.recentMessages.slice(-12),
+      });
+      const response = await planWithLLM(input.text, { conversation: input.context.recentMessages, context: contextBlock });
+      const first = response.plan[0];
+      const intentMap: Record<string, ResolvedIntent['intent']> = {
+        createCliente: 'create_cliente',
+        createProjeto: 'create_projeto',
+        gerarRender: 'gerar_render',
+        calcularOrcamento: 'calcular_orcamento',
+        gerarContrato: 'gerar_contrato',
+        operationalIntelligence: 'operational_intelligence',
+        iaraSmartAction: 'smart_action',
+      };
+      if (!first) return response.summary ? { intent: 'unknown', entities: {}, confidence: 0.3, missingSlots: [], source: 'llm', summary: response.summary } : null;
+      return {
+        intent: intentMap[first.tool] ?? 'unknown',
+        entities: first.args ?? {},
+        confidence: intentMap[first.tool] ? 0.8 : 0.3,
+        missingSlots: [],
+        source: 'llm',
+        summary: response.summary,
+      };
+    },
+  };
 
+  const chain = defaultResolverChain(deterministicResolver, llmResolver);
   return resolveIntent({
     text: userPrompt,
     context: {
