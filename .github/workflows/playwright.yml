@@ -148,7 +148,7 @@ jobs:
 
     - name: Run Playwright tests
       id: playwright
-      if: ${{ steps.install.outcome == 'success' && steps.e2e_bootstrap.outcome == 'success' }}
+      if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.e2e_bootstrap.outcome == 'success' }}
       run: npx playwright test
 
     - name: Cleanup ephemeral E2E user
