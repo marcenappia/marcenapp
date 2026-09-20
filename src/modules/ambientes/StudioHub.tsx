@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import IaraModule from '@/modules/iara';
 import type { ProjectData } from '@/modules/projetos/types';
@@ -14,7 +14,8 @@ type VersionOption = { id: string; version_number: number; environment_id: strin
 export const StudioHub = (props: StudioHubProps) => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
-  const projectId = props.projectId ?? searchParams.get('projeto') ?? props.budgetProject?.id ?? null;
+  const { budgetProject, setBudgetProject } = props;
+  const projectId = props.projectId ?? searchParams.get('projeto') ?? budgetProject?.id ?? null;
   const [context, setContext] = useState<IaraContext>({ ...emptyIaraContext, projectId });
   const [environments, setEnvironments] = useState<EnvironmentOption[]>([]);
   const [versions, setVersions] = useState<VersionOption[]>([]);
@@ -27,24 +28,24 @@ export const StudioHub = (props: StudioHubProps) => {
       const next = { ...loaded, projectId };
       setContext(next);
       setEnvironments((envResult.data ?? []) as EnvironmentOption[]);
-      if (loaded.projectName && props.budgetProject.id !== projectId) {
+        if (loaded.projectName && budgetProject.id !== projectId) {
         const { data: project } = await supabase.from('projects').select('id,width,height,depth,modules,drawers,doors,internal_material,external_material,back_material,handle_type,profit_margin,labor_rate').eq('user_id', user.id).eq('id', projectId).maybeSingle();
-        if (!cancelled && project) props.setBudgetProject({ id: project.id, width: Number(project.width ?? 0), height: Number(project.height ?? 0), depth: Number(project.depth ?? 0), modules: Number(project.modules ?? 0), drawers: Number(project.drawers ?? 0), doors: Number(project.doors ?? 0), internalMaterial: project.internal_material ?? '', externalMaterial: project.external_material ?? '', backMaterial: project.back_material ?? '', handleType: project.handle_type ?? '', profitMargin: Number(project.profit_margin ?? 0), laborRate: Number(project.labor_rate ?? 0) });
+        if (!cancelled && project) setBudgetProject({ id: project.id, width: Number(project.width ?? 0), height: Number(project.height ?? 0), depth: Number(project.depth ?? 0), modules: Number(project.modules ?? 0), drawers: Number(project.drawers ?? 0), doors: Number(project.doors ?? 0), internalMaterial: project.internal_material ?? '', externalMaterial: project.external_material ?? '', backMaterial: project.back_material ?? '', handleType: project.handle_type ?? '', profitMargin: Number(project.profit_margin ?? 0), laborRate: Number(project.labor_rate ?? 0) });
       }
     });
     return () => { cancelled = true; };
-  }, [user?.id, projectId]);
+  }, [user, projectId, budgetProject.id, setBudgetProject]);
 
   useEffect(() => {
     let cancelled = false;
     if (!user || !projectId || !context.environmentId) { setVersions([]); return; }
     supabase.from('project_versions').select('id,version_number,environment_id').eq('user_id', user.id).eq('project_id', projectId).eq('environment_id', context.environmentId).order('version_number', { ascending: false }).then(({ data }) => { if (!cancelled) setVersions((data ?? []) as VersionOption[]); });
     return () => { cancelled = true; };
-  }, [user?.id, projectId, context.environmentId]);
+  }, [user, projectId, context.environmentId]);
 
   const selectEnvironment = async (environmentId: string) => { if (!user || !projectId) return; const environment = environments.find(item => item.id === environmentId); if (!environment) return; const next = { ...context, projectId, environmentId, environmentName: environment.name, versionId: null, versionNumber: null }; setContext(next); await persistIaraContext(user.id, next); };
   const selectVersion = async (versionId: string) => { if (!user || !projectId) return; const version = versions.find(item => item.id === versionId); if (!version) return; const next = { ...context, projectId, versionId, versionNumber: version.version_number }; setContext(next); await persistIaraContext(user.id, next); };
-  const syncProject = { width: props.budgetProject?.width, height: props.budgetProject?.height, depth: props.budgetProject?.depth };
+  const syncProject = useMemo(() => ({ width: budgetProject?.width, height: budgetProject?.height, depth: budgetProject?.depth }), [budgetProject?.width, budgetProject?.height, budgetProject?.depth]);
   const handleIaraProjectChange = (project: { width: number; height: number; depth: number }) => props.setBudgetProject((prev) => prev?.width === project.width && prev?.height === project.height && prev?.depth === project.depth ? prev : { ...prev, width: project.width, height: project.height, depth: project.depth });
 
   return (

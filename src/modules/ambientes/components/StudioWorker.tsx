@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useStudioStore, type RenderCommand } from '@/store/useStudioStore';
 import { OSCommand, useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
@@ -25,12 +25,7 @@ export const StudioWorker = () => {
   const cancelCommand = useStudioStore(state => state.cancelCommand);
   const currentlyProcessing = useRef<string | null>(null);
 
-  useEffect(() => {
-    const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
-    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
-  }, [commandQueue, isRendering]);
-
-  const readCurrentContext = async (payload?: Record<string, unknown>) => {
+  const readCurrentContext = useCallback(async (payload?: Record<string, unknown>) => {
     if (!user) return null;
 
     // A user can have several projects. Never compare a command carrying an
@@ -60,9 +55,9 @@ export const StudioWorker = () => {
       last_correlation_id: string | null;
       last_execution_generation: number | null;
     } | null;
-  };
+  }, [user]);
 
-  const isCurrentContext = async (payload: Record<string, unknown>) => {
+  const isCurrentContext = useCallback(async (payload: Record<string, unknown>) => {
     if (!user || payload.userId !== user.id) return false;
     const payloadProjectId = (payload.projectId as string | null | undefined) ?? null;
     const payloadEnvironmentId = (payload.environmentId as string | null | undefined) ?? null;
@@ -85,9 +80,9 @@ export const StudioWorker = () => {
     return payloadProjectId === (current?.project_id ?? null)
       && payloadEnvironmentId === (current?.environment_id ?? null)
       && payloadVersionId === (current?.version_id ?? null);
-  };
+  }, [user, readCurrentContext]);
 
-  const refundConsumedCredit = async (idempotencyKey: unknown) => {
+  const refundConsumedCredit = useCallback(async (idempotencyKey: unknown) => {
     if (!user || typeof idempotencyKey !== 'string' || !idempotencyKey) return;
     const { error } = await supabase.rpc('refund_billing_credit', {
       p_user_id: user.id,
@@ -95,9 +90,9 @@ export const StudioWorker = () => {
       p_idempotency_key: idempotencyKey,
     });
     if (error) console.error('Falha ao devolver crédito de render descartado:', error);
-  };
+  }, [user]);
 
-  const resolveRenderCommand = (osCommand: OSCommand) => {
+  const resolveRenderCommand = useCallback((osCommand: OSCommand) => {
     const payload = (osCommand.payload ?? {}) as Partial<RenderCommand> & { studioCommandId?: string; userId?: string };
     const studioCommandId = payload.studioCommandId;
     if (studioCommandId) {
@@ -105,9 +100,9 @@ export const StudioWorker = () => {
       if (studioCmd) return { command: studioCmd, studioCommandId };
     }
     return { command: payload, studioCommandId: undefined };
-  };
+  }, []);
 
-  const processCommand = async (osCommand: OSCommand) => {
+  const processCommand = useCallback(async (osCommand: OSCommand) => {
     if (osCommand.status === 'cancelled' || !user) { currentlyProcessing.current = null; return; }
     if (currentlyProcessing.current && currentlyProcessing.current !== osCommand.id) return;
     currentlyProcessing.current = osCommand.id;
@@ -159,7 +154,12 @@ export const StudioWorker = () => {
       console.error('StudioWorker Error:', error);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
     } finally { currentlyProcessing.current = null; }
-  };
+  }, [user, readCurrentContext, isCurrentContext, refundConsumedCredit, resolveRenderCommand, cancelCommand, updateOSStatus, failCommand, startProcessing, completeCommand]);
+
+  useEffect(() => {
+    const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
+    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
+  }, [commandQueue, isRendering, processCommand]);
 
   return null;
 };
