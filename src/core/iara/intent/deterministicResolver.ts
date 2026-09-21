@@ -99,15 +99,23 @@ function createProject(value: string): ResolvedIntent | null {
 export const deterministicResolver: IntentResolver = {
   name: "deterministic",
   async resolve(input: IntentResolverInput) {
-    if (input.images?.length) return null;
+    if (input.images?.length) {
+      return {
+        intent: "gerar_render",
+        entities: { prompt: input.text || "Gere o projeto/render a partir da imagem de referência enviada." },
+        confidence: 0.98,
+        missingSlots: [],
+        source: "deterministic",
+      };
+    }
     const value = words(norm(input.text));
     const project = createProject(value);
     if (project) return project;
-    if (render.test(value)) {
+    if (render.test(value) && input.context.environmentId) {
       return {
         intent: "gerar_render",
-        entities: { prompt: input.text },
-        confidence: 0.9,
+        entities: { prompt: input.text || "Gere o projeto/render a partir do ambiente atual." },
+        confidence: 0.92,
         missingSlots: [],
         source: "deterministic",
       };
