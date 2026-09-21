@@ -99,6 +99,12 @@ export const callAIImage = async (
   return data.imageUrl ?? null;
 };
 
+export const refundAIImageCredit = async (idempotencyKey: string): Promise<void> => {
+  const normalizedKey = idempotencyKey.trim();
+  if (normalizedKey.length < 8 || normalizedKey.length > 200) return;
+  await callAIFunction('ai-image', { action: 'refund', idempotencyKey: normalizedKey });
+};
+
 export const callAIText = async (prompt: string, images?: { mimeType: string; data: string }[], jsonMode = false) => {
   const data = await callAIFunction<{ text: string }>('ai-text', { prompt, images, jsonMode });
   return data.text;
