@@ -99,7 +99,6 @@ export const StudioWorker = () => {
     const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
     const { command, studioCommandId } = resolveRenderCommand(osCommand);
     const storeCommandId = studioCommandId ?? osCommand.id;
-    const idempotencyKey = typeof command.idempotencyKey === 'string' ? command.idempotencyKey : (typeof payload.idempotencyKey === 'string' ? payload.idempotencyKey : undefined);
     if (!(await isCurrentContext(payload))) {
       cancelCommand(storeCommandId);
       updateOSStatus(osCommand.id, 'cancelled', undefined, 'Comando descartado: identidade de execução não é mais válida.');
@@ -116,15 +115,24 @@ export const StudioWorker = () => {
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
     try {
-      const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, command.idempotencyKey, {
-        projectId: typeof payload.projectId === 'string' ? payload.projectId : null,
-        environmentId: typeof payload.environmentId === 'string' ? payload.environmentId : null,
-        versionId: typeof payload.versionId === 'string' ? payload.versionId : null,
-        correlationId: typeof payload.correlationId === 'string' ? payload.correlationId : null,
-        generation: typeof payload.generation === 'number' ? payload.generation : null,
-      });
+      const result = await studioService.generateVisual(
+        command.prompt,
+        command.images,
+        command.style,
+        command.decor,
+        command.idempotencyKey,
+        osCommand.source === 'iara'
+          ? {
+              projectId: typeof payload.projectId === 'string' ? payload.projectId : null,
+              environmentId: typeof payload.environmentId === 'string' ? payload.environmentId : null,
+              versionId: typeof payload.versionId === 'string' ? payload.versionId : null,
+              correlationId: typeof payload.correlationId === 'string' ? payload.correlationId : null,
+              generation: typeof payload.generation === 'number' ? payload.generation : null,
+            }
+          : undefined,
+      );
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
-      if (!(await isCurrentContext(payload))) {
+      if (osCommand.source !== 'iara' && !(await isCurrentContext(payload))) {
         cancelCommand(storeCommandId);
         updateOSStatus(osCommand.id, 'cancelled', undefined, 'Resultado descartado: a identidade de execução mudou durante a geração.');
         return;
