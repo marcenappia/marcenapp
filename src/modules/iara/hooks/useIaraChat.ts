@@ -30,7 +30,7 @@ function humanizeError(error: unknown): string {
 }
 function toolFailureMessage(tool: string, error: unknown): string {
   const message = rawErrorMessage(error);
-  if (tool === 'gerarRender' || /nenhuma imagem base|imagem base|máscara|mascara/i.test(message)) return 'Não foi possível gerar o render com os dados disponíveis. Você pode gerar um render somente com texto ou, se quiser preservar um ambiente existente, enviar uma foto e tentar novamente.';
+  if (tool === 'gerarRender' || /nenhuma imagem base|imagem base|máscara|mascara/i.test(message)) return 'Não foi possível gerar o render com os dados disponíveis. A geração somente por texto está desativada por enquanto; envie uma referência visual ou selecione um ambiente com imagem e tente novamente.';
   return humanizeError(error);
 }
 
