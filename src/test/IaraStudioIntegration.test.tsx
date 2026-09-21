@@ -80,7 +80,7 @@ describe('IARA-Studio Architecture', () => {
     expect(useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId)?.status).toBe('completed');
   });
 
-  it('IARA command without visual context is accepted for text-only rendering', async () => {
+  it('IARA command without visual context is rejected by the render worker', async () => {
     vi.mocked(studioService.generateVisual).mockResolvedValue('url-text-only');
     const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
     from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-test', last_execution_generation: 1 }, error: null })), insert: vi.fn(() => Promise.resolve({ error: null })) }) as never);
@@ -89,10 +89,9 @@ describe('IARA-Studio Architecture', () => {
     render(<StudioWorker />);
     await renderAct(async () => { await new Promise(r => setTimeout(r, 50)); });
     const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
-    expect(osCmd?.status).toBe('completed');
-    expect(osCmd?.result?.resultUrl).toBe('url-text-only');
-    expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(studioService.generateVisual).mock.calls[0]?.[1]).toBeUndefined();
+    expect(osCmd?.status).toBe('failed');
+    expect(osCmd?.error).toContain('falta uma referência visual incorporada');
+    expect(studioService.generateVisual).not.toHaveBeenCalled();
   });
 
   it('rejects an IARA render whose generation is missing', async () => {
