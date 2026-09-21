@@ -3,6 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 type AIImageInput = string | { mimeType: string; data: string };
 type AIErrorBody = { error?: string; message?: string; code?: string };
 
+export interface AIImagePersistence {
+  projectId?: string | null;
+  environmentId?: string | null;
+  versionId?: string | null;
+  correlationId?: string | null;
+  generation?: number | null;
+}
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://uzhqhieqlcyncelltfjw.supabase.co';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_o9A9xyvRYXt-Rl9MZfdArA_SdYOAySX';
 
@@ -83,6 +91,7 @@ export const callAIImage = async (
   prompt: string,
   images?: AIImageInput[],
   idempotencyKey = crypto.randomUUID(),
+  persistence?: AIImagePersistence,
 ) => {
   const normalizedImages = images?.map(img => {
     if (typeof img === 'string') {
@@ -95,14 +104,9 @@ export const callAIImage = async (
     prompt,
     images: normalizedImages,
     idempotencyKey,
+    ...(persistence ? { persistGallery: persistence } : {}),
   });
   return data.imageUrl ?? null;
-};
-
-export const refundAIImageCredit = async (idempotencyKey: string): Promise<void> => {
-  const normalizedKey = idempotencyKey.trim();
-  if (normalizedKey.length < 8 || normalizedKey.length > 200) return;
-  await callAIFunction('ai-image', { action: 'refund', idempotencyKey: normalizedKey });
 };
 
 export const callAIText = async (prompt: string, images?: { mimeType: string; data: string }[], jsonMode = false) => {
