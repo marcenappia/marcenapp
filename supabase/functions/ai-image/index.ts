@@ -25,11 +25,16 @@ const GenerateBodySchema = z.object({
   }).optional(),
   idempotencyKey: z.string().trim().min(8).max(200),
 });
-const RefundBodySchema = z.object({
-  action: z.literal("refund"),
-  idempotencyKey: z.string().trim().min(8).max(200),
+const PersistenceSchema = z.object({
+  projectId: z.string().uuid().nullable().optional(),
+  environmentId: z.string().uuid().nullable().optional(),
+  versionId: z.string().uuid().nullable().optional(),
+  correlationId: z.string().trim().max(200).nullable().optional(),
+  generation: z.number().int().nullable().optional(),
 });
-const BodySchema = z.union([GenerateBodySchema, RefundBodySchema]);
+const BodySchema = GenerateBodySchema.extend({
+  persistGallery: PersistenceSchema.optional(),
+});
 
 type ImageInput = z.infer<typeof ImageSchema>;
 type GatewayError = Error & { status?: number; retryAfter?: string };
@@ -167,12 +172,7 @@ serve(async request => {
     if (!body.ok) return jsonResponse(cors, { message: body.reason === "too_large" ? "Corpo da solicitação muito grande." : "JSON inválido.", code: body.reason === "too_large" ? "payload_too_large" : "invalid_json" }, body.reason === "too_large" ? 413 : 400);
     const parsed = BodySchema.safeParse(body.body);
     if (!parsed.success) return jsonResponse(cors, { message: "Dados inválidos.", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
-    if ("action" in parsed.data && parsed.data.action === "refund") {
-      idempotencyKey = parsed.data.idempotencyKey;
-      await refund(guard.userId, idempotencyKey);
-      return jsonResponse(cors, { refunded: true, operationType: OPERATION_TYPE, idempotencyKey });
-    }
-    const { prompt, images = [], size } = parsed.data;
+    const { prompt, images = [], size, persistGallery } = parsed.data;
     idempotencyKey = parsed.data.idempotencyKey;
     const wordCount = prompt.split(/\s+/).filter(Boolean).length;
     if (wordCount > MAX_PROMPT_WORDS) return jsonResponse(cors, { message: "O pedido é muito longo.", code: "validation_error" }, 400);
@@ -194,11 +194,47 @@ serve(async request => {
     creditConsumed = true;
     const data: unknown = consumed.data;
     const imageBase64 = await generateImage(prompt, images);
-    return jsonResponse(cors, { imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: LOVABLE_IMAGE_MODEL, provider: "lovable", creditConsumption: Array.isArray(data) ? data[0] : data, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
+
+    if (persistGallery) {
+      const { data: context, error: contextError } = await admin
+        .from("project_iara_contexts")
+        .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
+        .eq("user_id", guard.userId)
+        .eq("project_id", persistGallery.projectId ?? "")
+        .limit(1)
+        .maybeSingle();
+
+      if (contextError) throw new Error("iara_context_read_failed");
+      const contextMatches =
+        !!context &&
+        context.environment_id === (persistGallery.environmentId ?? null) &&
+        context.version_id === (persistGallery.versionId ?? null) &&
+        (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
+        (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
+
+      if (!contextMatches) throw new Error("stale_execution_context");
+
+      const { error: galleryError } = await admin.from("gallery_images").insert({
+        user_id: guard.userId,
+        image_url: imageBase64,
+        prompt,
+        project_id: persistGallery.projectId ?? null,
+        environment_id: persistGallery.environmentId ?? null,
+        version_id: persistGallery.versionId ?? null,
+        correlation_id: persistGallery.correlationId ?? null,
+        execution_generation: persistGallery.generation ?? null,
+      });
+      if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
+    }
+
+    return jsonResponse(cors, { imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: LOVABLE_IMAGE_MODEL, provider: "lovable", creditConsumption: Array.isArray(data) ? data[0] : data, persisted: !!persistGallery, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
     if (creditConsumed && idempotencyKey) await refund(guard.userId, idempotencyKey).catch(error => console.error("ai-image refund error", error));
     const error = caught as GatewayError;
     console.error("ai-image error", error.message);
+    if (error.message === "stale_execution_context") return jsonResponse(cors, { message: "A execução do render ficou desatualizada antes da persistência.", code: "stale_execution_context" }, 409);
+    if (error.message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed" }, 500);
+    if (error.message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "Não foi possível salvar o render na galeria.", code: "gallery_persist_failed" }, 500);
     if (error.message === "provider_not_configured") return jsonResponse(cors, { message: "A conexão com a IA não está configurada nesta publicação.", code: "provider_not_configured" }, 500);
     if (error.status === 400) return jsonResponse(cors, { message: error.message, code: "invalid_image_request" }, 400);
     if (error.status === 401) return jsonResponse(cors, { message: "A chave do serviço de IA não está configurada corretamente.", code: "provider_auth_error" }, 401);
