@@ -118,6 +118,11 @@ export const StudioWorker = () => {
     const storeCommandId = studioCommandId ?? osCommand.id;
     const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
     if (!command.prompt) { fail('Comando inválido: falta o prompt de geração.'); currentlyProcessing.current = null; return; }
+    if (osCommand.source === 'iara' && (!Array.isArray(command.images) || command.images.length === 0)) {
+      fail('Render da IARA bloqueado: falta uma referência visual incorporada. A geração somente por texto está desativada.');
+      currentlyProcessing.current = null;
+      return;
+    }
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
     try {
