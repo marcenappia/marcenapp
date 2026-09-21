@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useStudioStore, type RenderCommand } from '@/store/useStudioStore';
 import { OSCommand, useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
-import { refundAIImageCredit } from '@/services/ai';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { isIaraCommandExecutionCurrent } from '@/modules/iara/hooks/iaraExecutionScope';
@@ -83,15 +82,6 @@ export const StudioWorker = () => {
       && payloadVersionId === (current?.version_id ?? null);
   }, [user, readCurrentContext]);
 
-  const refundConsumedCredit = useCallback(async (idempotencyKey: unknown) => {
-    if (typeof idempotencyKey !== 'string' || !idempotencyKey) return;
-    try {
-      await refundAIImageCredit(idempotencyKey);
-    } catch (error) {
-      console.error('Falha ao devolver crédito de render descartado:', error);
-    }
-  }, []);
-
   const resolveRenderCommand = useCallback((osCommand: OSCommand) => {
     const payload = (osCommand.payload ?? {}) as Partial<RenderCommand> & { studioCommandId?: string; userId?: string };
     const studioCommandId = payload.studioCommandId;
@@ -111,7 +101,6 @@ export const StudioWorker = () => {
     const storeCommandId = studioCommandId ?? osCommand.id;
     const idempotencyKey = typeof command.idempotencyKey === 'string' ? command.idempotencyKey : (typeof payload.idempotencyKey === 'string' ? payload.idempotencyKey : undefined);
     if (!(await isCurrentContext(payload))) {
-      await refundConsumedCredit(idempotencyKey);
       cancelCommand(storeCommandId);
       updateOSStatus(osCommand.id, 'cancelled', undefined, 'Comando descartado: identidade de execução não é mais válida.');
       currentlyProcessing.current = null;
@@ -126,44 +115,28 @@ export const StudioWorker = () => {
     }
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
-    let generationSucceeded = false;
     try {
-      const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, command.idempotencyKey);
+      const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, command.idempotencyKey, {
+        projectId: typeof payload.projectId === 'string' ? payload.projectId : null,
+        environmentId: typeof payload.environmentId === 'string' ? payload.environmentId : null,
+        versionId: typeof payload.versionId === 'string' ? payload.versionId : null,
+        correlationId: typeof payload.correlationId === 'string' ? payload.correlationId : null,
+        generation: typeof payload.generation === 'number' ? payload.generation : null,
+      });
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
-      generationSucceeded = true;
       if (!(await isCurrentContext(payload))) {
-        await refundConsumedCredit(command.idempotencyKey);
         cancelCommand(storeCommandId);
         updateOSStatus(osCommand.id, 'cancelled', undefined, 'Resultado descartado: a identidade de execução mudou durante a geração.');
         return;
       }
-      const context = await readCurrentContext(payload);
-      const projectId = typeof payload.projectId === 'string' ? payload.projectId : context?.project_id ?? null;
-      const environmentId = typeof payload.environmentId === 'string' ? payload.environmentId : context?.environment_id ?? null;
-      const versionId = typeof payload.versionId === 'string' ? payload.versionId : context?.version_id ?? null;
-      const correlationId = typeof payload.correlationId === 'string' ? payload.correlationId : null;
-      const generation = typeof payload.generation === 'number' ? payload.generation : null;
-
-      const { error } = await supabase.from('gallery_images').insert({
-        user_id: user.id,
-        image_url: result,
-        prompt: command.prompt,
-        project_id: projectId,
-        environment_id: environmentId,
-        version_id: versionId,
-        correlation_id: correlationId,
-        execution_generation: generation,
-      });
-      if (error) throw new Error(`A imagem foi gerada, mas não pôde ser salva na galeria: ${error.message}`);
       completeCommand(storeCommandId, result);
       updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
 
     } catch (error: unknown) {
       console.error('StudioWorker Error:', error);
-      if (generationSucceeded) await refundConsumedCredit(idempotencyKey);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
     } finally { currentlyProcessing.current = null; }
-  }, [user, readCurrentContext, isCurrentContext, refundConsumedCredit, resolveRenderCommand, cancelCommand, updateOSStatus, failCommand, startProcessing, completeCommand]);
+  }, [user, readCurrentContext, isCurrentContext, resolveRenderCommand, cancelCommand, updateOSStatus, failCommand, startProcessing, completeCommand]);
 
   useEffect(() => {
     const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
