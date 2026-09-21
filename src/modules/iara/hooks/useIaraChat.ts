@@ -121,26 +121,85 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
         if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
         if (publishingCommandIdsRef.current.has(command.id)) continue;
         if (command.status !== 'completed' && command.status !== 'failed') continue;
+
         publishingCommandIdsRef.current.add(command.id);
-        const { data: existingMessage } = await supabase.from('chat_messages')
-          .select('id')
-          .eq('user_id', execution.userId)
-          .contains('metadata', { commandId: command.id })
-          .limit(1)
-          .maybeSingle();
-        if (existingMessage?.id) {
-          pendingExecutionsRef.current.delete(execution.correlationId);
-          setIsTyping(false);
-          continue;
-        }
-        if (command.status === 'completed' && command.result?.resultUrl) {
-          if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
-          await saveMessage({ sender: 'iara', text: 'O render está pronto.', image_url: command.result.resultUrl, metadata: { commandId: command.id, correlationId: execution.correlationId, projectId: execution.projectId ?? undefined, environmentId: execution.environmentId ?? undefined, versionId: execution.versionId ?? undefined, resultUrl: command.result.resultUrl, imageUrl: command.result.resultUrl, artifact: { type: 'render', id: command.id }, actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }], status: 'ready' } }, execution);
-          pendingExecutionsRef.current.delete(execution.correlationId); setIsTyping(false);
-        } else if (command.status === 'failed') {
-          if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
-          await saveMessage({ sender: 'iara', text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.', metadata: { commandId: command.id, status: 'error', correlationId: execution.correlationId, projectId: execution.projectId ?? undefined, environmentId: execution.environmentId ?? undefined, versionId: execution.versionId ?? undefined, actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }] } }, execution);
-          pendingExecutionsRef.current.delete(execution.correlationId); setIsTyping(false);
+        try {
+          let published = false;
+          let lastError: unknown = null;
+          for (let attempt = 0; attempt < 3 && !published; attempt += 1) {
+            try {
+              const { data: existingMessage, error: lookupError } = await supabase.from('chat_messages')
+                .select('id')
+                .eq('user_id', execution.userId)
+                .contains('metadata', { commandId: command.id })
+                .limit(1)
+                .maybeSingle();
+              if (lookupError) throw lookupError;
+
+              if (existingMessage?.id) {
+                pendingExecutionsRef.current.delete(execution.correlationId);
+                setIsTyping(false);
+                published = true;
+                continue;
+              }
+
+              if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) {
+                published = true;
+                continue;
+              }
+
+              if (command.status === 'completed' && command.result?.resultUrl) {
+                await saveMessage({
+                  sender: 'iara',
+                  text: 'O render está pronto.',
+                  image_url: command.result.resultUrl,
+                  metadata: {
+                    commandId: command.id,
+                    correlationId: execution.correlationId,
+                    projectId: execution.projectId ?? undefined,
+                    environmentId: execution.environmentId ?? undefined,
+                    versionId: execution.versionId ?? undefined,
+                    resultUrl: command.result.resultUrl,
+                    imageUrl: command.result.resultUrl,
+                    artifact: { type: 'render', id: command.id },
+                    actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }],
+                    status: 'ready',
+                  },
+                }, execution);
+              } else if (command.status === 'failed') {
+                await saveMessage({
+                  sender: 'iara',
+                  text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.',
+                  metadata: {
+                    commandId: command.id,
+                    status: 'error',
+                    correlationId: execution.correlationId,
+                    projectId: execution.projectId ?? undefined,
+                    environmentId: execution.environmentId ?? undefined,
+                    versionId: execution.versionId ?? undefined,
+                    actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }],
+                  },
+                }, execution);
+              } else {
+                published = true;
+                continue;
+              }
+
+              pendingExecutionsRef.current.delete(execution.correlationId);
+              setIsTyping(false);
+              published = true;
+            } catch (error) {
+              lastError = error;
+              if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+            }
+          }
+
+          if (!published) {
+            console.error('Falha ao publicar resultado do comando IARA:', lastError);
+            setError('O render foi concluído, mas não foi possível publicar o resultado na conversa. Tente novamente.');
+          }
+        } finally {
+          publishingCommandIdsRef.current.delete(command.id);
         }
       }
     };
