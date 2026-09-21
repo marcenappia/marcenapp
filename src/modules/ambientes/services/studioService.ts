@@ -1,4 +1,4 @@
-import { callAIImage } from '@/services/ai';
+import { callAIImage, type AIImagePersistence } from '@/services/ai';
 import { ImageData } from '@/store/useStudioStore';
 
 interface ImagePayload {
@@ -24,11 +24,12 @@ export const studioService = {
     stylePrompt?: string,
     decorPrompt?: string,
     idempotencyKey?: string,
+    persistence?: AIImagePersistence,
   ): Promise<string | null> => {
     const finalPrompt = `ACT AS AN EXPERT ARCHITECTURAL VISUALIZER.\n      Style: ${stylePrompt || 'Photorealistic'}.\n      Decor: ${decorPrompt || 'Modern'}.\n      Instructions: ${prompt}.\n      Maximum realism, 8k.`;
     const processedImages = normalizeImages(images);
     const normalizedKey = normalizeIdempotencyKey(idempotencyKey);
-    return await callAIImage(finalPrompt, processedImages, normalizedKey as Parameters<typeof callAIImage>[2]);
+    return await callAIImage(finalPrompt, processedImages, normalizedKey as Parameters<typeof callAIImage>[2], persistence);
   },
 
   refineVisual: async (originalImage: string, instructions: string): Promise<string | null> => {
