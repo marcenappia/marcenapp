@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MessageCircle, ChevronDown } from 'lucide-react';
+import { X, MessageCircle, ChevronDown, Sparkles } from 'lucide-react';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput, type SmartAction } from './components/ChatInput';
 import { ContextPanel, type ContextPanelData } from './components/ContextPanel';
@@ -34,17 +34,27 @@ const IaraModule = ({ syncProject, onProjectChange, embedded, projectId = null, 
   const openArtifact = (data: { type: string; id?: string; imageUrl?: string | null }) => setContextPanel({ title: data.type === 'render' ? 'Render do projeto' : data.type === 'budget' ? 'Orçamento do projeto' : 'Artefato do projeto', type: data.type, imageUrl: data.imageUrl, description: projectId ? 'Este contexto está vinculado ao trabalho atual e permanece disponível sem sair da conversa.' : undefined });
   const onSmartAction = (action: SmartAction) => void handleSmartAction(action);
   const updatePendingUpload = (value: PendingUpload | null) => setPendingUpload(value ? { base64: value.base64, baseRaw: value.baseRaw ?? '', maskRaw: value.maskRaw ?? '', kind: value.kind ?? 'environment' } : null);
-  return (<div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
-    <header className="px-4 py-3 bg-card border-b border-border shrink-0">
+  return (<div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-2xl border border-border shadow-sm`}>
+    <header className="relative shrink-0 overflow-hidden border-b border-border bg-card/95 px-4 py-3.5 backdrop-blur sm:px-5">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0"><div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0"><MessageCircle size={18} className="text-primary" /></div><div className="min-w-0"><h2 className="text-sm font-bold text-foreground leading-none">IARA</h2><p className="text-[10px] text-muted-foreground mt-1 truncate">Inteligência do seu projeto</p></div></div>
-        {projectId && <span className="text-[10px] font-medium text-muted-foreground border border-border rounded-full px-2.5 py-1 shrink-0">Contexto ativo</span>}
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 shadow-sm">
+            <MessageCircle size={18} className="text-primary" />
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500" aria-label="IARA ativa" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2"><h2 className="text-sm font-black tracking-tight text-foreground">IARA</h2><span className="rounded-full border border-border bg-background px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Assistente do projeto</span></div>
+            <p className="mt-1 truncate text-[10px] text-muted-foreground">Conversa, contexto e decisões em um só lugar</p>
+          </div>
+        </div>
+        {projectId && <span className="hidden shrink-0 rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-[10px] font-semibold text-primary sm:inline-flex">Contexto ativo</span>}
       </div>
-      {projectId && <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px]">
-        <span className="rounded-full bg-muted px-2.5 py-1 font-semibold text-foreground">Cliente: {activeContext?.clientName ?? '—'}</span>
-        <span className="rounded-full bg-muted px-2.5 py-1 font-semibold text-foreground">Projeto: {activeContext?.projectName ?? '—'}</span>
-        <label className="relative inline-flex items-center rounded-full border border-border bg-background pl-2.5 pr-1 py-1 font-semibold"><span>Ambiente: {activeContext?.environmentName ?? '—'}</span>{environments.length > 0 && <><ChevronDown size={12} className="ml-1" /><select aria-label="Ambiente ativo" value={activeContext?.environmentId ?? ''} onChange={e => onEnvironmentChange?.(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer">{environments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></>}</label>
-        <label className="relative inline-flex items-center rounded-full border border-border bg-background pl-2.5 pr-1 py-1 font-semibold"><span>Versão: {activeContext?.versionNumber != null ? `v${activeContext.versionNumber}` : '—'}</span>{versions.length > 0 && <><ChevronDown size={12} className="ml-1" /><select aria-label="Versão ativa" value={activeContext?.versionId ?? ''} onChange={e => onVersionChange?.(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer">{versions.map(item => <option key={item.id} value={item.id}>v{item.version_number}</option>)}</select></>}</label>
+      {projectId && <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-border/70 bg-muted/30 p-1.5 text-[10px]">
+        <span className="rounded-lg bg-background px-2.5 py-1.5 font-semibold text-foreground shadow-sm">Cliente: {activeContext?.clientName ?? '—'}</span>
+        <span className="rounded-lg bg-background px-2.5 py-1.5 font-semibold text-foreground shadow-sm">Projeto: {activeContext?.projectName ?? '—'}</span>
+        <label className="relative inline-flex items-center rounded-lg border border-border bg-background pl-2.5 pr-1.5 py-1.5 font-semibold shadow-sm"><span>Ambiente: {activeContext?.environmentName ?? '—'}</span>{environments.length > 0 && <><ChevronDown size={12} className="ml-1" /><select aria-label="Ambiente ativo" value={activeContext?.environmentId ?? ''} onChange={e => onEnvironmentChange?.(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0">{environments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></>}</label>
+        <label className="relative inline-flex items-center rounded-lg border border-border bg-background pl-2.5 pr-1.5 py-1.5 font-semibold shadow-sm"><span>Versão: {activeContext?.versionNumber != null ? `v${activeContext.versionNumber}` : '—'}</span>{versions.length > 0 && <><ChevronDown size={12} className="ml-1" /><select aria-label="Versão ativa" value={activeContext?.versionId ?? ''} onChange={e => onVersionChange?.(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0">{versions.map(item => <option key={item.id} value={item.id}>v{item.version_number}</option>)}</select></>}</label>
       </div>}
     </header>
     <ChatMessages messages={messages} hasOlderMessages={hasOlderMessages} isLoadingOlderMessages={isLoadingOlderMessages} onLoadOlderMessages={loadOlderMessages} isTyping={isTyping} onImageZoom={setActiveImageZoom} onArtifactOpen={openArtifact} messagesEndRef={messagesEndRef} error={error} onRetry={retryLast} onDismissError={dismissError} onSuggestion={(text) => setChatInput(text)} />
