@@ -109,17 +109,20 @@ export const deterministicResolver: IntentResolver = {
       };
     }
     const value = words(norm(input.text));
-    const project = createProject(value);
-    if (project) return project;
+    // Render has precedence when an environment is already selected.
+    // Otherwise phrases such as "crie uma cozinha renderizada" can be
+    // misclassified as create_projeto before reaching the visual pipeline.
     if (render.test(value) && input.context.environmentId) {
       return {
         intent: "gerar_render",
         entities: { prompt: input.text || "Gere o projeto/render a partir do ambiente atual." },
-        confidence: 0.92,
+        confidence: 0.95,
         missingSlots: [],
         source: "deterministic",
       };
     }
+    const project = createProject(value);
+    if (project) return project;
     for (const [action, keywords] of Object.entries(actions)) {
       if (keywords.some((keyword) => value.includes(keyword))) {
         return { intent: "smart_action", entities: { action }, confidence: 0.85, missingSlots: [], source: "deterministic" };
