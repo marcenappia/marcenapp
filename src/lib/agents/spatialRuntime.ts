@@ -26,7 +26,7 @@ function urlOnlyResult(agentId: SpatialAgentId, task: AgentTask): AgentResult {
     agentId,
     taskId: task.id,
     correlationId: task.correlationId,
-    status: 'completed',
+    status: 'needs_input',
     data: {
       stage: agentId,
       modelBacked: false,
@@ -36,6 +36,7 @@ function urlOnlyResult(agentId: SpatialAgentId, task: AgentTask): AgentResult {
     confidence: 0,
     evidence: [{ source: `${agentId}.reference`, value: task.input.photoUrl }],
     warnings: ['nenhuma medida foi inventada: a referência visual foi recebida apenas como URL e nenhuma análise visual foi simulada. Envie a imagem incorporada para análise por modelo.'],
+    blockers: ['A análise visual não foi executada porque a entrada contém apenas uma URL. Envie a imagem incorporada para que o agente espacial possa analisá-la.'],
     assumptions: [],
   };
 }
