@@ -191,8 +191,12 @@ serve(async request => {
       console.error("ai-image credit authorization failed", consumed.error.message);
       return jsonResponse(cors, { message: missing ? "Esta operação ainda não possui uma regra comercial configurada." : insufficient ? "Créditos insuficientes para gerar o render." : "Não foi possível autorizar o consumo de créditos.", code: missing ? "commercial_rule_missing" : insufficient ? "insufficient_credits" : "credit_authorization_failed" }, 402);
     }
-    creditConsumed = true;
     const data: unknown = consumed.data;
+    const consumption = Array.isArray(data) ? data[0] : data;
+    if (!consumption || typeof consumption !== "object" || (consumption as { status?: unknown }).status !== "consumed") {
+      throw new Error("credit_already_refunded");
+    }
+    creditConsumed = true;
     const imageBase64 = await generateImage(prompt, images);
 
     if (persistGallery) {
@@ -235,6 +239,7 @@ serve(async request => {
     if (error.message === "stale_execution_context") return jsonResponse(cors, { message: "A execução do render ficou desatualizada antes da persistência.", code: "stale_execution_context" }, 409);
     if (error.message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed" }, 500);
     if (error.message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "Não foi possível salvar o render na galeria.", code: "gallery_persist_failed" }, 500);
+    if (error.message === "credit_already_refunded") return jsonResponse(cors, { message: "Esta operação já foi estornada e não pode ser reutilizada.", code: "credit_already_refunded" }, 409);
     if (error.message === "provider_not_configured") return jsonResponse(cors, { message: "A conexão com a IA não está configurada nesta publicação.", code: "provider_not_configured" }, 500);
     if (error.status === 400) return jsonResponse(cors, { message: error.message, code: "invalid_image_request" }, 400);
     if (error.status === 401) return jsonResponse(cors, { message: "A chave do serviço de IA não está configurada corretamente.", code: "provider_auth_error" }, 401);
