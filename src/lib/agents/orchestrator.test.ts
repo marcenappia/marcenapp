@@ -47,9 +47,10 @@ describe('MARCENAPP agents', () => {
     const result = await getAgent('vision').handle({
       id: 'vision-1', type: 'vision.environment.analyze', input: { photoUrl: 'photo.jpg' }, correlationId: 'test-correlation',
     });
-    expect(result.status).toBe('completed');
+    expect(result.status).toBe('needs_input');
     expect(result.confidence).toBe(0);
     expect(result.warnings?.some((warning) => warning.includes('nenhuma medida foi inventada'))).toBe(true);
+    expect(result.blockers?.some((blocker) => blocker.includes('URL'))).toBe(true);
   });
 
   it('não simula sucesso quando faltam dados', async () => {
