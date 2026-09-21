@@ -3,6 +3,7 @@ import { StudioWorker } from '@/modules/ambientes/components/StudioWorker';
 import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '@/modules/ambientes/services/studioService';
+import { refundAIImageCredit } from '@/services/ai';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 vi.mock('@/integrations/supabase/client', () => ({
@@ -10,6 +11,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 vi.mock('@/modules/ambientes/services/studioService', () => ({ studioService: { generateVisual: vi.fn() } }));
+vi.mock('@/services/ai', () => ({ refundAIImageCredit: vi.fn() }));
 
 describe('IARA-Studio Architecture', () => {
   beforeEach(() => { vi.clearAllMocks(); useStudioStore.getState().clearQueue(); useStudioStore.setState({ isRendering: false }); useMarcenappOS.getState().clearHistory(); });
@@ -78,6 +80,36 @@ describe('IARA-Studio Architecture', () => {
     expect(inserts.some(row => row.sender === 'iara')).toBe(false);
     expect(inserts.some(row => row.image_url === 'data:image/png;base64,rendered')).toBe(true);
     expect(useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId)?.status).toBe('completed');
+  });
+
+  it('refunds the render credit when the generated image cannot be persisted', async () => {
+    vi.mocked(studioService.generateVisual).mockResolvedValue('data:image/png;base64,generated');
+    const refund = vi.mocked(refundAIImageCredit);
+    const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
+    from.mockImplementation((table?: string) => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn(() => Promise.resolve({
+        data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-refund', last_execution_generation: 1 },
+        error: null,
+      })),
+      insert: vi.fn(() => Promise.resolve({ error: table === 'gallery_images' ? { message: 'gallery unavailable' } : null })),
+    }) as never);
+
+    let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
+    renderAct(() => {
+      ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }], 'corr-refund');
+    });
+    const studioCommand = useStudioStore.getState().commandQueue.find(c => c.id === ids.studioId);
+    render(<StudioWorker />);
+    await renderAct(async () => { await new Promise(r => setTimeout(r, 100)); });
+
+    expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
+    expect(refund).toHaveBeenCalledWith(studioCommand?.idempotencyKey);
+    expect(useStudioStore.getState().commandQueue.find(c => c.id === ids.studioId)?.status).toBe('failed');
+    expect(useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId)?.status).toBe('failed');
   });
 
   it('IARA command without visual context is rejected by the render worker', async () => {
