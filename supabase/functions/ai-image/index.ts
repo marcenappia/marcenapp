@@ -11,6 +11,8 @@ const MAX_PROMPT_WORDS = 800;
 const OPERATION_TYPE = "gerarRender";
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
+const PROVIDER_ATTEMPT_TIMEOUT_MS = 45_000;
+const MAX_PROVIDER_ERROR_CHARS = 500;
 
 const ImageSchema = z.object({
   mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp)$/i),
@@ -48,10 +50,28 @@ function retryDelay(response: Response, attempt: number): number {
   return Math.min(750 * (2 ** attempt) + Math.floor(Math.random() * 250), 5_000);
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = PROVIDER_ATTEMPT_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("provider_timeout");
+    throw new Error(`provider_connection_error:${error instanceof Error ? error.message : "fetch_failed"}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function gatewayFetch(url: string, init: RequestInit): Promise<Response> {
   let response: Response | null = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    response = await fetch(url, init);
+    try {
+      response = await fetchWithTimeout(url, init);
+    } catch (error) {
+      if (error instanceof Error && error.message === "provider_timeout" && attempt < 2) continue;
+      throw error;
+    }
     if (response.ok || (response.status !== 429 && response.status < 500)) return response;
     if (attempt < 2) await new Promise(resolve => setTimeout(resolve, retryDelay(response as Response, attempt)));
   }
@@ -65,7 +85,13 @@ async function readBufferedImage(response: Response): Promise<string> {
   const image = body?.data?.[0];
   if (image?.b64_json) return `data:image/png;base64,${image.b64_json}`;
   if (image?.url) {
-    const imageResponse = await fetch(image.url);
+    let imageResponse: Response;
+    try {
+      imageResponse = await fetchWithTimeout(image.url);
+    } catch (error) {
+      if (error instanceof Error && error.message === "provider_timeout") throw new Error("provider_image_download_timeout");
+      throw error;
+    }
     if (!imageResponse.ok) throw new Error(`provider_image_download:${imageResponse.status}`);
     const contentType = imageResponse.headers.get("content-type")?.split(";")[0] ?? "image/png";
     const bytes = new Uint8Array(await imageResponse.arrayBuffer());
@@ -86,7 +112,7 @@ function gatewayError(response: Response, body: string): GatewayError {
     const parsed = JSON.parse(body) as { error?: { message?: string }; message?: string };
     safeMessage = parsed.error?.message ?? parsed.message ?? safeMessage;
   } catch { /* Keep the safe default. */ }
-  const error = new Error(safeMessage) as GatewayError;
+  const error = new Error(safeMessage.slice(0, MAX_PROVIDER_ERROR_CHARS)) as GatewayError;
   error.status = response.status;
   error.retryAfter = response.headers.get("Retry-After") ?? undefined;
   return error;
@@ -190,11 +216,14 @@ serve(async request => {
     const error = caught as GatewayError;
     console.error("ai-image error", error.message);
     if (error.message === "provider_not_configured") return jsonResponse(cors, { message: "A conexão com a IA não está configurada nesta publicação.", code: "provider_not_configured" }, 500);
+    if (error.message === "provider_timeout") return jsonResponse(cors, { message: "O provedor de imagens excedeu o timeout de 45 segundos por tentativa.", code: "provider_timeout", provider: "lovable", model: LOVABLE_IMAGE_MODEL }, 504);
+    if (error.message.startsWith("provider_connection_error:")) return jsonResponse(cors, { message: error.message.slice(26, 526), code: "provider_connection_error", provider: "lovable", model: LOVABLE_IMAGE_MODEL }, 502);
+    if (error.message === "provider_image_download_timeout") return jsonResponse(cors, { message: "A imagem foi gerada, mas o download do resultado do provedor excedeu o timeout de 45 segundos.", code: "provider_timeout", provider: "lovable", model: LOVABLE_IMAGE_MODEL }, 504);
     if (error.status === 400) return jsonResponse(cors, { message: error.message, code: "invalid_image_request" }, 400);
     if (error.status === 401) return jsonResponse(cors, { message: "A chave do serviço de IA não está configurada corretamente.", code: "provider_auth_error" }, 401);
     if (error.status === 402) return jsonResponse(cors, { message: error.message, code: "provider_credits_exhausted" }, 402);
     if (error.status === 403) return jsonResponse(cors, { message: error.message, code: "provider_access_denied" }, 403);
     if (error.status === 429) return jsonResponse(cors, { message: error.message, code: "rate_limited" }, 429, error.retryAfter ? { "Retry-After": error.retryAfter } : {});
-    return jsonResponse(cors, { message: error.message.startsWith("provider_stream:") ? error.message.slice(16) : "O provedor de imagens está indisponível no momento.", code: "upstream_error" }, 502);
+    return jsonResponse(cors, { message: error.message.startsWith("provider_stream:") ? error.message.slice(16, 516) : error.message.slice(0, MAX_PROVIDER_ERROR_CHARS), code: "provider_error", provider: "lovable", model: LOVABLE_IMAGE_MODEL, providerStatus: error.status }, 502);
   }
 });
