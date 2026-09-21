@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useStudioStore, type RenderCommand } from '@/store/useStudioStore';
 import { OSCommand, useMarcenappOS } from '@/store/useMarcenappOS';
 import { studioService } from '../services/studioService';
+import { refundAIImageCredit } from '@/services/ai';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { isIaraCommandExecutionCurrent } from '@/modules/iara/hooks/iaraExecutionScope';
@@ -83,14 +84,13 @@ export const StudioWorker = () => {
   }, [user, readCurrentContext]);
 
   const refundConsumedCredit = useCallback(async (idempotencyKey: unknown) => {
-    if (!user || typeof idempotencyKey !== 'string' || !idempotencyKey) return;
-    const { error } = await supabase.rpc('refund_billing_credit', {
-      p_user_id: user.id,
-      p_operation_type: 'gerarRender',
-      p_idempotency_key: idempotencyKey,
-    });
-    if (error) console.error('Falha ao devolver crédito de render descartado:', error);
-  }, [user]);
+    if (typeof idempotencyKey !== 'string' || !idempotencyKey) return;
+    try {
+      await refundAIImageCredit(idempotencyKey);
+    } catch (error) {
+      console.error('Falha ao devolver crédito de render descartado:', error);
+    }
+  }, []);
 
   const resolveRenderCommand = useCallback((osCommand: OSCommand) => {
     const payload = (osCommand.payload ?? {}) as Partial<RenderCommand> & { studioCommandId?: string; userId?: string };
@@ -107,15 +107,16 @@ export const StudioWorker = () => {
     if (currentlyProcessing.current && currentlyProcessing.current !== osCommand.id) return;
     currentlyProcessing.current = osCommand.id;
     const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
+    const { command, studioCommandId } = resolveRenderCommand(osCommand);
+    const storeCommandId = studioCommandId ?? osCommand.id;
+    const idempotencyKey = typeof command.idempotencyKey === 'string' ? command.idempotencyKey : (typeof payload.idempotencyKey === 'string' ? payload.idempotencyKey : undefined);
     if (!(await isCurrentContext(payload))) {
-      await refundConsumedCredit(payload.idempotencyKey);
-      cancelCommand((payload.studioCommandId as string | undefined) ?? osCommand.id);
+      await refundConsumedCredit(idempotencyKey);
+      cancelCommand(storeCommandId);
       updateOSStatus(osCommand.id, 'cancelled', undefined, 'Comando descartado: identidade de execução não é mais válida.');
       currentlyProcessing.current = null;
       return;
     }
-    const { command, studioCommandId } = resolveRenderCommand(osCommand);
-    const storeCommandId = studioCommandId ?? osCommand.id;
     const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
     if (!command.prompt) { fail('Comando inválido: falta o prompt de geração.'); currentlyProcessing.current = null; return; }
     if (osCommand.source === 'iara' && (!Array.isArray(command.images) || command.images.length === 0)) {
@@ -125,9 +126,11 @@ export const StudioWorker = () => {
     }
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
+    let generationSucceeded = false;
     try {
       const result = await studioService.generateVisual(command.prompt, command.images, command.style, command.decor, command.idempotencyKey);
       if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
+      generationSucceeded = true;
       if (!(await isCurrentContext(payload))) {
         await refundConsumedCredit(command.idempotencyKey);
         cancelCommand(storeCommandId);
@@ -157,6 +160,7 @@ export const StudioWorker = () => {
 
     } catch (error: unknown) {
       console.error('StudioWorker Error:', error);
+      if (generationSucceeded) await refundConsumedCredit(idempotencyKey);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
     } finally { currentlyProcessing.current = null; }
   }, [user, readCurrentContext, isCurrentContext, refundConsumedCredit, resolveRenderCommand, cancelCommand, updateOSStatus, failCommand, startProcessing, completeCommand]);
