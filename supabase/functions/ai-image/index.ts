@@ -16,7 +16,7 @@ const ImageSchema = z.object({
   mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp)$/i),
   data: z.string().min(1).max(15_000_000),
 });
-const BodySchema = z.object({
+const GenerateBodySchema = z.object({
   prompt: z.string().trim().min(1).max(MAX_PROMPT_CHARS),
   images: z.array(ImageSchema).max(8).optional(),
   size: z.object({
@@ -25,6 +25,11 @@ const BodySchema = z.object({
   }).optional(),
   idempotencyKey: z.string().trim().min(8).max(200),
 });
+const RefundBodySchema = z.object({
+  action: z.literal("refund"),
+  idempotencyKey: z.string().trim().min(8).max(200),
+});
+const BodySchema = z.union([GenerateBodySchema, RefundBodySchema]);
 
 type ImageInput = z.infer<typeof ImageSchema>;
 type GatewayError = Error & { status?: number; retryAfter?: string };
@@ -162,6 +167,11 @@ serve(async request => {
     if (!body.ok) return jsonResponse(cors, { message: body.reason === "too_large" ? "Corpo da solicitação muito grande." : "JSON inválido.", code: body.reason === "too_large" ? "payload_too_large" : "invalid_json" }, body.reason === "too_large" ? 413 : 400);
     const parsed = BodySchema.safeParse(body.body);
     if (!parsed.success) return jsonResponse(cors, { message: "Dados inválidos.", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
+    if ("action" in parsed.data && parsed.data.action === "refund") {
+      idempotencyKey = parsed.data.idempotencyKey;
+      await refund(guard.userId, idempotencyKey);
+      return jsonResponse(cors, { refunded: true, operationType: OPERATION_TYPE, idempotencyKey });
+    }
     const { prompt, images = [], size } = parsed.data;
     idempotencyKey = parsed.data.idempotencyKey;
     const wordCount = prompt.split(/\s+/).filter(Boolean).length;
