@@ -1,0 +1,22 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "VITE_SUPABASE_URL",
+      "description": "Supabase project URL (e.g. https://<ref>.supabase.co). Optional — code has a hardcoded fallback for development.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "VITE_SUPABASE_PUBLISHABLE_KEY",
+      "description": "Supabase publishable (anon) key for client-side auth. Optional — code has a hardcoded fallback for development.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "VITE_SUPABASE_PROJECT_ID",
+      "description": "Supabase project ref ID. Optional — not strictly required to boot.",
+      "requiredAtBoot": false
+    }
+  ]
+}
