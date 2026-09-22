@@ -72,10 +72,12 @@ jobs:
           node - "$RUNNER_TEMP/e2e-session.json" <<'NODE'
           const fs = require('fs');
           const response = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (response.user_id) {
+            fs.appendFileSync(process.env.GITHUB_ENV, `E2E_USER_ID=${response.user_id}\n`);
+          }
           if (!response.user_id || !response.session?.access_token || !response.session?.refresh_token || !response.session?.user?.id) {
             throw new Error('Invalid ephemeral E2E session');
           }
-          fs.appendFileSync(process.env.GITHUB_ENV, `E2E_USER_ID=${response.user_id}\n`);
           fs.appendFileSync(process.env.GITHUB_ENV, `E2E_SESSION_B64=${Buffer.from(JSON.stringify(response.session), 'utf8').toString('base64')}\n`);
           NODE
           echo "::add-mask::$(grep '^E2E_SESSION_B64=' "$GITHUB_ENV" | cut -d= -f2-)"
@@ -84,7 +86,7 @@ jobs:
         run: npx playwright test tests/e2e/production-smoke.spec.ts tests/e2e/authenticated-core.spec.ts --project=chromium
 
       - name: Cleanup ephemeral E2E user
-        if: ${{ always() && steps.e2e_bootstrap.outcome == 'success' }}
+        if: ${{ always() && env.E2E_USER_ID != '' }}
         run: |
           set -euo pipefail
           oidc_token="$(curl -fsSL \
@@ -95,3 +97,14 @@ jobs:
             -H "Authorization: Bearer $oidc_token" \
             -H "Content-Type: application/json" \
             --data "{\"action\":\"delete\",\"user_id\":\"$E2E_USER_ID\"}"
+
+      - name: Upload Playwright artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-production-smoke-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
