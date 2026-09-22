@@ -172,7 +172,7 @@ function pendingCreateProjectInput(userPrompt: string, context?: Record<string, 
   return { tool: 'createProjeto', fields: missing, reason: 'Para criar o projeto, informe as dimensões que faltam: ' + missing.join(', ') + '.' };
 }
 
-async function resolveArchitectureIntent(userPrompt: string, context?: Record<string, unknown>, ctx?: ExecutionContext): Promise<ResolvedIntent | null> {
+async function resolveArchitectureIntent(userPrompt: string, context?: Record<string, unknown>, ctx?: ExecutionContext, images: Array<{ mimeType: string; data: string }> = []): Promise<ResolvedIntent | null> {
   const conversation = Array.isArray(context?.conversation)
     ? context.conversation
         .filter((item): item is { sender: 'user' | 'iara'; text: string } =>
@@ -220,6 +220,7 @@ async function resolveArchitectureIntent(userPrompt: string, context?: Record<st
   const chain = defaultResolverChain(deterministicResolver, llmResolver);
   return resolveIntent({
     text: userPrompt,
+    images,
     context: {
       projectId: ctx?.projectId,
       environmentId: ctx?.environmentId,
@@ -282,7 +283,8 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     }
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
-    const architectureIntent = await resolveArchitectureIntent(effectiveUserPrompt, context, ctx);
+    const images = spatialImages(ctx);
+    const architectureIntent = await resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
     const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context);
     const architecturePending = architectureIntent?.missingSlots?.length ? { tool: architectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: architectureIntent.missingSlots.map(slot => slot.field), reason: architectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
@@ -314,7 +316,6 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     });
 
     const spatialAction = iara?.action === 'analyze_plan' || iara?.action === 'analyze_environment';
-    const images = spatialImages(ctx);
     if (iara?.action === 'analyze_environment' && !images.length) {
       const error = 'Para analisar o ambiente, envie uma foto do ambiente. Assim a IARA pode avaliar o espaço real sem inventar informações.';
       const failureResults: Array<{ tool: string; result: ToolResult }> = [{ tool: 'iara.analyze_environment', result: { ok: false, error } }];
