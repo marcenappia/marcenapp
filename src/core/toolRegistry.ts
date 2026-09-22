@@ -5,6 +5,7 @@ import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { callAIContractClause, callAIText } from '@/services/ai';
 import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planService';
+import { attachIaraEnvironmentPhoto } from '@/modules/iara/services/photoDestination';
 
 const db = supabase as unknown as SupabaseClient;
 export type ToolResult<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
@@ -20,7 +21,7 @@ type CalcularOrcamentoArgs = { projetoId?: string };
 type OperationalArgs = { projetoId?: string };
 type GerarContratoArgs = { clienteNome: string; valor?: number; prazoDias?: number; clausulasExtras?: string[] };
 type ClienteData = { id: string; nome: string };
-type ProjetoData = { id: string; nome: string; width: number; height: number; depth: number };
+type ProjetoData = { id: string; nome: string; width: number; height: number; depth: number; doors?: number; drawers?: number; modules?: number; environmentId?: string; studioCommandId?: string; };
 type RenderData = { studioCommandId?: string; status: string; imageUrl?: string };
 type PlanData = { planId: string; analysisId: string; studioCommandId: string; status: string; environmentCount: number };
 type OrcamentoData = { projetoId: string; nome: string; total: number; materiais: number; ferragens: number; maoDeObra: number; outros: number; precoVenda: number; lucro: number; margemPct: number; isEstimate: false };
@@ -102,7 +103,7 @@ async function inferProjectStructureFromVisual(args: CreateProjetoArgs, ctx: Exe
   }
 }
 
-const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'createProjeto', description: 'Cria um projeto com dimensões confirmadas e, quando houver referência visual, preenche somente a estrutura do móvel que estiver visível/confirmada.', version: '1.2.0', inputSchema: z.object({ nome: z.string().min(1), clienteNome: z.string().optional(), width: z.number().positive(), height: z.number().positive(), depth: z.number().positive(), doors: z.number().int().positive().optional(), drawers: z.number().int().nonnegative().optional(), modules: z.number().int().positive().optional(), tipo: z.string().optional(), confirmado: z.literal(true) }), async execute(args, ctx) {
+const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'createProjeto', description: 'Cria um projeto com dimensões confirmadas e, quando houver foto de referência, vincula o ambiente e gera a visualização inicial a partir dessa foto.', version: '1.3.0', inputSchema: z.object({ nome: z.string().min(1), clienteNome: z.string().optional(), width: z.number().positive(), height: z.number().positive(), depth: z.number().positive(), doors: z.number().int().positive().optional(), drawers: z.number().int().nonnegative().optional(), modules: z.number().int().positive().optional(), tipo: z.string().optional(), confirmado: z.literal(true) }), async execute(args, ctx) {
   let clienteId: string | null = null;
   if (args.clienteNome) {
     const { data: cli } = await db.from('clientes').select('id').eq('user_id', ctx.userId).ilike('nome', args.clienteNome).maybeSingle();
@@ -122,7 +123,45 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
     doors: finalArgs.doors ?? 0,
   }).select('id, nome, width, height, depth, doors, drawers, modules').single();
   if (error) return { ok: false, error: error.message };
-  return { ok: true, data: data as ProjetoData };
+  const project = data as ProjetoData;
+  let environmentId: string | undefined;
+  let studioCommandId: string | undefined;
+
+  if (ctx.lastImageBase) {
+    try {
+      const dataUrl = `data:image/jpeg;base64,${ctx.lastImageBase}`;
+      const destination = await attachIaraEnvironmentPhoto({ userId: ctx.userId, projectId: project.id, dataUrl });
+      environmentId = destination.environmentId;
+
+      if (ctx.correlationId && typeof ctx.generation === 'number') {
+        const prompt = [
+          'Crie o móvel solicitado dentro do ambiente da foto de referência.',
+          `Dimensões confirmadas do móvel: largura ${project.width} mm, altura ${project.height} mm, profundidade ${project.depth} mm.`,
+          `Estrutura confirmada: ${project.modules ?? 1} módulo(s), ${project.doors ?? 0} porta(s), ${project.drawers ?? 0} gaveta(s).`,
+          'Use a foto como referência principal do ambiente, preserve paredes, vãos, perspectiva e elementos fixos, e não entregue um ambiente vazio.',
+        ].join(' ');
+        const style = ctx.decorStyle || 'Limpo';
+        const enrichedPrompt = await enrichVisualPrompt(prompt, [{ data: ctx.lastImageBase, mimeType: 'image/jpeg', kind: 'environment', label: 'ambiente do projeto' }]);
+        const idempotencyKey = `${ctx.correlationId}:project-create-render`;
+        const studioId = useStudioStore.getState().enqueueCommand({
+          prompt: `MARCENAPP IARA OS: móvel estilo ${style}. ${enrichedPrompt}`,
+          images: [{ mimeType: 'image/jpeg', data: ctx.lastImageBase }],
+          decor: style,
+          idempotencyKey,
+          metadata: { origin: 'iara', originalPrompt: prompt, targetModule: 'studio', referenceCount: 1, createdProjectId: project.id },
+        });
+        studioCommandId = studioId;
+        useMarcenappOS.getState().dispatchCommand({
+          source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', idempotencyKey,
+          payload: { prompt: enrichedPrompt, estilo: style, studioCommandId: studioId, userId: ctx.userId, projectId: project.id, environmentId, correlationId: ctx.correlationId, generation: ctx.generation },
+        });
+      }
+    } catch (e) {
+      return { ok: false, error: `Projeto criado, mas não foi possível vincular a foto e gerar a visualização inicial: ${e instanceof Error ? e.message : 'erro desconhecido'}` };
+    }
+  }
+
+  return { ok: true, data: { ...project, environmentId, studioCommandId } };
 }};
 
 const gerarRender: ToolDefinition<GerarRenderArgs, RenderData> = { name: 'gerarRender', description: 'Gera visual no Estúdio somente a partir de uma referência visual enviada ou do ambiente atual do projeto. Geração somente por texto está desativada por enquanto.', version: '1.8.0', inputSchema: z.object({ prompt: z.string().min(1), estilo: z.string().optional() }), async execute(args, ctx) { if (!ctx.correlationId || typeof ctx.generation !== 'number') return { ok: false, error: 'Identidade de execução incompleta para gerar o render.' }; const estilo = args.estilo || ctx.decorStyle || 'Limpo'; const recentImages = await recentProjectImages(ctx); const referenceImages = [...(ctx.referenceImages ?? []), ...recentImages].filter((image, index, all) => image.data && all.findIndex((item) => item.data === image.data) === index).slice(0, 8); if (ctx.lastImageBase && !referenceImages.some((image) => image.data === ctx.lastImageBase)) referenceImages.unshift({ data: ctx.lastImageBase, mimeType: 'image/jpeg', kind: 'environment', label: 'imagem principal' }); const images: VisualReference[] = [...referenceImages]; if (ctx.lastImageMask) images.push({ data: ctx.lastImageMask, mimeType: 'image/png', kind: 'sketch', label: 'máscara' }); if (!images.length) return { ok: false, error: 'Para gerar um render, envie uma imagem de referência ou selecione um ambiente com imagem no projeto.' }; const enrichedPrompt = await enrichVisualPrompt(args.prompt, images.filter((image) => image.kind !== 'sketch')); const idempotencyKey = ctx.correlationId; const studioImages = images.slice(0, 8).map((image) => ({ mimeType: image.mimeType || 'image/jpeg', data: image.data })); const id = useStudioStore.getState().enqueueCommand({ prompt: `MARCENAPP IARA OS: móvel estilo ${estilo}. ${enrichedPrompt}`, images: studioImages.length ? studioImages : undefined, decor: estilo, idempotencyKey, metadata: { origin: 'iara', originalPrompt: args.prompt, targetModule: 'studio', referenceCount: studioImages.length } }); useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', idempotencyKey, payload: { prompt: enrichedPrompt, estilo, studioCommandId: id, idempotencyKey, userId: ctx.userId, ...(ctx.projectId ? { projectId: ctx.projectId } : {}), ...(ctx.environmentId ? { environmentId: ctx.environmentId } : {}), ...(ctx.versionId ? { versionId: ctx.versionId } : {}), correlationId: ctx.correlationId, generation: ctx.generation } }); return { ok: true, data: { studioCommandId: id, status: 'queued' } }; } };
