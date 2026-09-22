@@ -50,7 +50,7 @@ export const StudioHub = (props: StudioHubProps) => {
 
   return (
     <section className="relative h-full min-h-[calc(100vh-9rem)]" aria-label="IARA — trabalho no contexto atual">
-      <IaraModule embedded projectId={projectId} syncProject={syncProject} onProjectChange={handleIaraProjectChange} activeContext={context} environments={environments} versions={versions} onEnvironmentChange={selectEnvironment} onVersionChange={selectVersion} />
+      <IaraModule embedded projectId={projectId} syncProject={syncProject} onProjectChange={handleIaraProjectChange} activeContext={context} environments={environments} versions={versions} onEnvironmentChange={selectEnvironment} onVersionChange={selectVersion} navigateTo={props.navigateTo} />
     </section>
   );
 };
