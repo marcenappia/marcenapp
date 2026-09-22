@@ -13,7 +13,18 @@ if (files.length === 0) {
   throw new Error(`Nenhum relatório Lighthouse JSON encontrado em ${inputDir}`);
 }
 
-const reports = await Promise.all(files.map(async (file) => JSON.parse(await readFile(file, 'utf8'))));
+const requestedRuns = Number(process.env.LIGHTHOUSE_RUNS ?? 3);
+const reports = (await Promise.all(files.map(async (file) => JSON.parse(await readFile(file, 'utf8')))))
+  .filter((report) => (
+    Number.isFinite(report.categories?.performance?.score)
+    && Number.isFinite(report.audits?.['first-contentful-paint']?.numericValue)
+  ))
+  .sort((left, right) => new Date(left.fetchTime ?? 0) - new Date(right.fetchTime ?? 0))
+  .slice(-requestedRuns);
+
+if (reports.length === 0) {
+  throw new Error(`Nenhum relatório Lighthouse válido encontrado em ${inputDir}`);
+}
 const score = (report, category) => Math.round((report.categories?.[category]?.score ?? 0) * 100);
 const metric = (report, id) => report.audits?.[id]?.numericValue ?? null;
 const average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
