@@ -1,0 +1,10 @@
+[
+  {
+    "path": "/*",
+    "resourceSizes": [
+      { "resourceType": "document", "budget": 40 },
+      { "resourceType": "script", "budget": 650 },
+      { "resourceType": "total", "budget": 1500 }
+    ]
+  }
+]
