@@ -34,7 +34,7 @@ const IaraModule = ({ syncProject, onProjectChange, embedded, projectId = null, 
   const openArtifact = (data: { type: string; id?: string; imageUrl?: string | null }) => setContextPanel({ title: data.type === 'render' ? 'Render do projeto' : data.type === 'budget' ? 'Orçamento do projeto' : 'Artefato do projeto', type: data.type, imageUrl: data.imageUrl, description: projectId ? 'Este contexto está vinculado ao trabalho atual e permanece disponível sem sair da conversa.' : undefined });
   const onSmartAction = (action: SmartAction) => void handleSmartAction(action);
   const updatePendingUpload = (value: PendingUpload | null) => setPendingUpload(value ? { base64: value.base64, baseRaw: value.baseRaw ?? '', maskRaw: value.maskRaw ?? '', kind: value.kind ?? 'environment' } : null);
-  return (<div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
+  return (<div className={`flex min-h-0 flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
     <header className="px-4 py-3 bg-card border-b border-border shrink-0">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0"><div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0"><MessageCircle size={18} className="text-primary" /></div><div className="min-w-0"><h2 className="text-sm font-bold text-foreground leading-none">IARA</h2><p className="text-[10px] text-muted-foreground mt-1 truncate">Inteligência do seu projeto</p></div></div>
