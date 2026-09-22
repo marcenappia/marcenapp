@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 import { buildCorsHeaders, guardRequest, jsonResponse, readJsonBody } from "../_shared/guard.ts";
+import { resolveProvider, type AIProvider } from "../_shared/provider.ts";
 
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const MIN_DIM = 64;
@@ -11,6 +12,8 @@ const MAX_PROMPT_WORDS = 800;
 const OPERATION_TYPE = "gerarRender";
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
+const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
+const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1/models";
 
 const ImageSchema = z.object({
   mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp)$/i),
@@ -143,10 +146,57 @@ async function requestGateway(prompt: string, images: ImageInput[], size?: { wid
   });
 }
 
-async function generateImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
+async function generateLovableImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
   const response = await requestGateway(prompt, images, size);
   if (!response.ok) throw gatewayError(response, await response.text());
   return readBufferedImage(response);
+}
+
+async function generateGeminiImage(prompt: string, images: ImageInput[]): Promise<string> {
+  const key = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+  if (!key) throw new Error("provider_not_configured:gemini");
+
+  const parts: Array<Record<string, unknown>> = [{ text: prompt }];
+  for (const image of images) {
+    parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
+  }
+
+  const response = await fetch(`${GEMINI_GENERATE_URL}/${GEMINI_IMAGE_MODEL}:generateContent`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": key,
+    },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts }],
+      generationConfig: { responseModalities: ["IMAGE"] },
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    const error = gatewayError(response, body);
+    throw new Error(`gemini_http_${error.status ?? response.status}:${error.message}`);
+  }
+
+  const body = await response.json().catch(() => null) as {
+    candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { mimeType?: string; data?: string } }> } }>;
+  } | null;
+
+  const imagePart = body?.candidates?.[0]?.content?.parts?.find(part => part.inlineData?.data);
+  if (!imagePart?.inlineData?.data) throw new Error("gemini_empty_image_result");
+
+  return `data:${imagePart.inlineData.mimeType ?? "image/png"};base64,${imagePart.inlineData.data}`;
+}
+
+async function generateImage(
+  provider: AIProvider,
+  prompt: string,
+  images: ImageInput[],
+  size?: { width?: number; height?: number },
+): Promise<string> {
+  if (provider === "gemini") return generateGeminiImage(prompt, images);
+  return generateLovableImage(prompt, images, size);
 }
 
 async function refund(userId: string, idempotencyKey: string) {
@@ -197,7 +247,58 @@ serve(async request => {
       throw new Error("credit_already_refunded");
     }
     creditConsumed = true;
-    const imageBase64 = await generateImage(prompt, images);
+    const resolution = await resolveProvider(guard.userId);
+    const providers: AIProvider[] = resolution.fallback ? [resolution.primary, resolution.fallback] : [resolution.primary];
+    let imageBase64 = "";
+    let lastProviderError: unknown = null;
+
+    for (const provider of providers) {
+      const providerStartedAt = Date.now();
+      console.info("[PROVIDER_SELECTION]", JSON.stringify({
+        status: "selected",
+        provider,
+        requestId: idempotencyKey,
+        renderId: idempotencyKey,
+      }));
+      try {
+        console.info("[UPSTREAM_REQUEST]", JSON.stringify({
+          status: "started",
+          provider,
+          requestId: idempotencyKey,
+          renderId: idempotencyKey,
+        }));
+        imageBase64 = await generateImage(provider, prompt, images, size);
+        console.info("[UPSTREAM_RESPONSE]", JSON.stringify({
+          status: "success",
+          provider,
+          durationMs: Date.now() - providerStartedAt,
+          requestId: idempotencyKey,
+          renderId: idempotencyKey,
+        }));
+        console.info("[IMAGE_RECEIVED]", JSON.stringify({
+          status: "success",
+          provider,
+          durationMs: Date.now() - providerStartedAt,
+          requestId: idempotencyKey,
+          renderId: idempotencyKey,
+        }));
+        break;
+      } catch (providerError) {
+        lastProviderError = providerError;
+        console.error("[UPSTREAM_RESPONSE]", JSON.stringify({
+          status: "error",
+          provider,
+          durationMs: Date.now() - providerStartedAt,
+          requestId: idempotencyKey,
+          renderId: idempotencyKey,
+          error: providerError instanceof Error ? providerError.message : String(providerError),
+        }));
+      }
+    }
+
+    if (!imageBase64) {
+      throw lastProviderError instanceof Error ? lastProviderError : new Error("provider_not_configured");
+    }
 
     if (persistGallery) {
       const { data: context, error: contextError } = await admin
