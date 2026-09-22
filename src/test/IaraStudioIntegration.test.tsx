@@ -77,7 +77,7 @@ describe('IARA-Studio Architecture', () => {
 
     expect(inserts.some(row => row.sender === 'iara')).toBe(false);
     expect(inserts.some(row => row.image_url === 'data:image/png;base64,rendered')).toBe(false);
-    expect(studioService.generateVisual.mock.calls[0]?.[5]).toMatchObject({
+    expect(vi.mocked(studioService.generateVisual).mock.calls[0]?.[5]).toMatchObject({
       projectId: 'A',
       environmentId: 'E1',
       versionId: 'V1',
@@ -141,7 +141,7 @@ describe('IARA-Studio Architecture', () => {
 
     let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
     renderAct(() => {
-      ids = dispatchRender(undefined, 'corr-a');
+      ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }], 'corr-a');
       useMarcenappOS.setState(state => ({
         commandHistory: state.commandHistory.map(command => command.id === ids.osId
           ? { ...command, payload: { ...command.payload, projectId: 'A', environmentId: 'E1', versionId: 'V1', generation: 2 } }
