@@ -312,10 +312,10 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     } catch (error: unknown) { lastFailedRef.current = { text: promptText, upload, smartAction }; if (execution) pendingExecutionsRef.current.delete(execution.correlationId); setError(humanizeError(error)); } finally { setIsTyping(false); }
   };
 
-  const handleSend = async () => {
-    if (!chatInput.trim() && !pendingUpload) return;
+  const handleSend = async (textOverride?: string) => {
+    if (!textOverride?.trim() && !chatInput.trim() && !pendingUpload) return;
     if (!user) { setShowAuthDialog(true); return; }
-    const promptText = chatInput.trim() || 'Analise a imagem anexada e me diga como podemos seguir.';
+    const promptText = textOverride?.trim() || chatInput.trim() || 'Analise a imagem anexada e me diga como podemos seguir.';
     const upload = pendingUpload;
     setChatInput('');
     await sendPrompt(promptText, upload);
