@@ -211,9 +211,9 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     let cancelled = false;
     setMessages([]); setError(null); setHasOlderMessages(false); chatCursorRef.current = null;
     let query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
+    // A conversa da IARA pertence ao projeto. Ambiente e versão são contexto ativo,
+    // mas não devem apagar o histórico já construído dentro do mesmo projeto.
     query = context.projectId ? query.eq('project_id', context.projectId) : query.is('project_id', null);
-    query = context.environmentId ? query.eq('environment_id', context.environmentId) : query.is('environment_id', null);
-    query = context.versionId ? query.eq('version_id', context.versionId) : query.is('version_id', null);
     query.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(CHAT_PAGE_SIZE).then(({ data, error: loadError }) => {
       if (cancelled) return;
       if (loadError) { setError('Não foi possível carregar o histórico. Verifique sua conexão.'); return; }
@@ -227,7 +227,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       setMessages(chronological);
       setProjectState(createProjectStateFromConversation(chronological.map(message => message.sender === 'user' ? message.text ?? '' : '').filter(Boolean).slice(-50)));
     });
-    const channel = supabase.channel(`chat_messages_${context.projectId ?? 'none'}_${context.environmentId ?? 'none'}_${context.versionId ?? 'none'}_${user.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => { const msg = payload.new as ChatMessage; if (msg.user_id !== user.id || (msg.project_id ?? null) !== (context.projectId ?? null) || (msg.environment_id ?? null) !== (context.environmentId ?? null) || (msg.version_id ?? null) !== (context.versionId ?? null)) return; setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]); if (msg.sender === 'user' && msg.text) setProjectState(prev => { const next = createProjectStateFromConversation([msg.text!], prev); projectStateRef.current = next; return next; }); }).subscribe();
+    const channel = supabase.channel(`chat_messages_project_${context.projectId ?? 'none'}_${user.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `user_id=eq.${user.id}` }, (payload) => { const msg = payload.new as ChatMessage; if (msg.user_id !== user.id || (msg.project_id ?? null) !== (context.projectId ?? null)) return; setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]); if (msg.sender === 'user' && msg.text) setProjectState(prev => { const next = createProjectStateFromConversation([msg.text!], prev); projectStateRef.current = next; return next; }); }).subscribe();
     return () => { cancelled = true; void supabase.removeChannel(channel); };
   }, [user, context]);
 
@@ -238,8 +238,6 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     try {
       let query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
       query = context.projectId ? query.eq('project_id', context.projectId) : query.is('project_id', null);
-      query = context.environmentId ? query.eq('environment_id', context.environmentId) : query.is('environment_id', null);
-      query = context.versionId ? query.eq('version_id', context.versionId) : query.is('version_id', null);
       const { data, error: loadError } = await query.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(CHAT_PAGE_SIZE);
       if (loadError) throw loadError;
       const page = (data ?? []) as ChatMessage[];
