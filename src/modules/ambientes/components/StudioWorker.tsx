@@ -114,6 +114,7 @@ export const StudioWorker = () => {
     }
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
+    console.info('[STUDIO_WORKER]', JSON.stringify({ status: 'processing', commandId: storeCommandId, source: osCommand.source, requestId: command.idempotencyKey ?? null }));
     try {
       const result = await studioService.generateVisual(
         command.prompt,

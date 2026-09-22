@@ -315,6 +315,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const handleSend = async (textOverride?: string) => {
     if (!textOverride?.trim() && !chatInput.trim() && !pendingUpload) return;
     if (!user) { setShowAuthDialog(true); return; }
+    console.info('[IARA_START]', JSON.stringify({ status: 'started' }));
     const promptText = textOverride?.trim() || chatInput.trim() || 'Analise a imagem anexada e me diga como podemos seguir.';
     const upload = pendingUpload;
     setChatInput('');

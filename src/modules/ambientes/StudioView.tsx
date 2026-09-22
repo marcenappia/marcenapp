@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Upload, MapPin, Wand2, RefreshCcw, Loader2, Sparkles, Download, DollarSign, Maximize2, X } from 'lucide-react';
 import { Button, Card, Modal, DecorationPanel } from '@/components/marcenaria/shared';
 import AuthDialog from '@/components/marcenaria/AuthDialog';
@@ -21,6 +21,8 @@ export const StudioView = ({ setBudgetProject, navigateTo, gallery, setGallery, 
     selectedStyle, setSelectedStyle, showAuthDialog, setShowAuthDialog, pendingAction, setPendingAction,
     generate, analyzeForBudget, styles, setSketchBase64, setSketchMime, setEnvBase64, setEnvMime
   } = useStudio(setBudgetProject, navigateTo, gallery, setGallery);
+
+  useEffect(() => { if (generatedImage) console.info('[IMAGE_RENDERED]', JSON.stringify({ status: 'success' })); }, [generatedImage]);
 
   const processFile = (file: File, type: 'sketch' | 'env') => {
     if (!file) return;

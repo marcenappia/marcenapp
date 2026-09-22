@@ -224,6 +224,12 @@ serve(async request => {
     if (!parsed.success) return jsonResponse(cors, { message: "Dados inválidos.", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
     const { prompt, images = [], size, persistGallery } = parsed.data;
     idempotencyKey = parsed.data.idempotencyKey;
+    console.info("[AI_IMAGE_START]", JSON.stringify({
+      status: "started",
+      requestId: idempotencyKey,
+      renderId: idempotencyKey,
+      referenceImages: images.length,
+    }));
     const wordCount = prompt.split(/\s+/).filter(Boolean).length;
     if (wordCount > MAX_PROMPT_WORDS) return jsonResponse(cors, { message: "O pedido é muito longo.", code: "validation_error" }, 400);
     const width = size?.width ?? size?.height ?? DEFAULT_DIM;
@@ -249,7 +255,10 @@ serve(async request => {
     creditConsumed = true;
     const resolution = await resolveProvider(guard.userId);
     const providers: AIProvider[] = resolution.fallback ? [resolution.primary, resolution.fallback] : [resolution.primary];
+    const providerModel = (provider: AIProvider) => provider === "gemini" ? GEMINI_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
+    const providerCredentialAvailable = (provider: AIProvider) => provider === "gemini" ? Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY")) : Boolean(Deno.env.get("LOVABLE_API_KEY"));
     let imageBase64 = "";
+    let usedProvider: AIProvider | null = null;
     let lastProviderError: unknown = null;
 
     for (const provider of providers) {
@@ -257,6 +266,8 @@ serve(async request => {
       console.info("[PROVIDER_SELECTION]", JSON.stringify({
         status: "selected",
         provider,
+        model: providerModel(provider),
+        credentialAvailable: providerCredentialAvailable(provider),
         requestId: idempotencyKey,
         renderId: idempotencyKey,
       }));
@@ -268,6 +279,7 @@ serve(async request => {
           renderId: idempotencyKey,
         }));
         imageBase64 = await generateImage(provider, prompt, images, size);
+        usedProvider = provider;
         console.info("[UPSTREAM_RESPONSE]", JSON.stringify({
           status: "success",
           provider,
@@ -296,50 +308,74 @@ serve(async request => {
       }
     }
 
-    if (!imageBase64) {
+    if (!imageBase64 || !usedProvider) {
       throw lastProviderError instanceof Error ? lastProviderError : new Error("provider_not_configured");
     }
+    const usedModel = providerModel(usedProvider);
+    const fallbackUsed = usedProvider !== resolution.primary;
 
+    let persisted = false;
     if (persistGallery) {
-      const { data: context, error: contextError } = await admin
-        .from("project_iara_contexts")
-        .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
-        .eq("user_id", guard.userId)
-        .eq("project_id", persistGallery.projectId ?? "")
-        .limit(1)
-        .maybeSingle();
+      // Persistence is a downstream consequence of the render, never a gate for it.
+      // The image has already been produced and charged: a persistence failure must
+      // not discard the generated image from the response.
+      try {
+        const { data: context, error: contextError } = await admin
+          .from("project_iara_contexts")
+          .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
+          .eq("user_id", guard.userId)
+          .eq("project_id", persistGallery.projectId ?? "")
+          .limit(1)
+          .maybeSingle();
 
-      if (contextError) throw new Error("iara_context_read_failed");
-      const contextMatches =
-        !!context &&
-        context.environment_id === (persistGallery.environmentId ?? null) &&
-        context.version_id === (persistGallery.versionId ?? null) &&
-        (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
-        (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
+        if (contextError) throw new Error("iara_context_read_failed");
+        const contextMatches =
+          !!context &&
+          context.environment_id === (persistGallery.environmentId ?? null) &&
+          context.version_id === (persistGallery.versionId ?? null) &&
+          (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
+          (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
 
-      if (!contextMatches) throw new Error("stale_execution_context");
+        if (!contextMatches) throw new Error("stale_execution_context");
 
-      const { error: galleryError } = await admin.from("gallery_images").insert({
-        user_id: guard.userId,
-        image_url: imageBase64,
-        prompt,
-        project_id: persistGallery.projectId ?? null,
-        environment_id: persistGallery.environmentId ?? null,
-        version_id: persistGallery.versionId ?? null,
-        correlation_id: persistGallery.correlationId ?? null,
-        execution_generation: persistGallery.generation ?? null,
-      });
-      if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
+        const { error: galleryError } = await admin.from("gallery_images").insert({
+          user_id: guard.userId,
+          image_url: imageBase64,
+          prompt,
+          project_id: persistGallery.projectId ?? null,
+          environment_id: persistGallery.environmentId ?? null,
+          version_id: persistGallery.versionId ?? null,
+          correlation_id: persistGallery.correlationId ?? null,
+          execution_generation: persistGallery.generation ?? null,
+        });
+        if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
+        persisted = true;
+        console.info("[DATABASE_WRITE]", JSON.stringify({ status: "success", persisted: true, requestId: idempotencyKey, renderId: idempotencyKey }));
+      } catch (persistError) {
+        persisted = false;
+        console.error("[DATABASE_WRITE]", JSON.stringify({
+          status: "error",
+          requestId: idempotencyKey,
+          renderId: idempotencyKey,
+          error: persistError instanceof Error ? persistError.message : String(persistError),
+        }));
+      }
     }
 
-    return jsonResponse(cors, { imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: LOVABLE_IMAGE_MODEL, provider: "lovable", creditConsumption: Array.isArray(data) ? data[0] : data, persisted: !!persistGallery, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
+    console.info("[IMAGE_RETURN]", JSON.stringify({
+      status: "success",
+      provider: usedProvider,
+      model: usedModel,
+      fallbackUsed,
+      persisted,
+      requestId: idempotencyKey,
+      renderId: idempotencyKey,
+    }));
+    return jsonResponse(cors, { imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: usedModel, provider: usedProvider, fallbackUsed, persisted, creditConsumption: Array.isArray(data) ? data[0] : data, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
     if (creditConsumed && idempotencyKey) await refund(guard.userId, idempotencyKey).catch(error => console.error("ai-image refund error", error));
     const error = caught as GatewayError;
     console.error("ai-image error", error.message);
-    if (error.message === "stale_execution_context") return jsonResponse(cors, { message: "A execução do render ficou desatualizada antes da persistência.", code: "stale_execution_context" }, 409);
-    if (error.message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed" }, 500);
-    if (error.message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "Não foi possível salvar o render na galeria.", code: "gallery_persist_failed" }, 500);
     if (error.message === "credit_already_refunded") return jsonResponse(cors, { message: "Esta operação já foi estornada e não pode ser reutilizada.", code: "credit_already_refunded" }, 409);
     if (error.message === "provider_not_configured") return jsonResponse(cors, { message: "A conexão com a IA não está configurada nesta publicação.", code: "provider_not_configured" }, 500);
     if (error.status === 400) return jsonResponse(cors, { message: error.message, code: "invalid_image_request" }, 400);

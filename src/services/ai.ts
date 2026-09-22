@@ -100,12 +100,14 @@ export const callAIImage = async (
     }
     return img;
   });
+  console.info('[AI_IMAGE_START]', JSON.stringify({ fn: 'ai-image', requestId: idempotencyKey, referenceImages: normalizedImages?.length ?? 0 }));
   const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', {
     prompt,
     images: normalizedImages,
     idempotencyKey,
     ...(persistence ? { persistGallery: persistence } : {}),
   });
+  console.info('[FRONTEND_RECEIVED]', JSON.stringify({ fn: 'ai-image', requestId: idempotencyKey, received: Boolean(data.imageUrl) }));
   return data.imageUrl ?? null;
 };
 
