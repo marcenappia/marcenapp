@@ -49,7 +49,7 @@ export const StudioHub = (props: StudioHubProps) => {
   const handleIaraProjectChange = (project: { width: number; height: number; depth: number }) => props.setBudgetProject((prev) => prev?.width === project.width && prev?.height === project.height && prev?.depth === project.depth ? prev : { ...prev, width: project.width, height: project.height, depth: project.depth });
 
   return (
-    <section className="relative h-full min-h-[calc(100vh-9rem)]" aria-label="IARA — trabalho no contexto atual">
+    <section className="relative h-[calc(100dvh-8.5rem)] min-h-0 md:h-[calc(100dvh-6.5rem)]" aria-label="IARA — trabalho no contexto atual">
       <IaraModule embedded projectId={projectId} syncProject={syncProject} onProjectChange={handleIaraProjectChange} activeContext={context} environments={environments} versions={versions} onEnvironmentChange={selectEnvironment} onVersionChange={selectVersion} navigateTo={props.navigateTo} />
     </section>
   );
