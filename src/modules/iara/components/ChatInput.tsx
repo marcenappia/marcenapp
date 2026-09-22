@@ -51,11 +51,42 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   const planInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    let handoff = consumeIaraPhotoHandoff();
-    if (!handoff) {
-      try { const raw = sessionStorage.getItem('marcenapp.iara.pending-upload.v1'); if (raw) handoff = JSON.parse(raw); } catch { /* ignore invalid temporary state */ }
-    }
-    if (handoff) setPendingUpload(handoff);
+    let cancelled = false;
+    const restore = async () => {
+      let handoff = consumeIaraPhotoHandoff();
+      if (!handoff) {
+        try {
+          const raw = sessionStorage.getItem('marcenapp.iara.pending-upload.v1');
+          if (raw) handoff = JSON.parse(raw);
+        } catch { /* ignore invalid temporary state */ }
+      }
+      if (handoff) {
+        if (!cancelled) setPendingUpload(handoff);
+        return;
+      }
+
+      // Mobile browsers can recreate the React tree after returning from the
+      // camera. IndexedDB survives that lifecycle and is much more reliable
+      // than sessionStorage for image-sized payloads.
+      try {
+        const request = indexedDB.open('marcenapp-iara', 1);
+        request.onupgradeneeded = () => request.result.createObjectStore('pending-upload');
+        request.onsuccess = () => {
+          const db = request.result;
+          const tx = db.transaction('pending-upload', 'readonly');
+          const get = tx.objectStore('pending-upload').get('current');
+          get.onsuccess = () => {
+            if (!cancelled && get.result) setPendingUpload(get.result);
+            db.close();
+          };
+          get.onerror = () => db.close();
+        };
+      } catch {
+        // No durable storage available; the live React state still works.
+      }
+    };
+    void restore();
+    return () => { cancelled = true; };
   }, [setPendingUpload]);
 
   useEffect(() => {
