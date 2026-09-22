@@ -1,9 +1,9 @@
-name: Weekly PWA Performance Audit
+name: Daily PWA and Lighthouse Audit
 
 on:
   schedule:
-    # GitHub Actions usa UTC: domingo às 10:00 BRT = 13:00 UTC.
-    - cron: '0 13 * * 0'
+    # GitHub Actions usa UTC: todos os dias às 10:00 BRT = 13:00 UTC.
+    - cron: '0 13 * * *'
   workflow_dispatch:
     inputs:
       production_url:
@@ -40,17 +40,25 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run weekly PWA and performance audit
+      - name: Run daily PWA and performance audit
         run: node scripts/pwa-performance-audit.mjs
 
-      - name: Run Lighthouse CI audit
+      - name: Run Lighthouse CI mobile audit
         id: lighthouse
         uses: treosh/lighthouse-ci-action@v12
         with:
           urls: ${{ env.PLAYWRIGHT_BASE_URL }}
-          configPath: ./lighthouserc.json
+          configPath: ./lighthouserc.mobile.json
           budgetPath: ./budget.json
           uploadArtifacts: true
+
+      - name: Generate daily Lighthouse summary
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          LIGHTHOUSE_RESULTS_DIR: lighthouse-results
+          LIGHTHOUSE_SUMMARY_OUTPUT: artifacts/lighthouse-daily-summary.md
+        run: node scripts/summarize-lighthouse.mjs
 
       - name: Notify Slack on audit failure
         if: ${{ failure() && env.SLACK_WEBHOOK_URL != '' }}
@@ -59,7 +67,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           payload=$(jq -nc \
-            --arg text "Marcenapp: auditoria semanal PWA/Lighthouse falhou no run ${{ github.run_number }}. $RUN_URL" \
+            --arg text "Marcenapp: auditoria diária PWA/Lighthouse mobile falhou no run ${{ github.run_number }}. $RUN_URL" \
             '{text: $text}')
           curl --fail-with-body --silent --show-error \
             -H 'Content-Type: application/json' \
@@ -73,20 +81,22 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           payload=$(jq -nc \
-            --arg content "Marcenapp: auditoria semanal PWA/Lighthouse falhou no run ${{ github.run_number }}. $RUN_URL" \
+            --arg content "Marcenapp: auditoria diária PWA/Lighthouse mobile falhou no run ${{ github.run_number }}. $RUN_URL" \
             '{content: $content}')
           curl --fail-with-body --silent --show-error \
             -H 'Content-Type: application/json' \
             --data "$payload" \
             "$DISCORD_WEBHOOK_URL"
 
-      - name: Upload weekly audit report
+      - name: Upload daily audit reports
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: marcenapp-pwa-performance-audit-${{ github.run_id }}
+          name: marcenapp-daily-pwa-lighthouse-${{ github.run_id }}
           path: |
             artifacts/pwa-performance-audit.md
+            artifacts/lighthouse-daily-summary.md
+            lighthouse-results/
             playwright-report/
             test-results/
           if-no-files-found: warn
