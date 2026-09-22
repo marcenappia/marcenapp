@@ -15,4 +15,26 @@ test.describe('Marcenapp production smoke', () => {
     await expect(page.getByRole('heading', { name: /Sua marcenaria trabalha\./i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /A IARA acelera\./i })).toBeVisible();
   });
+
+  test('production serves an installable PWA manifest and Service Worker', async ({ request }) => {
+    const manifestResponse = await request.get('/manifest.webmanifest');
+    expect(manifestResponse.ok()).toBe(true);
+    expect(manifestResponse.headers()['content-type']).toContain('application/manifest+json');
+    const manifest = await manifestResponse.json() as {
+      display?: string;
+      start_url?: string;
+      icons?: Array<{ src?: string; sizes?: string; type?: string }>;
+    };
+    expect(manifest.display).toBe('standalone');
+    expect(manifest.start_url).toBe('/');
+    expect(manifest.icons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }),
+      expect.objectContaining({ src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }),
+    ]));
+
+    const serviceWorkerResponse = await request.get('/sw.js');
+    expect(serviceWorkerResponse.ok()).toBe(true);
+    expect(serviceWorkerResponse.headers()['content-type']).toContain('javascript');
+    expect(await serviceWorkerResponse.text()).toContain('marcenapp-static-v1');
+  });
 });

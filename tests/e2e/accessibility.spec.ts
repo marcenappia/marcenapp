@@ -41,6 +41,38 @@ test.describe('Marcenapp public acceptance', () => {
     expect(manifest.environment).toBeTruthy();
   });
 
+  test('serves an installable PWA manifest and icons', async ({ request }) => {
+    const manifestResponse = await request.get('/manifest.webmanifest');
+    expect(manifestResponse.ok()).toBe(true);
+    expect(manifestResponse.headers()['content-type']).toContain('application/manifest+json');
+    const manifest = await manifestResponse.json() as {
+      name?: string;
+      display?: string;
+      start_url?: string;
+      icons?: Array<{ src?: string; sizes?: string; type?: string }>;
+    };
+    expect(manifest.name).toMatch(/Marcenapp/i);
+    expect(manifest.display).toBe('standalone');
+    expect(manifest.start_url).toBe('/');
+    expect(manifest.icons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }),
+      expect.objectContaining({ src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }),
+    ]));
+
+    for (const icon of ['/icons/icon-192.png', '/icons/icon-512.png']) {
+      const response = await request.get(icon);
+      expect(response.ok()).toBe(true);
+      expect(response.headers()['content-type']).toContain('image/png');
+    }
+  });
+
+  test('serves the PWA Service Worker', async ({ request }) => {
+    const response = await request.get('/sw.js');
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain('javascript');
+    expect(await response.text()).toContain('marcenapp-static-v1');
+  });
+
   test('public landing page passes an axe accessibility audit', async ({ page }) => {
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);

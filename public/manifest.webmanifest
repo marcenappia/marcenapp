@@ -1,0 +1,28 @@
+{
+  "name": "Marcenapp — Do projeto à produção",
+  "short_name": "Marcenapp",
+  "description": "Plataforma para profissionais de marcenaria que reúne projeto, visualização, materiais, corte e orçamento.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#2563EB",
+  "background_color": "#F8FAFC",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
