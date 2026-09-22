@@ -89,12 +89,6 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     return () => { cancelled = true; };
   }, [setPendingUpload]);
 
-  useEffect(() => {
-    if (!pendingUpload || pendingUpload.kind !== 'environment') return;
-    setOneShotOpen(true);
-    setOneShotError(null);
-  }, [pendingUpload]);
-
   const previewUrlRef = useRef<string | null>(null);
   useEffect(() => {
     previewUrlRef.current = pendingUpload?.previewUrl?.startsWith('blob:') ? pendingUpload.previewUrl : null;
@@ -105,6 +99,15 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
   }, []);
+
+  const handleComposerSend = () => {
+    if (pendingUpload?.kind === 'environment') {
+      setOneShotError(null);
+      setOneShotOpen(true);
+      return;
+    }
+    onSend();
+  };
 
   const submitOneShot = async () => {
     if (!pendingUpload || oneShotBusy) return;
@@ -179,16 +182,17 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   };
 
   return <footer className="bg-card border-t border-border p-3 sm:p-4 shrink-0 relative" aria-label="Compositor da IARA">
-    {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="absolute bottom-full left-3 right-3 mb-2 bg-card border border-border rounded-2xl shadow-2xl p-3 z-40 max-h-[76vh] overflow-y-auto">
-      <div className="flex items-start gap-3 mb-3">
-        <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-border bg-muted"><img src={pendingUpload.previewUrl || pendingUpload.base64} className="w-full h-full object-cover" alt="Prévia da foto do ambiente" /></div>
+    {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="fixed inset-0 z-[100] bg-background flex flex-col">
+      <div className="flex items-center gap-3 p-4 border-b border-border shrink-0">
+        <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden border border-border bg-muted"><img src={pendingUpload.previewUrl || pendingUpload.base64} className="w-full h-full object-cover" alt="Prévia da foto do ambiente" /></div>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold">Foto pronta</p>
           <p className="mt-1 text-[10px] text-muted-foreground">{projectId ? 'Informe os dados do móvel. A IARA usa esta foto e gera o render no projeto atual.' : 'Informe os dados uma única vez. A IARA cria o projeto, salva a foto e gera o render.'}</p>
         </div>
-        <button type="button" onClick={() => setOneShotOpen(false)} className="p-2 rounded-lg hover:bg-muted" aria-label="Fechar"><X size={15}/></button>
+        <button type="button" onClick={() => setOneShotOpen(false)} className="p-2 rounded-lg hover:bg-muted" aria-label="Voltar para a prévia"><X size={18}/></button>
       </div>
 
+      <div className="flex-1 overflow-y-auto p-4">
       {!projectId && <div className="grid grid-cols-2 gap-2 mb-2">
         <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nome do cliente" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
         <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="Nome da obra/projeto" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
@@ -212,8 +216,9 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
           {oneShotBusy ? 'Enviando para a IARA…' : 'Criar projeto e gerar render'}
         </button>
       </div>
+      </div>
     </div>}
-    {pendingUpload && <div className="absolute bottom-full left-0 mb-2 ml-3 p-2 bg-card border border-border rounded-2xl shadow-xl flex items-end gap-3 animate-in slide-in-from-bottom-2">
+    {!oneShotOpen && pendingUpload && <div className="absolute bottom-full left-0 mb-2 ml-3 p-2 bg-card border border-border rounded-2xl shadow-xl flex items-end gap-3 animate-in slide-in-from-bottom-2">
       <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-border">
         <img src={pendingUpload.previewUrl || pendingUpload.base64} className="w-full h-full object-cover" alt="Imagem anexada" />
         <button type="button" aria-label="Remover imagem anexada" onClick={() => { setPendingUpload(null); void clearIaraPendingUpload().catch(() => undefined); }} className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white"><X size={10} /></button>
@@ -288,8 +293,8 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         <button type="button" aria-label={isListening ? 'Parar gravação' : 'Iniciar gravação'} onClick={toggleRecording} className={`p-2.5 min-w-11 min-h-11 rounded-xl transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-muted-foreground hover:text-primary'}`}>{isListening ? <MicOff size={18} /> : <Mic size={18} />}</button>
       </div>
       <div className="flex-1 relative group">
-        <textarea aria-label="Mensagem para a IARA" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }} placeholder={isListening ? 'IARA está ouvindo...' : 'Ex.: Quero uma cozinha em L de 2,80 m, com torre quente e portas lisas...'} className="w-full bg-muted border border-border rounded-2xl py-3 px-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none max-h-32 scrollbar-none min-h-11" rows={1} />
-        <button type="button" aria-label="Enviar mensagem" onClick={onSend} className="absolute right-2 bottom-1.5 min-w-9 min-h-9 p-2 bg-primary text-primary-foreground rounded-xl shadow-sm hover:opacity-90 active:scale-95 transition-all"><Send size={18} /></button>
+        <textarea aria-label="Mensagem para a IARA" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComposerSend(); } }} placeholder={isListening ? 'IARA está ouvindo...' : 'Ex.: Quero uma cozinha em L de 2,80 m, com torre quente e portas lisas...'} className="w-full bg-muted border border-border rounded-2xl py-3 px-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none max-h-32 scrollbar-none min-h-11" rows={1} />
+        <button type="button" aria-label="Enviar mensagem" onClick={handleComposerSend} className="absolute right-2 bottom-1.5 min-w-9 min-h-9 p-2 bg-primary text-primary-foreground rounded-xl shadow-sm hover:opacity-90 active:scale-95 transition-all"><Send size={18} /></button>
       </div>
     </div>
   </footer>;
