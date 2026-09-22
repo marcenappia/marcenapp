@@ -34,3 +34,9 @@ Fases 1–3 técnicas: ver `.lovable/plan/auditoria-técnica-completa-marcenapp-
 - [ ] Atualizar todas as funções de IA para o catálogo atual da Lovable
 - [ ] Validar e publicar cada função alterada
 - [ ] Executar geração completa pela IARA até imagem aparecer no chat
+
+## IARA — foto primeiro, destino depois
+- [ ] Liberar câmera e anexos no estado compacto sem projeto
+- [ ] Escolher/criar cliente, obra e ambiente após capturar a foto
+- [ ] Persistir a foto no Storage, galeria e contexto ativo sem base64 no banco
+- [ ] Preservar o anexo ao navegar e cobrir o fluxo com testes focados

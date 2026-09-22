@@ -1,26 +1,24 @@
-# Correção end-to-end do render da IARA
+# Foto primeiro, destino depois na IARA
 
 ## Objetivo
-Garantir que um pedido de render na conversa atravesse toda a fila, gere uma imagem real no backend, persista o resultado e publique a imagem final no mesmo contexto da IARA.
+Permitir que o marceneiro abra a câmera pela IARA mesmo sem projeto, preserve a foto capturada e escolha em seguida onde ela será cadastrada.
 
-## Diagnóstico confirmado
-- O commit esperado `49fddda` é ancestral do estado atual; a branch de trabalho está à frente dele.
-- O código já monta o `StudioWorker` no nível da aplicação e mantém os comandos em stores persistidas.
-- O backend conectado está defasado do código: não possui `project_iara_contexts` nem as colunas de contexto em `gallery_images` e `chat_messages`. Assim, a validação do worker e a persistência final falham antes de completar o fluxo.
-- Não há evidência recente de chamada à função `ai-image` no ambiente conectado.
-- A função `ai-image` ainda usa um contrato legado de imagem em `/chat/completions`; o catálogo atual confirma o modelo solicitado, mas a rota documentada é `/v1/images/generations`.
-- A entrega final depende de um `Map` em memória no hook da conversa; após remontagem/reload, um comando concluído pode não ser associado novamente ao chat.
+## Experiência
+1. Manter a IARA compacta sem projeto, exibindo a conversa e o compositor com o menu inteligente e a câmera disponíveis.
+2. Após uma foto de ambiente, abrir acima do compositor um painel compacto com: criar cliente, usar cliente existente, anexar a projeto existente ou continuar sem cadastrar.
+3. Carregar clientes e obras reais somente do usuário autenticado. Na criação, pedir apenas nome do cliente e nome da obra, usando os mesmos valores vazios seguros já adotados pelo Diário.
+4. Preservar a prévia durante toda a escolha e manter “continuar sem cadastrar” no fluxo atual de anexo pendente.
 
-## Implementação
-1. Aplicar uma migração idempotente que alinhe as tabelas e colunas de contexto exigidas pelo fluxo, com grants, RLS e índices preservados.
-2. Tornar a identidade da execução recuperável do estado persistido, para que a mensagem final não dependa apenas de memória React.
-3. Corrigir o contrato backend da geração Lovable para a rota/formato atual de imagens, mantendo secrets somente no servidor, autenticação, rate limit, créditos e erros seguros.
-4. Manter uma única fila existente; ajustar a conclusão para persistir galeria e chat de forma idempotente e vinculada por `correlationId`/geração.
-5. Adicionar regressões cobrindo: despacho executável, recuperação após remontagem, chamada até `callAIImage`, persistência da galeria e publicação única da mensagem final com `image_url`.
-6. Publicar a função alterada e testar uma chamada autenticada real; consultar logs e registros resultantes.
+## Persistência e contexto
+1. Ao escolher ou criar uma obra, criar o próximo ambiente disponível, enviar a foto ao bucket privado `obras` e salvar apenas seu caminho/URL assinada, nunca base64 no banco.
+2. Vincular a foto à obra e ao ambiente, registrar a imagem na galeria existente e persistir o contexto ativo da IARA.
+3. Navegar para a mesma IARA com a obra selecionada e restaurar a foto como anexo pendente, pronta para a próxima mensagem.
 
-## Validação
-- Testes focados de IARA/Studio e função `ai-image`.
-- TypeScript, ESLint e suíte de testes aplicável.
-- Validação real da função e evidência observável de imagem, ou registro preciso do bloqueio externo.
-- Conferência final do diff, branch e commit local gerado pela plataforma.
+## Arquivos e testes
+- Isolar o painel e as operações de destino em componentes/serviços pequenos, preservando `ChatInput`, o caminho de render e o histórico atual.
+- Ajustar `StudioHub`/IARA apenas para aceitar a troca de contexto produzida pelo novo fluxo.
+- Cobrir foto sem projeto, continuar sem cadastro e uso normal da IARA com projeto existente.
+- Validar os testes focados e a checagem de tipos disponível no projeto.
+
+## Fora de escopo
+- Nenhuma alteração em cobrança, autenticação, políticas, migrações, renderização da IARA ou módulos não relacionados.
