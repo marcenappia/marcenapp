@@ -7,3 +7,6 @@ verify_jwt = false
 
 [functions.asaas-webhook]
 verify_jwt = false
+
+[functions.e2e-bootstrap]
+verify_jwt = false

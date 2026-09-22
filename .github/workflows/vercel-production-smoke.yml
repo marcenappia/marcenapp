@@ -25,6 +25,7 @@ jobs:
       (github.event.deployment_status.state == 'success' &&
        github.event.deployment_status.environment == 'Production')
     runs-on: ubuntu-latest
+    environment: production-smoke
     timeout-minutes: 20
     env:
       SUPABASE_URL: https://uzhqhieqlcyncelltfjw.supabase.co
