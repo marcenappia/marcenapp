@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 20
     env:
       SUPABASE_URL: https://uzhqhieqlcyncelltfjw.supabase.co
-      PLAYWRIGHT_BASE_URL: ${{ github.event.inputs.production_url || github.event.deployment_status.environment_url || 'https://www.marcenapp.com.br' }}
+      PLAYWRIGHT_BASE_URL: ${{ github.event.inputs.production_url || 'https://www.marcenapp.com.br' }}
     steps:
       - uses: actions/checkout@v4
 
