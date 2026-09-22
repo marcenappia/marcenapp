@@ -130,7 +130,7 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
   if (ctx.lastImageBase) {
     try {
       const dataUrl = `data:image/jpeg;base64,${ctx.lastImageBase}`;
-      const destination = await attachIaraEnvironmentPhoto({ userId: ctx.userId, projectId: project.id, dataUrl });
+      const destination = await attachIaraEnvironmentPhoto({ userId: ctx.userId, projectId: project.id, dataUrl, correlationId: ctx.correlationId, generation: ctx.generation });
       environmentId = destination.environmentId;
 
       if (ctx.correlationId && typeof ctx.generation === 'number') {
