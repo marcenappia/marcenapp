@@ -51,7 +51,10 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   const planInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const handoff = consumeIaraPhotoHandoff();
+    let handoff = consumeIaraPhotoHandoff();
+    if (!handoff) {
+      try { const raw = sessionStorage.getItem('marcenapp.iara.pending-upload.v1'); if (raw) handoff = JSON.parse(raw); } catch { /* ignore invalid temporary state */ }
+    }
     if (handoff) setPendingUpload(handoff);
   }, [setPendingUpload]);
 
@@ -134,7 +137,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
 
   return <footer className="bg-card border-t border-border p-3 sm:p-4 shrink-0 relative" aria-label="Compositor da IARA">
     {destinationOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Destino da foto do ambiente" className="absolute bottom-full left-3 right-3 mb-2 bg-card border border-border rounded-2xl shadow-2xl p-3 z-40 max-h-[70vh] overflow-y-auto">
-      <div className="flex items-center justify-between gap-2 mb-3"><div><p className="text-xs font-bold">Onde quer salvar este ambiente?</p><p className="text-[10px] text-muted-foreground">A foto já está segura. Agora escolha o destino.</p></div><button type="button" onClick={() => setDestinationOpen(false)} className="p-2 rounded-lg hover:bg-muted" aria-label="Fechar"><X size={15}/></button></div>
+      <div className="flex items-start gap-3 mb-3"><div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-border bg-muted"><img src={pendingUpload.base64} className="w-full h-full object-cover" alt="Prévia da foto do ambiente" /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold">Foto capturada</p><button type="button" onClick={() => setDestinationOpen(false)} className="p-2 rounded-lg hover:bg-muted" aria-label="Fechar"><X size={15}/></button></div><p className="mt-1 text-[10px] text-muted-foreground">A foto ficou guardada. Agora escolha onde quer salvar.</p></div></div>
       {destinationMode === 'choices' && <div className="grid gap-2">
         <button type="button" onClick={() => setDestinationMode('client')} className="rounded-xl border border-border p-3 text-left hover:border-primary hover:bg-primary/5"><strong className="block text-xs">Criar novo cliente</strong><span className="text-[10px] text-muted-foreground">Cliente + obra + ambiente</span></button>
         <button type="button" onClick={() => setDestinationMode('project')} className="rounded-xl border border-border p-3 text-left hover:border-primary hover:bg-primary/5"><strong className="block text-xs">Usar cliente ou projeto existente</strong><span className="text-[10px] text-muted-foreground">Escolha onde a foto deve ficar</span></button>
