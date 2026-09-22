@@ -46,12 +46,21 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
   if (environmentError) throw environmentError;
 
   const storagePath = await uploadEnvironmentPhoto(args.userId, args.projectId, environment.id, args.dataUrl);
-  const { error: projectError } = await supabase.from('projects').update({ foto_ambiente_path: storagePath }).eq('id', args.projectId).eq('user_id', args.userId);
-  if (projectError) throw projectError;
+  const { error: environmentUpdateError } = await supabase.from('project_environments').update({ metadata: { source: 'iara_camera', storage_path: storagePath } }).eq('id', environment.id).eq('project_id', args.projectId);
+  if (environmentUpdateError) throw environmentUpdateError;
 
   const { data: project, error: projectLoadError } = await supabase.from('projects').select('id,nome,name,cliente_id').eq('id', args.projectId).eq('user_id', args.userId).maybeSingle();
   if (projectLoadError) throw projectLoadError;
   if (!project) throw new Error('Projeto não encontrado.');
+
+  const { data: existingContext } = await supabase.from('project_iara_contexts').select('id').eq('user_id', args.userId).eq('project_id', args.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+  if (existingContext?.id) {
+    const { error } = await supabase.from('project_iara_contexts').update({ client_id: project.cliente_id ?? args.clientId ?? null, environment_id: environment.id, version_id: null, updated_at: new Date().toISOString() }).eq('id', existingContext.id).eq('user_id', args.userId);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('project_iara_contexts').insert({ user_id: args.userId, client_id: project.cliente_id ?? args.clientId ?? null, project_id: args.projectId, environment_id: environment.id, version_id: null });
+    if (error) throw error;
+  }
 
   return {
     projectId: project.id,
