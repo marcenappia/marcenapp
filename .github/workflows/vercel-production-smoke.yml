@@ -46,9 +46,10 @@ jobs:
       - name: Verify production version endpoint
         run: |
           set -euo pipefail
-          version="$(curl -fsSL "$PLAYWRIGHT_BASE_URL/version.json")"
-          node - "$version" <<'NODE'
-          const manifest = JSON.parse(process.argv[2]);
+          curl -fsSL "$PLAYWRIGHT_BASE_URL/version.json" > "$RUNNER_TEMP/version.json"
+          node - "$RUNNER_TEMP/version.json" <<'NODE'
+          const fs = require('fs');
+          const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           if (!/^[a-f0-9]{40}$/i.test(manifest.commit ?? '')) throw new Error('Invalid production commit SHA');
           if (!/^[a-f0-9]{8}$/i.test(manifest.shortCommit ?? '')) throw new Error('Invalid production short SHA');
           if (manifest.environment !== 'production') throw new Error(`Unexpected environment: ${manifest.environment}`);
