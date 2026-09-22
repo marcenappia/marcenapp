@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 export type AIProvider = "lovable" | "gemini";
 
 export type ProviderResolution = {
-  primary: AIProvider;
+  primary: AIProvider | null;
   fallback: AIProvider | null;
 };
 
@@ -11,11 +11,17 @@ export function resolveProviderSelection(
   configured: string | undefined,
   available: { lovable: boolean; gemini: boolean },
 ): ProviderResolution {
-  if (configured === "lovable") return { primary: "lovable", fallback: available.gemini ? "gemini" : null };
-  if (configured === "gemini") return { primary: "gemini", fallback: available.lovable ? "lovable" : null };
+  const ordered: AIProvider[] =
+    configured === "gemini"
+      ? ["gemini", "lovable"]
+      : configured === "lovable"
+        ? ["lovable", "gemini"]
+        : ["lovable", "gemini"];
+
+  const eligible = ordered.filter(provider => available[provider]);
   return {
-    primary: available.lovable ? "lovable" : "gemini",
-    fallback: available.lovable && available.gemini ? "gemini" : null,
+    primary: eligible[0] ?? null,
+    fallback: eligible[1] ?? null,
   };
 }
 
