@@ -26,7 +26,7 @@ const ICONS: Record<string, React.ComponentType<LucideProps>> = {
 const ONBOARDING_KEY = 'marcenapp.iara.attachments.onboarding.v1';
 
 interface ChatInputProps {
-  chatInput: string; setChatInput: (val: string) => void; onSend: () => void;
+  chatInput: string; setChatInput: (val: string) => void; onSend: (textOverride?: string) => void;
   onImageSelect: (e: React.ChangeEvent<HTMLInputElement>, kind?: PendingUpload['kind']) => void;
   toggleRecording: () => void; isListening: boolean; pendingUpload: PendingUpload | null;
   setPendingUpload: (val: PendingUpload | null) => void; onSmartAction?: (action: SmartAction) => void; navigateTo?: (id: string, params?: Record<string, string>) => void; projectId?: string | null;
@@ -95,11 +95,16 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     setOneShotError(null);
   }, [pendingUpload]);
 
+  const previewUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    previewUrlRef.current = pendingUpload?.previewUrl?.startsWith('blob:') ? pendingUpload.previewUrl : null;
+  }, [pendingUpload?.previewUrl]);
+
   useEffect(() => {
     return () => {
-      if (pendingUpload?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingUpload.previewUrl);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
-  }, [pendingUpload]);
+  }, []);
 
   const submitOneShot = async () => {
     if (!pendingUpload || oneShotBusy) return;
@@ -210,8 +215,8 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     </div>}
     {pendingUpload && <div className="absolute bottom-full left-0 mb-2 ml-3 p-2 bg-card border border-border rounded-2xl shadow-xl flex items-end gap-3 animate-in slide-in-from-bottom-2">
       <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-border">
-        <img src={pendingUpload.base64} className="w-full h-full object-cover" alt="Imagem anexada" />
-        <button type="button" aria-label="Remover imagem anexada" onClick={() => { if (pendingUpload.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingUpload.previewUrl); setPendingUpload(null); void clearIaraPendingUpload().catch(() => undefined); }} className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white"><X size={10} /></button>
+        <img src={pendingUpload.previewUrl || pendingUpload.base64} className="w-full h-full object-cover" alt="Imagem anexada" />
+        <button type="button" aria-label="Remover imagem anexada" onClick={() => { setPendingUpload(null); void clearIaraPendingUpload().catch(() => undefined); }} className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white"><X size={10} /></button>
       </div>
       <span className="text-[9px] font-bold text-muted-foreground tracking-wide pb-1">{pendingUpload.kind === 'reference' ? 'Referência' : pendingUpload.kind === 'sketch' ? 'Rascunho' : pendingUpload.kind === 'plan' ? 'Planta' : 'Ambiente'}</span>
     </div>}
