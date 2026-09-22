@@ -18,6 +18,23 @@ type MessageMetadata = NonNullable<ChatMessage['metadata']>;
 type UploadKind = 'environment' | 'reference' | 'sketch' | 'plan';
 type PendingUpload = { base64: string; baseRaw: string; maskRaw: string; kind: UploadKind };
 const CHAT_PAGE_SIZE = 50;
+const IARA_PENDING_UPLOAD_DB = 'marcenapp-iara';
+const IARA_PENDING_UPLOAD_STORE = 'pending-upload';
+
+function persistPendingUpload(upload: PendingUpload) {
+  try {
+    const request = indexedDB.open(IARA_PENDING_UPLOAD_DB, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(IARA_PENDING_UPLOAD_STORE);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(IARA_PENDING_UPLOAD_STORE, 'readwrite');
+      tx.objectStore(IARA_PENDING_UPLOAD_STORE).put(upload, 'current');
+      tx.oncomplete = () => db.close();
+    };
+  } catch {
+    // In-memory state is still the primary path.
+  }
+}
 
 type ChatCursor = { createdAt: string; id: string };
 
@@ -305,36 +322,58 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
+
+    // Publish the capture to React immediately. Do not wait for image decoding,
+    // canvas conversion, or browser storage: on mobile those steps can fail or
+    // happen after the camera component has already remounted.
     const reader = new FileReader();
     reader.onload = (r) => {
       const result = r.target?.result;
-      if (typeof result !== 'string') return;
+      if (typeof result !== 'string') {
+        setError('Não foi possível ler a foto capturada. Tente novamente.');
+        return;
+      }
+
+      const immediateUpload: PendingUpload = {
+        base64: result,
+        baseRaw: result.split(',')[1] ?? '',
+        maskRaw: '',
+        kind,
+      };
+      setPendingUpload(immediateUpload);
+      persistPendingUpload(immediateUpload);
+
+      // Normalize in the background only to reduce the payload used by later
+      // persistence/render operations. The visible preview never depends on it.
       const img = new Image();
       img.onload = () => {
-        // Phone cameras can return 5–15 MB images. Keeping the original data URL
-        // in sessionStorage is unreliable because browser storage quotas are small.
-        // Normalize the capture first so the preview survives camera remounts.
-        const maxSide = 1600;
-        const scale = Math.min(1, maxSide / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
-        canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const normalized = canvas.toDataURL('image/jpeg', 0.82);
-        const baseRaw = normalized.split(',')[1] ?? '';
-        const upload = { base64: normalized, baseRaw, maskRaw: '', kind };
-        setPendingUpload(upload);
         try {
-          sessionStorage.setItem('marcenapp.iara.pending-upload.v1', JSON.stringify(upload));
+          const maxSide = 1600;
+          const width = img.naturalWidth || img.width;
+          const height = img.naturalHeight || img.height;
+          const scale = Math.min(1, maxSide / Math.max(width, height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(width * scale));
+          canvas.height = Math.max(1, Math.round(height * scale));
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const normalized = canvas.toDataURL('image/jpeg', 0.82);
+          const upload: PendingUpload = {
+            base64: normalized,
+            baseRaw: normalized.split(',')[1] ?? '',
+            maskRaw: '',
+            kind,
+          };
+          setPendingUpload(upload);
+          persistPendingUpload(upload);
         } catch {
-          // The in-memory preview remains available even if storage is unavailable.
+          // Keep the immediately available original capture.
         }
       };
-      img.onerror = () => setError('Não foi possível carregar a foto capturada. Tente tirar a foto novamente.');
       img.src = result;
     };
+    reader.onerror = () => setError('Não foi possível ler a foto capturada. Tente novamente.');
     reader.readAsDataURL(file);
   };
   useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`.trim()); recognitionRef.current = r; return () => { r.stop(); recognitionRef.current = null; }; }, []);
