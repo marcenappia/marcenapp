@@ -49,14 +49,13 @@ jobs:
         with:
           urls: ${{ env.PLAYWRIGHT_BASE_URL }}
           configPath: ./lighthouserc.mobile.json
-          budgetPath: ./budget.json
           uploadArtifacts: true
 
       - name: Generate daily Lighthouse summary
         if: ${{ always() }}
         continue-on-error: true
         env:
-          LIGHTHOUSE_RESULTS_DIR: lighthouse-results
+          LIGHTHOUSE_RESULTS_DIR: ${{ steps.lighthouse.outputs.resultsPath }}
           LIGHTHOUSE_SUMMARY_OUTPUT: artifacts/lighthouse-daily-summary.md
         run: node scripts/summarize-lighthouse.mjs
 
