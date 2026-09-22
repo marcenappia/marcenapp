@@ -140,21 +140,17 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
           `Estrutura confirmada: ${project.modules ?? 1} módulo(s), ${project.doors ?? 0} porta(s), ${project.drawers ?? 0} gaveta(s).`,
           'Use a foto como referência principal do ambiente, preserve paredes, vãos, perspectiva e elementos fixos, e não entregue um ambiente vazio.',
         ].join(' ');
-        const style = ctx.decorStyle || 'Limpo';
-        const enrichedPrompt = await enrichVisualPrompt(prompt, [{ data: ctx.lastImageBase, mimeType: 'image/jpeg', kind: 'environment', label: 'ambiente do projeto' }]);
-        const idempotencyKey = `${ctx.correlationId}:project-create-render`;
-        const studioId = useStudioStore.getState().enqueueCommand({
-          prompt: `MARCENAPP IARA OS: móvel estilo ${style}. ${enrichedPrompt}`,
-          images: [{ mimeType: 'image/jpeg', data: ctx.lastImageBase }],
-          decor: style,
-          idempotencyKey,
-          metadata: { origin: 'iara', originalPrompt: prompt, targetModule: 'studio', referenceCount: 1, createdProjectId: project.id },
-        });
-        studioCommandId = studioId;
-        useMarcenappOS.getState().dispatchCommand({
-          source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', idempotencyKey,
-          payload: { prompt: enrichedPrompt, estilo: style, studioCommandId: studioId, userId: ctx.userId, projectId: project.id, environmentId, correlationId: ctx.correlationId, generation: ctx.generation },
-        });
+
+        // Reuse the exact same Yara render tool used by an explicit "faça o render"
+        // request. The only difference is that the newly created project/environment
+        // is injected into the execution context, so the Studio pipeline can persist
+        // the render against the project instead of merely creating an empty project.
+        const renderResult = await gerarRender.execute(
+          { prompt, estilo: ctx.decorStyle },
+          { ...ctx, projectId: project.id, environmentId },
+        );
+        if (!renderResult.ok) return renderResult;
+        studioCommandId = renderResult.data.studioCommandId;
       }
     } catch (e) {
       return { ok: false, error: `Projeto criado, mas não foi possível vincular a foto e gerar a visualização inicial: ${e instanceof Error ? e.message : 'erro desconhecido'}` };
