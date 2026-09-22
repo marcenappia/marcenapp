@@ -56,7 +56,75 @@ async function recentProjectImages(ctx: ExecutionContext): Promise<VisualReferen
 }
 
 const createCliente: ToolDefinition<CreateClienteArgs, ClienteData> = { name: 'createCliente', description: 'Cria um novo cliente no tenant atual', version: '1.0.0', inputSchema: z.object({ nome: z.string().min(1), email: z.string().email().optional().or(z.literal('')), telefone: z.string().optional() }), async execute(args, ctx) { const { data, error } = await db.from('clientes').insert({ user_id: ctx.userId, nome: args.nome, email: args.email || null, telefone: args.telefone || null }).select('id, nome').single(); if (error) return { ok: false, error: error.message }; return { ok: true, data: data as ClienteData }; } };
-const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'createProjeto', description: 'Cria projeto somente após confirmação explícita das três dimensões', version: '1.1.0', inputSchema: z.object({ nome: z.string().min(1), clienteNome: z.string().optional(), width: z.number().positive(), height: z.number().positive(), depth: z.number().positive(), doors: z.number().int().positive().optional(), drawers: z.number().int().nonnegative().optional(), modules: z.number().int().positive().optional(), tipo: z.string().optional(), confirmado: z.literal(true) }), async execute(args, ctx) { let clienteId: string | null = null; if (args.clienteNome) { const { data: cli } = await db.from('clientes').select('id').eq('user_id', ctx.userId).ilike('nome', args.clienteNome).maybeSingle(); clienteId = (cli as { id: string } | null)?.id ?? null; } const { data, error } = await db.from('projects').insert({ user_id: ctx.userId, nome: args.nome, cliente_id: clienteId, width: args.width, height: args.height, depth: args.depth, ...(args.doors ? { doors: args.doors } : {}), ...(args.drawers != null ? { drawers: args.drawers } : {}), ...(args.modules ? { modules: args.modules } : {}) }).select('id, nome, width, height, depth, doors, drawers, modules').single(); if (error) return { ok: false, error: error.message }; return { ok: true, data: data as ProjetoData }; } };
+async function inferProjectStructureFromVisual(args: CreateProjetoArgs, ctx: ExecutionContext): Promise<Pick<CreateProjetoArgs, 'doors' | 'drawers' | 'modules'>> {
+  if (!ctx.projectId && !ctx.lastImageBase) return {};
+  let image = ctx.lastImageBase ?? '';
+  if (!image && ctx.projectId) {
+    try {
+      const { data } = await db.from('chat_messages')
+        .select('image_url')
+        .eq('user_id', ctx.userId)
+        .eq('project_id', ctx.projectId)
+        .not('image_url', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      image = typeof data?.image_url === 'string' ? data.image_url : '';
+    } catch {
+      return {};
+    }
+  }
+  if (!image) return {};
+  const data = image.includes(',') ? image.split(',')[1] : image;
+  try {
+    const analysis = await callAIText([
+      'Você é o módulo de engenharia de móveis do Marcenapp.',
+      'Analise a foto enviada como referência do móvel/ambiente e extraia somente características estruturais VISÍVEIS do móvel que o usuário está pedindo para criar.',
+      'Não invente portas, gavetas ou módulos que não estejam claramente visíveis ou explicitamente pedidos.',
+      'Se uma quantidade não puder ser determinada com segurança, omita o campo.',
+      'moduleCount = número de divisões/módulos verticais claramente identificáveis.',
+      'doorCount = número de portas claramente identificáveis.',
+      'drawerCount = número de gavetas claramente identificáveis.',
+      'Retorne SOMENTE JSON: {"moduleCount":number|null,"doorCount":number|null,"drawerCount":number|null,"confidence":number}.',
+      'Pedido do usuário: ' + JSON.stringify(args),
+    ].join(' '), [{ mimeType: image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg', data }], true);
+    const clean = analysis.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
+    const parsed = JSON.parse(clean) as { moduleCount?: unknown; doorCount?: unknown; drawerCount?: unknown; confidence?: unknown };
+    const confidence = Number(parsed.confidence);
+    if (!Number.isFinite(confidence) || confidence < 0.7) return {};
+    const result: Pick<CreateProjetoArgs, 'doors' | 'drawers' | 'modules'> = {};
+    if (args.modules == null && Number.isInteger(parsed.moduleCount) && Number(parsed.moduleCount) > 0) result.modules = Number(parsed.moduleCount);
+    if (args.doors == null && Number.isInteger(parsed.doorCount) && Number(parsed.doorCount) > 0) result.doors = Number(parsed.doorCount);
+    if (args.drawers == null && Number.isInteger(parsed.drawerCount) && Number(parsed.drawerCount) >= 0) result.drawers = Number(parsed.drawerCount);
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'createProjeto', description: 'Cria um projeto com dimensões confirmadas e, quando houver referência visual, preenche somente a estrutura do móvel que estiver visível/confirmada.', version: '1.2.0', inputSchema: z.object({ nome: z.string().min(1), clienteNome: z.string().optional(), width: z.number().positive(), height: z.number().positive(), depth: z.number().positive(), doors: z.number().int().positive().optional(), drawers: z.number().int().nonnegative().optional(), modules: z.number().int().positive().optional(), tipo: z.string().optional(), confirmado: z.literal(true) }), async execute(args, ctx) {
+  let clienteId: string | null = null;
+  if (args.clienteNome) {
+    const { data: cli } = await db.from('clientes').select('id').eq('user_id', ctx.userId).ilike('nome', args.clienteNome).maybeSingle();
+    clienteId = (cli as { id: string } | null)?.id ?? null;
+  }
+  const inferred = await inferProjectStructureFromVisual(args, ctx);
+  const finalArgs = { ...args, ...inferred };
+  const { data, error } = await db.from('projects').insert({
+    user_id: ctx.userId,
+    nome: finalArgs.nome,
+    cliente_id: clienteId,
+    width: finalArgs.width,
+    height: finalArgs.height,
+    depth: finalArgs.depth,
+    modules: finalArgs.modules ?? 1,
+    drawers: finalArgs.drawers ?? 0,
+    doors: finalArgs.doors ?? 0,
+  }).select('id, nome, width, height, depth, doors, drawers, modules').single();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: data as ProjetoData };
+};
+
 const gerarRender: ToolDefinition<GerarRenderArgs, RenderData> = { name: 'gerarRender', description: 'Gera visual no Estúdio somente a partir de uma referência visual enviada ou do ambiente atual do projeto. Geração somente por texto está desativada por enquanto.', version: '1.8.0', inputSchema: z.object({ prompt: z.string().min(1), estilo: z.string().optional() }), async execute(args, ctx) { if (!ctx.correlationId || typeof ctx.generation !== 'number') return { ok: false, error: 'Identidade de execução incompleta para gerar o render.' }; const estilo = args.estilo || ctx.decorStyle || 'Limpo'; const recentImages = await recentProjectImages(ctx); const referenceImages = [...(ctx.referenceImages ?? []), ...recentImages].filter((image, index, all) => image.data && all.findIndex((item) => item.data === image.data) === index).slice(0, 8); if (ctx.lastImageBase && !referenceImages.some((image) => image.data === ctx.lastImageBase)) referenceImages.unshift({ data: ctx.lastImageBase, mimeType: 'image/jpeg', kind: 'environment', label: 'imagem principal' }); const images: VisualReference[] = [...referenceImages]; if (ctx.lastImageMask) images.push({ data: ctx.lastImageMask, mimeType: 'image/png', kind: 'sketch', label: 'máscara' }); if (!images.length) return { ok: false, error: 'Para gerar um render, envie uma imagem de referência ou selecione um ambiente com imagem no projeto.' }; const enrichedPrompt = await enrichVisualPrompt(args.prompt, images.filter((image) => image.kind !== 'sketch')); const idempotencyKey = ctx.correlationId; const studioImages = images.slice(0, 8).map((image) => ({ mimeType: image.mimeType || 'image/jpeg', data: image.data })); const id = useStudioStore.getState().enqueueCommand({ prompt: `MARCENAPP IARA OS: móvel estilo ${estilo}. ${enrichedPrompt}`, images: studioImages.length ? studioImages : undefined, decor: estilo, idempotencyKey, metadata: { origin: 'iara', originalPrompt: args.prompt, targetModule: 'studio', referenceCount: studioImages.length } }); useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', idempotencyKey, payload: { prompt: enrichedPrompt, estilo, studioCommandId: id, idempotencyKey, userId: ctx.userId, ...(ctx.projectId ? { projectId: ctx.projectId } : {}), ...(ctx.environmentId ? { environmentId: ctx.environmentId } : {}), ...(ctx.versionId ? { versionId: ctx.versionId } : {}), correlationId: ctx.correlationId, generation: ctx.generation } }); return { ok: true, data: { studioCommandId: id, status: 'queued' } }; } };
 const analisarPlanta: ToolDefinition<AnalisarPlantaArgs, PlanData> = { name: 'analisarPlanta', description: 'Analisa a planta baixa enviada à IARA, registra a análise e enfileira a perspectiva/elevação no mesmo pipeline de render do Estúdio.', version: '1.0.0', inputSchema: z.object({ prompt: z.string().min(1) }), async execute(args, ctx) { if (!ctx.lastImageBase) return { ok: false, error: 'Envie a planta baixa como imagem para eu analisar e gerar a perspectiva.' }; return analyzeFloorPlanAndQueueRender({ prompt: args.prompt, planBase64: ctx.lastImageBase }, ctx); } };
 const calcularOrcamento: ToolDefinition<CalcularOrcamentoArgs, OrcamentoData> = { name: 'calcularOrcamento', description: 'Consulta um orçamento real salvo para o projeto; nunca inventa preço de MDF, ferragens ou mão de obra', version: '3.0.0', inputSchema: z.object({ projetoId: z.string().uuid().optional() }), async execute(args, ctx) { const projectId = args.projetoId || ctx.projectId; const query = db.from('project_cost_snapshots').select('project_id,sale_price,material_cost,hardware_cost,labor_cost,other_cost').eq('user_id', ctx.userId); const { data: row, error } = projectId ? await query.eq('project_id', projectId).maybeSingle() : await query.order('updated_at', { ascending: false }).limit(1).maybeSingle(); if (error) return { ok: false, error: error.message }; if (!row) return { ok: false, error: 'Não há orçamento real salvo para este projeto. Informe os custos reais e o preço de venda no módulo Orçamento.' }; const r = row as { project_id: string; sale_price: number | null; material_cost: number | null; hardware_cost: number | null; labor_cost: number | null; other_cost: number | null }; const missing = [r.material_cost == null ? 'materiais' : null, r.hardware_cost == null ? 'ferragens' : null, r.labor_cost == null ? 'mão de obra' : null, r.sale_price == null ? 'preço de venda' : null].filter(Boolean); if (missing.length) return { ok: false, error: `Dados insuficientes para orçamento real: faltam ${missing.join(', ')}.` }; const { data: project } = await db.from('projects').select('id,nome,name').eq('user_id', ctx.userId).eq('id', r.project_id).maybeSingle(); const materiais = Number((r.material_cost ?? 0).toFixed(2)); const ferragens = Number((r.hardware_cost ?? 0).toFixed(2)); const maoDeObra = Number((r.labor_cost ?? 0).toFixed(2)); const outros = Number((r.other_cost ?? 0).toFixed(2)); const precoVenda = Number((r.sale_price ?? 0).toFixed(2)); const custoTotal = Number((materiais + ferragens + maoDeObra + outros).toFixed(2)); const lucro = Number((precoVenda - custoTotal).toFixed(2)); const margemPct = precoVenda > 0 ? Number(((lucro / precoVenda) * 100).toFixed(2)) : 0; const projectRow = project as { nome?: string | null; name?: string | null } | null; return { ok: true, data: { projetoId: r.project_id, nome: projectRow?.nome || projectRow?.name || 'Projeto', total: precoVenda, materiais, ferragens, maoDeObra, outros, precoVenda, lucro, margemPct, isEstimate: false } }; } };
