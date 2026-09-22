@@ -301,7 +301,42 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
   const dismissError = () => setError(null);
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, kind: UploadKind = 'environment') => { const file = e.target.files?.[0]; if (!file) return; e.target.value = ''; const reader = new FileReader(); reader.onload = (r) => { const result = r.target?.result; if (typeof result !== 'string') return; const img = new Image(); img.onload = () => { const baseRaw = result.split(',')[1] ?? ''; const upload = { base64: result, baseRaw, maskRaw: '', kind }; setPendingUpload(upload); try { sessionStorage.setItem('marcenapp.iara.pending-upload.v1', JSON.stringify(upload)); } catch { /* preview state remains authoritative */ } }; img.src = result; }; reader.readAsDataURL(file); };
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, kind: UploadKind = 'environment') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (r) => {
+      const result = r.target?.result;
+      if (typeof result !== 'string') return;
+      const img = new Image();
+      img.onload = () => {
+        // Phone cameras can return 5–15 MB images. Keeping the original data URL
+        // in sessionStorage is unreliable because browser storage quotas are small.
+        // Normalize the capture first so the preview survives camera remounts.
+        const maxSide = 1600;
+        const scale = Math.min(1, maxSide / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+        canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const normalized = canvas.toDataURL('image/jpeg', 0.82);
+        const baseRaw = normalized.split(',')[1] ?? '';
+        const upload = { base64: normalized, baseRaw, maskRaw: '', kind };
+        setPendingUpload(upload);
+        try {
+          sessionStorage.setItem('marcenapp.iara.pending-upload.v1', JSON.stringify(upload));
+        } catch {
+          // The in-memory preview remains available even if storage is unavailable.
+        }
+      };
+      img.onerror = () => setError('Não foi possível carregar a foto capturada. Tente tirar a foto novamente.');
+      img.src = result;
+    };
+    reader.readAsDataURL(file);
+  };
   useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`.trim()); recognitionRef.current = r; return () => { r.stop(); recognitionRef.current = null; }; }, []);
   const toggleRecording = () => { if (!recognitionRef.current) { setError('Seu navegador não disponibilizou reconhecimento de voz. Você pode continuar pelo texto.'); return; } if (isListening) recognitionRef.current.stop(); else recognitionRef.current.start(); };
   return { messages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, projectState, projectStateSummary: projectStateSummary(projectState) };
