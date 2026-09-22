@@ -4,8 +4,9 @@ import type { LucideProps } from 'lucide-react';
 import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
 import { supabase } from '@/integrations/supabase/client';
 import { attachIaraEnvironmentPhoto, createIaraClientAndProject, loadIaraPhotoDestinations, rememberIaraPhotoHandoff, consumeIaraPhotoHandoff } from '../services/photoDestination';
+import { blobToDataUrl, clearIaraPendingUpload, createIaraPreviewUrl, loadIaraPendingUpload } from '../services/pendingUploadStorage';
 
-type PendingUpload = { base64: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan' };
+type PendingUpload = { base64: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; blob?: Blob; previewUrl?: string };
 export type SmartAction = IaraSmartAction & { prompt: string };
 
 const SMART_ACTIONS: Array<{ domain: SmartAction['domain']; title: string; items: SmartAction[] }> = [
@@ -53,6 +54,26 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   useEffect(() => {
     let cancelled = false;
     const restore = async () => {
+      // Durable Blob storage is the source of truth. sessionStorage/handoff is
+      // kept only as a compatibility fallback for captures created by older builds.
+      try {
+        const persisted = await loadIaraPendingUpload();
+        if (!cancelled && persisted) {
+          const previewUrl = createIaraPreviewUrl(persisted.blob);
+          setPendingUpload({
+            blob: persisted.blob,
+            previewUrl,
+            base64: previewUrl,
+            baseRaw: '',
+            maskRaw: '',
+            kind: persisted.kind,
+          });
+          return;
+        }
+      } catch {
+        // Fall through to legacy temporary storage.
+      }
+
       let handoff = consumeIaraPhotoHandoff();
       if (!handoff) {
         try {
@@ -60,30 +81,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
           if (raw) handoff = JSON.parse(raw);
         } catch { /* ignore invalid temporary state */ }
       }
-      if (handoff) {
-        if (!cancelled) setPendingUpload(handoff);
-        return;
-      }
-
-      // Mobile browsers can recreate the React tree after returning from the
-      // camera. IndexedDB survives that lifecycle and is much more reliable
-      // than sessionStorage for image-sized payloads.
-      try {
-        const request = indexedDB.open('marcenapp-iara', 1);
-        request.onupgradeneeded = () => request.result.createObjectStore('pending-upload');
-        request.onsuccess = () => {
-          const db = request.result;
-          const tx = db.transaction('pending-upload', 'readonly');
-          const get = tx.objectStore('pending-upload').get('current');
-          get.onsuccess = () => {
-            if (!cancelled && get.result) setPendingUpload(get.result);
-            db.close();
-          };
-          get.onerror = () => db.close();
-        };
-      } catch {
-        // No durable storage available; the live React state still works.
-      }
+      if (handoff && !cancelled) setPendingUpload(handoff);
     };
     void restore();
     return () => { cancelled = true; };
@@ -94,6 +92,12 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     setDestinationOpen(true);
     setDestinationMode('choices');
     setDestinationError(null);
+  }, [pendingUpload]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingUpload?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingUpload.previewUrl);
+    };
   }, [pendingUpload]);
 
   const loadDestinations = async () => {
@@ -118,8 +122,11 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     if (!auth.user) return;
     setDestinationBusy(true); setDestinationError(null);
     try {
-      rememberIaraPhotoHandoff(pendingUpload);
-      const destination = await attachIaraEnvironmentPhoto({ userId: auth.user.id, projectId: targetProjectId, dataUrl: pendingUpload.base64 });
+      const dataUrl = pendingUpload.blob ? await blobToDataUrl(pendingUpload.blob) : pendingUpload.base64;
+      rememberIaraPhotoHandoff({ ...pendingUpload, base64: dataUrl });
+      const destination = await attachIaraEnvironmentPhoto({ userId: auth.user.id, projectId: targetProjectId, dataUrl });
+      if (pendingUpload.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingUpload.previewUrl);
+      await clearIaraPendingUpload().catch(() => undefined);
       setPendingUpload(null); setDestinationOpen(false);
       navigateTo?.('ambientes', { projeto: destination.projectId });
     } catch (error) { setDestinationError(error instanceof Error ? error.message : 'Não foi possível anexar a foto.'); }
@@ -133,8 +140,11 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     setDestinationBusy(true); setDestinationError(null);
     try {
       const created = await createIaraClientAndProject({ userId: auth.user.id, clientName, projectName: newProjectName });
-      rememberIaraPhotoHandoff(pendingUpload);
-      const destination = await attachIaraEnvironmentPhoto({ userId: auth.user.id, projectId: created.project.id, dataUrl: pendingUpload.base64, clientId: created.client.id });
+      const dataUrl = pendingUpload.blob ? await blobToDataUrl(pendingUpload.blob) : pendingUpload.base64;
+      rememberIaraPhotoHandoff({ ...pendingUpload, base64: dataUrl });
+      const destination = await attachIaraEnvironmentPhoto({ userId: auth.user.id, projectId: created.project.id, dataUrl, clientId: created.client.id });
+      if (pendingUpload.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingUpload.previewUrl);
+      await clearIaraPendingUpload().catch(() => undefined);
       setPendingUpload(null); setDestinationOpen(false);
       navigateTo?.('ambientes', { projeto: destination.projectId });
     } catch (error) { setDestinationError(error instanceof Error ? error.message : 'Não foi possível criar o cadastro.'); }
@@ -193,7 +203,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     {pendingUpload && <div className="absolute bottom-full left-0 mb-2 ml-3 p-2 bg-card border border-border rounded-2xl shadow-xl flex items-end gap-3 animate-in slide-in-from-bottom-2">
       <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-border">
         <img src={pendingUpload.base64} className="w-full h-full object-cover" alt="Imagem anexada" />
-        <button type="button" aria-label="Remover imagem anexada" onClick={() => setPendingUpload(null)} className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white"><X size={10} /></button>
+        <button type="button" aria-label="Remover imagem anexada" onClick={() => { if (pendingUpload.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingUpload.previewUrl); setPendingUpload(null); void clearIaraPendingUpload().catch(() => undefined); }} className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white"><X size={10} /></button>
       </div>
       <span className="text-[9px] font-bold text-muted-foreground tracking-wide pb-1">{pendingUpload.kind === 'reference' ? 'Referência' : pendingUpload.kind === 'sketch' ? 'Rascunho' : pendingUpload.kind === 'plan' ? 'Planta' : 'Ambiente'}</span>
     </div>}
