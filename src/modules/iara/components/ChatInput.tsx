@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scissors, PackageCheck, Calculator, FileText, ShoppingCart, Wrench, Truck, ListChecks, Camera, PencilLine, Plus, ArrowUpFromLine, HelpCircle } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
-import { supabase } from '@/integrations/supabase/client';
-import { attachIaraEnvironmentPhoto, createIaraClientAndProject, loadIaraPhotoDestinations, rememberIaraPhotoHandoff, consumeIaraPhotoHandoff } from '../services/photoDestination';
+import { consumeIaraPhotoHandoff } from '../services/photoDestination';
 import { blobToDataUrl, clearIaraPendingUpload, createIaraPreviewUrl, loadIaraPendingUpload } from '../services/pendingUploadStorage';
 
 type PendingUpload = { base64: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; blob?: Blob; previewUrl?: string };
@@ -30,22 +29,25 @@ interface ChatInputProps {
   chatInput: string; setChatInput: (val: string) => void; onSend: () => void;
   onImageSelect: (e: React.ChangeEvent<HTMLInputElement>, kind?: PendingUpload['kind']) => void;
   toggleRecording: () => void; isListening: boolean; pendingUpload: PendingUpload | null;
-  setPendingUpload: (val: PendingUpload | null) => void; onSmartAction?: (action: SmartAction) => void; navigateTo?: (id: string, params?: Record<string, string>) => void;
+  setPendingUpload: (val: PendingUpload | null) => void; onSmartAction?: (action: SmartAction) => void; navigateTo?: (id: string, params?: Record<string, string>) => void; projectId?: string | null;
 }
 
-export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction, navigateTo }: ChatInputProps) => {
+export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction, navigateTo, projectId }: ChatInputProps) => {
   const [open, setOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [destinationOpen, setDestinationOpen] = useState(false);
-  const [destinationMode, setDestinationMode] = useState<'choices' | 'client' | 'project'>('choices');
-  const [clients, setClients] = useState<Array<{id:string;nome:string}>>([]);
-  const [projects, setProjects] = useState<Array<{id:string;nome?:string|null;name?:string|null;cliente_id?:string|null}>>([]);
-  const [selectedClientId, setSelectedClientId] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [oneShotOpen, setOneShotOpen] = useState(false);
+  const [oneShotBusy, setOneShotBusy] = useState(false);
+  const [oneShotError, setOneShotError] = useState<string | null>(null);
   const [clientName, setClientName] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
-  const [destinationBusy, setDestinationBusy] = useState(false);
-  const [destinationError, setDestinationError] = useState<string | null>(null);
+  const [furnitureName, setFurnitureName] = useState('Móvel planejado');
+  const [widthMm, setWidthMm] = useState('');
+  const [heightMm, setHeightMm] = useState('');
+  const [depthMm, setDepthMm] = useState('');
+  const [doors, setDoors] = useState('0');
+  const [drawers, setDrawers] = useState('0');
+  const [modules, setModules] = useState('1');
+  const [observations, setObservations] = useState('');
   const environmentInputRef = useRef<HTMLInputElement>(null);
   const referenceInputRef = useRef<HTMLInputElement>(null);
   const sketchInputRef = useRef<HTMLInputElement>(null);
@@ -89,9 +91,8 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
 
   useEffect(() => {
     if (!pendingUpload || pendingUpload.kind !== 'environment') return;
-    setDestinationOpen(true);
-    setDestinationMode('choices');
-    setDestinationError(null);
+    setOneShotOpen(true);
+    setOneShotError(null);
   }, [pendingUpload]);
 
   useEffect(() => {
@@ -100,55 +101,51 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     };
   }, [pendingUpload]);
 
-  const loadDestinations = async () => {
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return;
-    setDestinationBusy(true); setDestinationError(null);
-    try { const data = await loadIaraPhotoDestinations(auth.user.id); setClients(data.clients); setProjects(data.projects); }
-    catch { setDestinationError('Não foi possível carregar clientes e projetos.'); }
-    finally { setDestinationBusy(false); }
-  };
+  const submitOneShot = async () => {
+    if (!pendingUpload || oneShotBusy) return;
+    const width = Number(widthMm);
+    const height = Number(heightMm);
+    const depth = Number(depthMm);
+    const doorCount = Number(doors || 0);
+    const drawerCount = Number(drawers || 0);
+    const moduleCount = Number(modules || 1);
 
-  useEffect(() => {
-    if (!destinationOpen || destinationMode === 'choices') return;
-    void loadDestinations();
-  }, [destinationOpen, destinationMode]);
+    if (!furnitureName.trim() || !Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0 || !Number.isFinite(depth) || depth <= 0) {
+      setOneShotError('Preencha o móvel e as três medidas: largura, altura e profundidade.');
+      return;
+    }
+    if (!projectId && (!clientName.trim() || !newProjectName.trim())) {
+      setOneShotError('Para criar um projeto novo, informe o cliente e o nome da obra/projeto.');
+      return;
+    }
+    if (![doorCount, drawerCount, moduleCount].every(Number.isFinite) || doorCount < 0 || drawerCount < 0 || moduleCount < 1) {
+      setOneShotError('Confira portas, gavetas e módulos.');
+      return;
+    }
 
-  const keepWithoutCadastro = () => { setDestinationOpen(false); setDestinationMode('choices'); };
+    const prompt = [
+      projectId ? 'No projeto atual, crie o móvel "' + furnitureName.trim() + '".' : 'Crie um projeto "' + newProjectName.trim() + '" para o cliente "' + clientName.trim() + '" e o móvel "' + furnitureName.trim() + '".',
+      'Dimensões confirmadas: largura ' + Math.round(width) + ' mm, altura ' + Math.round(height) + ' mm, profundidade ' + Math.round(depth) + ' mm.',
+      'Estrutura confirmada: ' + Math.round(moduleCount) + ' módulo(s), ' + Math.round(doorCount) + ' porta(s), ' + Math.round(drawerCount) + ' gaveta(s).',
+      observations.trim() ? 'Observações: ' + observations.trim() + '.' : '',
+      'Use a foto anexada como referência principal do ambiente e gere o render final do móvel dentro dessa foto.',
+    ].filter(Boolean).join(' ');
 
-  const attachToProject = async (targetProjectId: string) => {
-    if (!pendingUpload) return;
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return;
-    setDestinationBusy(true); setDestinationError(null);
-    try {
-      const dataUrl = pendingUpload.blob ? await blobToDataUrl(pendingUpload.blob) : pendingUpload.base64;
-      rememberIaraPhotoHandoff({ ...pendingUpload, base64: dataUrl });
-      const destination = await attachIaraEnvironmentPhoto({ userId: auth.user.id, projectId: targetProjectId, dataUrl });
-      if (pendingUpload.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingUpload.previewUrl);
-      await clearIaraPendingUpload().catch(() => undefined);
-      setPendingUpload(null); setDestinationOpen(false);
-      navigateTo?.('ambientes', { projeto: destination.projectId });
-    } catch (error) { setDestinationError(error instanceof Error ? error.message : 'Não foi possível anexar a foto.'); }
-    finally { setDestinationBusy(false); }
-  };
-
-  const createClientProject = async () => {
-    if (!clientName.trim() || !newProjectName.trim() || !pendingUpload) return;
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return;
-    setDestinationBusy(true); setDestinationError(null);
-    try {
-      const created = await createIaraClientAndProject({ userId: auth.user.id, clientName, projectName: newProjectName });
-      const dataUrl = pendingUpload.blob ? await blobToDataUrl(pendingUpload.blob) : pendingUpload.base64;
-      rememberIaraPhotoHandoff({ ...pendingUpload, base64: dataUrl });
-      const destination = await attachIaraEnvironmentPhoto({ userId: auth.user.id, projectId: created.project.id, dataUrl, clientId: created.client.id });
-      if (pendingUpload.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(pendingUpload.previewUrl);
-      await clearIaraPendingUpload().catch(() => undefined);
-      setPendingUpload(null); setDestinationOpen(false);
-      navigateTo?.('ambientes', { projeto: destination.projectId });
-    } catch (error) { setDestinationError(error instanceof Error ? error.message : 'Não foi possível criar o cadastro.'); }
-    finally { setDestinationBusy(false); }
+    setOneShotBusy(true);
+    setOneShotError(null);
+    setOneShotOpen(false);
+    await onSend(prompt);
+    setOneShotBusy(false);
+    setClientName('');
+    setNewProjectName('');
+    setFurnitureName('Móvel planejado');
+    setWidthMm('');
+    setHeightMm('');
+    setDepthMm('');
+    setDoors('0');
+    setDrawers('0');
+    setModules('1');
+    setObservations('');
   };
 
   useEffect(() => {
@@ -177,29 +174,40 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   };
 
   return <footer className="bg-card border-t border-border p-3 sm:p-4 shrink-0 relative" aria-label="Compositor da IARA">
-    {destinationOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Destino da foto do ambiente" className="absolute bottom-full left-3 right-3 mb-2 bg-card border border-border rounded-2xl shadow-2xl p-3 z-40 max-h-[70vh] overflow-y-auto">
-      <div className="flex items-start gap-3 mb-3"><div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-border bg-muted"><img src={pendingUpload.base64} className="w-full h-full object-cover" alt="Prévia da foto do ambiente" /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="text-xs font-bold">Foto capturada</p><button type="button" onClick={() => setDestinationOpen(false)} className="p-2 rounded-lg hover:bg-muted" aria-label="Fechar"><X size={15}/></button></div><p className="mt-1 text-[10px] text-muted-foreground">A foto ficou guardada. Agora escolha onde quer salvar.</p></div></div>
-      {destinationMode === 'choices' && <div className="grid gap-2">
-        <button type="button" onClick={() => setDestinationMode('client')} className="rounded-xl border border-border p-3 text-left hover:border-primary hover:bg-primary/5"><strong className="block text-xs">Criar novo cliente</strong><span className="text-[10px] text-muted-foreground">Cliente + obra + ambiente</span></button>
-        <button type="button" onClick={() => setDestinationMode('project')} className="rounded-xl border border-border p-3 text-left hover:border-primary hover:bg-primary/5"><strong className="block text-xs">Usar cliente ou projeto existente</strong><span className="text-[10px] text-muted-foreground">Escolha onde a foto deve ficar</span></button>
-        <button type="button" onClick={keepWithoutCadastro} className="rounded-xl border border-border p-3 text-left hover:bg-muted"><strong className="block text-xs">Continuar sem cadastrar</strong><span className="text-[10px] text-muted-foreground">Manter a foto no chat</span></button>
-      </div>}
-      {destinationMode === 'client' && <div className="space-y-2">
-        <button type="button" onClick={() => setDestinationMode('choices')} className="text-[10px] font-semibold text-muted-foreground">← Voltar</button>
-        <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nome do cliente" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
-        <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="Nome da obra/projeto" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
-        <button type="button" disabled={destinationBusy || !clientName.trim() || !newProjectName.trim()} onClick={() => void createClientProject()} className="w-full rounded-xl bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground disabled:opacity-50">{destinationBusy ? 'Salvando…' : 'Criar e anexar foto'}</button>
-      </div>}
-      {destinationMode === 'project' && <div className="space-y-2">
-        <button type="button" onClick={() => setDestinationMode('choices')} className="text-[10px] font-semibold text-muted-foreground">← Voltar</button>
-        {destinationBusy && <p className="text-[10px] text-muted-foreground">Carregando…</p>}
-        {!destinationBusy && projects.length > 0 && <select value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"><option value="">Selecione a obra/projeto</option>{projects.filter(p => !selectedClientId || p.cliente_id === selectedClientId).map(p => <option key={p.id} value={p.id}>{p.nome || p.name || 'Projeto'}</option>)}</select>}
-        {!destinationBusy && clients.length > 0 && <select value={selectedClientId} onChange={e => { setSelectedClientId(e.target.value); setSelectedProjectId(''); }} className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"><option value="">Filtrar por cliente (opcional)</option>{clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select>}
-        <button type="button" disabled={destinationBusy || !selectedProjectId} onClick={() => void attachToProject(selectedProjectId)} className="w-full rounded-xl bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground disabled:opacity-50">{destinationBusy ? 'Anexando…' : 'Anexar foto ao projeto'}</button>
-      </div>}
-      {destinationError && <p className="mt-2 text-[10px] text-destructive">{destinationError}</p>}
-    </div>}
+    {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="absolute bottom-full left-3 right-3 mb-2 bg-card border border-border rounded-2xl shadow-2xl p-3 z-40 max-h-[76vh] overflow-y-auto">
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-border bg-muted"><img src={pendingUpload.previewUrl || pendingUpload.base64} className="w-full h-full object-cover" alt="Prévia da foto do ambiente" /></div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold">Foto pronta</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">{projectId ? 'Informe os dados do móvel. A IARA usa esta foto e gera o render no projeto atual.' : 'Informe os dados uma única vez. A IARA cria o projeto, salva a foto e gera o render.'}</p>
+        </div>
+        <button type="button" onClick={() => setOneShotOpen(false)} className="p-2 rounded-lg hover:bg-muted" aria-label="Fechar"><X size={15}/></button>
+      </div>
 
+      {!projectId && <div className="grid grid-cols-2 gap-2 mb-2">
+        <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nome do cliente" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
+        <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="Nome da obra/projeto" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
+      </div>}
+
+      <div className="space-y-2">
+        <input value={furnitureName} onChange={e => setFurnitureName(e.target.value)} placeholder="Ex.: Armário da cozinha" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
+        <div className="grid grid-cols-3 gap-2">
+          <input inputMode="numeric" value={widthMm} onChange={e => setWidthMm(e.target.value)} placeholder="Largura mm" className="w-full rounded-xl border border-border bg-background px-2.5 py-2.5 text-sm outline-none focus:border-primary" />
+          <input inputMode="numeric" value={heightMm} onChange={e => setHeightMm(e.target.value)} placeholder="Altura mm" className="w-full rounded-xl border border-border bg-background px-2.5 py-2.5 text-sm outline-none focus:border-primary" />
+          <input inputMode="numeric" value={depthMm} onChange={e => setDepthMm(e.target.value)} placeholder="Profund. mm" className="w-full rounded-xl border border-border bg-background px-2.5 py-2.5 text-sm outline-none focus:border-primary" />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <input inputMode="numeric" value={doors} onChange={e => setDoors(e.target.value)} placeholder="Portas" className="w-full rounded-xl border border-border bg-background px-2.5 py-2.5 text-sm outline-none focus:border-primary" />
+          <input inputMode="numeric" value={drawers} onChange={e => setDrawers(e.target.value)} placeholder="Gavetas" className="w-full rounded-xl border border-border bg-background px-2.5 py-2.5 text-sm outline-none focus:border-primary" />
+          <input inputMode="numeric" value={modules} onChange={e => setModules(e.target.value)} placeholder="Módulos" className="w-full rounded-xl border border-border bg-background px-2.5 py-2.5 text-sm outline-none focus:border-primary" />
+        </div>
+        <textarea value={observations} onChange={e => setObservations(e.target.value)} placeholder="Observações / estilo / acabamento (opcional)" rows={2} className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary resize-none" />
+        {oneShotError && <p className="text-[10px] text-destructive">{oneShotError}</p>}
+        <button type="button" disabled={oneShotBusy} onClick={() => void submitOneShot()} className="w-full rounded-xl bg-primary px-3 py-3 text-xs font-bold text-primary-foreground disabled:opacity-50">
+          {oneShotBusy ? 'Enviando para a IARA…' : 'Criar projeto e gerar render'}
+        </button>
+      </div>
+    </div>}
     {pendingUpload && <div className="absolute bottom-full left-0 mb-2 ml-3 p-2 bg-card border border-border rounded-2xl shadow-xl flex items-end gap-3 animate-in slide-in-from-bottom-2">
       <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-border">
         <img src={pendingUpload.base64} className="w-full h-full object-cover" alt="Imagem anexada" />
