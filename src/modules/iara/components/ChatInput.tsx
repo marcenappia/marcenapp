@@ -29,10 +29,10 @@ interface ChatInputProps {
   chatInput: string; setChatInput: (val: string) => void; onSend: () => void;
   onImageSelect: (e: React.ChangeEvent<HTMLInputElement>, kind?: PendingUpload['kind']) => void;
   toggleRecording: () => void; isListening: boolean; pendingUpload: PendingUpload | null;
-  setPendingUpload: (val: PendingUpload | null) => void; onSmartAction?: (action: SmartAction) => void; navigateTo?: (id: string, params?: Record<string, string>) => void; projectId?: string | null;
+  setPendingUpload: (val: PendingUpload | null) => void; onSmartAction?: (action: SmartAction) => void; navigateTo?: (id: string, params?: Record<string, string>) => void;
 }
 
-export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction, navigateTo, projectId }: ChatInputProps) => {
+export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction, navigateTo }: ChatInputProps) => {
   const [open, setOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [destinationOpen, setDestinationOpen] = useState(false);
