@@ -1,0 +1,54 @@
+name: Weekly PWA Performance Audit
+
+on:
+  schedule:
+    # GitHub Actions usa UTC: domingo às 10:00 BRT = 13:00 UTC.
+    - cron: '0 13 * * 0'
+  workflow_dispatch:
+    inputs:
+      production_url:
+        description: 'URL pública a auditar'
+        required: false
+        default: 'https://www.marcenapp.com.br'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ github.event.inputs.production_url || 'https://www.marcenapp.com.br' }}
+      PWA_AUDIT_OUTPUT: artifacts/pwa-performance-audit.md
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run weekly PWA and performance audit
+        run: node scripts/pwa-performance-audit.mjs
+
+      - name: Upload weekly audit report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: marcenapp-pwa-performance-audit-${{ github.run_id }}
+          path: |
+            artifacts/pwa-performance-audit.md
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 30
