@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MessageCircle, ChevronDown, ArrowLeft } from 'lucide-react';
+import { X, ChevronDown, ArrowLeft } from 'lucide-react';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput, type SmartAction } from './components/ChatInput';
 import { ContextPanel, type ContextPanelData } from './components/ContextPanel';
@@ -35,12 +35,14 @@ const IaraModule = ({ syncProject, onProjectChange, embedded, projectId = null, 
   const onSmartAction = (action: SmartAction) => void handleSmartAction(action);
   const updatePendingUpload = (value: PendingUpload | null) => setPendingUpload(value ? { base64: value.base64, baseRaw: value.baseRaw ?? '', maskRaw: value.maskRaw ?? '', kind: value.kind ?? 'environment' } : null);
   return (<div className={`flex min-h-0 flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
-    <header className="px-4 py-3 bg-card border-b border-border shrink-0">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0"><div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0"><MessageCircle size={18} className="text-primary" /></div><div className="min-w-0"><h2 className="text-sm font-bold text-foreground leading-none">IARA</h2><p className="text-[10px] text-muted-foreground mt-1 truncate">Inteligência do seu projeto</p></div></div>
-        {projectId && <span className="text-[10px] font-medium text-muted-foreground border border-border rounded-full px-2.5 py-1 shrink-0">Contexto ativo</span>}
-      </div>
-      {projectId && <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px]">
+    <header className="px-3 py-2 bg-card border-b border-border shrink-0">
+      {projectId && <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px]">
+        <span className="rounded-full bg-muted px-2.5 py-1 font-semibold text-foreground">Cliente: {activeContext?.clientName ?? '—'}</span>
+        <span className="rounded-full bg-muted px-2.5 py-1 font-semibold text-foreground">Projeto: {activeContext?.projectName ?? '—'}</span>
+        <label className="relative inline-flex items-center rounded-full border border-border bg-background pl-2.5 pr-1 py-1 font-semibold"><span>Ambiente: {activeContext?.environmentName ?? '—'}</span>{environments.length > 0 && <><ChevronDown size={12} className="ml-1" /><select aria-label="Ambiente ativo" value={activeContext?.environmentId ?? ''} onChange={e => onEnvironmentChange?.(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer">{environments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></>}</label>
+        <label className="relative inline-flex items-center rounded-full border border-border bg-background pl-2.5 pr-1 py-1 font-semibold"><span>Versão: {activeContext?.versionNumber != null ? `v${activeContext.versionNumber}` : '—'}</span>{versions.length > 0 && <><ChevronDown size={12} className="ml-1" /><select aria-label="Versão ativa" value={activeContext?.versionId ?? ''} onChange={e => onVersionChange?.(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer">{versions.map(item => <option key={item.id} value={item.id}>v{item.version_number}</option>)}</select></>}</label>
+        <span className="ml-auto rounded-full border border-border px-2.5 py-1 font-medium text-muted-foreground">Contexto ativo</span>
+      </div>}
         <span className="rounded-full bg-muted px-2.5 py-1 font-semibold text-foreground">Cliente: {activeContext?.clientName ?? '—'}</span>
         <span className="rounded-full bg-muted px-2.5 py-1 font-semibold text-foreground">Projeto: {activeContext?.projectName ?? '—'}</span>
         <label className="relative inline-flex items-center rounded-full border border-border bg-background pl-2.5 pr-1 py-1 font-semibold"><span>Ambiente: {activeContext?.environmentName ?? '—'}</span>{environments.length > 0 && <><ChevronDown size={12} className="ml-1" /><select aria-label="Ambiente ativo" value={activeContext?.environmentId ?? ''} onChange={e => onEnvironmentChange?.(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer">{environments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></>}</label>
