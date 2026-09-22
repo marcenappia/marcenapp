@@ -8,6 +8,7 @@ import { loadMarcenariaContext } from '@/modules/marcenaria/marcenariaContext';
 import { isIaraCommandForExecution, isIaraExecutionCurrent, type IaraExecutionIdentity } from './iaraExecutionScope';
 import { persistIaraContext, type IaraContext } from '../services/iaraContext';
 import { createProjectStateFromConversation, projectStateSummary, type ProjectState } from '../services/projectState';
+import { blobToDataUrl, persistIaraPendingUpload, clearIaraPendingUpload } from '../services/pendingUploadStorage';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
@@ -16,26 +17,8 @@ type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecogni
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
 type UploadKind = 'environment' | 'reference' | 'sketch' | 'plan';
-type PendingUpload = { base64: string; baseRaw: string; maskRaw: string; kind: UploadKind };
+type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind: UploadKind; blob?: Blob; previewUrl?: string };
 const CHAT_PAGE_SIZE = 50;
-const IARA_PENDING_UPLOAD_DB = 'marcenapp-iara';
-const IARA_PENDING_UPLOAD_STORE = 'pending-upload';
-
-function persistPendingUpload(upload: PendingUpload) {
-  try {
-    const request = indexedDB.open(IARA_PENDING_UPLOAD_DB, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(IARA_PENDING_UPLOAD_STORE);
-    request.onsuccess = () => {
-      const db = request.result;
-      const tx = db.transaction(IARA_PENDING_UPLOAD_STORE, 'readwrite');
-      tx.objectStore(IARA_PENDING_UPLOAD_STORE).put(upload, 'current');
-      tx.oncomplete = () => db.close();
-    };
-  } catch {
-    // In-memory state is still the primary path.
-  }
-}
-
 type ChatCursor = { createdAt: string; id: string };
 
 function rawErrorMessage(error: unknown): string { return error instanceof Error ? error.message : ''; }
@@ -271,7 +254,22 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     if (!user) return;
     setIsTyping(true); setError(null);
     let currentBaseRaw: string | null = null; let currentMaskRaw: string | null = null; let previewImg: string | null = null; let uploadKind: UploadKind | null = null;
-    if (upload) { currentBaseRaw = upload.baseRaw; currentMaskRaw = upload.maskRaw; previewImg = upload.base64; uploadKind = upload.kind; setLastContext({ baseRaw: currentBaseRaw, maskRaw: currentMaskRaw, kind: upload.kind }); } else if (lastContext) { currentBaseRaw = lastContext.baseRaw; currentMaskRaw = lastContext.maskRaw; uploadKind = lastContext.kind; }
+    if (upload) {
+      if (upload.blob) {
+        const dataUrl = await blobToDataUrl(upload.blob);
+        upload.base64 = dataUrl;
+        upload.baseRaw = dataUrl.split(',')[1] ?? '';
+      }
+      currentBaseRaw = upload.baseRaw ?? null;
+      currentMaskRaw = upload.maskRaw ?? '';
+      previewImg = upload.base64 ?? null;
+      uploadKind = upload.kind;
+      setLastContext({ baseRaw: currentBaseRaw ?? '', maskRaw: currentMaskRaw ?? '', kind: upload.kind });
+    } else if (lastContext) {
+      currentBaseRaw = lastContext.baseRaw;
+      currentMaskRaw = lastContext.maskRaw;
+      uploadKind = lastContext.kind;
+    }
     let execution: IaraExecutionIdentity | null = null;
     try {
       const correlationId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -314,7 +312,17 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     } catch (error: unknown) { lastFailedRef.current = { text: promptText, upload, smartAction }; if (execution) pendingExecutionsRef.current.delete(execution.correlationId); setError(humanizeError(error)); } finally { setIsTyping(false); }
   };
 
-  const handleSend = async () => { if (!chatInput.trim() && !pendingUpload) return; if (!user) { setShowAuthDialog(true); return; } const promptText = chatInput.trim() || 'Analise a imagem anexada e me diga como podemos seguir.'; const upload = pendingUpload; setChatInput(''); setPendingUpload(null); await sendPrompt(promptText, upload); };
+  const handleSend = async () => {
+    if (!chatInput.trim() && !pendingUpload) return;
+    if (!user) { setShowAuthDialog(true); return; }
+    const promptText = chatInput.trim() || 'Analise a imagem anexada e me diga como podemos seguir.';
+    const upload = pendingUpload;
+    setChatInput('');
+    await sendPrompt(promptText, upload);
+    if (upload?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(upload.previewUrl);
+    setPendingUpload(null);
+    void clearIaraPendingUpload().catch(() => undefined);
+  };
   const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
   const dismissError = () => setError(null);
@@ -323,58 +331,48 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     if (!file) return;
     e.target.value = '';
 
-    // Publish the capture to React immediately. Do not wait for image decoding,
-    // canvas conversion, or browser storage: on mobile those steps can fail or
-    // happen after the camera component has already remounted.
-    const reader = new FileReader();
-    reader.onload = (r) => {
-      const result = r.target?.result;
-      if (typeof result !== 'string') {
-        setError('Não foi possível ler a foto capturada. Tente novamente.');
-        return;
-      }
-
-      const immediateUpload: PendingUpload = {
-        base64: result,
-        baseRaw: result.split(',')[1] ?? '',
-        maskRaw: '',
-        kind,
-      };
-      setPendingUpload(immediateUpload);
-      persistPendingUpload(immediateUpload);
-
-      // Normalize in the background only to reduce the payload used by later
-      // persistence/render operations. The visible preview never depends on it.
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const maxSide = 1600;
-          const width = img.naturalWidth || img.width;
-          const height = img.naturalHeight || img.height;
-          const scale = Math.min(1, maxSide / Math.max(width, height));
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, Math.round(width * scale));
-          canvas.height = Math.max(1, Math.round(height * scale));
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return;
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const normalized = canvas.toDataURL('image/jpeg', 0.82);
-          const upload: PendingUpload = {
-            base64: normalized,
-            baseRaw: normalized.split(',')[1] ?? '',
-            maskRaw: '',
-            kind,
-          };
-          setPendingUpload(upload);
-          persistPendingUpload(upload);
-        } catch {
-          // Keep the immediately available original capture.
-        }
-      };
-      img.src = result;
+    const previewUrl = URL.createObjectURL(file);
+    const immediateUpload: PendingUpload = {
+      blob: file,
+      previewUrl,
+      base64: previewUrl,
+      baseRaw: '',
+      maskRaw: '',
+      kind,
     };
-    reader.onerror = () => setError('Não foi possível ler a foto capturada. Tente novamente.');
-    reader.readAsDataURL(file);
+
+    setPendingUpload(immediateUpload);
+    void persistIaraPendingUpload(file, kind).catch(() => {
+      setError('A foto foi capturada, mas não foi possível garantir o armazenamento local. Tente novamente.');
+    });
+
+    void (async () => {
+      try {
+        const img = new Image();
+        img.src = previewUrl;
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Falha ao decodificar a foto.'));
+        });
+        const width = img.naturalWidth || img.width;
+        const height = img.naturalHeight || img.height;
+        const maxSide = 1600;
+        const scale = Math.min(1, maxSide / Math.max(width, height));
+        if (scale >= 1) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+        if (!blob) return;
+        await persistIaraPendingUpload(blob, kind);
+        setPendingUpload(prev => prev?.previewUrl === previewUrl ? { ...prev, blob, baseRaw: '' } : prev);
+      } catch {
+        // The original Blob remains the durable capture.
+      }
+    })();
   };
   useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`.trim()); recognitionRef.current = r; return () => { r.stop(); recognitionRef.current = null; }; }, []);
   const toggleRecording = () => { if (!recognitionRef.current) { setError('Seu navegador não disponibilizou reconhecimento de voz. Você pode continuar pelo texto.'); return; } if (isListening) recognitionRef.current.stop(); else recognitionRef.current.start(); };
