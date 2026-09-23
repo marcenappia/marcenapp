@@ -9,6 +9,7 @@ import { isIaraCommandForExecution, isIaraExecutionCurrent, type IaraExecutionId
 import { persistIaraContext, type IaraContext } from '../services/iaraContext';
 import { createProjectStateFromConversation, projectStateSummary, type ProjectState } from '../services/projectState';
 import { blobToDataUrl, persistIaraPendingUpload, clearIaraPendingUpload } from '../services/pendingUploadStorage';
+import { persistIaraChatPhoto } from '../services/photoDestination';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
 interface SpeechRecognitionLike { lang: string; onstart: () => void; onend: () => void; onresult: (event: SpeechRecognitionResultEventLike) => void; start: () => void; stop: () => void; }
