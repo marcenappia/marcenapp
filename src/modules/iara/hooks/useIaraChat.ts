@@ -281,8 +281,21 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       setProjectState(nextProjectState);
       const projectStateSummaryText = projectStateSummary(nextProjectState);
       const intentInput = { message: promptText, projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId, ...(uploadKind ? { uploadKind } : {}), ...(projectStateSummaryText ? { projectState: nextProjectState, projectStateSummary: projectStateSummaryText } : {}), ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
-       const userMetadata: MessageMetadata = { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(uploadKind ? { uploadKind } : {}), ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) };
-      await saveMessage({ sender: 'user', text: promptText, image_url: previewImg, metadata: userMetadata }, execution);
+      let persistedImageUrl: string | null = null;
+      let persistedStoragePath: string | null = null;
+      if (currentBaseRaw && context.projectId) {
+        const dataUrl = previewImg?.startsWith('data:') ? previewImg : `data:image/jpeg;base64,${currentBaseRaw}`;
+        const persisted = await persistIaraChatPhoto({
+          userId: user.id,
+          projectId: context.projectId,
+          environmentId: context.environmentId,
+          dataUrl,
+        });
+        persistedImageUrl = persisted.signedUrl;
+        persistedStoragePath = persisted.storagePath;
+      }
+      const userMetadata: MessageMetadata = { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(uploadKind ? { uploadKind } : {}), ...(persistedStoragePath ? { storagePath: persistedStoragePath } : {}), ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) };
+      await saveMessage({ sender: 'user', text: promptText, image_url: persistedImageUrl ?? (previewImg?.startsWith('blob:') ? null : previewImg), metadata: userMetadata }, execution);
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       await persistIaraContext(user.id, { ...(activeContext ?? {}), projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId } as IaraContext, correlationId, execution.generation).catch(() => undefined);
       const conversationMessages: Array<Pick<ChatMessage, 'sender' | 'text' | 'metadata'>> = [...messages, { sender: 'user', text: promptText, metadata: null }];
