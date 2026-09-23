@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { dataUrlToBlob } from './pendingUploadStorage';
 
 export type PhotoDestination = {
   projectId: string;
@@ -26,8 +27,9 @@ export function consumeIaraPhotoHandoff(): { base64: string; baseRaw?: string; m
 }
 
 async function uploadEnvironmentPhoto(userId: string, projectId: string, environmentId: string, dataUrl: string) {
-  const blob = await (await fetch(dataUrl)).blob();
-  const path = `${userId}/${projectId}/ambientes/${environmentId}.jpg`;
+  const blob = dataUrlToBlob(dataUrl);
+  const extension = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+  const path = `${userId}/${projectId}/ambientes/${environmentId}-${Date.now()}.${extension}`;
   const { error } = await supabase.storage.from('obras').upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' });
   if (error) throw error;
   return path;
@@ -52,6 +54,21 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
   const { data: project, error: projectLoadError } = await supabase.from('projects').select('id,nome,name,cliente_id').eq('id', args.projectId).eq('user_id', args.userId).maybeSingle();
   if (projectLoadError) throw projectLoadError;
   if (!project) throw new Error('Projeto não encontrado.');
+
+  const { error: projectPhotoError } = await supabase.from('projects').update({ foto_ambiente_path: storagePath }).eq('id', args.projectId).eq('user_id', args.userId);
+  if (projectPhotoError) throw projectPhotoError;
+
+  const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+  if (signedError || !signed?.signedUrl) throw signedError ?? new Error('Não foi possível preparar a prévia da foto.');
+  const { error: galleryError } = await supabase.from('gallery_images').insert({
+    user_id: args.userId,
+    project_id: args.projectId,
+    environment_id: environment.id,
+    image_url: signed.signedUrl,
+    prompt: 'Foto do ambiente capturada pela IARA',
+    metadata: { source: 'iara_camera', storage_path: storagePath },
+  });
+  if (galleryError) throw galleryError;
 
   const { data: existingContext } = await supabase.from('project_iara_contexts').select('id').eq('user_id', args.userId).eq('project_id', args.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
   if (existingContext?.id) {
@@ -97,6 +114,31 @@ export async function createIaraClientAndProject(args: { userId: string; clientN
   const { data: project, error: projectError } = await supabase.from('projects').insert(payload).select('id,nome,name,cliente_id').single();
   if (projectError) throw projectError;
   return { client, project };
+}
+
+export async function createIaraProjectForClient(args: { userId: string; clientId: string; projectName: string }) {
+  const name = args.projectName.trim();
+  const { data: project, error } = await supabase.from('projects').insert({
+    user_id: args.userId,
+    nome: name,
+    name,
+    cliente_id: args.clientId,
+    status: 'rascunho',
+    width: 0,
+    height: 0,
+    depth: 0,
+    modules: 0,
+    drawers: 0,
+    doors: 0,
+    internal_material: '',
+    external_material: '',
+    back_material: '',
+    handle_type: '',
+    profit_margin: 0,
+    labor_rate: 0,
+  }).select('id,nome,name,cliente_id').single();
+  if (error) throw error;
+  return project;
 }
 
 export async function loadIaraPhotoDestinations(userId: string) {
