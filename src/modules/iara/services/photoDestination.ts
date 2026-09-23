@@ -66,6 +66,7 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
     environment_id: environment.id,
     image_url: signed.signedUrl,
     prompt: 'Foto do ambiente capturada pela IARA',
+    metadata: { source: 'iara_camera', storage_path: storagePath },
   });
   if (galleryError) throw galleryError;
 

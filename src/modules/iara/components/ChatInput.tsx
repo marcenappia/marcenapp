@@ -4,8 +4,9 @@ import type { LucideProps } from 'lucide-react';
 import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
 import { consumeIaraPhotoHandoff } from '../services/photoDestination';
 import { blobToDataUrl, clearIaraPendingUpload, createIaraPreviewUrl, loadIaraPendingUpload } from '../services/pendingUploadStorage';
+import { PhotoDestinationPanel } from './PhotoDestinationPanel';
 
-type PendingUpload = { base64: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; blob?: Blob; previewUrl?: string };
+type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; blob?: Blob; previewUrl?: string };
 export type SmartAction = IaraSmartAction & { prompt: string };
 
 const SMART_ACTIONS: Array<{ domain: SmartAction['domain']; title: string; items: SmartAction[] }> = [
@@ -38,6 +39,8 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   const [oneShotOpen, setOneShotOpen] = useState(false);
   const [oneShotBusy, setOneShotBusy] = useState(false);
   const [oneShotError, setOneShotError] = useState<string | null>(null);
+  const [photoDestinationOpen, setPhotoDestinationOpen] = useState(false);
+  const [photoDestinationHandled, setPhotoDestinationHandled] = useState(false);
   const [clientName, setClientName] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
   const [furnitureName, setFurnitureName] = useState('Móvel planejado');
@@ -100,10 +103,20 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     };
   }, []);
 
+  useEffect(() => {
+    if (pendingUpload?.kind !== 'environment') {
+      setPhotoDestinationOpen(false);
+      setPhotoDestinationHandled(false);
+      return;
+    }
+    setPhotoDestinationOpen(true);
+    setPhotoDestinationHandled(false);
+  }, [pendingUpload?.previewUrl, pendingUpload?.base64, pendingUpload?.kind]);
+
   const handleComposerSend = () => {
-    if (pendingUpload?.kind === 'environment') {
+    if (pendingUpload?.kind === 'environment' && !photoDestinationHandled) {
       setOneShotError(null);
-      setOneShotOpen(true);
+      setPhotoDestinationOpen(true);
       return;
     }
     onSend();
@@ -182,6 +195,15 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   };
 
   return <footer className="bg-card border-t border-border p-3 sm:p-4 shrink-0 relative" aria-label="Compositor da IARA">
+    {photoDestinationOpen && pendingUpload?.kind === 'environment' && <PhotoDestinationPanel
+      photo={pendingUpload}
+      onContinue={() => { setPhotoDestinationOpen(false); setPhotoDestinationHandled(true); }}
+      onAttached={destination => {
+        setPhotoDestinationOpen(false);
+        setPhotoDestinationHandled(true);
+        navigateTo?.('studio', { projeto: destination.projectId });
+      }}
+    />}
     {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="fixed inset-0 z-[100] bg-background flex flex-col">
       <div className="flex items-center gap-3 p-4 border-b border-border shrink-0">
         <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden border border-border bg-muted"><img src={pendingUpload.previewUrl || pendingUpload.base64} className="w-full h-full object-cover" alt="Prévia da foto do ambiente" /></div>
@@ -221,7 +243,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     {!oneShotOpen && pendingUpload && <div className="absolute bottom-full left-0 mb-2 ml-3 p-2 bg-card border border-border rounded-2xl shadow-xl flex items-end gap-3 animate-in slide-in-from-bottom-2">
       <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-border">
         <img src={pendingUpload.previewUrl || pendingUpload.base64} className="w-full h-full object-cover" alt="Imagem anexada" />
-        <button type="button" aria-label="Remover imagem anexada" onClick={() => { setPendingUpload(null); void clearIaraPendingUpload().catch(() => undefined); }} className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white"><X size={10} /></button>
+        <button type="button" aria-label="Remover imagem anexada" onClick={() => { setPhotoDestinationOpen(false); setPhotoDestinationHandled(false); setPendingUpload(null); void clearIaraPendingUpload().catch(() => undefined); }} className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white"><X size={10} /></button>
       </div>
       <span className="text-[9px] font-bold text-muted-foreground tracking-wide pb-1">{pendingUpload.kind === 'reference' ? 'Referência' : pendingUpload.kind === 'sketch' ? 'Rascunho' : pendingUpload.kind === 'plan' ? 'Planta' : 'Ambiente'}</span>
     </div>}

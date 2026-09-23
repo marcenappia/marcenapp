@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { emptyIaraContext, loadIaraContext, persistIaraContext, type IaraContext } from '@/modules/iara/services/iaraContext';
 
-interface StudioHubProps { setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>; navigateTo: (id: string) => void; gallery: string[]; setGallery: React.Dispatch<React.SetStateAction<string[]>>; budgetProject: ProjectData; projectId?: string | null; }
+interface StudioHubProps { setBudgetProject: React.Dispatch<React.SetStateAction<ProjectData>>; navigateTo: (id: string, params?: Record<string, string>) => void; gallery: string[]; setGallery: React.Dispatch<React.SetStateAction<string[]>>; budgetProject: ProjectData; projectId?: string | null; }
 type EnvironmentOption = { id: string; name: string; position: number };
 type VersionOption = { id: string; version_number: number; environment_id: string };
 
@@ -22,6 +22,7 @@ export const StudioHub = (props: StudioHubProps) => {
 
   useEffect(() => {
     let cancelled = false;
+    setContext(current => current.projectId === projectId ? current : { ...emptyIaraContext, projectId });
     if (!user || !projectId) { setContext({ ...emptyIaraContext, projectId }); setEnvironments([]); setVersions([]); return; }
     void Promise.all([loadIaraContext(user.id, projectId), supabase.from('project_environments').select('id,name,position').eq('project_id', projectId).order('position', { ascending: true })]).then(async ([loaded, envResult]) => {
       if (cancelled) return;
