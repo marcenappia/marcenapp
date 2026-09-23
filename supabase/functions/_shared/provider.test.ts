@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.168.0/assert/mod.ts";
+import { assertEquals, assertThrows } from "https://deno.land/std@0.168.0/assert/mod.ts";
 import { resolveProviderSelection } from "./provider.ts";
 
 Deno.test("automatic selects Lovable when available", () => {
@@ -17,6 +17,10 @@ Deno.test("explicit Gemini is respected and can fall back", () => {
   assertEquals(resolveProviderSelection("gemini", { lovable: true, gemini: true }), { primary: "gemini", fallback: "lovable" });
 });
 
-Deno.test("unconfigured with no provider remains unavailable", () => {
-  assertEquals(resolveProviderSelection(undefined, { lovable: false, gemini: false }), { primary: "gemini", fallback: null });
+Deno.test("explicit unavailable provider is rejected", () => {
+  assertThrows(() => resolveProviderSelection("gemini", { lovable: true, gemini: false }), Error, "PROVIDER_NOT_CONFIGURED");
+});
+
+Deno.test("unconfigured with no operational provider is rejected", () => {
+  assertThrows(() => resolveProviderSelection(undefined, { lovable: false, gemini: false }), Error, "PROVIDER_NOT_CONFIGURED");
 });

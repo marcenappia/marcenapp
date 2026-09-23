@@ -248,7 +248,7 @@ serve(async request => {
     }
     creditConsumed = true;
     const resolution = await resolveProvider(guard.userId);
-    const providers: AIProvider[] = resolution.fallback ? [resolution.primary, resolution.fallback] : [resolution.primary];
+    const providers: AIProvider[] = [resolution.primary];
     let imageBase64 = "";
     let lastProviderError: unknown = null;
 
@@ -330,9 +330,16 @@ serve(async request => {
         execution_generation: persistGallery.generation ?? null,
       });
       if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
+      console.info("[LEDGER_WRITE]", JSON.stringify({
+        status: "success",
+        provider: providers[0],
+        requestId: idempotencyKey,
+        renderId: idempotencyKey,
+      }));
     }
 
-    return jsonResponse(cors, { imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: LOVABLE_IMAGE_MODEL, provider: "lovable", creditConsumption: Array.isArray(data) ? data[0] : data, persisted: !!persistGallery, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
+    const provider = providers[0];
+    return jsonResponse(cors, { imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: provider === "gemini" ? GEMINI_IMAGE_MODEL : LOVABLE_IMAGE_MODEL, provider, requestId: idempotencyKey, renderId: idempotencyKey, creditConsumption: Array.isArray(data) ? data[0] : data, persisted: !!persistGallery, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
     if (creditConsumed && idempotencyKey) await refund(guard.userId, idempotencyKey).catch(error => console.error("ai-image refund error", error));
     const error = caught as GatewayError;
@@ -341,7 +348,7 @@ serve(async request => {
     if (error.message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed" }, 500);
     if (error.message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "Não foi possível salvar o render na galeria.", code: "gallery_persist_failed" }, 500);
     if (error.message === "credit_already_refunded") return jsonResponse(cors, { message: "Esta operação já foi estornada e não pode ser reutilizada.", code: "credit_already_refunded" }, 409);
-    if (error.message === "provider_not_configured") return jsonResponse(cors, { message: "A conexão com a IA não está configurada nesta publicação.", code: "provider_not_configured" }, 500);
+    if (error.message === "provider_not_configured" || error.message === "PROVIDER_NOT_CONFIGURED") return jsonResponse(cors, { message: "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
     if (error.status === 400) return jsonResponse(cors, { message: error.message, code: "invalid_image_request" }, 400);
     if (error.status === 401) return jsonResponse(cors, { message: "A chave do serviço de IA não está configurada corretamente.", code: "provider_auth_error" }, 401);
     if (error.status === 402) return jsonResponse(cors, { message: error.message, code: "provider_credits_exhausted" }, 402);

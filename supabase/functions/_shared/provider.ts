@@ -2,6 +2,11 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 export type AIProvider = "lovable" | "gemini";
 
+export type ProviderAvailability = {
+  lovable: boolean;
+  gemini: boolean;
+};
+
 export type ProviderResolution = {
   primary: AIProvider;
   fallback: AIProvider | null;
@@ -9,20 +14,24 @@ export type ProviderResolution = {
 
 export function resolveProviderSelection(
   configured: string | undefined,
-  available: { lovable: boolean; gemini: boolean },
+  available: ProviderAvailability,
 ): ProviderResolution {
-  const ordered: AIProvider[] =
-    configured === "gemini"
-      ? ["gemini", "lovable"]
-      : configured === "lovable"
-        ? ["lovable", "gemini"]
-        : ["lovable", "gemini"];
+  const operational: AIProvider[] = [
+    ...(available.lovable ? ["lovable" as const] : []),
+    ...(available.gemini ? ["gemini" as const] : []),
+  ];
 
-  const eligible = ordered.filter(provider => available[provider]);
-  if (!eligible[0]) throw new Error("provider_not_configured");
+  if (operational.length === 0) throw new Error("PROVIDER_NOT_CONFIGURED");
+
+  if (configured === "lovable" || configured === "gemini") {
+    if (!available[configured]) throw new Error("PROVIDER_NOT_CONFIGURED");
+    const fallback = operational.find((provider) => provider !== configured) ?? null;
+    return { primary: configured, fallback };
+  }
+
   return {
-    primary: eligible[0],
-    fallback: eligible[1] ?? null,
+    primary: operational[0],
+    fallback: operational[1] ?? null,
   };
 }
 
@@ -41,6 +50,6 @@ export async function resolveProvider(userId: string): Promise<ProviderResolutio
 
   return resolveProviderSelection(data?.provider as string | undefined, {
     lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")),
-    gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY")),
+    gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY")),
   });
 }

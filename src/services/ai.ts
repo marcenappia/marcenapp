@@ -68,8 +68,9 @@ const normalizeAIError = (status: number, data: unknown): Error => {
   }
 };
 
-export const callAIFunction = async <T = unknown>(fn: string, body: unknown): Promise<T> => {
+export const callAIFunction = async <T = unknown>(fn: string, body: unknown, requestId?: string): Promise<T> => {
   const headers = await aiHeaders();
+  if (requestId) headers['x-request-id'] = requestId;
   let res: Response;
   try {
     res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
@@ -93,6 +94,9 @@ export const callAIImage = async (
   idempotencyKey = crypto.randomUUID(),
   persistence?: AIImagePersistence,
 ) => {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  console.debug(JSON.stringify({ stage: '[CLIENT_REQUEST]', status: 'started', durationMs: 0, provider: 'unresolved', requestId, renderId: idempotencyKey }));
   const normalizedImages = images?.map(img => {
     if (typeof img === 'string') {
       const raw = img.includes(',') ? img.split(',')[1] : img;
@@ -100,12 +104,13 @@ export const callAIImage = async (
     }
     return img;
   });
-  const data = await callAIFunction<{ imageUrl: string | null }>('ai-image', {
+  const data = await callAIFunction<{ imageUrl: string | null; provider?: string; requestId?: string; renderId?: string }>('ai-image', {
     prompt,
     images: normalizedImages,
     idempotencyKey,
     ...(persistence ? { persistGallery: persistence } : {}),
-  });
+  }, requestId);
+  console.debug(JSON.stringify({ stage: '[CLIENT_IMAGE]', status: data.imageUrl ? 'ok' : 'empty', durationMs: Date.now() - startedAt, provider: data.provider ?? 'unresolved', requestId: data.requestId ?? requestId, renderId: data.renderId ?? idempotencyKey }));
   return data.imageUrl ?? null;
 };
 
