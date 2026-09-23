@@ -49,8 +49,36 @@ async function enrichVisualPrompt(prompt: string, images: VisualReference[]): Pr
 async function recentProjectImages(ctx: ExecutionContext): Promise<VisualReference[]> {
   if (!ctx.projectId) return [];
   try {
-    const { data } = await db.from('chat_messages').select('image_url,created_at').eq('user_id', ctx.userId).eq('project_id', ctx.projectId).not('image_url', 'is', null).order('created_at', { ascending: false }).limit(8);
-    return (data ?? []).map((row) => { const url = typeof row.image_url === 'string' ? row.image_url : ''; if (!url) return null; const data = url.includes(',') ? url.split(',')[1] : url; return data ? { data, mimeType: url.startsWith('data:image/png') ? 'image/png' : 'image/jpeg', kind: 'environment' as const } : null; }).filter(Boolean) as VisualReference[];
+    const { data } = await db.from('chat_messages')
+      .select('image_url,metadata,created_at')
+      .eq('user_id', ctx.userId)
+      .eq('project_id', ctx.projectId)
+      .not('image_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(8);
+    const references: VisualReference[] = [];
+    for (const row of data ?? []) {
+      const url = typeof row.image_url === 'string' ? row.image_url : '';
+      if (url.startsWith('blob:')) continue;
+      if (url.startsWith('data:image/')) {
+        const payload = url.split(',')[1] ?? '';
+        if (payload) references.push({ data: payload, mimeType: url.startsWith('data:image/png') ? 'image/png' : url.startsWith('data:image/webp') ? 'image/webp' : 'image/jpeg', kind: 'environment' });
+        continue;
+      }
+      const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
+      const storagePath = typeof metadata.storagePath === 'string' ? metadata.storagePath : '';
+      if (!storagePath) continue;
+      const { data: signed } = await db.storage.from('obras').createSignedUrl(storagePath, 60 * 10);
+      if (!signed?.signedUrl) continue;
+      const response = await fetch(signed.signedUrl);
+      if (!response.ok) continue;
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunkSize, bytes.length)));
+      references.push({ data: btoa(binary), mimeType: storagePath.endsWith('.png') ? 'image/png' : storagePath.endsWith('.webp') ? 'image/webp' : 'image/jpeg', kind: 'environment' });
+    }
+    return references;
   } catch {
     return [];
   }
@@ -62,15 +90,8 @@ async function inferProjectStructureFromVisual(args: CreateProjetoArgs, ctx: Exe
   let image = ctx.lastImageBase ?? '';
   if (!image && ctx.projectId) {
     try {
-      const { data } = await db.from('chat_messages')
-        .select('image_url')
-        .eq('user_id', ctx.userId)
-        .eq('project_id', ctx.projectId)
-        .not('image_url', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      image = typeof data?.image_url === 'string' ? data.image_url : '';
+      const historical = await recentProjectImages(ctx);
+      image = historical[0]?.data ?? '';
     } catch {
       return {};
     }
