@@ -284,7 +284,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
     const images = spatialImages(ctx);
-    const architectureIntent = await resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
+    // Explicit render actions are already resolved by the IARA domain layer.\n    // Do not call the text planner here: a render request must go straight to\n    // gerarRender so a transient Gemini Text outage cannot block image generation.\n    const architectureIntent = iara?.action === 'render'\n      ? null\n      : await resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
     const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context);
     const architecturePending = architectureIntent?.missingSlots?.length ? { tool: architectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: architectureIntent.missingSlots.map(slot => slot.field), reason: architectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
