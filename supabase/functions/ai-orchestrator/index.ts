@@ -6,7 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_MODEL = "openai/gpt-5.5";
-const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_MODEL = Deno.env.get("GEMINI_TEXT_MODEL") ?? "gemini-3.7-flash";
 const VERCEL_GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 type Provider = "lovable" | "gemini" | "vercel";
 
@@ -36,7 +36,7 @@ const SYSTEM_INSTRUCTION = `Você é o orquestrador IARA OS da Marcenapp. Interp
 - Use o contexto da conversa para manter continuidade.
 - A IARA funciona por texto mesmo sem imagem.
 - Para criar projeto, use createProjeto quando nome e largura, altura e profundidade estiverem explicitamente informados na mensagem ou contexto imediato. Sem imagem também pode criar. Nunca invente dimensão.
-- Para gerarRender, texto é suficiente. Não bloqueie por falta de imagem.
+- Para gerarRender, a ferramenta real exige contexto visual. Se não houver imagem disponível, não invente uma; peça uma referência visual ou ambiente com foto.
 - Para materiais, ferragens, corte, estoque, produção, orçamento, documentos, pedido, montagem, instalação, checklist, entrega, revisão e conferência de medidas, use iaraSmartAction quando a intenção estiver clara.
 - Nunca invente medidas, preços, materiais, clientes ou condições.
 - Se faltar informação obrigatória, peça somente a informação faltante sem chamar ferramenta.
@@ -63,8 +63,8 @@ async function resolveProvider(userId: string): Promise<{ primary: Provider; fal
   const { data, error } = await admin.from("ai_provider_settings").select("provider").eq("user_id", userId).maybeSingle();
   if (error) throw new Error("provider_settings_unavailable");
   const configured = data?.provider as string | undefined;
-  const available = { lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")), gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY")), vercel: Boolean(Deno.env.get("AI_GATEWAY_API_KEY") && Deno.env.get("AI_GATEWAY_MODEL")) };
-  if (available.vercel) return { primary: "vercel", fallback: available.lovable ? "lovable" : (available.gemini ? "gemini" : null) };
+  const available = { lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")), gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") || Deno.env.get("GEMINI_API_KEY")), vercel: Boolean(Deno.env.get("AI_GATEWAY_API_KEY") && Deno.env.get("AI_GATEWAY_MODEL")) };
+  if (configured === "vercel" && available.vercel) return { primary: "vercel", fallback: available.lovable ? "lovable" : (available.gemini ? "gemini" : null) };
   if (configured === "lovable" && available.lovable) return { primary: "lovable", fallback: available.gemini ? "gemini" : null };
   if (configured === "gemini" && available.gemini) return { primary: "gemini", fallback: available.lovable ? "lovable" : null };
   return { primary: available.lovable ? "lovable" : "gemini", fallback: available.lovable && available.gemini ? "gemini" : null };
@@ -80,7 +80,7 @@ async function callVercel(userPrompt: string, contextBlock: string) {
   if (!response.ok) throw new Error(`provider_http:${response.status}`); return await response.json();
 }
 async function callGemini(userPrompt: string, contextBlock: string) {
-  const key = Deno.env.get("GOOGLE_GEMINI_API_KEY"); if (!key) throw new Error("provider_not_configured:gemini");
+  const key = Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY"); if (!key) throw new Error("provider_not_configured:gemini");
   const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }, contents: [{ role: "user", parts: [{ text: userPrompt + contextBlock }] }], tools: geminiTools(), toolConfig: { functionCallingConfig: { mode: "AUTO" } } }) });
   if (!response.ok) throw new Error(`provider_http:${response.status}`); return await response.json();
 }
