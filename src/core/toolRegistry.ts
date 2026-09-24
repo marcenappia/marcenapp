@@ -28,6 +28,24 @@ type OrcamentoData = { projetoId: string; nome: string; total: number; materiais
 type OperationalData = { projetoId: string; alertas: unknown[]; dados: Record<string, unknown> };
 type ContratoData = { cliente: string; valor: number | null; prazoDias: number | null; clausulasGeradas: number; clausulas: string[] };
 
+async function enrichVisualPrompt(prompt: string, images: VisualReference[]): Promise<string> {
+  if (!images.length) return prompt;
+  try {
+    const analysis = await callAIText([
+      'Você é o módulo de entendimento espacial do Marcenapp.',
+      'Analise as imagens anexadas como referências do MESMO projeto quando isso for plausível.',
+      'Identifique geometria do ambiente, paredes, vãos, portas, janelas, posição aproximada da câmera, direção da câmera, perspectiva, linhas de fuga, profundidade, proporções, elementos fixos e relações entre vistas.',
+      'Se houver várias vistas, reconcilie-as em uma única descrição espacial e não trate cada foto como ambientes diferentes sem evidência.',
+      'Não invente medidas. Marque medidas como medidas apenas quando visíveis; caso contrário use estimado/desconhecido.',
+      'Retorne somente JSON com spatialContext, camera e confidence.',
+      '{"spatialContext":{"rooms":[],"walls":[],"openings":[],"fixedElements":[],"relationships":[]},"camera":{"view":"","position":"","direction":"","perspective":"","vanishingPoints":"","preserveComposition":true},"confidence":0}',
+    ].join(' '), images.slice(0, 8).map((image) => ({ mimeType: image.mimeType || 'image/jpeg', data: image.data })), true);
+    return `${prompt}\n\nCONTEXTO ESPACIAL ANALISADO PELO MARCENAPP: ${analysis}\nPreserve a perspectiva/câmera da referência quando o pedido for de transformação do ambiente. Quando houver múltiplas vistas, use-as em conjunto para reconstruir o mesmo ambiente de forma coerente.`;
+  } catch {
+    return `${prompt}\n\nPreserve a perspectiva, composição e elementos fixos das imagens de referência. Quando houver múltiplas vistas, trate-as como referências do mesmo ambiente e mantenha coerência espacial.`;
+  }
+}
+
 async function recentProjectImages(ctx: ExecutionContext): Promise<VisualReference[]> {
   if (!ctx.projectId) return [];
   try {
