@@ -1,5 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('./spatialRuntime', () => ({
+  isSpatialAgent: (agentId: string) => ['vision', 'perspective', 'measurement', 'measurement_prediction', 'multiview', 'furniture_engineering', 'render'].includes(agentId),
+  executeSpatialAgent: vi.fn(async (agentId: string, task: { id: string; correlationId: string }) => ({
+    agentId,
+    taskId: task.id,
+    correlationId: task.correlationId,
+    status: 'completed',
+    data: { stage: agentId, modelBacked: true },
+    confidence: 1,
+    evidence: [],
+    warnings: [],
+    assumptions: [],
+  })),
+}));
+
 vi.mock('@/lib/production/versionFreeze', () => ({
   freezeProductionPackage: vi.fn(async ({ projectId, versionId, technicalPackage }) => ({
     ok: true as const,
