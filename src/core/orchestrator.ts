@@ -263,6 +263,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
   let plan: ToolCall[] = [];
   let summary = '';
   let provider: OrchestratorPlan['provider'];
+  let architectureIntent: Awaited<ReturnType<typeof resolveArchitectureIntent>> | null = null;
   try {
     const clarification = isClarificationPrompt(userPrompt);
     const structuredPending = lastPendingInput(context);
@@ -284,14 +285,14 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
     const images = spatialImages(ctx);
-    // Explicit render actions are already resolved by the IARA domain layer.\n    // Do not call the text planner here: a render request must go straight to\n    // gerarRender so a transient Gemini Text outage cannot block image generation.\n    const resolvedArchitectureIntent = iara?.action === 'render'\n      ? null\n      : await resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
+    // Explicit render actions are already resolved by the IARA domain layer.\n    // Do not call the text planner here: a render request must go straight to\n    // gerarRender so a transient Gemini Text outage cannot block image generation.\n    const architectureIntent = iara?.action === 'render'\n      ? null\n      : await resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
     const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
     const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context);
-    const architecturePending = resolvedArchitectureIntent?.missingSlots?.length ? { tool: resolvedArchitectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: resolvedArchitectureIntent.missingSlots.map(slot => slot.field), reason: resolvedArchitectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
+    const architecturePending = architectureIntent?.missingSlots?.length ? { tool: architectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: architectureIntent.missingSlots.map(slot => slot.field), reason: architectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
     const effectivePendingCreateProject = pendingCreateProject ?? (architecturePending?.tool === 'createProjeto' ? architecturePending : null);
-    const architectureProjectPlan: ToolCall[] = resolvedArchitectureIntent?.intent === 'create_projeto' && resolvedArchitectureIntent.missingSlots.length === 0 ? [{ tool: 'createProjeto', args: { ...resolvedArchitectureIntent.entities, confirmado: true } }] : [];
-    const architectureRenderPlan: ToolCall[] = resolvedArchitectureIntent?.intent === 'gerar_render' ? [{ tool: 'gerarRender', args: { prompt: String(resolvedArchitectureIntent.entities.prompt ?? effectiveUserPrompt), estilo: ctx.decorStyle } }] : [];
-    const architectureSmartPlan: ToolCall[] = resolvedArchitectureIntent?.intent === 'smart_action' ? [{ tool: 'iaraSmartAction', args: { ...resolvedArchitectureIntent.entities, projectId: ctx.projectId } }] : [];
+    const architectureProjectPlan: ToolCall[] = architectureIntent?.intent === 'create_projeto' && architectureIntent.missingSlots.length === 0 ? [{ tool: 'createProjeto', args: { ...architectureIntent.entities, confirmado: true } }] : [];
+    const architectureRenderPlan: ToolCall[] = architectureIntent?.intent === 'gerar_render' ? [{ tool: 'gerarRender', args: { prompt: String(architectureIntent.entities.prompt ?? effectiveUserPrompt), estilo: ctx.decorStyle } }] : [];
+    const architectureSmartPlan: ToolCall[] = architectureIntent?.intent === 'smart_action' ? [{ tool: 'iaraSmartAction', args: { ...architectureIntent.entities, projectId: ctx.projectId } }] : [];
     const deterministicProjectPlan: ToolCall[] = iara?.action === 'create_project' && iara.createProjectArgs ? [{ tool: 'createProjeto', args: iara.createProjectArgs }] : (architectureProjectPlan.length ? architectureProjectPlan : fastCreateProjectPlan);
     const deterministicRenderPlan: ToolCall[] = iara?.action === 'render' ? [{ tool: 'gerarRender', args: { prompt: effectiveUserPrompt, estilo: ctx.decorStyle } }] : [];
     const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: effectiveUserPrompt } }] : [];
