@@ -128,7 +128,7 @@ export const callAIText = async (prompt: string, images?: { mimeType: string; da
 export const callAIContractClause = async (prompt: string, idempotencyKey = crypto.randomUUID()) => {
   const data = await callAIFunction<{ id: string; text: string; model: string; operationType: string }>('commercial-contract', {
     prompt,
-    idempotencyKey: stableIdempotencyKey,
+    idempotencyKey,
   });
   return data;
 };
