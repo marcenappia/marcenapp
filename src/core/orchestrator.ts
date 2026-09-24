@@ -284,7 +284,10 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
     const images = spatialImages(ctx);
-    // Explicit render actions are already resolved by the IARA domain layer.\n    // Do not call the text planner here: a render request must go straight to\n    // gerarRender so a transient Gemini Text outage cannot block image generation.\n    const architectureIntentPromise = iara?.action === 'render'
+    // Explicit render actions are already resolved by the IARA domain layer.
+    // Do not call the text planner here: a render request must go straight to
+    // gerarRender so a transient Gemini Text outage cannot block image generation.
+    const architectureIntentPromise = iara?.action === 'render'
       ? Promise.resolve(null)
       : resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
     const architectureIntent = await architectureIntentPromise;
