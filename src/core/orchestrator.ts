@@ -263,7 +263,6 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
   let plan: ToolCall[] = [];
   let summary = '';
   let provider: OrchestratorPlan['provider'];
-  var architectureIntent: Awaited<ReturnType<typeof resolveArchitectureIntent>> | null = null;
   try {
     const clarification = isClarificationPrompt(userPrompt);
     const structuredPending = lastPendingInput(context);
@@ -285,7 +284,10 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const iara = context?.iara as { action?: string; createProjectArgs?: Record<string, unknown> } | undefined;
     const smartAction = smartActionFor(iara?.action);
     const images = spatialImages(ctx);
-    // Explicit render actions are already resolved by the IARA domain layer.\n    // Do not call the text planner here: a render request must go straight to\n    // gerarRender so a transient Gemini Text outage cannot block image generation.\n    architectureIntent = iara?.action === 'render'\n      ? null\n      : await resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
+    // Explicit render actions are already resolved by the IARA domain layer.\n    // Do not call the text planner here: a render request must go straight to\n    // gerarRender so a transient Gemini Text outage cannot block image generation.\n    const architectureIntentPromise = iara?.action === 'render'
+      ? Promise.resolve(null)
+      : resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
+    const architectureIntent = await architectureIntentPromise;
     const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
     const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context);
     const architecturePending = architectureIntent?.missingSlots?.length ? { tool: architectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: architectureIntent.missingSlots.map(slot => slot.field), reason: architectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
