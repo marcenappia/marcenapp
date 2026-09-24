@@ -56,7 +56,7 @@ async function verifyGitHubActionsToken(request: Request): Promise<GitHubClaims>
   if (claims.repository !== EXPECTED_REPOSITORY) throw new Error('invalid_repository');
   if (claims.ref !== EXPECTED_REF) throw new Error('invalid_ref');
   if (claims.workflow && !EXPECTED_WORKFLOWS.has(claims.workflow)) throw new Error('invalid_workflow');
-  if (claims.event_name && !['deployment_status', 'workflow_dispatch'].includes(claims.event_name)) {
+  if (claims.event_name && !['deployment_status', 'workflow_dispatch', 'schedule'].includes(claims.event_name)) {
     throw new Error('invalid_event');
   }
   return claims;
