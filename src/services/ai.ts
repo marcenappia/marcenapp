@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 type AIImageInput = string | { mimeType: string; data: string };
 type AIErrorBody = { error?: string; message?: string; code?: string };
+type AIImageResponse = { imageBase64?: string | null; imageUrl?: string | null; provider?: string; model?: string; requestId?: string; renderId?: string };
 
 export interface AIImagePersistence {
   projectId?: string | null;
@@ -104,14 +105,18 @@ export const callAIImage = async (
     }
     return img;
   });
-  const data = await callAIFunction<{ imageUrl: string | null; provider?: string; requestId?: string; renderId?: string }>('ai-image', {
+  const data = await callAIFunction<AIImageResponse>('ai-image', {
     prompt,
     images: normalizedImages,
     idempotencyKey,
     ...(persistence ? { persistGallery: persistence } : {}),
   }, requestId);
-  console.debug(JSON.stringify({ stage: '[CLIENT_IMAGE]', status: data.imageUrl ? 'ok' : 'empty', durationMs: Date.now() - startedAt, provider: data.provider ?? 'unresolved', requestId: data.requestId ?? requestId, renderId: data.renderId ?? idempotencyKey }));
-  return data.imageUrl ?? null;
+  const image = data.imageBase64 ?? data.imageUrl ?? null;
+  if (!image || (!image.startsWith('data:image/') && !/^https:\/\//i.test(image))) {
+    throw new Error('O serviço de IA não retornou uma imagem válida.');
+  }
+  console.info('[FRONTEND_RECEIVED]', JSON.stringify({ status: 'success', durationMs: Date.now() - startedAt, provider: data.provider ?? 'unresolved', model: data.model ?? 'unresolved', requestId: data.requestId ?? requestId, renderId: data.renderId ?? idempotencyKey }));
+  return image;
 };
 
 export const callAIText = async (prompt: string, images?: { mimeType: string; data: string }[], jsonMode = false) => {
