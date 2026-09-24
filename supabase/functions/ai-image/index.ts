@@ -254,7 +254,10 @@ serve(async request => {
     }
     creditConsumed = true;
     const resolution = await resolveProvider(guard.userId);
-    const providers: AIProvider[] = [resolution.primary];
+    const providers: AIProvider[] = [
+      resolution.primary,
+      ...(resolution.fallback && resolution.fallback !== resolution.primary ? [resolution.fallback] : []),
+    ];
     let imageBase64 = "";
     let usedProvider: AIProvider | null = null;
     let usedModel = "";
