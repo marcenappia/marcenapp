@@ -76,7 +76,11 @@ async function readBufferedImage(response: Response): Promise<string> {
     data?: Array<{ b64_json?: string; url?: string }>;
   } | null;
   const image = body?.data?.[0];
-  if (image?.b64_json) return `data:image/png;base64,${image.b64_json}`;
+  if (image?.b64_json) {
+    const value = image.b64_json.trim();
+    if (!value) throw new Error("empty_image_result");
+    return value.startsWith("data:image/") ? value : `data:image/png;base64,${value}`;
+  }
   if (image?.url) {
     const imageResponse = await fetch(image.url);
     if (!imageResponse.ok) throw new Error(`provider_image_download:${imageResponse.status}`);
@@ -216,6 +220,7 @@ serve(async request => {
   const guard = await guardRequest(request, cors, { fn: "ai-image", limit: 10, windowSeconds: 60 });
   if (!guard.ok) return guard.response;
   let creditConsumed = false;
+  let imageGenerated = false;
   let idempotencyKey = "";
   try {
     const body = await readJsonBody(request, MAX_BODY_BYTES);
@@ -224,6 +229,7 @@ serve(async request => {
     if (!parsed.success) return jsonResponse(cors, { message: "Dados inválidos.", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
     const { prompt, images = [], size, persistGallery } = parsed.data;
     idempotencyKey = parsed.data.idempotencyKey;
+    console.info("[AI_IMAGE_START]", JSON.stringify({ status: "started", requestId: idempotencyKey, renderId: idempotencyKey, referenceCount: images.length }));
     const wordCount = prompt.split(/\s+/).filter(Boolean).length;
     if (wordCount > MAX_PROMPT_WORDS) return jsonResponse(cors, { message: "O pedido é muito longo.", code: "validation_error" }, 400);
     const width = size?.width ?? size?.height ?? DEFAULT_DIM;
@@ -250,6 +256,8 @@ serve(async request => {
     const resolution = await resolveProvider(guard.userId);
     const providers: AIProvider[] = [resolution.primary];
     let imageBase64 = "";
+    let usedProvider: AIProvider | null = null;
+    let usedModel = "";
     let lastProviderError: unknown = null;
 
     for (const provider of providers) {
@@ -268,6 +276,9 @@ serve(async request => {
           renderId: idempotencyKey,
         }));
         imageBase64 = await generateImage(provider, prompt, images, size);
+        imageGenerated = true;
+        usedProvider = provider;
+        usedModel = provider === "gemini" ? GEMINI_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
         console.info("[UPSTREAM_RESPONSE]", JSON.stringify({
           status: "success",
           provider,
@@ -300,48 +311,48 @@ serve(async request => {
       throw lastProviderError instanceof Error ? lastProviderError : new Error("provider_not_configured");
     }
 
+    let persisted = false;
     if (persistGallery) {
-      const { data: context, error: contextError } = await admin
-        .from("project_iara_contexts")
-        .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
-        .eq("user_id", guard.userId)
-        .eq("project_id", persistGallery.projectId ?? "")
-        .limit(1)
-        .maybeSingle();
+      try {
+        const { data: context, error: contextError } = await admin
+          .from("project_iara_contexts")
+          .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
+          .eq("user_id", guard.userId)
+          .eq("project_id", persistGallery.projectId ?? "")
+          .limit(1)
+          .maybeSingle();
 
-      if (contextError) throw new Error("iara_context_read_failed");
-      const contextMatches =
-        !!context &&
-        context.environment_id === (persistGallery.environmentId ?? null) &&
-        context.version_id === (persistGallery.versionId ?? null) &&
-        (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
-        (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
+        if (contextError) throw new Error("iara_context_read_failed");
+        const contextMatches =
+          !!context &&
+          context.environment_id === (persistGallery.environmentId ?? null) &&
+          context.version_id === (persistGallery.versionId ?? null) &&
+          (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
+          (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
+        if (!contextMatches) throw new Error("stale_execution_context");
 
-      if (!contextMatches) throw new Error("stale_execution_context");
-
-      const { error: galleryError } = await admin.from("gallery_images").insert({
-        user_id: guard.userId,
-        image_url: imageBase64,
-        prompt,
-        project_id: persistGallery.projectId ?? null,
-        environment_id: persistGallery.environmentId ?? null,
-        version_id: persistGallery.versionId ?? null,
-        correlation_id: persistGallery.correlationId ?? null,
-        execution_generation: persistGallery.generation ?? null,
-      });
-      if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
-      console.info("[LEDGER_WRITE]", JSON.stringify({
-        status: "success",
-        provider: providers[0],
-        requestId: idempotencyKey,
-        renderId: idempotencyKey,
-      }));
+        const { error: galleryError } = await admin.from("gallery_images").insert({
+          user_id: guard.userId,
+          image_url: imageBase64,
+          prompt,
+          project_id: persistGallery.projectId ?? null,
+          environment_id: persistGallery.environmentId ?? null,
+          version_id: persistGallery.versionId ?? null,
+          correlation_id: persistGallery.correlationId ?? null,
+          execution_generation: persistGallery.generation ?? null,
+        });
+        if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
+        persisted = true;
+        console.info("[DATABASE_WRITE]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, requestId: idempotencyKey, renderId: idempotencyKey }));
+      } catch (persistenceError) {
+        console.error("[DATABASE_WRITE]", JSON.stringify({ status: "error", provider: usedProvider, model: usedModel, requestId: idempotencyKey, renderId: idempotencyKey, error: persistenceError instanceof Error ? persistenceError.message : String(persistenceError) }));
+      }
     }
 
-    const provider = providers[0];
-    return jsonResponse(cors, { imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: provider === "gemini" ? GEMINI_IMAGE_MODEL : LOVABLE_IMAGE_MODEL, provider, requestId: idempotencyKey, renderId: idempotencyKey, creditConsumption: Array.isArray(data) ? data[0] : data, persisted: !!persistGallery, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
+    console.info("[IMAGE_RETURN]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, persisted, requestId: idempotencyKey, renderId: idempotencyKey }));
+    return jsonResponse(cors, { imageBase64, imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: usedModel, provider: usedProvider, requestId: idempotencyKey, renderId: idempotencyKey, creditConsumption: Array.isArray(data) ? data[0] : data, persisted, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
-    if (creditConsumed && idempotencyKey) await refund(guard.userId, idempotencyKey).catch(error => console.error("ai-image refund error", error));
+    if (creditConsumed && !imageGenerated && idempotencyKey) await refund(guard.userId, idempotencyKey).catch(error => console.error("ai-image refund error", error));
     const error = caught as GatewayError;
     console.error("ai-image error", error.message);
     if (error.message === "stale_execution_context") return jsonResponse(cors, { message: "A execução do render ficou desatualizada antes da persistência.", code: "stale_execution_context" }, 409);

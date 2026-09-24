@@ -96,6 +96,7 @@ export const StudioWorker = () => {
     if (osCommand.status === 'cancelled' || !user) { currentlyProcessing.current = null; return; }
     if (currentlyProcessing.current && currentlyProcessing.current !== osCommand.id) return;
     currentlyProcessing.current = osCommand.id;
+    console.info('[IARA_START]', JSON.stringify({ status: 'started', commandId: osCommand.id }));
     const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
     const { command, studioCommandId } = resolveRenderCommand(osCommand);
     const storeCommandId = studioCommandId ?? osCommand.id;
@@ -114,6 +115,7 @@ export const StudioWorker = () => {
     }
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
+    console.info('[GENERAR_RENDER]', JSON.stringify({ status: 'processing', commandId: osCommand.id, studioCommandId: storeCommandId, referenceCount: Array.isArray(command.images) ? command.images.length : 0 }));
     try {
       const result = await studioService.generateVisual(
         command.prompt,
@@ -139,6 +141,7 @@ export const StudioWorker = () => {
       }
       completeCommand(storeCommandId, result);
       updateOSStatus(osCommand.id, 'completed', { resultUrl: result });
+      console.info('[IMAGE_RENDERED]', JSON.stringify({ status: 'success', commandId: osCommand.id, studioCommandId: storeCommandId }));
 
     } catch (error: unknown) {
       console.error('StudioWorker Error:', error);

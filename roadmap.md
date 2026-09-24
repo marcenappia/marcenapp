@@ -26,6 +26,7 @@ Fases 1–3 técnicas: ver `.lovable/plan/auditoria-técnica-completa-marcenapp-
 - [x] Atualizar `ai-image` para o contrato atual do Lovable AI Gateway
 - [x] Recuperar conclusões assíncronas após remontagem/reload e publicar uma única mensagem final
 - [ ] Validar testes, qualidade, deploy e uma geração real com evidências
+- [x] Não perder imagem válida quando a persistência de galeria/contexto falhar
 
 ## Gerações IARA, cobrança e publicação real — em andamento
 - [ ] Criar tela de gerações com histórico, imagem, contexto e status

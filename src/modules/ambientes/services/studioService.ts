@@ -29,7 +29,8 @@ export const studioService = {
     const finalPrompt = `ACT AS AN EXPERT ARCHITECTURAL VISUALIZER.\n      Style: ${stylePrompt || 'Photorealistic'}.\n      Decor: ${decorPrompt || 'Modern'}.\n      Instructions: ${prompt}.\n      Maximum realism, 8k.`;
     const processedImages = normalizeImages(images);
     const normalizedKey = normalizeIdempotencyKey(idempotencyKey);
-    return await callAIImage(finalPrompt, processedImages, normalizedKey as Parameters<typeof callAIImage>[2], persistence);
+    console.info('[AI_IMAGE_START]', JSON.stringify({ status: 'started', referenceCount: processedImages?.length ?? 0, renderId: normalizedKey ?? 'generated' }));
+    return await callAIImage(finalPrompt, processedImages, normalizedKey, persistence);
   },
 
   refineVisual: async (originalImage: string, instructions: string): Promise<string | null> => {
