@@ -152,7 +152,7 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
           { prompt, estilo: ctx.decorStyle },
           { ...ctx, projectId: project.id, environmentId },
         );
-        if (!renderResult.ok) return renderResult;
+        if (!renderResult.ok) return { ok: false, error: renderResult.error };
         studioCommandId = renderResult.data.studioCommandId;
       }
     } catch (e) {
