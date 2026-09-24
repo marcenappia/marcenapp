@@ -1,5 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/services/ai', () => ({
+  callAIText: vi.fn(async () => JSON.stringify({
+    summary: 'mock visual analysis',
+    findings: {},
+    confidence: 0.95,
+    warnings: [],
+    assumptions: [],
+    evidence: [{ source: 'test', value: 'mock' }],
+  })),
+}));
+
 vi.mock('@/lib/production/versionFreeze', () => ({
   freezeProductionPackage: vi.fn(async ({ projectId, versionId, technicalPackage }) => ({
     ok: true as const,
@@ -21,7 +32,7 @@ import { runProjectJourney } from './orchestrator';
 
 const baseInput = {
   name: 'Cliente', clientId: 'client-1', workName: 'Cozinha', projectId: 'project-1', userId: 'user-1', versionId: 'version-1',
-  photoUrl: 'photo.jpg', measurements: { width: 3000 },
+  photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'dGVzdA==' }], measurements: { width: 3000 },
   parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
   materials: [{ code: 'MDF-18', quantity: 2 }],
   sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],

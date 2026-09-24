@@ -74,7 +74,7 @@ describe('gerarRender tool', () => {
   it('dispatches correlation, generation and idempotency to the global Studio worker', async () => {
     const { executeToolCall } = await import('@/core/toolRegistry');
     const result = await executeToolCall('gerarRender', { prompt: 'Cozinha planejada' }, {
-      userId: 'user-a', projectId: 'project-a', correlationId: 'correlation-a', generation: 3,
+      userId: 'user-a', projectId: 'project-a', correlationId: 'correlation-a', generation: 3, lastImageBase: 'base64-image',
     });
     expect(result.ok).toBe(true);
     expect(dispatchCommand).toHaveBeenCalledWith(expect.objectContaining({

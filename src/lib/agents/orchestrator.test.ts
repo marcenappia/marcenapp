@@ -1,5 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/services/ai', () => ({
+  callAIText: vi.fn(async () => JSON.stringify({
+    summary: 'mock visual analysis',
+    findings: {},
+    confidence: 0.95,
+    warnings: [],
+    assumptions: [],
+    evidence: [{ source: 'test', value: 'mock' }],
+  })),
+}));
+
 vi.mock('@/lib/production/versionFreeze', () => ({
   freezeProductionPackage: vi.fn(async ({ projectId, versionId, technicalPackage }) => ({
     ok: true as const,
@@ -33,9 +44,9 @@ describe('MARCENAPP agents', () => {
     const result = await runAgentPlan([
       { id: 'customer', agentId: 'customer', type: 'validate', input: { name: 'Cliente' } },
       { id: 'project', agentId: 'project', type: 'prepare', input: { clientId: '1', workName: 'Cozinha' } },
-      { id: 'vision', agentId: 'vision', type: 'analyze', input: { photoUrl: 'photo.jpg' } },
-      { id: 'perspective', agentId: 'perspective', type: 'analyze', input: { photoUrl: 'photo.jpg' } },
-      { id: 'measurement', agentId: 'measurement', type: 'validate', input: { photoUrl: 'photo.jpg' } },
+      { id: 'vision', agentId: 'vision', type: 'analyze', input: { photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'dGVzdA==' }] } },
+      { id: 'perspective', agentId: 'perspective', type: 'analyze', input: { photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'dGVzdA==' }] } },
+      { id: 'measurement', agentId: 'measurement', type: 'validate', input: { photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'dGVzdA==' }] } },
     ]);
     expect(result.status).toBe('completed');
     expect(result.results).toHaveLength(5);
@@ -106,7 +117,7 @@ describe('MARCENAPP agents', () => {
   it('aguarda a decisão do cliente e não libera a fabricação sem aprovação', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', measurements: { width: 3000 },
+      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'dGVzdA==' }], measurements: { width: 3000 },
       parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       materials: [{ code: 'MDF-18', quantity: 2 }],
       sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
@@ -125,7 +136,7 @@ describe('MARCENAPP agents', () => {
   it('retorna para revisão quando o cliente solicita alteração', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', measurements: { width: 3000 },
+      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'dGVzdA==' }], measurements: { width: 3000 },
       parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
       projectId: 'project-1', versionId: 'review-version-test', userId: 'user-test',
@@ -142,7 +153,7 @@ describe('MARCENAPP agents', () => {
   it('executa a jornada completa quando o cliente aprovou a versão', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', measurements: { width: 3000 },
+      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'dGVzdA==' }], measurements: { width: 3000 },
       parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       materials: [{ code: 'MDF-18', quantity: 2 }],
       sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
