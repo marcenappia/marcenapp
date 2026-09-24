@@ -158,7 +158,7 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
           studioCommandId = renderResult.data.studioCommandId;
         } else {
           renderStatus = 'failed';
-          renderError = renderResult.error;
+          renderError = 'error' in renderResult ? renderResult.error : 'Falha ao enfileirar a visualização inicial.';
         }
       }
     } catch (e) {
