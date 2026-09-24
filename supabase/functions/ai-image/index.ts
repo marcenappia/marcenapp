@@ -240,6 +240,25 @@ serve(async request => {
     if (!url || !key) return jsonResponse(cors, { message: "Configuração do servidor incompleta.", code: "server_config_incomplete" }, 500);
     const { createClient } = await import("npm:@supabase/supabase-js@2");
     const admin = createClient(url, key, { auth: { persistSession: false } });
+    if (persistGallery?.projectId && persistGallery.correlationId && persistGallery.generation != null) {
+      let replayQuery = admin
+        .from("gallery_images")
+        .select("image_url")
+        .eq("user_id", guard.userId)
+        .eq("project_id", persistGallery.projectId)
+        .eq("correlation_id", persistGallery.correlationId)
+        .eq("execution_generation", persistGallery.generation)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (persistGallery.environmentId) replayQuery = replayQuery.eq("environment_id", persistGallery.environmentId);
+      if (persistGallery.versionId) replayQuery = replayQuery.eq("version_id", persistGallery.versionId);
+      const { data: replay, error: replayError } = await replayQuery.maybeSingle();
+      if (replayError) throw new Error("render_idempotency_lookup_failed");
+      if (typeof replay?.image_url === "string" && replay.image_url) {
+        console.info("[IDEMPOTENT_RENDER_REPLAY]", JSON.stringify({ status: "reused", requestId: idempotencyKey, renderId: idempotencyKey }));
+        return jsonResponse(cors, { imageBase64: replay.image_url, imageUrl: replay.image_url, operationType: OPERATION_TYPE, requestId: idempotencyKey, renderId: idempotencyKey, persisted: true, reused: true });
+      }
+    }
     const consumed = await admin.rpc("consume_billing_credit", { p_user_id: guard.userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
     if (consumed.error) {
       const missing = consumed.error.message.includes("commercial_rule_missing");
@@ -357,6 +376,7 @@ serve(async request => {
     console.error("ai-image error", error.message);
     if (error.message === "stale_execution_context") return jsonResponse(cors, { message: "A execução do render ficou desatualizada antes da persistência.", code: "stale_execution_context" }, 409);
     if (error.message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed" }, 500);
+    if (error.message === "render_idempotency_lookup_failed") return jsonResponse(cors, { message: "Não foi possível validar se este render já foi concluído.", code: "render_idempotency_lookup_failed" }, 500);
     if (error.message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "Não foi possível salvar o render na galeria.", code: "gallery_persist_failed" }, 500);
     if (error.message === "credit_already_refunded") return jsonResponse(cors, { message: "Esta operação já foi estornada e não pode ser reutilizada.", code: "credit_already_refunded" }, 409);
     if (error.message === "provider_not_configured" || error.message === "PROVIDER_NOT_CONFIGURED") return jsonResponse(cors, { message: "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
