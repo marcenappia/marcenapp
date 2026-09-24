@@ -19,9 +19,21 @@ import { agents, getAgent } from './registry';
 import { createDomainIntent, domainAgents, domainAgentRegistry, parseCreateProjectInput, resolveDomain, runDomainPlan } from './domain';
 import { runProjectJourney } from './orchestrator';
 
+const { callAIText } = vi.hoisted(() => ({
+  callAIText: vi.fn(async () => JSON.stringify({
+    summary: 'Ambiente identificado.',
+    findings: { walls: [{ reference: 'parede da direita' }] },
+    confidence: 0.9,
+    warnings: [],
+    assumptions: [],
+    evidence: [{ source: 'vision', value: 'parede da direita' }],
+  })),
+}));
+vi.mock('@/services/ai', () => ({ callAIText }));
+
 const baseInput = {
   name: 'Cliente', clientId: 'client-1', workName: 'Cozinha', projectId: 'project-1', userId: 'user-1', versionId: 'version-1',
-  photoUrl: 'photo.jpg', measurements: { width: 3000 },
+  photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }], measurements: { width: 3000 },
   parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
   materials: [{ code: 'MDF-18', quantity: 2 }],
   sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
