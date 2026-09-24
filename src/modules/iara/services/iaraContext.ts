@@ -32,11 +32,18 @@ export function isIaraContextCompatible(expected: Pick<IaraContext, 'projectId' 
 
 export async function loadIaraContext(userId: string, projectId: string | null): Promise<IaraContext> {
   if (!projectId) return emptyIaraContext;
-  const [{ data: project }, { data: environments }, { data: persisted }] = await Promise.all([
+  const [
+    { data: project, error: projectError },
+    { data: environments, error: environmentsError },
+    { data: persisted, error: persistedError },
+  ] = await Promise.all([
     supabase.from('projects').select('id,nome,name,cliente_id,clientes(nome)').eq('user_id', userId).eq('id', projectId).maybeSingle(),
     supabase.from('project_environments').select('id,project_id,name,position').eq('project_id', projectId).order('position', { ascending: true }),
     supabase.from('project_iara_contexts').select('id,client_id,project_id,environment_id,version_id').eq('user_id', userId).eq('project_id', projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
+  if (projectError) throw new Error(`Falha ao carregar o projeto da IARA: ${projectError.message}`);
+  if (environmentsError) throw new Error(`Falha ao carregar os ambientes da IARA: ${environmentsError.message}`);
+  if (persistedError) throw new Error(`Falha ao carregar o contexto persistente da IARA: ${persistedError.message}`);
   if (!project) return { ...emptyIaraContext, projectId };
 
   const projectRow = project as unknown as {
@@ -51,7 +58,8 @@ export async function loadIaraContext(userId: string, projectId: string | null):
   const environment = environments?.find(item => item.id === environmentId) ?? environments?.[0] ?? null;
   let version: { id: string; version_number: number; environment_id: string } | null = null;
   if (environment?.id) {
-    const { data } = await supabase.from('project_versions').select('id,version_number,environment_id').eq('user_id', userId).eq('project_id', projectId).eq('environment_id', environment.id).order('version_number', { ascending: false });
+    const { data, error: versionsError } = await supabase.from('project_versions').select('id,version_number,environment_id').eq('user_id', userId).eq('project_id', projectId).eq('environment_id', environment.id).order('version_number', { ascending: false });
+    if (versionsError) throw new Error(`Falha ao carregar as versões da IARA: ${versionsError.message}`);
     version = (data?.find(item => item.id === persisted?.version_id) ?? data?.[0] ?? null) as typeof version;
   }
 
