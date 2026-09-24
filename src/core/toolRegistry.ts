@@ -21,7 +21,7 @@ type CalcularOrcamentoArgs = { projetoId?: string };
 type OperationalArgs = { projetoId?: string };
 type GerarContratoArgs = { clienteNome: string; valor?: number; prazoDias?: number; clausulasExtras?: string[] };
 type ClienteData = { id: string; nome: string };
-type ProjetoData = { id: string; nome: string; width: number; height: number; depth: number; doors?: number; drawers?: number; modules?: number; environmentId?: string; studioCommandId?: string; };
+type ProjetoData = { id: string; nome: string; width: number; height: number; depth: number; doors?: number; drawers?: number; modules?: number; environmentId?: string; studioCommandId?: string; renderStatus?: 'queued' | 'failed'; renderError?: string; };
 type RenderData = { studioCommandId?: string; status: string; imageUrl?: string };
 type PlanData = { planId: string; analysisId: string; studioCommandId: string; status: string; environmentCount: number };
 type OrcamentoData = { projetoId: string; nome: string; total: number; materiais: number; ferragens: number; maoDeObra: number; outros: number; precoVenda: number; lucro: number; margemPct: number; isEstimate: false };
@@ -129,6 +129,8 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
   const project = data as ProjetoData;
   let environmentId: string | undefined;
   let studioCommandId: string | undefined;
+  let renderStatus: ProjetoData['renderStatus'];
+  let renderError: string | undefined;
 
   if (ctx.lastImageBase) {
     try {
@@ -152,15 +154,19 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
           { prompt, estilo: ctx.decorStyle },
           { ...ctx, projectId: project.id, environmentId },
         );
-        if (!renderResult.ok) return renderResult;
-        studioCommandId = renderResult.data.studioCommandId;
+        if (renderResult.ok) {
+          studioCommandId = renderResult.data.studioCommandId;
+        } else {
+          renderStatus = 'failed';
+          renderError = renderResult.error;
+        }
       }
     } catch (e) {
       return { ok: false, error: `Projeto criado, mas não foi possível vincular a foto e gerar a visualização inicial: ${e instanceof Error ? e.message : 'erro desconhecido'}` };
     }
   }
 
-  return { ok: true, data: { ...project, environmentId, studioCommandId } };
+  return { ok: true, data: { ...project, environmentId, studioCommandId, ...(renderStatus ? { renderStatus } : {}), ...(renderError ? { renderError } : {}) } };
 }};
 
 const gerarRender: ToolDefinition<GerarRenderArgs, RenderData> = { name: 'gerarRender', description: 'Gera visual no Estúdio somente a partir de uma referência visual enviada ou do ambiente atual do projeto. Geração somente por texto está desativada por enquanto.', version: '1.8.0', inputSchema: z.object({ prompt: z.string().min(1), estilo: z.string().optional() }), async execute(args, ctx) { if (!ctx.correlationId || typeof ctx.generation !== 'number') return { ok: false, error: 'Identidade de execução incompleta para gerar o render.' }; const estilo = args.estilo || ctx.decorStyle || 'Limpo'; const recentImages = await recentProjectImages(ctx); const referenceImages = [...(ctx.referenceImages ?? []), ...recentImages].filter((image, index, all) => image.data && all.findIndex((item) => item.data === image.data) === index).slice(0, 8); if (ctx.lastImageBase && !referenceImages.some((image) => image.data === ctx.lastImageBase)) referenceImages.unshift({ data: ctx.lastImageBase, mimeType: 'image/jpeg', kind: 'environment', label: 'imagem principal' }); const images: VisualReference[] = [...referenceImages]; if (ctx.lastImageMask) images.push({ data: ctx.lastImageMask, mimeType: 'image/png', kind: 'sketch', label: 'máscara' }); if (!images.length) return { ok: false, error: 'Para gerar um render, envie uma imagem de referência ou selecione um ambiente com imagem no projeto.' }; const enrichedPrompt = args.prompt; const idempotencyKey = ctx.correlationId; const studioImages = images.slice(0, 8).map((image) => ({ mimeType: image.mimeType || 'image/jpeg', data: image.data })); console.info('[GENERAR_RENDER]', JSON.stringify({ status: 'queued', correlationId: ctx.correlationId, generation: ctx.generation, referenceCount: studioImages.length })); const id = useStudioStore.getState().enqueueCommand({ prompt: `MARCENAPP IARA OS: móvel estilo ${estilo}. ${enrichedPrompt}`, images: studioImages.length ? studioImages : undefined, decor: estilo, idempotencyKey, metadata: { origin: 'iara', originalPrompt: args.prompt, targetModule: 'studio', referenceCount: studioImages.length } }); useMarcenappOS.getState().dispatchCommand({ source: 'iara', target: 'studio', action: 'GENERATE_VISUAL', idempotencyKey, payload: { prompt: enrichedPrompt, estilo, studioCommandId: id, idempotencyKey, userId: ctx.userId, ...(ctx.projectId ? { projectId: ctx.projectId } : {}), ...(ctx.environmentId ? { environmentId: ctx.environmentId } : {}), ...(ctx.versionId ? { versionId: ctx.versionId } : {}), correlationId: ctx.correlationId, generation: ctx.generation } }); return { ok: true, data: { studioCommandId: id, status: 'queued' } }; } };
