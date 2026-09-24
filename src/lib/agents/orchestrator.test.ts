@@ -1,17 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('./spatialRuntime', () => ({
-  isSpatialAgent: (agentId: string) => ['vision', 'perspective', 'measurement', 'measurement_prediction', 'multiview', 'furniture_engineering', 'render'].includes(agentId),
-  executeSpatialAgent: vi.fn(async (agentId: string, task: { id: string; correlationId: string }) => ({
-    agentId,
-    taskId: task.id,
-    correlationId: task.correlationId,
-    status: 'completed',
-    data: { stage: agentId, modelBacked: true },
-    confidence: 1,
-    evidence: [],
+vi.mock('@/services/ai', () => ({
+  callAIText: vi.fn(async () => JSON.stringify({
+    summary: 'mock visual analysis',
+    findings: {},
+    confidence: 0.95,
     warnings: [],
     assumptions: [],
+    evidence: [{ source: 'test', value: 'mock' }],
   })),
 }));
 
@@ -121,7 +117,7 @@ describe('MARCENAPP agents', () => {
   it('aguarda a decisão do cliente e não libera a fabricação sem aprovação', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', measurements: { width: 3000 },
+      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'dGVzdA==' }], measurements: { width: 3000 },
       parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       materials: [{ code: 'MDF-18', quantity: 2 }],
       sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
@@ -140,7 +136,7 @@ describe('MARCENAPP agents', () => {
   it('retorna para revisão quando o cliente solicita alteração', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', measurements: { width: 3000 },
+      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'dGVzdA==' }], measurements: { width: 3000 },
       parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
       projectId: 'project-1', versionId: 'review-version-test', userId: 'user-test',
