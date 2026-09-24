@@ -18,6 +18,18 @@ vi.mock('@/lib/production/versionFreeze', () => ({
 import { agents, getAgent } from './registry';
 import { runAgentPlan, runProjectJourney } from './orchestrator';
 
+const { callAIText } = vi.hoisted(() => ({
+  callAIText: vi.fn(async () => JSON.stringify({
+    summary: 'Ambiente identificado.',
+    findings: { walls: [{ reference: 'parede da direita' }] },
+    confidence: 0.9,
+    warnings: [],
+    assumptions: [],
+    evidence: [{ source: 'vision', value: 'parede da direita' }],
+  })),
+}));
+vi.mock('@/services/ai', () => ({ callAIText }));
+
 describe('MARCENAPP agents', () => {
   it('registra todos os especialistas da jornada comercial', () => {
     expect(agents).toHaveLength(20);
@@ -33,9 +45,9 @@ describe('MARCENAPP agents', () => {
     const result = await runAgentPlan([
       { id: 'customer', agentId: 'customer', type: 'validate', input: { name: 'Cliente' } },
       { id: 'project', agentId: 'project', type: 'prepare', input: { clientId: '1', workName: 'Cozinha' } },
-      { id: 'vision', agentId: 'vision', type: 'analyze', input: { photoUrl: 'photo.jpg' } },
-      { id: 'perspective', agentId: 'perspective', type: 'analyze', input: { photoUrl: 'photo.jpg' } },
-      { id: 'measurement', agentId: 'measurement', type: 'validate', input: { photoUrl: 'photo.jpg' } },
+      { id: 'vision', agentId: 'vision', type: 'analyze', input: { photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }] } },
+      { id: 'perspective', agentId: 'perspective', type: 'analyze', input: { photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }] } },
+      { id: 'measurement', agentId: 'measurement', type: 'validate', input: { photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }] } },
     ]);
     expect(result.status).toBe('completed');
     expect(result.results).toHaveLength(5);
@@ -106,7 +118,7 @@ describe('MARCENAPP agents', () => {
   it('aguarda a decisão do cliente e não libera a fabricação sem aprovação', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', measurements: { width: 3000 },
+      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }], measurements: { width: 3000 },
       parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       materials: [{ code: 'MDF-18', quantity: 2 }],
       sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
