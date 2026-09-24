@@ -152,7 +152,10 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
           { prompt, estilo: ctx.decorStyle },
           { ...ctx, projectId: project.id, environmentId },
         );
-        if (!renderResult.ok) return renderResult;
+        if (!renderResult.ok) {
+          const renderError = 'error' in renderResult ? renderResult.error : 'Falha ao enfileirar a visualização inicial.';
+          return { ok: false, error: renderError };
+        }
         studioCommandId = renderResult.data.studioCommandId;
       }
     } catch (e) {

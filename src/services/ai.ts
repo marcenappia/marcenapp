@@ -92,12 +92,13 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown, req
 export const callAIImage = async (
   prompt: string,
   images?: AIImageInput[],
-  idempotencyKey = crypto.randomUUID(),
+  idempotencyKey?: string,
   persistence?: AIImagePersistence,
 ) => {
+  const stableIdempotencyKey = idempotencyKey?.trim() || crypto.randomUUID();
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
-  console.debug(JSON.stringify({ stage: '[CLIENT_REQUEST]', status: 'started', durationMs: 0, provider: 'unresolved', requestId, renderId: idempotencyKey }));
+  console.debug(JSON.stringify({ stage: '[CLIENT_REQUEST]', status: 'started', durationMs: 0, provider: 'unresolved', requestId, renderId: stableIdempotencyKey }));
   const normalizedImages = images?.map(img => {
     if (typeof img === 'string') {
       const raw = img.includes(',') ? img.split(',')[1] : img;
@@ -108,14 +109,14 @@ export const callAIImage = async (
   const data = await callAIFunction<AIImageResponse>('ai-image', {
     prompt,
     images: normalizedImages,
-    idempotencyKey,
+    idempotencyKey: stableIdempotencyKey,
     ...(persistence ? { persistGallery: persistence } : {}),
   }, requestId);
   const image = data.imageBase64 ?? data.imageUrl ?? null;
   if (!image || (!image.startsWith('data:image/') && !/^https:\/\//i.test(image))) {
     throw new Error('O serviço de IA não retornou uma imagem válida.');
   }
-  console.info('[FRONTEND_RECEIVED]', JSON.stringify({ status: 'success', durationMs: Date.now() - startedAt, provider: data.provider ?? 'unresolved', model: data.model ?? 'unresolved', requestId: data.requestId ?? requestId, renderId: data.renderId ?? idempotencyKey }));
+  console.info('[FRONTEND_RECEIVED]', JSON.stringify({ status: 'success', durationMs: Date.now() - startedAt, provider: data.provider ?? 'unresolved', model: data.model ?? 'unresolved', requestId: data.requestId ?? requestId, renderId: data.renderId ?? stableIdempotencyKey }));
   return image;
 };
 

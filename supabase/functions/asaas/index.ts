@@ -264,7 +264,17 @@ serve(async (req) => {
       }
       const recovered = await reconcilePayment(externalReference, String(intent.id), customer);
       if (recovered) return json(h, { payment: recovered, product, reused: true });
-      const payment = await asaasJson("/payments", { method: "POST", body: JSON.stringify({ customer, billingType, value: Number(product.price_cents) / 100, dueDate: body.dueDate ?? new Date().toISOString().slice(0, 10), description: product.name, externalReference, callback: { successUrl: "https://www.marcenapp.com.br/?module=billing&payment=success", autoRedirect: true } }) }) as AsaasPayment;
+      const paymentPayload: Record<string, unknown> = {
+        customer,
+        billingType,
+        value: Number(product.price_cents) / 100,
+        dueDate: body.dueDate ?? new Date().toISOString().slice(0, 10),
+        description: product.name,
+        externalReference,
+      };
+      const callbackSuccessUrl = Deno.env.get("ASAAS_CALLBACK_SUCCESS_URL")?.trim();
+      if (callbackSuccessUrl) paymentPayload.callback = { successUrl: callbackSuccessUrl, autoRedirect: true };
+      const payment = await asaasJson("/payments", { method: "POST", body: JSON.stringify(paymentPayload) }) as AsaasPayment;
       if (!payment?.id) throw Object.assign(new Error("asaas_payment_missing_id"), { status: 502 });
       const { error: persistError } = await admin().from("billing_purchases").update({ asaas_payment_id: String(payment.id), asaas_customer_id: customer, status: String(payment.status ?? "PENDING"), updated_at: new Date().toISOString() }).eq("id", intent.id);
       if (persistError) {
@@ -298,7 +308,18 @@ serve(async (req) => {
       if (recovered) return json(h, { subscription: recovered, plan: planRow, reused: true });
       const value = Number(planRow.monthly_price_cents) / 100;
       const nextDueDate = String(body.nextDueDate ?? new Date().toISOString().slice(0, 10));
-      const subscription = await asaasJson("/subscriptions", { method: "POST", body: JSON.stringify({ customer, billingType, value, cycle: "MONTHLY", nextDueDate, description: String(planRow.name).slice(0, 500), externalReference, callback: { successUrl: "https://www.marcenapp.com.br/?module=billing&payment=success", autoRedirect: true } }) }) as AsaasSubscription;
+      const subscriptionPayload: Record<string, unknown> = {
+        customer,
+        billingType,
+        value,
+        cycle: "MONTHLY",
+        nextDueDate,
+        description: String(planRow.name).slice(0, 500),
+        externalReference,
+      };
+      const callbackSuccessUrl = Deno.env.get("ASAAS_CALLBACK_SUCCESS_URL")?.trim();
+      if (callbackSuccessUrl) subscriptionPayload.callback = { successUrl: callbackSuccessUrl, autoRedirect: true };
+      const subscription = await asaasJson("/subscriptions", { method: "POST", body: JSON.stringify(subscriptionPayload) }) as AsaasSubscription;
       if (!subscription?.id) throw Object.assign(new Error("asaas_subscription_missing_id"), { status: 502 });
       const { error: persistError } = await admin().from("billing_subscriptions").insert({ user_id: user.id, plan, asaas_customer_id: customer, asaas_subscription_id: String(subscription.id), external_reference: externalReference, status: String(subscription.status ?? "ACTIVE"), trial_ends_at: nextDueDate });
       if (persistError) {
