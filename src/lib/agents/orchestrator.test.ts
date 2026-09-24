@@ -137,7 +137,7 @@ describe('MARCENAPP agents', () => {
   it('retorna para revisão quando o cliente solicita alteração', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', measurements: { width: 3000 },
+      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }], measurements: { width: 3000 },
       parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
       projectId: 'project-1', versionId: 'review-version-test', userId: 'user-test',
@@ -154,7 +154,7 @@ describe('MARCENAPP agents', () => {
   it('executa a jornada completa quando o cliente aprovou a versão', async () => {
     const result = await runProjectJourney({
       name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', measurements: { width: 3000 },
+      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }], measurements: { width: 3000 },
       parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
       materials: [{ code: 'MDF-18', quantity: 2 }],
       sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
