@@ -92,7 +92,7 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown, req
 export const callAIImage = async (
   prompt: string,
   images?: AIImageInput[],
-  idempotencyKey = crypto.randomUUID(),
+  idempotencyKey: string = crypto.randomUUID(),
   persistence?: AIImagePersistence,
 ) => {
   const requestId = crypto.randomUUID();
