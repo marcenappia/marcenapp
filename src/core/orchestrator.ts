@@ -263,7 +263,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
   let plan: ToolCall[] = [];
   let summary = '';
   let provider: OrchestratorPlan['provider'];
-  let architectureIntent: Awaited<ReturnType<typeof resolveArchitectureIntent>> | null = null;
+  var architectureIntent: Awaited<ReturnType<typeof resolveArchitectureIntent>> | null = null;
   try {
     const clarification = isClarificationPrompt(userPrompt);
     const structuredPending = lastPendingInput(context);
