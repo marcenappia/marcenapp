@@ -75,33 +75,63 @@ async function findAsaasCustomerByReference(reference: string) {
   return (result?.data?.[0] ?? null) as Record<string, unknown> | null;
 }
 
-async function ensureCustomer(user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> | null }) {
+function normalizeCustomerDocument(value: unknown): string | null {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  return digits.length === 11 || digits.length === 14 ? digits : null;
+}
+
+async function ensureCustomer(
+  user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> | null },
+  requestedCpfCnpj?: string | null,
+) {
   const a = admin();
   const { data: localRows, error: lookupError } = await a.from("billing_customers").select("asaas_customer_id,external_reference").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1);
   if (lookupError) throw Object.assign(new Error("billing_customer_lookup_failed"), { status: 500 });
   const local = localRows?.[0];
-  if (local?.asaas_customer_id) return { id: String(local.asaas_customer_id), reused: true };
+  const requestedDocument = normalizeCustomerDocument(requestedCpfCnpj);
+  if (requestedCpfCnpj && !requestedDocument) throw Object.assign(new Error("customer_document_invalid"), { status: 400 });
+  if (local?.asaas_customer_id) {
+    const current = await asaasJson(`/customers/${encodeURIComponent(String(local.asaas_customer_id))}`) as Record<string, unknown>;
+    const currentDocument = normalizeCustomerDocument(current?.cpfCnpj);
+    if (!currentDocument && requestedDocument) {
+      const updated = await asaasJson(`/customers/${encodeURIComponent(String(local.asaas_customer_id))}`, {
+        method: "PUT",
+        body: JSON.stringify({ cpfCnpj: requestedDocument }),
+      });
+      return { id: String(local.asaas_customer_id), reused: true, requiresDocument: !normalizeCustomerDocument(updated?.cpfCnpj) };
+    }
+    return { id: String(local.asaas_customer_id), reused: true, requiresDocument: !currentDocument };
+  }
 
   const reference = `marcenapp:customer:${user.id}`;
   const existing = await findAsaasCustomerByReference(reference);
   if (existing?.id) {
+    const existingDocument = normalizeCustomerDocument(existing?.cpfCnpj);
+    if (!existingDocument && !requestedDocument) return { id: String(existing.id), reused: true, requiresDocument: true };
+    if (!existingDocument && requestedDocument) {
+      await asaasJson(`/customers/${encodeURIComponent(String(existing.id))}`, {
+        method: "PUT",
+        body: JSON.stringify({ cpfCnpj: requestedDocument }),
+      });
+    }
     const { error } = await a.from("billing_customers").insert({ user_id: user.id, asaas_customer_id: String(existing.id), external_reference: reference });
-    if (!error || String(error.code ?? "") === "23505") return { id: String(existing.id), reused: true };
+    if (!error || String(error.code ?? "") === "23505") return { id: String(existing.id), reused: true, requiresDocument: false };
     throw Object.assign(new Error("billing_customer_link_failed"), { status: 502 });
   }
 
   const m = user.user_metadata ?? {};
   const name = String(m.name ?? m.full_name ?? user.email?.split("@")[0] ?? "Cliente Marcenapp").trim();
   if (!name) throw Object.assign(new Error("customer_name_required"), { status: 400 });
-  const created = await asaasJson("/customers", { method: "POST", body: JSON.stringify({ name, email: user.email ?? undefined, externalReference: reference }) });
+  if (!requestedDocument) throw Object.assign(new Error("customer_document_required"), { status: 422 });
+  const created = await asaasJson("/customers", { method: "POST", body: JSON.stringify({ name, email: user.email ?? undefined, cpfCnpj: requestedDocument, externalReference: reference }) });
   if (!created?.id) throw Object.assign(new Error("asaas_customer_missing_id"), { status: 502 });
 
   const { error } = await a.from("billing_customers").insert({ user_id: user.id, asaas_customer_id: String(created.id), external_reference: reference });
-  if (!error) return { id: String(created.id), reused: false };
+  if (!error) return { id: String(created.id), reused: false, requiresDocument: false };
   const recovered = await findAsaasCustomerByReference(reference);
   if (recovered?.id) {
     const { error: recoveryError } = await a.from("billing_customers").insert({ user_id: user.id, asaas_customer_id: String(recovered.id), external_reference: reference });
-    if (!recoveryError || String(recoveryError.code ?? "") === "23505") return { id: String(recovered.id), reused: true };
+    if (!recoveryError || String(recoveryError.code ?? "") === "23505") return { id: String(recovered.id), reused: true, requiresDocument: false };
   }
   throw Object.assign(new Error("billing_customer_link_failed"), { status: 502 });
 }
@@ -242,9 +272,11 @@ serve(async (req) => {
     }
 
     if (action === "create_customer") {
-      const customer = await ensureCustomer(user);
+      const requestedCpfCnpj = normalizeCustomerDocument(body.cpfCnpj);
+      if (body.cpfCnpj != null && !requestedCpfCnpj) return json(h, { error: "CPF ou CNPJ inválido.", code: "customer_document_invalid" }, 400);
+      const customer = await ensureCustomer(user, requestedCpfCnpj);
       const full = await asaasJson(`/customers/${encodeURIComponent(customer.id)}`);
-      return json(h, { customer: full, reused: customer.reused });
+      return json(h, { customer: full, reused: customer.reused, requiresDocument: Boolean(customer.requiresDocument) });
     }
 
     if (action === "create_product_payment") {
@@ -345,6 +377,8 @@ serve(async (req) => {
   } catch (error) {
     console.error("asaas error", error);
     const status = Number((error as Error & { status?: number }).status ?? 500);
+    if ((error as Error).message === "customer_document_required") return json(h, { error: "Informe seu CPF ou CNPJ para concluir o cadastro de cobrança.", code: "customer_document_required" }, 422);
+    if ((error as Error).message === "customer_document_invalid") return json(h, { error: "CPF ou CNPJ inválido.", code: "customer_document_invalid" }, 400);
     if ((error as Error).message === "asaas_not_configured") return json(h, { error: "Asaas não está configurado no servidor." }, 503);
     if ((error as Error).message === "payload_too_large") return json(h, { error: "Corpo da requisição muito grande." }, 413);
     if (status === 401 || status === 403) return json(h, { error: "Asaas recusou a credencial ou a operação." }, 502);
