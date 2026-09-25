@@ -341,47 +341,51 @@ serve(async request => {
 
     let persisted = false;
     if (persistGallery) {
-      try {
-        const { data: context, error: contextError } = await admin
-          .from("project_iara_contexts")
-          .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
-          .eq("user_id", guard.userId)
-          .eq("project_id", persistGallery.projectId ?? "")
-          .limit(1)
-          .maybeSingle();
+      const { data: context, error: contextError } = await admin
+        .from("project_iara_contexts")
+        .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
+        .eq("user_id", guard.userId)
+        .eq("project_id", persistGallery.projectId ?? "")
+        .limit(1)
+        .maybeSingle();
 
-        if (contextError) throw new Error("iara_context_read_failed");
-        const contextMatches =
-          !!context &&
-          context.environment_id === (persistGallery.environmentId ?? null) &&
-          context.version_id === (persistGallery.versionId ?? null) &&
-          (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
-          (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
-        if (!contextMatches) throw new Error("stale_execution_context");
+      if (contextError) throw new Error("iara_context_read_failed");
+      const contextMatches =
+        !!context &&
+        context.environment_id === (persistGallery.environmentId ?? null) &&
+        context.version_id === (persistGallery.versionId ?? null) &&
+        (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
+        (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
+      if (!contextMatches) throw new Error("stale_execution_context");
 
-        const { error: galleryError } = await admin.from("gallery_images").insert({
-          user_id: guard.userId,
-          image_url: imageBase64,
-          prompt,
-          project_id: persistGallery.projectId ?? null,
-          environment_id: persistGallery.environmentId ?? null,
-          version_id: persistGallery.versionId ?? null,
-          correlation_id: persistGallery.correlationId ?? null,
-          execution_generation: persistGallery.generation ?? null,
-        });
-        if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
-        persisted = true;
-        console.info("[DATABASE_WRITE]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, requestId: idempotencyKey, renderId: idempotencyKey }));
-      } catch (persistenceError) {
-        console.error("[DATABASE_WRITE]", JSON.stringify({ status: "error", provider: usedProvider, model: usedModel, requestId: idempotencyKey, renderId: idempotencyKey, error: persistenceError instanceof Error ? persistenceError.message : String(persistenceError) }));
-      }
+      const { error: galleryError } = await admin.from("gallery_images").insert({
+        user_id: guard.userId,
+        image_url: imageBase64,
+        prompt,
+        project_id: persistGallery.projectId ?? null,
+        environment_id: persistGallery.environmentId ?? null,
+        version_id: persistGallery.versionId ?? null,
+        correlation_id: persistGallery.correlationId ?? null,
+        execution_generation: persistGallery.generation ?? null,
+      });
+      if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
+      persisted = true;
+      console.info("[DATABASE_WRITE]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, requestId: idempotencyKey, renderId: idempotencyKey }));
     }
 
     console.info("[IMAGE_RETURN]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, persisted, requestId: idempotencyKey, renderId: idempotencyKey }));
     return jsonResponse(cors, { imageBase64, imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: usedModel, provider: usedProvider, requestId: idempotencyKey, renderId: idempotencyKey, creditConsumption: Array.isArray(data) ? data[0] : data, persisted, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
-    if (creditConsumed && !imageGenerated && idempotencyKey) await refund(guard.userId, idempotencyKey).catch(error => console.error("ai-image refund error", error));
     const error = caught as GatewayError;
+    const shouldRefund = creditConsumed && idempotencyKey && (
+      !imageGenerated ||
+      error.message === "stale_execution_context" ||
+      error.message === "iara_context_read_failed" ||
+      error.message === "render_idempotency_lookup_failed" ||
+      error.message.startsWith("gallery_persist_failed:")
+    );
+    if (shouldRefund) await refund(guard.userId, idempotencyKey).catch(refundError => console.error("ai-image refund error", refundError));
+    
     console.error("ai-image error", error.message);
     if (error.message === "stale_execution_context") return jsonResponse(cors, { message: "A execução do render ficou desatualizada antes da persistência.", code: "stale_execution_context" }, 409);
     if (error.message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed" }, 500);
