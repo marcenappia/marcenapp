@@ -206,10 +206,17 @@ async function generateImage(
 async function refund(userId: string, idempotencyKey: string) {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) return;
+  if (!url || !key) throw new Error("billing_refund_configuration_missing");
   const { createClient } = await import("npm:@supabase/supabase-js@2");
   const admin = createClient(url, key, { auth: { persistSession: false } });
-  await admin.rpc("refund_billing_credit", { p_user_id: userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { error } = await admin.rpc("refund_billing_credit", { p_user_id: userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
+    if (!error) return;
+    lastError = error;
+    if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  throw new Error(`billing_refund_failed:${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 
 serve(async request => {

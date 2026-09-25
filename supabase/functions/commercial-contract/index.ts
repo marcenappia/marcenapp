@@ -39,7 +39,15 @@ async function guardRequest(req: Request, h: Record<string,string>) {
   return { ok: true as const, userId: data.user.id };
 }
 async function refund(userId: string, idempotencyKey: string) {
-  await adminClient().rpc("refund_billing_credit", { p_user_id: userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
+  const admin = adminClient();
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { error } = await admin.rpc("refund_billing_credit", { p_user_id: userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
+    if (!error) return;
+    lastError = error;
+    if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  throw new Error(`billing_refund_failed:${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 serve(async req => {
   const h = cors(req);
