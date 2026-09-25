@@ -69,7 +69,8 @@ export async function loadIaraContext(userId: string, projectId: string | null):
 
 export async function persistIaraContext(userId: string, context: IaraContext, correlationId?: string, generation?: number): Promise<void> {
   if (!context.projectId) return;
-  const { data: existing } = await supabase.from('project_iara_contexts').select('id').eq('user_id', userId).eq('project_id', context.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+  const { data: existing, error: existingError } = await supabase.from('project_iara_contexts').select('id').eq('user_id', userId).eq('project_id', context.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+  if (existingError) throw new Error(`Falha ao ler o contexto persistente da IARA: ${existingError.message}`);
   const payload = {
     user_id: userId,
     client_id: context.clientId,
@@ -81,8 +82,10 @@ export async function persistIaraContext(userId: string, context: IaraContext, c
     updated_at: new Date().toISOString(),
   };
   if (existing?.id) {
-    await supabase.from('project_iara_contexts').update(payload).eq('id', existing.id).eq('user_id', userId);
+    const { error } = await supabase.from('project_iara_contexts').update(payload).eq('id', existing.id).eq('user_id', userId);
+    if (error) throw new Error(`Falha ao atualizar o contexto persistente da IARA: ${error.message}`);
   } else {
-    await supabase.from('project_iara_contexts').insert(payload);
+    const { error } = await supabase.from('project_iara_contexts').insert(payload);
+    if (error) throw new Error(`Falha ao criar o contexto persistente da IARA: ${error.message}`);
   }
 }
