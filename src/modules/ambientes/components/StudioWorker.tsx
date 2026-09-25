@@ -43,10 +43,14 @@ export const StudioWorker = () => {
     if (payloadEnvironmentId) query = query.eq('environment_id', payloadEnvironmentId);
     if (payloadVersionId) query = query.eq('version_id', payloadVersionId);
 
-    const { data } = await query
+    const { data, error } = await query
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (error) {
+      throw new Error('Não foi possível validar o contexto atual do render.');
+    }
 
     return data as {
       project_id: string | null;
@@ -100,13 +104,19 @@ export const StudioWorker = () => {
     const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
     const { command, studioCommandId } = resolveRenderCommand(osCommand);
     const storeCommandId = studioCommandId ?? osCommand.id;
-    if (!(await isCurrentContext(payload))) {
-      cancelCommand(storeCommandId);
-      updateOSStatus(osCommand.id, 'cancelled', undefined, 'Comando descartado: identidade de execução não é mais válida.');
+    const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
+    try {
+      if (!(await isCurrentContext(payload))) {
+        cancelCommand(storeCommandId);
+        updateOSStatus(osCommand.id, 'cancelled', undefined, 'Comando descartado: identidade de execução não é mais válida.');
+        currentlyProcessing.current = null;
+        return;
+      }
+    } catch (error) {
+      fail(error instanceof Error ? error.message : 'Não foi possível validar o contexto atual do render.');
       currentlyProcessing.current = null;
       return;
     }
-    const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
     if (!command.prompt) { fail('Comando inválido: falta o prompt de geração.'); currentlyProcessing.current = null; return; }
     if (osCommand.source === 'iara' && (!Array.isArray(command.images) || command.images.length === 0)) {
       fail('Render da IARA bloqueado: falta uma referência visual incorporada. A geração somente por texto está desativada.');
