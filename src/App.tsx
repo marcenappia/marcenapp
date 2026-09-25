@@ -92,6 +92,7 @@ const ProfessionalProfileSelection = lazyWithRetry(
 );
 const ClientReview = lazyWithRetry(() => import("./pages/ClientReview"), "client-review");
 const AdminAgents = lazyWithRetry(() => import("./pages/AdminAgents"), "admin-agents");
+const AdminHub = lazyWithRetry(() => import("./pages/AdminHub"), "admin-hub");
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"), "not-found");
 
 const queryClient = new QueryClient();
@@ -135,6 +136,7 @@ const App = () => (
                 <Route path="/reset-password" element={<Auth />} />
                 <Route path="/perfil-profissional" element={<ProfessionalProfileSelection />} />
                 <Route path="/cliente/revisao" element={<ClientReview />} />
+                <Route path="/admin" element={<AdminHub />} />
                 <Route path="/admin/agentes" element={<AdminAgents />} />
                 <Route path="/" element={<HomeRoute />} />
                 <Route path="*" element={<NotFound />} />
