@@ -20,7 +20,7 @@ const NotFound = () => {
     <main className="flex min-h-screen items-center justify-center bg-muted px-4" role="main" aria-labelledby="not-found-title">
       <article className="text-center max-w-md w-full" aria-label="Página não encontrada">
         {/* Número 404 grande */}
-        <p className="text-9xl font-black text-slate-200 select-none" aria-hidden="true">404</p>
+        <p className="text-9xl font-black text-slate-500 select-none" aria-hidden="true">404</p>
 
         <h1 id="not-found-title" className="text-3xl font-bold text-foreground mb-3 -mt-4">
           Página não encontrada
