@@ -13,7 +13,8 @@ const OPERATION_TYPE = "gerarRender";
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
-const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1/models";
+// Image output (responseModalities) is documented on v1beta for Gemini image models.
+const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const ImageSchema = z.object({
   mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp)$/i),
