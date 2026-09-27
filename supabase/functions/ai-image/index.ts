@@ -157,7 +157,8 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
 }
 
 async function generateGeminiImage(prompt: string, images: ImageInput[]): Promise<string> {
-  const key = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+  // Must match the availability check in _shared/provider.ts, which accepts both names.
+  const key = Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY");
   if (!key) throw new Error("provider_not_configured:gemini");
 
   const parts: Array<Record<string, unknown>> = [{ text: prompt }];

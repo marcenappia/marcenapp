@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import { createSafeJSONStorage, persistableImageUrl } from './safeStorage';
 
 export type OSModule = 'iara' | 'studio' | 'portal' | 'estela' | 'production' | 'system';
 export type OSCommandStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
@@ -49,7 +50,7 @@ export const useMarcenappOS = create<OSState>()(
     }),
     {
       name: 'marcenapp-os-core',
-      storage: createJSONStorage(() => localStorage),
+      storage: createSafeJSONStorage(),
       version: 2,
       migrate: (persistedState: unknown) => {
         if (!persistedState || typeof persistedState !== 'object') return { commandHistory: [], activeModule: 'chat' };
@@ -60,7 +61,15 @@ export const useMarcenappOS = create<OSState>()(
         };
       },
       partialize: (state) => ({
-        commandHistory: state.commandHistory.map(command => command.status === 'processing' ? { ...command, status: 'pending' as const } : command),
+        commandHistory: state.commandHistory.map(command => {
+          const status = command.status === 'processing' ? 'pending' as const : command.status;
+          // Render results are inline data URLs (several MB). Persisting them would
+          // exceed the localStorage quota; the gallery keeps the durable copy.
+          const result = command.result
+            ? { ...command.result, resultUrl: persistableImageUrl(command.result.resultUrl), imageUrl: persistableImageUrl(command.result.imageUrl) }
+            : command.result;
+          return { ...command, status, result };
+        }),
         activeModule: state.activeModule,
       }),
     }
