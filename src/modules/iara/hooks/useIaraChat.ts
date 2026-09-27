@@ -121,7 +121,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       for (const { command, execution } of pendingResults) {
         if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
         if (publishingCommandIdsRef.current.has(command.id)) continue;
-        if (command.status !== 'completed' && command.status !== 'failed') continue;
+        if (command.status !== 'completed' && command.status !== 'failed' && command.status !== 'cancelled') continue;
 
         publishingCommandIdsRef.current.add(command.id);
         try {
@@ -167,10 +167,14 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
                     status: 'ready',
                   },
                 }, execution);
-              } else if (command.status === 'failed') {
+              } else if (command.status === 'failed' || command.status === 'cancelled') {
+                // A cancelled command (stale execution identity) must also close the
+                // pending render; otherwise the conversation stays in "processing" forever.
                 await saveMessage({
                   sender: 'iara',
-                  text: 'Não foi possível concluir o render. Revise a imagem e as informações do projeto e tente novamente.',
+                  text: command.status === 'cancelled'
+                    ? 'O render foi interrompido porque o contexto do projeto mudou durante a execução. Tente novamente.'
+                    : `Não foi possível concluir o render.${command.error ? ` ${command.error}` : ''} Revise a imagem e as informações do projeto e tente novamente.`,
                   metadata: {
                     commandId: command.id,
                     status: 'error',

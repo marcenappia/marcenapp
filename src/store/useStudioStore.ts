@@ -1,5 +1,8 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import { createSafeJSONStorage, persistableImageUrl } from './safeStorage';
+
+const MAX_PERSISTED_COMMANDS = 20;
 
 export type CommandStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export interface ImageData { mimeType: string; data: string; }
@@ -63,7 +66,7 @@ export const useStudioStore = create<StudioState>()(
     {
       name: 'marcenapp-studio-storage',
       version: 3,
-      storage: createJSONStorage(() => localStorage),
+      storage: createSafeJSONStorage(),
       migrate: (persistedState: unknown, version: number) => {
         const state = asPersistedState(persistedState);
         if (version === 0) return { ...state, commandQueue: [] };
@@ -77,7 +80,19 @@ export const useStudioStore = create<StudioState>()(
         }
         return state;
       },
-      partialize: (state) => ({ commandQueue: state.commandQueue.map(cmd => ({ ...cmd, status: cmd.status === 'processing' ? 'pending' : cmd.status, images: (cmd.status === 'completed' || cmd.status === 'cancelled') ? [] : cmd.images })), lastResult: state.lastResult, generatedImage: state.generatedImage }),
+      // Rendered images are multi-megabyte data URLs and would exceed the browser
+      // storage quota. Only unfinished commands keep their reference images so a
+      // reload can resume them; finished results live in the gallery (database).
+      partialize: (state) => ({
+        commandQueue: state.commandQueue.slice(-MAX_PERSISTED_COMMANDS).map(cmd => {
+          const unfinished = cmd.status === 'pending' || cmd.status === 'processing';
+          const { resultUrl, ...rest } = cmd;
+          const persistedResultUrl = persistableImageUrl(resultUrl);
+          return { ...rest, status: cmd.status === 'processing' ? 'pending' : cmd.status, images: unfinished ? cmd.images : [], ...(persistedResultUrl ? { resultUrl: persistedResultUrl } : {}) };
+        }),
+        lastResult: persistableImageUrl(state.lastResult) ?? null,
+        generatedImage: persistableImageUrl(state.generatedImage) ?? null,
+      }),
     }
   )
 );
