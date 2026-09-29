@@ -80,10 +80,10 @@ const ClientesModule = () => {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Users className="text-indigo-600" /> Gestão de Clientes</h2>
+          <h2 className="text-2xl font-bold text-slate-950">Clientes</h2>
           <p className="text-slate-500">Organize sua base de contatos e histórico de projetos.</p>
         </div>
-        <Button icon={Plus} onClick={openNew}>Novo Cliente</Button>
+        <Button onClick={openNew}>Novo cliente</Button>
       </div>
 
       <div className="relative">
@@ -110,7 +110,7 @@ const ClientesModule = () => {
         </div>
       ) : (
         <Card className="p-12 flex flex-col items-center justify-center text-center space-y-4 border-dashed border-2">
-          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400"><Users size={32} /></div>
+          <div className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">Clientes</div>
           <div><h3 className="text-lg font-semibold text-slate-700">{query ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}</h3><p className="text-slate-500 max-w-xs mx-auto">{query ? 'Tente outro nome, e-mail ou telefone.' : 'Comece adicionando seu primeiro cliente para vincular projetos e orçamentos.'}</p></div>
           {!query && <Button variant="secondary" onClick={openNew}>Adicionar Cliente</Button>}
         </Card>
