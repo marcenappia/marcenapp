@@ -209,7 +209,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden border border-border bg-muted"><img src={pendingUpload.previewUrl || pendingUpload.base64} className="w-full h-full object-cover" alt="Prévia da foto do ambiente" /></div>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold">Foto pronta</p>
-          <p className="mt-1 text-[10px] text-muted-foreground">{projectId ? 'Informe os dados do móvel. A IARA usa esta foto e gera o render no projeto atual.' : 'Informe os dados uma única vez. A IARA cria o projeto, salva a foto e gera o render.'}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">{projectId ? 'Informe os dados do móvel. A foto será usada como referência para o render do projeto atual.' : 'Informe os dados uma única vez. O projeto será criado, a foto será salva e o render será preparado.'}</p>
         </div>
         <button type="button" onClick={() => setOneShotOpen(false)} className="p-2 rounded-lg hover:bg-muted" aria-label="Voltar para a prévia"><X size={18}/></button>
       </div>
@@ -235,7 +235,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         <textarea value={observations} onChange={e => setObservations(e.target.value)} placeholder="Observações / estilo / acabamento (opcional)" rows={2} className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary resize-none" />
         {oneShotError && <p className="text-[10px] text-destructive">{oneShotError}</p>}
         <button type="button" disabled={oneShotBusy} onClick={() => void submitOneShot()} className="w-full rounded-xl bg-primary px-3 py-3 text-xs font-bold text-primary-foreground disabled:opacity-50">
-          {oneShotBusy ? 'Enviando para a IARA…' : 'Criar projeto e gerar render'}
+          {oneShotBusy ? 'Preparando o render…' : 'Criar projeto e gerar render'}
         </button>
       </div>
       </div>
@@ -248,25 +248,25 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       <span className="text-[9px] font-bold text-muted-foreground tracking-wide pb-1">{pendingUpload.kind === 'reference' ? 'Referência' : pendingUpload.kind === 'sketch' ? 'Rascunho' : pendingUpload.kind === 'plan' ? 'Planta' : 'Ambiente'}</span>
     </div>}
 
-    {open && <div role="dialog" aria-label="Adicionar ao contexto da IARA" className="absolute bottom-full left-3 right-3 sm:left-3 sm:right-auto mb-2 w-auto sm:w-[min(430px,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-2xl shadow-2xl p-3 z-30">
+    {open && <div role="dialog" aria-label="Adicionar ao projeto" className="absolute bottom-full left-3 right-3 sm:left-3 sm:right-auto mb-2 w-auto sm:w-[min(430px,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-2xl shadow-2xl p-3 z-30">
       <div className="flex items-center justify-between px-1 pb-2">
-        <div><p className="text-xs font-bold">Adicionar ao projeto</p><p className="text-[10px] text-muted-foreground">Escolha o tipo de material para a IARA entender o contexto.</p></div>
+        <div><p className="text-xs font-bold">Adicionar ao projeto</p><p className="text-[10px] text-muted-foreground">Escolha o que você quer adicionar ao projeto.</p></div>
         <button type="button" aria-label="Fechar menu adicionar" onClick={() => setOpen(false)} className="p-2 rounded-lg hover:bg-muted"><X size={16} /></button>
       </div>
 
-      {showOnboarding && <div className="mb-3 rounded-xl border border-primary/20 bg-primary/5 p-3" role="note" aria-label="Como usar os anexos da IARA">
+      {showOnboarding && <div className="mb-3 rounded-xl border border-primary/20 bg-primary/5 p-3" role="note" aria-label="Como adicionar materiais ao projeto">
         <div className="flex items-start gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background text-primary border border-primary/15"><HelpCircle size={15} /></span>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold">Primeira vez por aqui?</p>
-            <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">Você não precisa saber mexer com IA. É só mandar o que já tem do projeto:</p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">Você não precisa preparar nada especial. É só mandar o que já tem do projeto:</p>
             <div className="mt-2 grid grid-cols-2 gap-1.5">
               <div className="rounded-lg bg-background/80 px-2 py-1.5"><strong className="block text-[10px]">📷 Ambiente</strong><span className="text-[9px] text-muted-foreground">foto do local</span></div>
               <div className="rounded-lg bg-background/80 px-2 py-1.5"><strong className="block text-[10px]">🖼️ Referência</strong><span className="text-[9px] text-muted-foreground">modelo ou inspiração</span></div>
               <div className="rounded-lg bg-background/80 px-2 py-1.5"><strong className="block text-[10px]">✏️ Rascunho</strong><span className="text-[9px] text-muted-foreground">desenho à mão</span></div>
               <div className="rounded-lg bg-background/80 px-2 py-1.5"><strong className="block text-[10px]">📐 Planta</strong><span className="text-[9px] text-muted-foreground">planta ou medidas</span></div>
             </div>
-            <p className="mt-2 text-[9px] text-muted-foreground">Depois, conte para a IARA o que você quer fazer. Ela usa esse contexto na conversa.</p>
+            <p className="mt-2 text-[9px] text-muted-foreground">Depois, conte o que você quer fazer. O projeto fica com esse contexto para a próxima etapa.</p>
           </div>
         </div>
         <button type="button" onClick={dismissOnboarding} className="mt-2 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-[10px] font-semibold hover:bg-muted transition-colors">Entendi</button>
@@ -291,7 +291,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       </div>
 
       <div className="border-t border-border pt-2">
-        <p className="px-1 mb-1.5 text-[9px] uppercase tracking-widest font-bold text-muted-foreground">Ações da IARA</p>
+        <p className="px-1 mb-1.5 text-[9px] uppercase tracking-widest font-bold text-muted-foreground">Atalhos do projeto</p>
         <div className="grid grid-cols-2 gap-1.5">
           {SMART_ACTIONS.flatMap(group => group.items.map(action => ({ group, action }))).map(({ group, action }) => {
             const Icon = ICONS[action.id] ?? Command;
@@ -315,7 +315,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         <button type="button" aria-label={isListening ? 'Parar gravação' : 'Iniciar gravação'} onClick={toggleRecording} className={`p-2.5 min-w-11 min-h-11 rounded-xl transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-muted-foreground hover:text-primary'}`}>{isListening ? <MicOff size={18} /> : <Mic size={18} />}</button>
       </div>
       <div className="flex-1 relative group">
-        <textarea aria-label="Mensagem para a IARA" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComposerSend(); } }} placeholder={isListening ? 'IARA está ouvindo...' : 'Ex.: Quero uma cozinha em L de 2,80 m, com torre quente e portas lisas...'} className="w-full bg-muted border border-border rounded-2xl py-3 px-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none max-h-32 scrollbar-none min-h-11" rows={1} />
+        <textarea aria-label="Descreva o que você quer fazer" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComposerSend(); } }} placeholder={isListening ? 'Ouvindo...' : 'Ex.: Quero uma cozinha em L de 2,80 m, com torre quente e portas lisas...'} className="w-full bg-muted border border-border rounded-2xl py-3 px-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none max-h-32 scrollbar-none min-h-11" rows={1} />
         <button type="button" aria-label="Enviar mensagem" onClick={handleComposerSend} className="absolute right-2 bottom-1.5 min-w-9 min-h-9 p-2 bg-primary text-primary-foreground rounded-xl shadow-sm hover:opacity-90 active:scale-95 transition-all"><Send size={18} /></button>
       </div>
     </div>
