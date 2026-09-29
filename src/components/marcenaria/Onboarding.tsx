@@ -6,10 +6,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface Step { id: string; title: string; description: string; icon: React.ElementType; color: string; targetId?: string; routeId?: string; }
 const steps: Step[] = [
-  { id: 'welcome', title: 'Vamos começar pelo jeito mais simples', description: 'Você não precisa saber mexer com inteligência artificial. No Marcenapp, você registra o que acontece na obra e a IARA ajuda a organizar o restante.', icon: Sparkles, color: 'text-amber-500' },
+  { id: 'welcome', title: 'Vamos começar pelo jeito mais simples', description: 'Você não precisa aprender um sistema complicado. No Marcenapp, você registra o que acontece na obra e o sistema organiza o restante.', icon: Sparkles, color: 'text-amber-500' },
   { id: 'diario', title: 'O Diário é seu ponto de partida', description: 'Cadastre o cliente, crie a obra e registre o pedido. Você pode escrever, falar por voz ou colocar uma foto do ambiente.', icon: BookOpen, color: 'text-indigo-500', targetId: 'nav-diario', routeId: 'diario' },
-  { id: 'cliente', title: 'Cliente e obra ficam organizados', description: 'Comece pelo cliente e pela obra. Assim, as informações não ficam espalhadas e a IARA consegue trabalhar com o contexto certo.', icon: Users, color: 'text-blue-500', targetId: 'nav-diario', routeId: 'diario' },
-  { id: 'iara', title: 'Depois, converse com a IARA', description: 'Na IARA, você pode simplesmente escrever: “Quero fazer o projeto desta cozinha”. Não precisa aprender comandos especiais.', icon: MessageSquare, color: 'text-purple-500', targetId: 'nav-studio', routeId: 'studio' },
+  { id: 'cliente', title: 'Cliente e obra ficam organizados', description: 'Comece pelo cliente e pela obra. Assim, as informações não ficam espalhadas e cada etapa do trabalho mantém o contexto certo.', icon: Users, color: 'text-blue-500', targetId: 'nav-diario', routeId: 'diario' },
+  { id: 'iara', title: 'Depois, avance o projeto', description: 'No projeto, você pode escrever o que precisa, anexar uma foto ou uma planta e seguir para a próxima etapa. Não precisa aprender comandos especiais.', icon: MessageSquare, color: 'text-purple-500', targetId: 'nav-studio', routeId: 'studio' },
   { id: 'midia', title: 'Foto, voz e texto trabalham juntos', description: 'Mande uma foto do ambiente, uma referência, um rascunho ou uma planta. Se preferir, aperte o microfone e fale o que o cliente pediu.', icon: Camera, color: 'text-emerald-500', targetId: 'nav-studio', routeId: 'studio' },
   { id: 'finish', title: 'Pronto. Agora é trabalhar', description: 'Você continua no controle. O Marcenapp organiza projeto, visualização, materiais, produção e orçamento conforme a obra avança.', icon: CheckCircle2, color: 'text-green-500' },
 ];
