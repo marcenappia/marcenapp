@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Plus, Printer, Loader2, X, Scale } from 'lucide-react';
+import { Plus, Printer, Loader2, X, Scale } from 'lucide-react';
 import { Button, Card, Modal, InputGroup } from '@/components/marcenaria/shared';
 import AuthDialog from '@/components/marcenaria/AuthDialog';
 import { useAuth } from '@/hooks/useAuth';
@@ -62,10 +62,10 @@ export const Contrato = () => {
               <label className="flex items-center gap-3 text-sm text-slate-700 font-medium cursor-pointer hover:text-slate-900 transition-colors"><input type="checkbox" checked={data.pipes} onChange={e => setData({ ...data, pipes: e.target.checked })} className="accent-indigo-600 w-4 h-4" />Cláusula Risco Hidráulico</label>
             </div>
             <div className="pt-4 mt-2 border-t border-slate-100">
-              <label className="text-xs font-bold text-indigo-600 uppercase mb-2 flex items-center gap-1"><Sparkles size={12} /> Gerar Cláusula com IA</label>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-2">Adicionar cláusula</label>
               <div className="flex gap-2">
                 <input type="text" value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} onKeyDown={e => e.key === 'Enter' && generateClause()} placeholder="Ex: Cliente tem cachorro..." className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" />
-                <button onClick={generateClause} disabled={loadingAi} className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 shrink-0">{loadingAi ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}</button>
+                <button onClick={generateClause} disabled={loadingAi} className="bg-slate-950 text-white p-2 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50 shrink-0">{loadingAi ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}</button>
               </div>
             </div>
             <Button onClick={() => setShowModal(true)} icon={Printer} className="w-full mt-2 bg-amber-600 hover:bg-amber-700 border-none">Visualizar Impressão</Button>
