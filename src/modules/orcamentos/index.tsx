@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Printer, Calculator, Sliders, Save, RefreshCw } from 'lucide-react';
+import { Printer, Calculator, Sliders, Save, RefreshCw } from 'lucide-react';
 import { Button, Card, InputGroup, Modal } from '@/components/marcenaria/shared';
 import { useOrcamento } from './hooks/useOrcamento';
 import type { ProjectData } from '@/modules/projetos/types';
@@ -25,7 +25,7 @@ const OrcamentoModule = ({ project }: Props) => {
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">
             <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2">
-              <Package size={20} className="text-indigo-500" /> Estela — Orçamento Real
+              <span className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">01</span> Orçamento
             </h3>
             <p className="text-sm text-slate-500 mb-5">Aqui entram somente custos e preço de venda reais. O Marcenapp não inventa preço de MDF, ferragens ou mão de obra.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -38,7 +38,7 @@ const OrcamentoModule = ({ project }: Props) => {
           </Card>
 
           <Card className="p-6">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Sliders size={20} className="text-emerald-500" /> Dados do projeto</h3>
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><span className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">02</span> Dados do projeto</h3>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
               <div><span className="text-slate-400 block">Largura</span><strong>{project.width} m</strong></div>
               <div><span className="text-slate-400 block">Altura</span><strong>{project.height} m</strong></div>
