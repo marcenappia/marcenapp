@@ -13,6 +13,8 @@ const OPERATION_TYPE = "gerarRender";
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
+const VERCEL_IMAGE_MODEL = Deno.env.get("VERCEL_AI_IMAGE_MODEL") ?? "openai/gpt-image-2";
+const VERCEL_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1";
 // Image output (responseModalities) is documented on v1beta for Gemini image models.
 const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -157,6 +159,21 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
   return readBufferedImage(response);
 }
 
+async function generateVercelImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
+  const key = Deno.env.get("AI_GATEWAY_API_KEY");
+  if (!key) throw new Error("provider_not_configured:vercel");
+  if (images.length > 0) throw new Error("vercel_image_reference_not_supported");
+  const width = size?.width ?? size?.height ?? DEFAULT_DIM;
+  const height = size?.height ?? size?.width ?? DEFAULT_DIM;
+  const response = await gatewayFetch(`${VERCEL_GATEWAY_BASE_URL}/images/generations`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: VERCEL_IMAGE_MODEL, prompt, size: `${width}x${height}`, n: 1 }),
+  });
+  if (!response.ok) throw gatewayError(response, await response.text());
+  return readBufferedImage(response);
+}
+
 async function generateGeminiImage(prompt: string, images: ImageInput[]): Promise<string> {
   // Must match the availability check in _shared/provider.ts, which accepts both names.
   const key = Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY");
@@ -202,6 +219,7 @@ async function generateImage(
   size?: { width?: number; height?: number },
 ): Promise<string> {
   if (provider === "gemini") return generateGeminiImage(prompt, images);
+  if (provider === "vercel") return generateVercelImage(prompt, images, size);
   return generateLovableImage(prompt, images, size);
 }
 
@@ -313,7 +331,7 @@ serve(async request => {
         imageBase64 = await generateImage(provider, prompt, images, size);
         imageGenerated = true;
         usedProvider = provider;
-        usedModel = provider === "gemini" ? GEMINI_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
+        usedModel = provider === "gemini" ? GEMINI_IMAGE_MODEL : provider === "vercel" ? VERCEL_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
         console.info("[UPSTREAM_RESPONSE]", JSON.stringify({
           status: "success",
           provider,
