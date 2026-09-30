@@ -198,17 +198,16 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
     {photoDestinationOpen && pendingUpload?.kind === 'environment' && <PhotoDestinationPanel
       photo={pendingUpload}
       onContinue={() => { setPhotoDestinationOpen(false); setPhotoDestinationHandled(true); }}
-      onAttached={destination => {
-        void (async () => {
-          try {
-            await onPhotoAttached?.(destination);
-            setPhotoDestinationOpen(false);
-            setPhotoDestinationHandled(true);
-            navigateTo?.('iara', { projeto: destination.projectId });
-          } catch (caught) {
-            setOneShotError(caught instanceof Error ? caught.message : 'Não foi possível colocar a foto na conversa.');
-          }
-        })();
+      onAttached={async destination => {
+        try {
+          await onPhotoAttached?.(destination);
+          setPhotoDestinationOpen(false);
+          setPhotoDestinationHandled(true);
+          navigateTo?.('iara', { projeto: destination.projectId });
+        } catch (caught) {
+          setOneShotError(caught instanceof Error ? caught.message : 'Não foi possível colocar a foto na conversa.');
+          throw caught;
+        }
       }}
     />}
     {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="fixed inset-0 z-[100] bg-background flex flex-col">
