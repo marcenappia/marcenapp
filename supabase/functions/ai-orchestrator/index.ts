@@ -106,6 +106,17 @@ serve(async (req) => {
     const read = await readJsonBody(req, MAX_BODY_BYTES); if (!read.ok) return jsonResponse(corsHeaders, { error: read.reason === "too_large" ? "Corpo da requisição muito grande." : "JSON inválido.", code: read.reason === "too_large" ? "payload_too_large" : "invalid_json" }, read.reason === "too_large" ? 413 : 400);
     const parsed = BodySchema.safeParse(read.body); if (!parsed.success) return jsonResponse(corsHeaders, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
     const contextBlock = parsed.data.context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(parsed.data.context, null, 2)}` : "";
+    // IARA recovery path: visual renders must not depend on text-provider availability.
+    const hasVisualReference = Boolean(parsed.data.context?.lastImage);
+    const renderIntent = /\b(render|renderizar|imagem|ambiente|móvel|moveis|móveis|armário|marcenaria)\b/i.test(parsed.data.userPrompt);
+    if (hasVisualReference && renderIntent) {
+      return jsonResponse(corsHeaders, {
+        plan: [{ tool: "gerarRender", args: { prompt: parsed.data.userPrompt } }],
+        summary: "Vou gerar o render usando a imagem de referência.",
+        model: "iara-direct-render",
+        provider: "direct-render",
+      });
+    }
     let resolution: { primary: Provider; fallback: Provider | null }; try { resolution = await resolveProvider(guard.userId); } catch (error) { if (error instanceof Error && error.message === "provider_settings_unavailable") return jsonResponse(corsHeaders, { error: "Não foi possível ler a configuração do provedor de IA.", code: "provider_configuration_error" }, 503); throw error; }
     const providers: Provider[] = resolution.fallback ? [resolution.primary, resolution.fallback] : [resolution.primary]; let lastError: unknown = null;
     const providerAdapters: Record<Provider, AIProviderAdapter> = { lovable: callLovable, gemini: callGemini, vercel: callVercel };
