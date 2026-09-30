@@ -19,7 +19,7 @@ type ProjectOption = { id: string; nome: string | null; name: string | null; cli
 interface PhotoDestinationPanelProps {
   photo: PendingPhoto;
   onContinue: () => void;
-  onAttached: (destination: PhotoDestination) => void;
+  onAttached: (destination: PhotoDestination) => void | Promise<void>;
 }
 
 export function PhotoDestinationPanel({ photo, onContinue, onAttached }: PhotoDestinationPanelProps) {
@@ -77,7 +77,7 @@ export function PhotoDestinationPanel({ photo, onContinue, onAttached }: PhotoDe
         if (!selectedProject) throw new Error('Escolha uma obra.');
         destination = await attach(selectedProject.id, selectedProject.cliente_id);
       }
-      onAttached(destination);
+      await onAttached(destination);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Não foi possível cadastrar a foto.');
     } finally {
