@@ -30,7 +30,7 @@ interface ChatInputProps {
   chatInput: string; setChatInput: (val: string) => void; onSend: (textOverride?: string) => void;
   onImageSelect: (e: React.ChangeEvent<HTMLInputElement>, kind?: PendingUpload['kind']) => void;
   toggleRecording: () => void; isListening: boolean; pendingUpload: PendingUpload | null;
-  setPendingUpload: (val: PendingUpload | null) => void; onSmartAction?: (action: SmartAction) => void; navigateTo?: (id: string, params?: Record<string, string>) => void; projectId?: string | null;
+  setPendingUpload: (val: PendingUpload | null) => void; onSmartAction?: (action: SmartAction) => void; onPhotoAttached?: (destination: import('../services/photoDestination').PhotoDestination) => Promise<void>; navigateTo?: (id: string, params?: Record<string, string>) => void; projectId?: string | null;
 }
 
 export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction, navigateTo, projectId }: ChatInputProps) => {
@@ -199,9 +199,16 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       photo={pendingUpload}
       onContinue={() => { setPhotoDestinationOpen(false); setPhotoDestinationHandled(true); }}
       onAttached={destination => {
-        setPhotoDestinationOpen(false);
-        setPhotoDestinationHandled(true);
-        navigateTo?.('studio', { projeto: destination.projectId });
+        void (async () => {
+          try {
+            await onPhotoAttached?.(destination);
+            setPhotoDestinationOpen(false);
+            setPhotoDestinationHandled(true);
+            navigateTo?.('iara', { projeto: destination.projectId });
+          } catch (caught) {
+            setOneShotError(caught instanceof Error ? caught.message : 'Não foi possível colocar a foto na conversa.');
+          }
+        })();
       }}
     />}
     {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="fixed inset-0 z-[100] bg-background flex flex-col">
