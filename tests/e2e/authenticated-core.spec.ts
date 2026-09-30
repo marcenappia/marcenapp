@@ -4,7 +4,7 @@ test.describe('Marcenapp authenticated core', () => {
   test('dashboard opens as the professional workspace', async ({ authenticatedPage: page }) => {
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByText(/Seu espaço de trabalho/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Falar com a IARA/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Desenvolver projeto/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Registrar no Diário/i })).toBeVisible();
   });
 
