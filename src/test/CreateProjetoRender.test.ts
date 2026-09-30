@@ -35,7 +35,8 @@ describe('createProjeto with a reference photo', () => {
     if (result.ok) expect((result.data as { renderStatus?: string }).renderStatus).toBe('queued');
     const firstDispatch = dispatchCommand.mock.calls[0];
     expect(firstDispatch).toBeDefined();
-    const payload = (firstDispatch?.[0] as { payload: Record<string, unknown> }).payload;
+    const dispatchArgs = firstDispatch as unknown as [{ payload: Record<string, unknown> }];
+    const payload = dispatchArgs[0].payload;
     expect(payload.projectId).toBe(project.id);
     expect(payload.environmentId).toBe('22222222-2222-4222-8222-222222222222');
     expect(payload).not.toHaveProperty('versionId');
