@@ -252,7 +252,7 @@ serve(async request => {
     if (persistGallery?.projectId && persistGallery.correlationId && persistGallery.generation != null) {
       let replayQuery = admin
         .from("gallery_images")
-        .select("image_url")
+        .select("image_url,storage_path")
         .eq("user_id", guard.userId)
         .eq("project_id", persistGallery.projectId)
         .eq("correlation_id", persistGallery.correlationId)
@@ -264,8 +264,13 @@ serve(async request => {
       const { data: replay, error: replayError } = await replayQuery.maybeSingle();
       if (replayError) throw new Error("render_idempotency_lookup_failed");
       if (typeof replay?.image_url === "string" && replay.image_url) {
+        let replayUrl = replay.image_url;
+        if (typeof replay.storage_path === "string" && replay.storage_path) {
+          const { data: signed } = await admin.storage.from("obras").createSignedUrl(replay.storage_path, 60 * 60 * 24);
+          if (signed?.signedUrl) replayUrl = signed.signedUrl;
+        }
         console.info("[IDEMPOTENT_RENDER_REPLAY]", JSON.stringify({ status: "reused", requestId: idempotencyKey, renderId: idempotencyKey }));
-        return jsonResponse(cors, { imageBase64: replay.image_url, imageUrl: replay.image_url, operationType: OPERATION_TYPE, requestId: idempotencyKey, renderId: idempotencyKey, persisted: true, reused: true });
+        return jsonResponse(cors, { imageBase64: replay.image_url, imageUrl: replayUrl, operationType: OPERATION_TYPE, requestId: idempotencyKey, renderId: idempotencyKey, persisted: true, reused: true });
       }
     }
     const consumed = await admin.rpc("consume_billing_credit", { p_user_id: guard.userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
@@ -342,6 +347,8 @@ serve(async request => {
     }
 
     let persisted = false;
+    let persistedImageUrl = imageBase64;
+    let storagePath: string | null = null;
     if (persistGallery) {
       const { data: context, error: contextError } = await admin
         .from("project_iara_contexts")
@@ -360,9 +367,31 @@ serve(async request => {
         (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
       if (!contextMatches) throw new Error("stale_execution_context");
 
+      if (persistGallery.projectId) {
+        const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
+        if (!match) throw new Error("gallery_image_not_data_url");
+        const mimeType = match[1];
+        const extension = mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : mimeType.includes("webp") ? "webp" : "png";
+        const binary = atob(match[2]);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        storagePath = `${guard.userId}/${persistGallery.projectId}/renders/${idempotencyKey}.${extension}`;
+        const { error: storageError } = await admin.storage.from("obras").upload(storagePath, bytes, {
+          contentType: mimeType,
+          upsert: true,
+          cacheControl: "31536000",
+        });
+        if (storageError) throw new Error(`gallery_storage_write_failed:${storageError.message}`);
+        const { data: signed, error: signedError } = await admin.storage.from("obras").createSignedUrl(storagePath, 60 * 60 * 24);
+        if (signedError || !signed?.signedUrl) throw new Error("gallery_signed_url_failed");
+        persistedImageUrl = signed.signedUrl;
+        console.info("[STORAGE_WRITE]", JSON.stringify({ status: "success", bucket: "obras", requestId: idempotencyKey, renderId: idempotencyKey }));
+      }
+
       const { error: galleryError } = await admin.from("gallery_images").insert({
         user_id: guard.userId,
-        image_url: imageBase64,
+        image_url: persistedImageUrl,
+        storage_path: storagePath,
         prompt,
         project_id: persistGallery.projectId ?? null,
         environment_id: persistGallery.environmentId ?? null,
@@ -372,11 +401,11 @@ serve(async request => {
       });
       if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
       persisted = true;
-      console.info("[DATABASE_WRITE]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, requestId: idempotencyKey, renderId: idempotencyKey }));
+      console.info("[DATABASE_WRITE]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, storagePath: Boolean(storagePath), requestId: idempotencyKey, renderId: idempotencyKey }));
     }
 
     console.info("[IMAGE_RETURN]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, persisted, requestId: idempotencyKey, renderId: idempotencyKey }));
-    return jsonResponse(cors, { imageBase64, imageUrl: imageBase64, width, height, operationType: OPERATION_TYPE, model: usedModel, provider: usedProvider, requestId: idempotencyKey, renderId: idempotencyKey, creditConsumption: Array.isArray(data) ? data[0] : data, persisted, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
+    return jsonResponse(cors, { imageBase64, imageUrl: persistedImageUrl, width, height, operationType: OPERATION_TYPE, model: usedModel, provider: usedProvider, requestId: idempotencyKey, renderId: idempotencyKey, storagePath, creditConsumption: Array.isArray(data) ? data[0] : data, persisted, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
     const error = caught as GatewayError;
     const shouldRefund = creditConsumed && idempotencyKey && (
@@ -384,7 +413,7 @@ serve(async request => {
       error.message === "stale_execution_context" ||
       error.message === "iara_context_read_failed" ||
       error.message === "render_idempotency_lookup_failed" ||
-      error.message.startsWith("gallery_persist_failed:")
+      error.message.startsWith("gallery_persist_failed:") || error.message.startsWith("gallery_storage_write_failed:") || error.message === "gallery_signed_url_failed" || error.message === "gallery_image_not_data_url"
     );
     if (shouldRefund) await refund(guard.userId, idempotencyKey).catch(refundError => console.error("ai-image refund error", refundError));
     
