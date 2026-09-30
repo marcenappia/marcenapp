@@ -5,6 +5,7 @@ const GITHUB_ISSUER = 'https://token.actions.githubusercontent.com';
 const GITHUB_AUDIENCE = 'marcenapp-e2e';
 const EXPECTED_REPOSITORY = 'marcenappia/marcenapp';
 const EXPECTED_REF = 'refs/heads/main';
+// Production smoke authentication is validated inside this function; platform JWT verification stays disabled.
 const EXPECTED_WORKFLOWS = new Set(['Vercel Production Smoke', 'Playwright Tests']);
 const githubJwks = createRemoteJWKSet(
   new URL('https://token.actions.githubusercontent.com/.well-known/jwks'),
