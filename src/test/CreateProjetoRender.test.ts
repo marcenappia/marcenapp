@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const enqueueCommand = vi.fn(() => 'studio-new');
+// Keep the mock observable to TypeScript even when Vitest infers an empty tuple from calls.
 const dispatchCommand = vi.fn(() => 'os-new');
 const project = { id: '11111111-1111-4111-8111-111111111111', nome: 'Cozinha', width: 2400, height: 2200, depth: 600, doors: 0, drawers: 0, modules: 1 };
 
@@ -32,7 +33,9 @@ describe('createProjeto with a reference photo', () => {
     });
     expect(result.ok).toBe(true);
     if (result.ok) expect((result.data as { renderStatus?: string }).renderStatus).toBe('queued');
-    const payload = (dispatchCommand.mock.calls[0]?.[0] as { payload: Record<string, unknown> }).payload;
+    const firstDispatch = dispatchCommand.mock.calls[0];
+    expect(firstDispatch).toBeDefined();
+    const payload = (firstDispatch?.[0] as { payload: Record<string, unknown> }).payload;
     expect(payload.projectId).toBe(project.id);
     expect(payload.environmentId).toBe('22222222-2222-4222-8222-222222222222');
     expect(payload).not.toHaveProperty('versionId');
