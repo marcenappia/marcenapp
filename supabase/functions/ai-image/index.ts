@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
-import { buildCorsHeaders, guardRequest, jsonResponse, readJsonBody } from "../_shared/guard.ts";
-import { resolveProvider, type AIProvider } from "../_shared/provider.ts";
+import { buildCorsHeaders, guardRequest, jsonResponse, readJsonBody } from "./guard.ts";
+import { resolveProvider, type AIProvider } from "./provider.ts";
 
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const MIN_DIM = 64;
