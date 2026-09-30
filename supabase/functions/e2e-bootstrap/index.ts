@@ -48,10 +48,22 @@ async function verifyGitHubActionsToken(request: Request): Promise<GitHubClaims>
   const match = authorization.match(/^Bearer\s+(.+)$/i);
   if (!match) throw new Error('missing_bearer_token');
 
-  let payload: JWTPayload;\n  try {\n    ({ payload } = await jwtVerify(match[1], githubJwks, {
-    issuer: GITHUB_ISSUER,
-    audience: GITHUB_AUDIENCE,
-  });
+  let payload: JWTPayload;
+  try {
+    ({ payload } = await jwtVerify(match[1], githubJwks, {
+      issuer: GITHUB_ISSUER,
+      audience: GITHUB_AUDIENCE,
+    }));
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error
+      ? String((error as { code?: unknown }).code)
+      : 'verify_failed';
+    console.warn('e2e oidc verification failed', {
+      code,
+      message: error instanceof Error ? error.message : 'unknown_error',
+    });
+    throw new Error(`oidc_verify_failed:${code}`);
+  }
   const claims = payload as GitHubClaims;
 
   if (claims.repository !== EXPECTED_REPOSITORY) throw new Error('invalid_repository');
