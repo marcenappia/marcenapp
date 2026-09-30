@@ -5,6 +5,8 @@ const GITHUB_ISSUER = 'https://token.actions.githubusercontent.com';
 const GITHUB_AUDIENCE = 'marcenapp-e2e';
 const EXPECTED_REPOSITORY = 'marcenappia/marcenapp';
 const EXPECTED_REF = 'refs/heads/main';
+const EXPECTED_ENVIRONMENT_SUBJECT = 'repo:marcenappia/marcenapp:environment:production-smoke';
+const EXPECTED_REF_SUBJECT = 'repo:marcenappia/marcenapp:ref:refs/heads/main';
 // Production smoke authentication is validated inside this function; platform JWT verification stays disabled.
 const EXPECTED_WORKFLOWS = new Set(['Vercel Production Smoke', 'Playwright Tests']);
 const githubJwks = createRemoteJWKSet(
@@ -67,7 +69,8 @@ async function verifyGitHubActionsToken(request: Request): Promise<GitHubClaims>
   const claims = payload as GitHubClaims;
 
   if (claims.repository !== EXPECTED_REPOSITORY) throw new Error('invalid_repository');
-  if (claims.ref !== EXPECTED_REF) throw new Error('invalid_ref');
+  if (claims.sub !== EXPECTED_ENVIRONMENT_SUBJECT && claims.sub !== EXPECTED_REF_SUBJECT) throw new Error('invalid_subject');
+  if (claims.sub === EXPECTED_REF_SUBJECT && claims.ref !== EXPECTED_REF) throw new Error('invalid_ref');
   if (claims.workflow && !EXPECTED_WORKFLOWS.has(claims.workflow)) throw new Error('invalid_workflow');
   if (claims.event_name && !['push', 'workflow_dispatch', 'schedule', 'deployment_status'].includes(claims.event_name)) {
     throw new Error('invalid_event');
