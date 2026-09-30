@@ -16,12 +16,14 @@ export type ProviderResolution = {
 export function resolveProviderSelection(
   configured: string | undefined,
   available: ProviderAvailability,
+  options: { requiresReference?: boolean } = {},
 ): ProviderResolution {
+  const supportsReference: Record<AIProvider, boolean> = { lovable: true, vercel: false, gemini: true };
   const operational: AIProvider[] = [
     ...(available.lovable ? ["lovable" as const] : []),
     ...(available.vercel ? ["vercel" as const] : []),
     ...(available.gemini ? ["gemini" as const] : []),
-  ];
+  ].filter((provider) => !options.requiresReference || supportsReference[provider]);
 
   if (operational.length === 0) throw new Error("PROVIDER_NOT_CONFIGURED");
 
@@ -37,7 +39,7 @@ export function resolveProviderSelection(
   };
 }
 
-export async function resolveProvider(userId: string): Promise<ProviderResolution> {
+export async function resolveProvider(userId: string, options: { requiresReference?: boolean } = {}): Promise<ProviderResolution> {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) throw new Error("server_config_incomplete");
@@ -54,5 +56,5 @@ export async function resolveProvider(userId: string): Promise<ProviderResolutio
     lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")),
     vercel: Boolean(Deno.env.get("AI_GATEWAY_API_KEY")),
     gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY")),
-  });
+  }, { requiresReference: options?.requiresReference });
 }
