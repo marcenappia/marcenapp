@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'npm:jose@6';
+import { createRemoteJWKSet, decodeJwt, jwtVerify, type JWTPayload } from 'npm:jose@6';
 
 const GITHUB_ISSUER = 'https://token.actions.githubusercontent.com';
 const GITHUB_AUDIENCE = 'marcenapp-e2e';
@@ -48,7 +48,7 @@ async function verifyGitHubActionsToken(request: Request): Promise<GitHubClaims>
   const match = authorization.match(/^Bearer\s+(.+)$/i);
   if (!match) throw new Error('missing_bearer_token');
 
-  const { payload } = await jwtVerify(match[1], githubJwks, {
+  let payload: JWTPayload;\n  try {\n    ({ payload } = await jwtVerify(match[1], githubJwks, {
     issuer: GITHUB_ISSUER,
     audience: GITHUB_AUDIENCE,
   });
