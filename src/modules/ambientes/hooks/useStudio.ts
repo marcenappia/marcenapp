@@ -48,21 +48,49 @@ export const useStudio = (
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('gallery_images').select('image_url, prompt').eq('user_id', user.id).order('created_at', { ascending: false }).then(({ data }) => {
-      if (data && data.length > 0) {
-        const urls = data.map(d => d.image_url);
+    void (async () => {
+      const { data, error } = await supabase
+        .from('gallery_images')
+        .select('image_url, prompt, storage_path')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) { console.error('[studio] gallery load failed', error); return; }
+      const urls = (await Promise.all((data ?? []).map(async row => {
+        if (row.storage_path) {
+          const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(row.storage_path, 60 * 60 * 24);
+          if (!signedError && signed?.signedUrl) return signed.signedUrl;
+        }
+        return row.image_url;
+      }))).filter(Boolean);
+      if (urls.length > 0) {
         setGallery(urls);
         if (!generatedImage) setGeneratedImage(urls[0]);
       }
-    });
+    })();
     // Hydrate once per authenticated user. Newly generated images are added locally below.
-    // This avoids refetching the entire gallery whenever the selected image changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const saveToGallery = async (imageUrl: string, promptText: string) => {
     if (!user) return;
-    const { error: saveError } = await supabase.from('gallery_images').insert({ user_id: user.id, image_url: imageUrl, prompt: promptText });
+    const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) {
+      console.info('[studio] render already persisted by ai-image');
+      return;
+    }
+    const mimeType = match[1];
+    const extension = mimeType.includes('jpeg') || mimeType.includes('jpg') ? 'jpg' : mimeType.includes('webp') ? 'webp' : 'png';
+    const binary = atob(match[2]);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    const storagePath = `${user.id}/studio/renders/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from('obras').upload(storagePath, bytes, { contentType: mimeType, upsert: true, cacheControl: '31536000' });
+    if (uploadError) { console.error('[studio] storage save failed', uploadError); return; }
+    const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(storagePath, 60 * 60 * 24);
+    if (signedError || !signed?.signedUrl) { console.error('[studio] signed url failed', signedError); return; }
+    const { error: saveError } = await supabase.from('gallery_images').insert({
+      user_id: user.id, image_url: signed.signedUrl, storage_path: storagePath, prompt: promptText
+    });
     if (saveError) console.error('[studio] gallery save failed', saveError);
   };
 
