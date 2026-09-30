@@ -112,6 +112,21 @@ async function createEphemeralSession() {
   });
   if (createError || !created.user) throw new Error(`create_user_failed:${createError?.message ?? 'missing_user'}`);
 
+  // Seed the minimum professional profile required by the production workspace.
+  // Otherwise authenticated smoke tests are redirected to first-access profile selection.
+  const { error: profileError } = await admin
+    .from('profiles')
+    .upsert({
+      user_id: created.user.id,
+      name: 'E2E Profissional',
+      company: 'Marcenapp E2E',
+      profession: 'marceneiro',
+    }, { onConflict: 'user_id' });
+  if (profileError) {
+    await admin.auth.admin.deleteUser(created.user.id);
+    throw new Error(`create_profile_failed:${profileError.message}`);
+  }
+
   const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
   if (signInError || !signedIn.session) {
     await admin.auth.admin.deleteUser(created.user.id);
