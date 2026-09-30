@@ -29,6 +29,11 @@ export function resolveProviderSelection(
 
   if (configured === "lovable" || configured === "vercel" || configured === "gemini") {
     if (!available[configured]) throw new Error("PROVIDER_NOT_CONFIGURED");
+    if (options.requiresReference && configured === "vercel") {
+      const compatible = operational[0];
+      if (!compatible) throw new Error("PROVIDER_NOT_CONFIGURED");
+      return { primary: compatible, fallback: operational.find((provider) => provider !== compatible) ?? null };
+    }
     const fallback = operational.find((provider) => provider !== configured) ?? null;
     return { primary: configured, fallback };
   }
