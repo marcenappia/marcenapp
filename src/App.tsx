@@ -19,11 +19,19 @@ const lazyWithRetry = <T extends React.ComponentType<unknown>>(importer: LazyImp
       sessionStorage.removeItem(retryKey);
       return module;
     } catch (error) {
-      // A stale browser cache can keep the HTML from one deployment while a
-      // lazy chunk belongs to another deployment. Retry the page once so the
-      // browser gets a consistent asset set instead of rendering a blank app.
-      if (!sessionStorage.getItem(retryKey)) {
-        sessionStorage.setItem(retryKey, "1");
+      // Recover from stale PWA/browser caches before giving up. Vite assets are
+      // content-hashed, so an old cached chunk must never win over the current build.
+      const attempts = Number(sessionStorage.getItem(retryKey) ?? "0");
+      if (attempts < 2) {
+        sessionStorage.setItem(retryKey, String(attempts + 1));
+        try {
+          const registrations = await navigator.serviceWorker?.getRegistrations?.() ?? [];
+          await Promise.all(registrations.map((registration) => registration.unregister()));
+          const cacheKeys = await caches?.keys?.() ?? [];
+          await Promise.all(cacheKeys.map((cacheKey) => caches.delete(cacheKey)));
+        } catch {
+          // Cache cleanup is best-effort; the hard reload below is still useful.
+        }
         const url = new URL(window.location.href);
         url.searchParams.set('marcenapp_reload', String(Date.now()));
         window.location.replace(url.toString());
