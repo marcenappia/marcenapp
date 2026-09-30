@@ -13,7 +13,9 @@ test.describe('Marcenapp production smoke', () => {
     expect(pageResponse?.status()).toBe(200);
     await expect(page).toHaveTitle(/Marcenapp/i);
     await expect(page.getByRole('heading', { name: /Sua marcenaria trabalha\./i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /A IARA acelera\./i })).toBeVisible();
+    const heroImage = page.getByRole('img', { name: /Cozinha planejada contemporânea em madeira/i });
+    await expect(heroImage).toBeVisible();
+    await expect.poll(() => heroImage.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   });
 
   test('production serves an installable PWA manifest and Service Worker', async ({ request }) => {
