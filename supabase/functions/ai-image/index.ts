@@ -304,7 +304,7 @@ serve(async request => {
       throw new Error("credit_already_refunded");
     }
     creditConsumed = true;
-    const resolution = await resolveProvider(guard.userId);
+    const resolution = await resolveProvider(guard.userId, { requiresReference: images.length > 0 });
     const providers: AIProvider[] = resolution.fallback
       ? [resolution.primary, resolution.fallback]
       : [resolution.primary];
