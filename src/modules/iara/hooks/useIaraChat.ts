@@ -69,8 +69,32 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     if (execution && (execution.userId !== user.id || !isIaraExecutionCurrent(execution, context, executionGenerationRef.current))) return;
     const targetUserId = execution?.userId ?? user.id;
     const target = execution ? { projectId: execution.projectId, environmentId: execution.environmentId, versionId: execution.versionId } : context;
-    const { error: insertError } = await supabase.from('chat_messages').insert({ user_id: targetUserId, project_id: target.projectId, environment_id: target.environmentId, version_id: target.versionId, ...msg });
+    const { data: insertedMessage, error: insertError } = await supabase
+      .from('chat_messages')
+      .insert({ user_id: targetUserId, project_id: target.projectId, environment_id: target.environmentId, version_id: target.versionId, ...msg })
+      .select('id')
+      .single();
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
+
+    // Semantic memory is deliberately best-effort: a memory failure must never block
+    // the conversation or render flow. The provider can later be switched to a
+    // multilingual Vercel embedding model without changing this caller.
+    const text = typeof msg.text === 'string' ? msg.text.trim() : '';
+    if (msg.sender === 'user' && text) {
+      void supabase.functions.invoke('ai-memory', {
+        body: {
+          input: text,
+          projectId: target.projectId,
+          messageId: insertedMessage?.id ?? null,
+          sourceType: 'chat_message',
+          metadata: {
+            environmentId: target.environmentId,
+            versionId: target.versionId,
+          },
+          persist: true,
+        },
+      }).catch(error => console.warn('IARA semantic memory unavailable:', error));
+    }
   }, [user, context]);
 
   useEffect(() => { projectStateRef.current = projectState; }, [projectState]);
