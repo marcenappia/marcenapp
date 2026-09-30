@@ -1,9 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-export type AIProvider = "lovable" | "gemini";
+export type AIProvider = "lovable" | "vercel" | "gemini";
 
 export type ProviderAvailability = {
   lovable: boolean;
+  vercel: boolean;
   gemini: boolean;
 };
 
@@ -18,12 +19,13 @@ export function resolveProviderSelection(
 ): ProviderResolution {
   const operational: AIProvider[] = [
     ...(available.lovable ? ["lovable" as const] : []),
+    ...(available.vercel ? ["vercel" as const] : []),
     ...(available.gemini ? ["gemini" as const] : []),
   ];
 
   if (operational.length === 0) throw new Error("PROVIDER_NOT_CONFIGURED");
 
-  if (configured === "lovable" || configured === "gemini") {
+  if (configured === "lovable" || configured === "vercel" || configured === "gemini") {
     if (!available[configured]) throw new Error("PROVIDER_NOT_CONFIGURED");
     const fallback = operational.find((provider) => provider !== configured) ?? null;
     return { primary: configured, fallback };
@@ -50,6 +52,7 @@ export async function resolveProvider(userId: string): Promise<ProviderResolutio
 
   return resolveProviderSelection(data?.provider as string | undefined, {
     lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")),
+    vercel: Boolean(Deno.env.get("AI_GATEWAY_API_KEY")),
     gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY")),
   });
 }
