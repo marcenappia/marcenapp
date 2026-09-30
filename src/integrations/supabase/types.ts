@@ -41,7 +41,8 @@ export type Database = {
           created_at: string
           environment_id: string | null
           id: string
-          image_url: string | null
+          image_url: string
+          storage_path: string | null | null
           metadata: Json | null
           project_id: string | null
           sender: string
@@ -54,7 +55,8 @@ export type Database = {
           created_at?: string
           environment_id?: string | null
           id?: string
-          image_url?: string | null
+          image_url?: string
+          storage_path?: string | null | null
           metadata?: Json | null
           project_id?: string | null
           sender?: string
@@ -221,6 +223,7 @@ export type Database = {
           execution_generation?: number | null
           id?: string
           image_url: string
+          storage_path?: string | null
           project_id?: string | null
           prompt?: string | null
           user_id: string
