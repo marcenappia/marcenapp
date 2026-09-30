@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Calculator, CreditCard, Package, Palette, Save, Settings2, Users, ArrowRight, Database } from 'lucide-react';
+import { Building2, Calculator, CreditCard, Package, Palette, Save, Settings2, Users, ArrowRight, Database, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ProfessionalProfileCard } from '@/modules/admin/ProfessionalProfiles';
 import MinhaMarcenaria from '@/modules/marcenaria/MineriaDaMarcenaria';
