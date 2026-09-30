@@ -341,6 +341,29 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     setPendingUpload(null);
     void clearIaraPendingUpload().catch(() => undefined);
   };
+  const publishAttachedPhoto = useCallback(async (destination: { projectId: string; environmentId: string; imageUrl?: string | null; storagePath?: string | null }) => {
+    if (!user) throw new Error('Entre na sua conta para continuar.');
+    if (!destination.imageUrl) throw new Error('A foto foi salva, mas a URL da conversa não ficou disponível.');
+    const { error: insertError } = await supabase.from('chat_messages').insert({
+      user_id: user.id,
+      project_id: destination.projectId,
+      environment_id: destination.environmentId,
+      sender: 'user',
+      text: 'Foto do ambiente adicionada ao projeto.',
+      image_url: destination.imageUrl,
+      metadata: {
+        projectId: destination.projectId,
+        environmentId: destination.environmentId,
+        status: 'attached',
+        uploadKind: 'environment',
+        ...(destination.storagePath ? { storagePath: destination.storagePath } : {}),
+      },
+    });
+    if (insertError) throw new Error('A foto foi salva, mas não foi possível colocá-la na conversa.');
+    setPendingUpload(null);
+    await clearIaraPendingUpload().catch(() => undefined);
+  }, [user]);
+
   const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
   const dismissError = () => setError(null);
@@ -394,5 +417,5 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   };
   useEffect(() => { const browserWindow = window as BrowserWithSpeechRecognition; const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition; if (!SpeechRecognition) return; const r = new SpeechRecognition(); r.lang = 'pt-BR'; r.onstart = () => setIsListening(true); r.onend = () => setIsListening(false); r.onresult = (event) => setChatInput(prev => `${prev} ${event.results[0][0].transcript}`.trim()); recognitionRef.current = r; return () => { r.stop(); recognitionRef.current = null; }; }, []);
   const toggleRecording = () => { if (!recognitionRef.current) { setError('Seu navegador não disponibilizou reconhecimento de voz. Você pode continuar pelo texto.'); return; } if (isListening) recognitionRef.current.stop(); else recognitionRef.current.start(); };
-  return { messages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, error, retryLast, dismissError, projectState, projectStateSummary: projectStateSummary(projectState) };
+  return { messages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, chatInput, setChatInput, isTyping, isListening, handleSend, handleSmartAction, handleImageSelect, toggleRecording, maskingImage, setMaskingImage, pendingUpload, setPendingUpload, publishAttachedPhoto, error, retryLast, dismissError, projectState, projectStateSummary: projectStateSummary(projectState) };
 };
