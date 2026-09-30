@@ -11,12 +11,12 @@ import type { ResolvedIntent } from './iara/intent/types';
 import { defaultResolverChain, resolveIntent } from './iara/intent/resolverChain';
 
 export interface ToolCall { tool: string; args: Record<string, unknown>; }
-export interface OrchestratorPlan { plan: ToolCall[]; summary: string; model?: string; provider?: 'lovable' | 'gemini'; }
+export interface OrchestratorPlan { plan: ToolCall[]; summary: string; model?: string; provider?: 'lovable' | 'gemini' | 'vercel' | 'vercel'; }
 export interface PendingInput { tool: string; fields: string[]; reason: string; }
-export interface OrchestratorRun { runId: string | null; plan: ToolCall[]; summary: string; results: Array<{ tool: string; result: ToolResult }>; usedFallback: boolean; provider?: 'lovable' | 'gemini'; error?: string; pendingInput?: PendingInput; status: 'completed' | 'failed' | 'needs_input'; }
+export interface OrchestratorRun { runId: string | null; plan: ToolCall[]; summary: string; results: Array<{ tool: string; result: ToolResult }>; usedFallback: boolean; provider?: 'lovable' | 'gemini' | 'vercel' | 'vercel'; error?: string; pendingInput?: PendingInput; status: 'completed' | 'failed' | 'needs_input'; }
 
 export async function planWithLLM(userPrompt: string, context?: Record<string, unknown>): Promise<OrchestratorPlan> {
-  const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string; provider?: 'lovable' | 'gemini' }>('ai-orchestrator', { userPrompt, context });
+  const data = await callAIFunction<{ plan?: ToolCall[]; summary?: string; model?: string; provider?: 'lovable' | 'gemini' | 'vercel' | 'vercel' }>('ai-orchestrator', { userPrompt, context });
   return { plan: data.plan ?? [], summary: data.summary ?? '', model: data.model, provider: data.provider };
 }
 
