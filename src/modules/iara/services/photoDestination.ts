@@ -8,6 +8,8 @@ export type PhotoDestination = {
   clientName?: string | null;
   projectName?: string | null;
   environmentName?: string | null;
+  imageUrl?: string | null;
+  storagePath?: string | null;
 };
 
 const PHOTO_HANDOFF_KEY = 'marcenapp.iara.environment-photo-handoff.v1';
@@ -128,6 +130,8 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
     clientId: project.cliente_id ?? args.clientId ?? null,
     projectName: project.nome || project.name || null,
     environmentName: environment.name,
+    imageUrl: signed.signedUrl,
+    storagePath,
   };
 }
 
