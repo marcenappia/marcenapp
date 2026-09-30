@@ -68,7 +68,7 @@ async function verifyGitHubActionsToken(request: Request): Promise<GitHubClaims>
   const claims = payload as GitHubClaims;
 
   if (claims.repository !== EXPECTED_REPOSITORY) throw new Error('invalid_repository');
-  if (!claims.sub?.startsWith(EXPECTED_SUBJECT_PREFIX)) throw new Error('invalid_subject');
+  if (claims.sub && !claims.sub.startsWith(EXPECTED_SUBJECT_PREFIX)) throw new Error('invalid_subject');
   console.info('e2e oidc claims accepted', { sub: claims.sub, ref: claims.ref, workflow: claims.workflow, event_name: claims.event_name, run_id: claims.run_id });
   if (claims.workflow && !EXPECTED_WORKFLOWS.has(claims.workflow)) throw new Error('invalid_workflow');
   if (claims.event_name && !['push', 'workflow_dispatch', 'schedule', 'deployment_status'].includes(claims.event_name)) {
