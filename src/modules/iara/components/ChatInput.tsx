@@ -33,7 +33,7 @@ interface ChatInputProps {
   setPendingUpload: (val: PendingUpload | null) => void; onSmartAction?: (action: SmartAction) => void; onPhotoAttached?: (destination: import('../services/photoDestination').PhotoDestination) => Promise<void>; navigateTo?: (id: string, params?: Record<string, string>) => void; projectId?: string | null;
 }
 
-export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction, navigateTo, projectId }: ChatInputProps) => {
+export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction, onPhotoAttached, navigateTo, projectId }: ChatInputProps) => {
   const [open, setOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [oneShotOpen, setOneShotOpen] = useState(false);
