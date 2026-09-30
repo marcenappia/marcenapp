@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { createRemoteJWKSet, decodeJwt, jwtVerify, type JWTPayload } from 'npm:jose@6';
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'npm:jose@6';
 
 const GITHUB_ISSUER = 'https://token.actions.githubusercontent.com';
 const GITHUB_AUDIENCE = 'marcenapp-e2e';
