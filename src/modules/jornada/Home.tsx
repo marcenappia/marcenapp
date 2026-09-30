@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, BookOpen, Camera, ChevronRight, FolderOpen, Plus, Ruler, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, Camera, ChevronRight, FolderOpen, Plus, Ruler, Users, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { carregarProgresso, ETAPAS_OBRA, percentualObra, EtapaId } from './types';
