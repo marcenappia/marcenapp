@@ -1,6 +1,8 @@
 name: Vercel Production Smoke
 
 on:
+  push:
+    branches: [main]
   deployment_status:
   workflow_dispatch:
     inputs:
