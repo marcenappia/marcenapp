@@ -10,3 +10,6 @@ verify_jwt = false
 
 [functions.e2e-bootstrap]
 verify_jwt = false
+
+[functions.migrate-helper]
+verify_jwt = false
