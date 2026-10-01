@@ -56,7 +56,10 @@ export const useStudioStore = create<StudioState>()(
         set(state => ({ commandQueue: [...state.commandQueue, newCommand] })); return id;
       },
       startProcessing: (id) => set(state => ({ isRendering: true, commandQueue: state.commandQueue.map(cmd => cmd.id === id ? { ...cmd, status: 'processing' } : cmd) })),
-      completeCommand: (id, resultUrl) => set(state => ({ isRendering: false, lastResult: resultUrl, generatedImage: resultUrl, commandQueue: state.commandQueue.map(cmd => cmd.id === id ? { ...cmd, status: 'completed', resultUrl } : cmd) })),
+      completeCommand: (id, resultUrl) => {
+        if (!resultUrl || (!resultUrl.startsWith('data:image/') && !resultUrl.startsWith('https://'))) return;
+        set(state => ({ isRendering: false, lastResult: resultUrl, generatedImage: resultUrl, commandQueue: state.commandQueue.map(cmd => cmd.id === id ? { ...cmd, status: 'completed', resultUrl } : cmd) }));
+      },
       failCommand: (id, error) => set(state => ({ isRendering: false, commandQueue: state.commandQueue.map(cmd => cmd.id === id ? { ...cmd, status: 'failed', error } : cmd) })),
       cancelCommand: (id) => set(state => ({ isRendering: false, commandQueue: state.commandQueue.map(cmd => cmd.id === id ? { ...cmd, status: 'cancelled' } : cmd) })),
       setGeneratedImage: (url) => set({ generatedImage: url }),
