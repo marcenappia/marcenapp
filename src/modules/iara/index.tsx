@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, ChevronDown, ArrowLeft } from 'lucide-react';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput, type SmartAction } from './components/ChatInput';
@@ -10,7 +10,7 @@ import type { IaraContext } from './services/iaraContext';
 interface IaraModuleProps { syncProject?: { width?: number; height?: number; depth?: number } | null; onProjectChange?: (p: { width: number; height: number; depth: number }) => void; embedded?: boolean; projectId?: string | null; activeContext?: IaraContext; navigateTo?: (id: string, params?: Record<string, string>) => void; environments?: Array<{ id: string; name: string; position: number }>; versions?: Array<{ id: string; version_number: number; environment_id: string }>; onEnvironmentChange?: (id: string) => void; onVersionChange?: (id: string) => void; }
 
 type UploadKind = 'environment' | 'reference' | 'sketch' | 'plan';
-type PendingUpload = { base64: string; baseRaw?: string; maskRaw?: string; kind?: UploadKind };
+type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind?: UploadKind; blob?: Blob; previewUrl?: string };
 
 const IaraModule = ({ syncProject, onProjectChange, embedded, projectId = null, activeContext, environments = [], versions = [], onEnvironmentChange, onVersionChange, navigateTo }: IaraModuleProps = {}) => {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
@@ -33,7 +33,7 @@ const IaraModule = ({ syncProject, onProjectChange, embedded, projectId = null, 
   const confirmMask = async () => { if (!maskingImage || !canvasRef.current) return; const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = 1920; const ctx = canvas.getContext('2d'); if (!ctx) return; ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 1080, 1920); const ratio = Math.min(1080 / maskingImage.img.width, 1920 / maskingImage.img.height); const dw = maskingImage.img.width * ratio; const dh = maskingImage.img.height * ratio; ctx.drawImage(maskingImage.img, (1080 - dw) / 2, (1920 - dh) / 2, dw, dh); const baseB64 = canvas.toDataURL('image/jpeg', 0.7); const baseRaw = baseB64.split(',')[1]; ctx.clearRect(0, 0, 1080, 1920); ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 1080, 1920); ctx.drawImage(canvasRef.current, 0, 0); const idata = ctx.getImageData(0, 0, 1080, 1920); const d = idata.data; for (let i = 0; i < d.length; i += 4) { if (d[i + 3] > 10) { d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = 255; } else { d[i] = d[i + 1] = d[i + 2] = 0; d[i + 3] = 255; } } ctx.putImageData(idata, 0, 0); const maskRaw = canvas.toDataURL('image/png').split(',')[1]; setPendingUpload({ base64: baseB64, baseRaw, maskRaw, kind: maskingImage.kind }); setMaskingImage(null); };
   const openArtifact = (data: { type: string; id?: string; imageUrl?: string | null }) => setContextPanel({ title: data.type === 'render' ? 'Render do projeto' : data.type === 'budget' ? 'Orçamento do projeto' : 'Artefato do projeto', type: data.type, imageUrl: data.imageUrl, description: projectId ? 'Este contexto está vinculado ao trabalho atual e permanece disponível sem sair da conversa.' : undefined });
   const onSmartAction = (action: SmartAction) => void handleSmartAction(action);
-  const updatePendingUpload = (value: PendingUpload | null) => setPendingUpload(value ? { base64: value.base64, baseRaw: value.baseRaw ?? '', maskRaw: value.maskRaw ?? '', kind: value.kind ?? 'environment' } : null);
+  const updatePendingUpload = useCallback((value: PendingUpload | null) => setPendingUpload(value ? { base64: value.base64, baseRaw: value.baseRaw ?? '', maskRaw: value.maskRaw ?? '', kind: value.kind ?? 'environment', blob: value.blob, previewUrl: value.previewUrl } : null), [setPendingUpload]);
   return (<div className={`flex min-h-0 flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]'} bg-background relative overflow-hidden rounded-xl border border-border`}>
     <header className="px-3 py-2 bg-card border-b border-border shrink-0">
       {projectId ? <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px]">
