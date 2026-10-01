@@ -20,7 +20,7 @@ describe('IARA-Studio Architecture', () => {
   };
 
   it('StudioWorker executes commands from the queue and syncs both stores', async () => {
-    vi.mocked(studioService.generateVisual).mockResolvedValue('url1');
+    vi.mocked(studioService.generateVisual).mockResolvedValue('https://example.com/render-1.png');
     const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
     from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-test', last_execution_generation: 1 }, error: null })), insert: vi.fn(() => Promise.resolve({ error: null })) }) as never);
     let ids: { studioId: string; osId: string } = { studioId: '', osId: '' };
@@ -31,13 +31,14 @@ describe('IARA-Studio Architecture', () => {
     const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
     expect(studioCmd?.status).toBe('completed');
     expect(osCmd?.status).toBe('completed');
-    expect(osCmd?.result?.resultUrl).toBe('url1');
+    expect(osCmd?.result?.resultUrl).toBe('https://example.com/render-1.png');
+    expect(useStudioStore.getState().generatedImage).toBe(osCmd?.result?.resultUrl);
     expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
     expect(vi.mocked(studioService.generateVisual).mock.calls[0]?.[1]).toEqual([{ mimeType: 'image/png', data: 'abc' }]);
   });
 
   it('IARA render executes while the user remains in the conversation module', async () => {
-    vi.mocked(studioService.generateVisual).mockResolvedValue('url-from-chat');
+    vi.mocked(studioService.generateVisual).mockResolvedValue('https://example.com/render-chat.png');
     const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
     from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-chat', last_execution_generation: 1 }, error: null })), insert: vi.fn(() => Promise.resolve({ error: null })) }) as never);
 
@@ -53,7 +54,7 @@ describe('IARA-Studio Architecture', () => {
     const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
     expect(studioCmd?.status).toBe('completed');
     expect(osCmd?.status).toBe('completed');
-    expect(osCmd?.result?.resultUrl).toBe('url-from-chat');
+    expect(osCmd?.result?.resultUrl).toBe('https://example.com/render-chat.png');
     expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
   });
 
@@ -114,7 +115,7 @@ describe('IARA-Studio Architecture', () => {
   });
 
   it('keeps an IARA render bound to its project when another project is newer', async () => {
-    vi.mocked(studioService.generateVisual).mockResolvedValue('url-project-a');
+    vi.mocked(studioService.generateVisual).mockResolvedValue('https://example.com/render-project-a.png');
     const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
     from.mockImplementation((table?: string) => {
       let selectedProject: string | null = null;
@@ -153,7 +154,7 @@ describe('IARA-Studio Architecture', () => {
 
     const osCmd = useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId);
     expect(osCmd?.status).toBe('completed');
-    expect(osCmd?.result?.resultUrl).toBe('url-project-a');
+    expect(osCmd?.result?.resultUrl).toBe('https://example.com/render-project-a.png');
     expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
   });
 

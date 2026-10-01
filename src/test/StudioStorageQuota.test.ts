@@ -41,6 +41,14 @@ describe('render state persistence under browser storage quota', () => {
     expect(useStudioStore.getState().generatedImage).toBe(renderDataUrl);
   });
 
+  it('does not overwrite a valid render with an empty result', () => {
+    const id = useStudioStore.getState().enqueueCommand({ prompt: 'cozinha', idempotencyKey: 'render-empty' });
+    useStudioStore.getState().completeCommand(id, renderDataUrl);
+    useStudioStore.getState().completeCommand(id, '');
+    expect(useStudioStore.getState().generatedImage).toBe(renderDataUrl);
+    expect(useStudioStore.getState().lastResult).toBe(renderDataUrl);
+  });
+
   it('keeps working when a pending command alone exceeds the storage quota', () => {
     const huge = { mimeType: 'image/jpeg', data: 'C'.repeat(6_000_000) };
     expect(() => useStudioStore.getState().enqueueCommand({ prompt: 'grande', images: [huge], idempotencyKey: 'render-4', metadata: { origin: 'iara' } })).not.toThrow();

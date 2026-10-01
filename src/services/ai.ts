@@ -112,7 +112,9 @@ export const callAIImage = async (
     idempotencyKey: stableIdempotencyKey,
     ...(persistence ? { persistGallery: persistence } : {}),
   }, requestId);
-  const image = data.imageBase64 ?? data.imageUrl ?? null;
+  // Prefer the private, signed gallery URL when persistence succeeded: it can
+  // also be saved in chat without writing a multi-megabyte data URL to the DB.
+  const image = data.imageUrl?.startsWith('https://') ? data.imageUrl : data.imageBase64 ?? data.imageUrl ?? null;
   if (!image || (!image.startsWith('data:image/') && !/^https:\/\//i.test(image))) {
     throw new Error('O serviço de IA não retornou uma imagem válida.');
   }
