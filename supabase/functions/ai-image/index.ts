@@ -13,7 +13,7 @@ const OPERATION_TYPE = "gerarRender";
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
-const VERCEL_IMAGE_MODEL = Deno.env.get("VERCEL_AI_IMAGE_MODEL") ?? "openai/gpt-image-2";
+const VERCEL_IMAGE_MODEL = Deno.env.get("VERCEL_AI_IMAGE_MODEL") ?? "openai/gpt-image-2.5-sunburst";
 const VERCEL_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1";
 // Image output (responseModalities) is documented on v1beta for Gemini image models.
 const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -165,16 +165,30 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
 async function generateVercelImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
   const key = Deno.env.get("AI_GATEWAY_API_KEY");
   if (!key) throw new Error("provider_not_configured:vercel");
-  if (images.length > 0) throw new Error("vercel_image_reference_not_supported");
   const width = size?.width ?? size?.height ?? DEFAULT_DIM;
   const height = size?.height ?? size?.width ?? DEFAULT_DIM;
-  const response = await gatewayFetch(`${VERCEL_GATEWAY_BASE_URL}/images/generations`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: VERCEL_IMAGE_MODEL, prompt, size: `${width}x${height}`, n: 1 }),
+
+  // Vercel AI Gateway supports reference-image editing through its OpenAI-compatible
+  // image model interface. Use the AI SDK adapter so multipart /images/edits is
+  // encoded correctly instead of sending an unsupported JSON shape.
+  const { createOpenAICompatible } = await import("npm:@ai-sdk/openai-compatible");
+  const { generateImage } = await import("npm:ai");
+  const provider = createOpenAICompatible({
+    name: "vercel-ai-gateway",
+    apiKey: key,
+    baseURL: VERCEL_GATEWAY_BASE_URL,
   });
-  if (!response.ok) throw gatewayError(response, await response.text());
-  return readBufferedImage(response);
+  const inputImages = await Promise.all(images.map(async (image) => new Uint8Array(await imageBlob(image).arrayBuffer())));
+  const result = await generateImage({
+    model: provider.imageModel(VERCEL_IMAGE_MODEL),
+    prompt: inputImages.length > 0 ? { text: prompt, images: inputImages } : prompt,
+    size: `${width}x${height}`,
+    n: 1,
+    maxRetries: 0,
+  });
+  const generated = result.images?.[0] ?? result.image;
+  if (!generated?.base64) throw new Error("empty_image_result");
+  return `data:${generated.mimeType ?? "image/png"};base64,${generated.base64}`;
 }
 
 async function generateGeminiImage(prompt: string, images: ImageInput[]): Promise<string> {
