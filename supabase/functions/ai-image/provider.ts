@@ -18,7 +18,7 @@ export function resolveProviderSelection(
   available: ProviderAvailability,
   options: { requiresReference?: boolean } = {},
 ): ProviderResolution {
-  const supportsReference: Record<AIProvider, boolean> = { lovable: true, vercel: true, gemini: true };
+  const supportsReference: Record<AIProvider, boolean> = { lovable: true, vercel: false, gemini: true };
   const operational: AIProvider[] = [
     ...(available.lovable ? ["lovable" as const] : []),
     ...(available.vercel ? ["vercel" as const] : []),
@@ -28,9 +28,15 @@ export function resolveProviderSelection(
   if (operational.length === 0) throw new Error("PROVIDER_NOT_CONFIGURED");
 
   if (configured === "lovable" || configured === "vercel" || configured === "gemini") {
-    if (!available[configured]) throw new Error("PROVIDER_NOT_CONFIGURED");
-    const fallback = operational.find((provider) => provider !== configured) ?? null;
-    return { primary: configured, fallback };
+    // A saved preference must not turn a temporary/missing secret for that
+    // provider into a hard 503 when another operational provider exists.
+    if (available[configured] && (!options.requiresReference || supportsReference[configured])) {
+      const fallback = operational.find((provider) => provider !== configured) ?? null;
+      return { primary: configured, fallback };
+    }
+    const fallbackPrimary = operational[0];
+    if (!fallbackPrimary) throw new Error("PROVIDER_NOT_CONFIGURED");
+    return { primary: fallbackPrimary, fallback: operational.find((provider) => provider !== fallbackPrimary) ?? null };
   }
 
   return {
