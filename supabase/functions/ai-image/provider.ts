@@ -75,7 +75,7 @@ export async function resolveProvider(
     data?.provider as string | undefined,
     {
       lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")),
-      vercel: Boolean(Deno.env.get("AI_GATEWAY_API_KEY") && Deno.env.get("VERCEL_AI_IMAGE_MODEL") || Deno.env.get("AI_GATEWAY_API_KEY")),
+      vercel: Boolean(Deno.env.get("AI_GATEWAY_API_KEY")),
       gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY")),
     },
     { requiresReference: options.requiresReference },
