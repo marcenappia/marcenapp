@@ -79,15 +79,18 @@ async function readBufferedImage(response: Response): Promise<string> {
     data?: Array<{ b64_json?: string; url?: string }>;
   } | null;
   const image = body?.data?.[0];
-  if (image?.b64_json) {
+  if (typeof image?.b64_json === "string") {
     const value = image.b64_json.trim();
     if (!value) throw new Error("empty_image_result");
-    return value.startsWith("data:image/") ? value : `data:image/png;base64,${value}`;
+    const dataUrl = value.startsWith("data:image/") ? value : `data:image/png;base64,${value}`;
+    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/i.test(dataUrl)) throw new Error("invalid_image_result");
+    return dataUrl;
   }
   if (image?.url) {
     const imageResponse = await fetch(image.url);
     if (!imageResponse.ok) throw new Error(`provider_image_download:${imageResponse.status}`);
     const contentType = imageResponse.headers.get("content-type")?.split(";")[0] ?? "image/png";
+    if (!/^image\/(png|jpeg|webp)$/i.test(contentType)) throw new Error("invalid_image_result");
     const bytes = new Uint8Array(await imageResponse.arrayBuffer());
     if (!bytes.length) throw new Error("empty_image_result");
     let binary = "";
@@ -368,6 +371,7 @@ serve(async request => {
     let persistedImageUrl = imageBase64;
     let storagePath: string | null = null;
     if (persistGallery) {
+      try {
       const { data: context, error: contextError } = await admin
         .from("project_iara_contexts")
         .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
@@ -420,19 +424,16 @@ serve(async request => {
       if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
       persisted = true;
       console.info("[DATABASE_WRITE]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, storagePath: Boolean(storagePath), requestId: idempotencyKey, renderId: idempotencyKey }));
+      } catch (persistError) {
+        console.error("[DATABASE_WRITE]", JSON.stringify({ status: "error", code: persistError instanceof Error ? persistError.message.split(":")[0] : "unknown", requestId: idempotencyKey, renderId: idempotencyKey }));
+      }
     }
 
     console.info("[IMAGE_RETURN]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, persisted, requestId: idempotencyKey, renderId: idempotencyKey }));
     return jsonResponse(cors, { imageBase64, imageUrl: persistedImageUrl, width, height, operationType: OPERATION_TYPE, model: usedModel, provider: usedProvider, requestId: idempotencyKey, renderId: idempotencyKey, storagePath, creditConsumption: Array.isArray(data) ? data[0] : data, persisted, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
     const error = caught as GatewayError;
-    const shouldRefund = creditConsumed && idempotencyKey && (
-      !imageGenerated ||
-      error.message === "stale_execution_context" ||
-      error.message === "iara_context_read_failed" ||
-      error.message === "render_idempotency_lookup_failed" ||
-      error.message.startsWith("gallery_persist_failed:") || error.message.startsWith("gallery_storage_write_failed:") || error.message === "gallery_signed_url_failed" || error.message === "gallery_image_not_data_url"
-    );
+    const shouldRefund = creditConsumed && idempotencyKey && !imageGenerated;
     if (shouldRefund) await refund(guard.userId, idempotencyKey).catch(refundError => console.error("ai-image refund error", refundError));
     
     console.error("ai-image error", error.message);

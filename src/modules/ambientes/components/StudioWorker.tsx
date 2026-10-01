@@ -133,7 +133,7 @@ export const StudioWorker = () => {
             }
           : undefined,
       );
-      if (!result) throw new Error('O serviço de IA não retornou uma imagem válida.');
+      if (!result || (!result.startsWith('data:image/') && !result.startsWith('https://'))) throw new Error('O serviço de IA não retornou uma imagem válida.');
       if (osCommand.source !== 'iara' && !(await isCurrentContext(payload))) {
         cancelCommand(storeCommandId);
         updateOSStatus(osCommand.id, 'cancelled', undefined, 'Resultado descartado: a identidade de execução mudou durante a geração.');
