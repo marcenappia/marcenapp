@@ -1,4 +1,4 @@
-const CACHE_NAME = 'marcenapp-static-v2';
+const CACHE_NAME = 'marcenapp-static-v3';
 const STATIC_ASSETS = [
   '/',
   '/manifest.webmanifest',
@@ -42,8 +42,6 @@ self.addEventListener('fetch', (event) => {
 
   // Never cache Vite /assets in the service worker. Those files are content-
   // hashed and should always be resolved from the current deployment/CDN.
-  // Caching them here can mix chunks from different deployments and crash
-  // React before the workspace mounts.
   if (url.pathname.startsWith('/assets/')) return;
 
   if (url.pathname.startsWith('/icons/')) {
