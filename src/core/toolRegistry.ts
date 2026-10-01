@@ -41,14 +41,16 @@ async function recentProjectImages(ctx: ExecutionContext): Promise<VisualReferen
     const references: VisualReference[] = [];
     for (const row of data ?? []) {
       const url = typeof row.image_url === 'string' ? row.image_url : '';
-      if (url.startsWith('blob:')) continue;
-      if (url.startsWith('data:image/')) {
-        const payload = url.split(',')[1] ?? '';
-        if (payload) references.push({ data: payload, mimeType: url.startsWith('data:image/png') ? 'image/png' : url.startsWith('data:image/webp') ? 'image/webp' : 'image/jpeg', kind: 'environment' });
-        continue;
-      }
+      // Historical chat rows may still contain transient browser URLs or inline
+      // data URLs. They are not valid durable render references, so fail closed.
+      if (!url || url.startsWith('blob:') || url.startsWith('data:')) continue;
       const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
-      const storagePath = typeof metadata.storagePath === 'string' ? metadata.storagePath : '';
+      const storagePath =
+        typeof metadata.storagePath === 'string'
+          ? metadata.storagePath
+          : typeof metadata.storage_path === 'string'
+            ? metadata.storage_path
+            : '';
       if (!storagePath) continue;
       const { data: signed } = await db.storage.from('obras').createSignedUrl(storagePath, 60 * 10);
       if (!signed?.signedUrl) continue;
