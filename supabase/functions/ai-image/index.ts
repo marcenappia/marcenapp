@@ -122,7 +122,7 @@ async function requestGateway(prompt: string, images: ImageInput[], size?: { wid
   const headers = {
     Authorization: `Bearer ${key}`,
     "Lovable-API-Key": key,
-    "X-Lovable-AIG-SDK": "fetch",
+    "X-Lovable-AIG-SDK": "tanstack-ai",
   };
 
   const width = size?.width ?? size?.height ?? DEFAULT_DIM;
@@ -386,6 +386,7 @@ serve(async request => {
     let storagePath: string | null = null;
     if (persistGallery) {
       try {
+      if (!persistGallery.projectId) throw new Error("gallery_project_required");
       const { data: context, error: contextError } = await admin
         .from("project_iara_contexts")
         .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
@@ -440,6 +441,7 @@ serve(async request => {
       console.info("[DATABASE_WRITE]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, storagePath: Boolean(storagePath), requestId: idempotencyKey, renderId: idempotencyKey }));
       } catch (persistError) {
         console.error("[DATABASE_WRITE]", JSON.stringify({ status: "error", code: persistError instanceof Error ? persistError.message.split(":")[0] : "unknown", requestId: idempotencyKey, renderId: idempotencyKey }));
+        throw persistError;
       }
     }
 
@@ -454,6 +456,7 @@ serve(async request => {
     if (error.message === "stale_execution_context") return jsonResponse(cors, { message: "A execução do render ficou desatualizada antes da persistência.", code: "stale_execution_context" }, 409);
     if (error.message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed" }, 500);
     if (error.message === "render_idempotency_lookup_failed") return jsonResponse(cors, { message: "Não foi possível validar se este render já foi concluído.", code: "render_idempotency_lookup_failed" }, 500);
+    if (error.message === "gallery_project_required") return jsonResponse(cors, { message: "O render da IARA precisa estar vinculado a um projeto.", code: "gallery_project_required" }, 409);
     if (error.message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "Não foi possível salvar o render na galeria.", code: "gallery_persist_failed" }, 500);
     if (error.message === "credit_already_refunded") return jsonResponse(cors, { message: "Esta operação já foi estornada e não pode ser reutilizada.", code: "credit_already_refunded" }, 409);
     if (error.message === "provider_not_configured" || error.message === "PROVIDER_NOT_CONFIGURED") return jsonResponse(cors, { message: "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
