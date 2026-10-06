@@ -4,13 +4,27 @@ import path from 'node:path';
 const inputDir = process.env.LIGHTHOUSE_RESULTS_DIR ?? 'lighthouse-results';
 const outputFile = process.env.LIGHTHOUSE_SUMMARY_OUTPUT ?? 'artifacts/lighthouse-daily-summary.md';
 
-const files = (await readdir(inputDir))
+let inputFiles = [];
+try {
+  inputFiles = await readdir(inputDir);
+} catch (error) {
+  const message = error?.code === 'ENOENT' ? `Lighthouse não produziu resultados nesta execução.` : `Falha ao ler resultados Lighthouse: ${error?.message ?? String(error)}`;
+  await mkdir(path.dirname(outputFile), { recursive: true });
+  await writeFile(outputFile, `# Resumo diário do Lighthouse — Marcenapp\n\n- **Status:** ${message}\n`);
+  console.warn(message);
+  process.exit(0);
+}
+
+const files = inputFiles
   .filter((file) => file.endsWith('.json'))
   .sort()
   .map((file) => path.join(inputDir, file));
 
 if (files.length === 0) {
-  throw new Error(`Nenhum relatório Lighthouse JSON encontrado em ${inputDir}`);
+  await mkdir(path.dirname(outputFile), { recursive: true });
+  await writeFile(outputFile, '# Resumo diário do Lighthouse — Marcenapp\n\n- **Status:** nenhum relatório Lighthouse foi produzido nesta execução.\n');
+  console.warn(`Nenhum relatório Lighthouse JSON encontrado em ${inputDir}`);
+  process.exit(0);
 }
 
 const requestedRuns = Number(process.env.LIGHTHOUSE_RUNS ?? 3);
@@ -23,7 +37,10 @@ const reports = (await Promise.all(files.map(async (file) => JSON.parse(await re
   .slice(-requestedRuns);
 
 if (reports.length === 0) {
-  throw new Error(`Nenhum relatório Lighthouse válido encontrado em ${inputDir}`);
+  await mkdir(path.dirname(outputFile), { recursive: true });
+  await writeFile(outputFile, '# Resumo diário do Lighthouse — Marcenapp\n\n- **Status:** os relatórios encontrados não continham métricas válidas.\n');
+  console.warn(`Nenhum relatório Lighthouse válido encontrado em ${inputDir}`);
+  process.exit(0);
 }
 const score = (report, category) => Math.round((report.categories?.[category]?.score ?? 0) * 100);
 const metric = (report, id) => report.audits?.[id]?.numericValue ?? null;
