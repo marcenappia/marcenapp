@@ -1,4 +1,4 @@
-const CACHE_NAME = 'marcenapp-static-v3';
+const CACHE_NAME = 'marcenapp-static-v4';
 const STATIC_ASSETS = [
   '/',
   '/manifest.webmanifest',
@@ -46,12 +46,15 @@ self.addEventListener('fetch', (event) => {
 
   if (url.pathname.startsWith('/icons/')) {
     event.respondWith(
-      caches.match(request).then((cached) => cached ?? fetch(request).then((response) => {
-        if (!response.ok) return response;
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        return response;
-      })),
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (!response.ok) return response;
+          const copy = response.clone();
+          void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        });
+      }),
     );
   }
 });

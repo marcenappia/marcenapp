@@ -17,6 +17,8 @@ const VERCEL_IMAGE_MODEL = Deno.env.get("VERCEL_AI_IMAGE_MODEL") ?? "openai/gpt-
 const VERCEL_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1";
 // Image output (responseModalities) is documented on v1beta for Gemini image models.
 const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const PROVIDER_ATTEMPT_TIMEOUT_MS = 45_000;
+const MAX_PROVIDER_ERROR_CHARS = 500;
 
 const ImageSchema = z.object({
   mimeType: z.string().regex(/^image\/(png|jpeg|jpg|webp)$/i),
@@ -64,10 +66,28 @@ function retryDelay(response: Response, attempt: number): number {
   return Math.min(750 * (2 ** attempt) + Math.floor(Math.random() * 250), 5_000);
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = PROVIDER_ATTEMPT_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("provider_timeout");
+    throw new Error(`provider_connection_error:${error instanceof Error ? error.message : "fetch_failed"}`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function gatewayFetch(url: string, init: RequestInit): Promise<Response> {
   let response: Response | null = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    response = await fetch(url, init);
+    try {
+      response = await fetchWithTimeout(url, init);
+    } catch (error) {
+      if (error instanceof Error && error.message === "provider_timeout" && attempt < 2) continue;
+      throw error;
+    }
     if (response.ok || (response.status !== 429 && response.status < 500)) return response;
     if (attempt < 2) await new Promise(resolve => setTimeout(resolve, retryDelay(response as Response, attempt)));
   }
@@ -87,7 +107,13 @@ async function readBufferedImage(response: Response): Promise<string> {
     return dataUrl;
   }
   if (image?.url) {
-    const imageResponse = await fetch(image.url);
+    let imageResponse: Response;
+    try {
+      imageResponse = await fetchWithTimeout(image.url);
+    } catch (error) {
+      if (error instanceof Error && error.message === "provider_timeout") throw new Error("provider_image_download_timeout");
+      throw error;
+    }
     if (!imageResponse.ok) throw new Error(`provider_image_download:${imageResponse.status}`);
     const contentType = imageResponse.headers.get("content-type")?.split(";")[0] ?? "image/png";
     if (!/^image\/(png|jpeg|webp)$/i.test(contentType)) throw new Error("invalid_image_result");
@@ -109,7 +135,7 @@ function gatewayError(response: Response, body: string): GatewayError {
     const parsed = JSON.parse(body) as { error?: { message?: string }; message?: string };
     safeMessage = parsed.error?.message ?? parsed.message ?? safeMessage;
   } catch { /* Keep the safe default. */ }
-  const error = new Error(safeMessage) as GatewayError;
+  const error = new Error(safeMessage.slice(0, MAX_PROVIDER_ERROR_CHARS)) as GatewayError;
   error.status = response.status;
   error.retryAfter = response.headers.get("Retry-After") ?? undefined;
   return error;
@@ -179,13 +205,16 @@ async function generateVercelImage(prompt: string, images: ImageInput[], size?: 
     baseURL: VERCEL_GATEWAY_BASE_URL,
   });
   const inputImages = await Promise.all(images.map(async (image) => new Uint8Array(await imageBlob(image).arrayBuffer())));
-  const result = await generateImage({
-    model: provider.imageModel(VERCEL_IMAGE_MODEL),
+  const result = await Promise.race([
+    generateImage({
+      model: provider.imageModel(VERCEL_IMAGE_MODEL),
     prompt: inputImages.length > 0 ? { text: prompt, images: inputImages } : prompt,
     size: `${width}x${height}`,
     n: 1,
-    maxRetries: 0,
-  });
+      maxRetries: 0,
+    }),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("provider_timeout")), PROVIDER_ATTEMPT_TIMEOUT_MS)),
+  ]);
   const generated = result.images?.[0] ?? result.image;
   if (!generated?.base64) throw new Error("empty_image_result");
   return `data:${generated.mimeType ?? "image/png"};base64,${generated.base64}`;
@@ -201,7 +230,7 @@ async function generateGeminiImage(prompt: string, images: ImageInput[]): Promis
     parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
   }
 
-  const response = await fetch(`${GEMINI_GENERATE_URL}/${GEMINI_IMAGE_MODEL}:generateContent`, {
+  const response = await fetchWithTimeout(`${GEMINI_GENERATE_URL}/${GEMINI_IMAGE_MODEL}:generateContent`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -460,11 +489,13 @@ serve(async request => {
     if (error.message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "Não foi possível salvar o render na galeria.", code: "gallery_persist_failed" }, 500);
     if (error.message === "credit_already_refunded") return jsonResponse(cors, { message: "Esta operação já foi estornada e não pode ser reutilizada.", code: "credit_already_refunded" }, 409);
     if (error.message === "provider_not_configured" || error.message === "PROVIDER_NOT_CONFIGURED") return jsonResponse(cors, { message: "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
+    if (error.message === "provider_timeout") return jsonResponse(cors, { message: `O provedor de imagens excedeu o timeout de ${PROVIDER_ATTEMPT_TIMEOUT_MS / 1000}s por tentativa.`, code: "provider_timeout", requestId: idempotencyKey, renderId: idempotencyKey }, 504);
+    if (error.message.startsWith("provider_connection_error:")) return jsonResponse(cors, { message: error.message.slice(26, 526), code: "provider_connection_error", requestId: idempotencyKey, renderId: idempotencyKey }, 502);
     if (error.status === 400) return jsonResponse(cors, { message: error.message, code: "invalid_image_request" }, 400);
     if (error.status === 401) return jsonResponse(cors, { message: "A chave do serviço de IA não está configurada corretamente.", code: "provider_auth_error" }, 401);
     if (error.status === 402) return jsonResponse(cors, { message: error.message, code: "provider_credits_exhausted" }, 402);
     if (error.status === 403) return jsonResponse(cors, { message: error.message, code: "provider_access_denied" }, 403);
     if (error.status === 429) return jsonResponse(cors, { message: error.message, code: "rate_limited" }, 429, error.retryAfter ? { "Retry-After": error.retryAfter } : {});
-    return jsonResponse(cors, { message: error.message.startsWith("provider_stream:") ? error.message.slice(16) : "O provedor de imagens está indisponível no momento.", code: "upstream_error" }, 502);
+    return jsonResponse(cors, { message: error.message.startsWith("provider_stream:") ? error.message.slice(16, 516) : error.message.slice(0, MAX_PROVIDER_ERROR_CHARS), code: "provider_error", providerStatus: error.status, requestId: idempotencyKey, renderId: idempotencyKey }, 502);
   }
 });

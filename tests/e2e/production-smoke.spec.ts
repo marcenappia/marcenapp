@@ -37,7 +37,7 @@ test.describe('Marcenapp production smoke', () => {
     const serviceWorkerResponse = await request.get('/sw.js');
     expect(serviceWorkerResponse.ok()).toBe(true);
     expect(serviceWorkerResponse.headers()['content-type']).toContain('javascript');
-    expect(await serviceWorkerResponse.text()).toContain('marcenapp-static-v1');
+    expect(await serviceWorkerResponse.text()).toContain('marcenapp-static-v4');
   });
 
   test('Service Worker keeps the app shell available offline', async ({ browser, baseURL }) => {

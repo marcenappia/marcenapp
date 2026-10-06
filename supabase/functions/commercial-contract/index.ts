@@ -3,6 +3,16 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 const MAX_BODY_BYTES = 64 * 1024;
+const PROVIDER_TIMEOUT_MS = 90_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  try { return await fetch(url, { ...init, signal: controller.signal }); }
+  catch (error) { if (error instanceof DOMException && error.name === 'AbortError') throw new Error('provider_timeout'); throw new Error('provider_connection_error'); }
+  finally { clearTimeout(timer); }
+}
+
 const OPERATION_TYPE = "gerarContrato";
 const BodySchema = z.object({ prompt: z.string().trim().min(1).max(4000), idempotencyKey: z.string().trim().min(8).max(200) });
 const allowedSuffixes = [".lovable.app", ".lovableproject.com", ".lovable.dev"];
@@ -55,6 +65,7 @@ serve(async req => {
   if (req.method !== "POST") return json(h, { error: "Method not allowed" }, 405);
   const guard = await guardRequest(req, h);
   if (!guard.ok) return guard.response;
+  let creditConsumed = false;
   try {
     const length = Number(req.headers.get("content-length") ?? 0);
     if (length > MAX_BODY_BYTES) return json(h, { error: "Corpo da requisição muito grande.", code: "payload_too_large" }, 413);
@@ -72,10 +83,11 @@ serve(async req => {
       const insufficient = consumeError.message.includes("insufficient_credits");
       return json(h, { error: missing ? "Esta operação ainda não possui uma regra comercial configurada." : insufficient ? "Créditos insuficientes para gerar o contrato." : "Não foi possível autorizar o consumo de créditos.", code: missing ? "commercial_rule_missing" : insufficient ? "insufficient_credits" : "credit_authorization_failed" }, 402);
     }
+    creditConsumed = true;
     const key = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     if (!key) { await refund(guard.userId, idempotencyKey); return json(h, { error: "Serviço de IA não configurado.", code: "missing_api_key" }, 500); }
     const model = "gemini-3.8-flash";
-    const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `Prepare uma cláusula contratual curta e objetiva para um contrato de marcenaria sobre: "${prompt}". Use português formal. Não apresente aconselhamento jurídico e não afirme que o texto substitui revisão profissional.` }] }] }) });
+    const upstream = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `Prepare uma cláusula contratual curta e objetiva para um contrato de marcenaria sobre: "${prompt}". Use português formal. Não apresente aconselhamento jurídico e não afirme que o texto substitui revisão profissional.` }] }] }) });
     if (!upstream.ok) { await refund(guard.userId, idempotencyKey); return json(h, { error: upstream.status === 429 ? "Limite do provedor de IA atingido." : "O serviço de IA está indisponível.", code: upstream.status === 429 ? "rate_limited" : "upstream_error" }, upstream.status === 429 ? 429 : 502); }
     const data = await upstream.json();
     const text = data.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("").trim() ?? "";
@@ -85,6 +97,10 @@ serve(async req => {
     return json(h, { id: inserted.id, text, model, operationType: OPERATION_TYPE, creditConsumption: Array.isArray(consumed) ? consumed[0] : consumed });
   } catch (e) {
     console.error("commercial-contract error:", e);
+    if (creditConsumed) await refund(guard.userId, idempotencyKey).catch(refundError => console.error("commercial-contract refund error:", refundError));
+    const message = e instanceof Error ? e.message : String(e);
+    if (message === "provider_timeout") return json(h, { error: `O provedor de IA excedeu o timeout de ${PROVIDER_TIMEOUT_MS / 1000}s.`, code: "provider_timeout" }, 504);
+    if (message === "provider_connection_error") return json(h, { error: "Não foi possível comunicar com o provedor de IA.", code: "provider_connection_error" }, 502);
     return json(h, { error: "Erro interno ao gerar contrato.", code: "internal_error" }, 500);
   }
 });

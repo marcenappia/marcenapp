@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 type AIImageInput = string | { mimeType: string; data: string };
-type AIErrorBody = { error?: string; message?: string; code?: string };
+type AIErrorBody = { error?: string; message?: string; code?: string; providerStatus?: number; provider?: string; model?: string; requestId?: string; renderId?: string };
 type AIImageResponse = { imageBase64?: string | null; imageUrl?: string | null; provider?: string; model?: string; requestId?: string; renderId?: string };
 
 export interface AIImagePersistence {
@@ -59,9 +59,11 @@ const normalizeAIError = (status: number, data: unknown): Error => {
     case 'provider_connection_error':
       return new Error('Não foi possível comunicar com o provedor de IA. Tente novamente.');
     case 'provider_timeout':
-      return new Error('O provedor de IA demorou além do limite esperado. Tente novamente.');
+      return new Error(`O provedor de IA excedeu o timeout${body.provider ? ` (${body.provider})` : ''}${body.providerStatus ? ` — HTTP ${body.providerStatus}` : ''}.`);
+    case 'provider_error':
+      return new Error(body.message || body.error || `Erro do provedor${body.providerStatus ? ` — HTTP ${body.providerStatus}` : ''}.`);
     case 'upstream_error':
-      return new Error('O provedor de IA está indisponível no momento. Tente novamente.');
+      return new Error(body.message || 'O provedor de IA está indisponível no momento. Tente novamente.');
     case 'rate_limited':
       return new Error('O limite do provedor de IA foi atingido. Tente novamente em alguns segundos.');
     default:
@@ -69,18 +71,28 @@ const normalizeAIError = (status: number, data: unknown): Error => {
   }
 };
 
+const AI_FUNCTION_TIMEOUT_MS = 150_000;
+
 export const callAIFunction = async <T = unknown>(fn: string, body: unknown, requestId?: string): Promise<T> => {
   const headers = await aiHeaders();
   if (requestId) headers['x-request-id'] = requestId;
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), AI_FUNCTION_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`O serviço ${fn} excedeu o timeout de ${AI_FUNCTION_TIMEOUT_MS / 1000}s.`);
+    }
     throw new Error('Não foi possível comunicar com o serviço de IA. Verifique sua conexão e tente novamente.');
+  } finally {
+    globalThis.clearTimeout(timeoutId);
   }
 
   let data: unknown = null;
