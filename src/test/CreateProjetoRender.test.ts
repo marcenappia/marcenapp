@@ -64,6 +64,13 @@ describe('createProjeto with a reference photo', () => {
 
 
 describe('gerarRender with a persisted environment photo', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    })));
+  });
+
   it('recovers the durable environment image when chat has no image row', async () => {
     const { executeToolCall } = await import('@/core/toolRegistry');
     const result = await executeToolCall('gerarRender', { prompt: 'Renderize o móvel no ambiente atual.' }, {
