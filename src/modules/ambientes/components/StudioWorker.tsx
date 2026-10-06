@@ -6,6 +6,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { isIaraCommandExecutionCurrent } from '@/modules/iara/hooks/iaraExecutionScope';
 
+const RENDER_TIMEOUT_MS = 180_000;
+
+function withRenderTimeout<T>(promise: Promise<T>, timeoutMs = RENDER_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('O render excedeu o tempo máximo de 180 segundos e foi encerrado.')), timeoutMs);
+    promise.then(resolve, reject).finally(() => window.clearTimeout(timer));
+  });
+}
+
 export const StudioWorker = () => {
   const { user } = useAuth();
 
@@ -117,7 +126,7 @@ export const StudioWorker = () => {
     updateOSStatus(osCommand.id, 'processing');
     console.info('[GENERAR_RENDER]', JSON.stringify({ status: 'processing', commandId: osCommand.id, studioCommandId: storeCommandId, referenceCount: Array.isArray(command.images) ? command.images.length : 0 }));
     try {
-      const result = await studioService.generateVisual(
+      const result = await withRenderTimeout(studioService.generateVisual(
         command.prompt,
         command.images,
         command.style,
@@ -132,7 +141,7 @@ export const StudioWorker = () => {
               generation: typeof payload.generation === 'number' ? payload.generation : null,
             }
           : undefined,
-      );
+      ));
       if (!result || (!result.startsWith('data:image/') && !result.startsWith('https://'))) throw new Error('O serviço de IA não retornou uma imagem válida.');
       if (osCommand.source !== 'iara' && !(await isCurrentContext(payload))) {
         cancelCommand(storeCommandId);
