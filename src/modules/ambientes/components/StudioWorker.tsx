@@ -132,15 +132,6 @@ export const StudioWorker = () => {
               generation: typeof payload.generation === 'number' ? payload.generation : null,
             }
           : undefined,
-        osCommand.source === 'iara'
-          ? {
-              projectId: typeof payload.projectId === 'string' ? payload.projectId : null,
-              environmentId: typeof payload.environmentId === 'string' ? payload.environmentId : null,
-              versionId: typeof payload.versionId === 'string' ? payload.versionId : null,
-              correlationId: typeof payload.correlationId === 'string' ? payload.correlationId : null,
-              generation: typeof payload.generation === 'number' ? payload.generation : null,
-            }
-          : undefined,
       );
       if (!result || (!result.startsWith('data:image/') && !result.startsWith('https://'))) throw new Error('O serviço de IA não retornou uma imagem válida.');
       if (osCommand.source !== 'iara' && !(await isCurrentContext(payload))) {
