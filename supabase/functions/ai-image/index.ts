@@ -157,9 +157,57 @@ async function requestGateway(prompt: string, images: ImageInput[], size?: { wid
 }
 
 async function generateLovableImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
-  const response = await requestGateway(prompt, images, size);
-  if (!response.ok) throw gatewayError(response, await response.text());
-  return readBufferedImage(response);
+  const key = Deno.env.get("LOVABLE_API_KEY");
+  if (!key) throw new Error("provider_not_configured");
+
+  // Keep the request contract aligned with the current OpenAI-compatible
+  // Lovable adapter: it owns multipart encoding and image edit semantics.
+  const OpenAI = (await import("npm:openai@7.17.0")).default;
+  const client = new OpenAI({
+    apiKey: key,
+    baseURL: LOVABLE_GATEWAY_BASE_URL,
+    defaultHeaders: {
+      "Lovable-API-Key": key,
+      "X-Lovable-AIG-SDK": "tanstack-ai",
+    },
+  });
+
+  const width = size?.width ?? size?.height ?? DEFAULT_DIM;
+  const height = size?.height ?? size?.width ?? DEFAULT_DIM;
+  const sizeValue = `${width}x${height}`;
+
+  try {
+    if (images.length > 0) {
+      const files = images.map((image, index) => {
+        const binary = atob(image.data);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        return new File([bytes], `source-${index}.${imageExtension(image.mimeType)}`, { type: image.mimeType });
+      });
+      const response = await client.images.edit({
+        model: LOVABLE_IMAGE_MODEL,
+        prompt,
+        image: files.length === 1 ? files[0] : files,
+        n: 1,
+        size: sizeValue as "1024x1024" | "1536x1024" | "1024x1536" | "auto",
+      });
+      return readBufferedImage(new Response(JSON.stringify(response)));
+    }
+
+    const response = await client.images.generate({
+      model: LOVABLE_IMAGE_MODEL,
+      prompt,
+      n: 1,
+      size: sizeValue as "1024x1024" | "1536x1024" | "1024x1536" | "auto",
+    });
+    return readBufferedImage(new Response(JSON.stringify(response)));
+  } catch (error) {
+    const status = typeof error === "object" && error !== null && "status" in error
+      ? Number((error as { status?: unknown }).status)
+      : undefined;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`lovable_http_${Number.isFinite(status) ? status : "unknown"}:${message.slice(0, 500)}`);
+  }
 }
 
 async function generateVercelImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
