@@ -29,12 +29,13 @@ Fases 1–3 técnicas: ver `.lovable/plan/auditoria-técnica-completa-marcenapp-
 - [x] Não perder imagem válida quando a persistência de galeria/contexto falhar
 
 ## Gerações IARA, cobrança e publicação real — em andamento
-- [ ] Criar tela de gerações com histórico, imagem, contexto e status
-- [ ] Remover a exceção temporária e validar débito/restante real de créditos
+- [ ] Publicar a tela de saldo de créditos com histórico real de gerações
+- [ ] Remover qualquer exceção temporária e validar débito/restante real de créditos
 - [ ] Criar e configurar `migrate-helper` com acesso público controlado para migração
 - [ ] Atualizar todas as funções de IA para o catálogo atual da Lovable
 - [ ] Validar e publicar cada função alterada
 - [ ] Executar geração completa pela IARA até imagem aparecer no chat
+- [ ] Confirmar a mesma imagem e `resultUrl` visíveis no Studio com logs de cada etapa
 
 ## IARA — foto primeiro, destino depois
 - [ ] Liberar câmera e anexos no estado compacto sem projeto
