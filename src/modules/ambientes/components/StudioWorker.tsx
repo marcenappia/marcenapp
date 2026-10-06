@@ -23,6 +23,7 @@ export const StudioWorker = () => {
   const failCommand = useStudioStore(state => state.failCommand);
   const cancelCommand = useStudioStore(state => state.cancelCommand);
   const currentlyProcessing = useRef<string | null>(null);
+  const workerSessionStartedAt = useRef(Date.now());
 
   const readCurrentContext = useCallback(async (payload?: Record<string, unknown>) => {
     if (!user) return null;
@@ -149,25 +150,28 @@ export const StudioWorker = () => {
   }, [user, readCurrentContext, isCurrentContext, resolveRenderCommand, cancelCommand, updateOSStatus, failCommand, startProcessing, completeCommand]);
 
   useEffect(() => {
-    const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
+    // Hard-stop commands that were already persisted before this worker session.
+    // They are historical work, not new user intent, and must never be replayed.
+    const staleCommands = useMarcenappOS.getState().commandHistory.filter(cmd =>
+      cmd.status === 'pending' &&
+      cmd.target === 'studio' &&
+      cmd.payload?.userId === user?.id &&
+      cmd.timestamp < workerSessionStartedAt.current,
+    );
+    for (const stale of staleCommands) {
+      const payload = (stale.payload ?? {}) as Record<string, unknown>;
+      const studioCommandId = typeof payload.studioCommandId === 'string' ? payload.studioCommandId : stale.id;
+      cancelCommand(studioCommandId);
+      updateOSStatus(stale.id, 'cancelled', undefined, 'Comando antigo descartado ao iniciar o worker.');
+    }
+  }, [user?.id, cancelCommand, updateOSStatus]);
+
+  useEffect(() => {
+    const nextCommand = commandQueue.find(cmd =>
+      cmd.status === 'pending' && cmd.timestamp >= workerSessionStartedAt.current,
+    );
     if (nextCommand && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
   }, [commandQueue, processCommand]);
-
-  // Recovery guard: a browser tab can be suspended/reloaded while a command is
-  // marked as processing. The persisted Studio state already migrates processing
-  // commands back to pending; this timer also wakes the worker when another
-  // persisted store changes without changing the React dependency identity.
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      const pending = useMarcenappOS.getState().commandHistory.find(cmd =>
-        cmd.status === 'pending' &&
-        cmd.target === 'studio' &&
-        cmd.payload?.userId === user?.id,
-      );
-      if (pending && currentlyProcessing.current !== pending.id) void processCommand(pending);
-    }, 2000);
-    return () => window.clearInterval(timer);
-  }, [processCommand]);
 
   return null;
 };
