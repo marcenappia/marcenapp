@@ -36,17 +36,13 @@ export function resolveProviderSelection(
   if (operational.length === 0) throw new Error("PROVIDER_NOT_CONFIGURED");
 
   if (configured === "lovable" || configured === "vercel" || configured === "gemini") {
-    if (available[configured] && (!options.requiresReference || supportsReference[configured])) {
-      const fallback = operational.find((provider) => provider !== configured) ?? null;
-      return { primary: configured, fallback };
+    if (!available[configured] || (options.requiresReference && !supportsReference[configured])) {
+      // A provider explicitly selected by the user is a hard contract.
+      // Never silently jump to another provider: that can turn a missing
+      // credential/quota into a long, misleading render "processing" state.
+      throw new Error(`configured_provider_unavailable:${configured}`);
     }
-
-    const fallbackPrimary = operational[0];
-    if (!fallbackPrimary) throw new Error("PROVIDER_NOT_CONFIGURED");
-    return {
-      primary: fallbackPrimary,
-      fallback: operational.find((provider) => provider !== fallbackPrimary) ?? null,
-    };
+    return { primary: configured, fallback: null };
   }
 
   return {
