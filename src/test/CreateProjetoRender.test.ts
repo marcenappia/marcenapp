@@ -18,7 +18,26 @@ vi.mock('@/integrations/supabase/client', () => {
     insert: vi.fn(self),
     then: (resolve: (value: unknown) => void) => resolve({ data: [], error: null }),
   });
-  return { supabase: { from: vi.fn(() => chain) } };
+  const environmentChain: Record<string, unknown> = {};
+  const environmentSelf = () => environmentChain;
+  Object.assign(environmentChain, {
+    select: vi.fn(environmentSelf), eq: vi.fn(environmentSelf), order: vi.fn(environmentSelf), limit: vi.fn(environmentSelf),
+    then: (resolve: (value: unknown) => void) => resolve({
+      data: [{ metadata: { storage_path: 'user-a/project-a/ambiente.jpg' }, created_at: '2026-10-05T18:00:00Z' }],
+      error: null,
+    }),
+  });
+  const storage = {
+    from: vi.fn(() => ({
+      createSignedUrl: vi.fn(async () => ({ data: { signedUrl: 'https://signed.example/ambiente.jpg' }, error: null })),
+    })),
+  };
+  return {
+    supabase: {
+      from: vi.fn((table: string) => table === 'project_environments' ? environmentChain : chain),
+      storage,
+    },
+  };
 });
 vi.mock('@/store/useStudioStore', () => ({ useStudioStore: { getState: () => ({ enqueueCommand }) } }));
 vi.mock('@/store/useMarcenappOS', () => ({ useMarcenappOS: { getState: () => ({ dispatchCommand }) } }));
@@ -40,5 +59,25 @@ describe('createProjeto with a reference photo', () => {
     expect(payload.projectId).toBe(project.id);
     expect(payload.environmentId).toBe('22222222-2222-4222-8222-222222222222');
     expect(payload).not.toHaveProperty('versionId');
+  });
+});
+
+
+describe('gerarRender with a persisted environment photo', () => {
+  it('recovers the durable environment image when chat has no image row', async () => {
+    const { executeToolCall } = await import('@/core/toolRegistry');
+    const result = await executeToolCall('gerarRender', { prompt: 'Renderize o móvel no ambiente atual.' }, {
+      userId: 'user-a',
+      projectId: 'project-a',
+      environmentId: 'environment-a',
+      correlationId: 'corr-persisted',
+      generation: 1,
+    });
+    expect(result.ok).toBe(true);
+    expect(enqueueCommand).toHaveBeenCalledTimes(1);
+    const command = enqueueCommand.mock.calls[0]?.[0] as { images?: Array<{ data: string }> };
+    expect(command.images?.length).toBe(1);
+    expect(command.images?.[0]?.data).toBeTruthy();
+    expect(dispatchCommand).toHaveBeenCalledTimes(1);
   });
 });
