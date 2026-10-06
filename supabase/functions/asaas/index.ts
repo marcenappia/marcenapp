@@ -7,6 +7,15 @@ const ASAAS_SANDBOX_URL = "https://api-sandbox.asaas.com/v3";
 const ASAAS_PRODUCTION_URL = "https://api.asaas.com/v3";
 const BILLING_TYPES = ["UNDEFINED", "BOLETO", "CREDIT_CARD", "PIX"] as const;
 const validPlans = ["essencial", "profissional", "empresa", "pro_factory"] as const;
+const ASAAS_REQUEST_TIMEOUT_MS = 45_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ASAAS_REQUEST_TIMEOUT_MS);
+  try { return await fetch(url, { ...init, signal: controller.signal }); }
+  catch (error) { if (error instanceof DOMException && error.name === "AbortError") throw Object.assign(new Error("asaas_timeout"), { status: 504 }); throw Object.assign(new Error("asaas_connection_error"), { status: 502 }); }
+  finally { clearTimeout(timer); }
+}
 
 type AsaasPayment = Record<string, unknown> & { id?: string; customer?: string; status?: string; subscription?: string; externalReference?: string };
 type AsaasSubscription = Record<string, unknown> & { id?: string; customer?: string; status?: string; externalReference?: string; nextDueDate?: string; invoiceUrl?: string };
@@ -58,7 +67,7 @@ async function asaasJson(path: string, init: RequestInit = {}) {
   headers.set("Accept", "application/json");
   headers.set("User-Agent", "MARCENAPP/1.0 (billing)");
   headers.set("access_token", key);
-  const r = await fetch(`${base()}${path}`, { ...init, headers });
+  const r = await fetchWithTimeout(`${base()}${path}`, { ...init, headers });
   const b = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error("asaas_upstream_error"), { status: r.status, body: b });
   return b;
@@ -380,6 +389,8 @@ serve(async (req) => {
     if ((error as Error).message === "customer_document_required") return json(h, { error: "Informe seu CPF ou CNPJ para concluir o cadastro de cobrança.", code: "customer_document_required" }, 422);
     if ((error as Error).message === "customer_document_invalid") return json(h, { error: "CPF ou CNPJ inválido.", code: "customer_document_invalid" }, 400);
     if ((error as Error).message === "asaas_not_configured") return json(h, { error: "Asaas não está configurado no servidor." }, 503);
+    if ((error as Error).message === "asaas_timeout") return json(h, { error: "O Asaas excedeu o timeout de 45 segundos.", code: "asaas_timeout" }, 504);
+    if ((error as Error).message === "asaas_connection_error") return json(h, { error: "Não foi possível comunicar com o Asaas.", code: "asaas_connection_error" }, 502);
     if ((error as Error).message === "payload_too_large") return json(h, { error: "Corpo da requisição muito grande." }, 413);
     if (status === 401 || status === 403) return json(h, { error: "Asaas recusou a credencial ou a operação." }, 502);
     return json(h, { error: "Falha ao processar integração Asaas." }, status >= 400 && status < 600 ? status : 500);
