@@ -30,6 +30,41 @@ type ContratoData = { cliente: string; valor: number | null; prazoDias: number |
 
 async function recentProjectImages(ctx: ExecutionContext): Promise<VisualReference[]> {
   if (!ctx.projectId) return [];
+
+  const references: VisualReference[] = [];
+  const seen = new Set<string>();
+
+  const appendStorageReference = async (storagePath: string, kind: VisualReference['kind'], label?: string) => {
+    if (!storagePath || seen.has(storagePath) || references.length >= 8) return;
+    if (storagePath.startsWith('blob:') || storagePath.startsWith('data:')) return;
+    try {
+      const { data: signed } = await db.storage.from('obras').createSignedUrl(storagePath, 60 * 10);
+      if (!signed?.signedUrl) return;
+      const response = await fetch(signed.signedUrl);
+      if (!response.ok) return;
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (!bytes.length) return;
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunkSize, bytes.length)));
+      }
+      seen.add(storagePath);
+      references.push({
+        data: btoa(binary),
+        mimeType: storagePath.toLowerCase().endsWith('.png')
+          ? 'image/png'
+          : storagePath.toLowerCase().endsWith('.webp')
+            ? 'image/webp'
+            : 'image/jpeg',
+        kind,
+        label,
+      });
+    } catch {
+      // A stale or inaccessible reference must not block other references.
+    }
+  };
+
   try {
     const { data } = await db.from('chat_messages')
       .select('image_url,metadata,created_at')
@@ -38,7 +73,7 @@ async function recentProjectImages(ctx: ExecutionContext): Promise<VisualReferen
       .not('image_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(8);
-    const references: VisualReference[] = [];
+
     for (const row of data ?? []) {
       const url = typeof row.image_url === 'string' ? row.image_url : '';
       // Historical chat rows may still contain transient browser URLs or inline
@@ -51,21 +86,40 @@ async function recentProjectImages(ctx: ExecutionContext): Promise<VisualReferen
           : typeof metadata.storage_path === 'string'
             ? metadata.storage_path
             : '';
-      if (!storagePath) continue;
-      const { data: signed } = await db.storage.from('obras').createSignedUrl(storagePath, 60 * 10);
-      if (!signed?.signedUrl) continue;
-      const response = await fetch(signed.signedUrl);
-      if (!response.ok) continue;
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      let binary = '';
-      const chunkSize = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunkSize) binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunkSize, bytes.length)));
-      references.push({ data: btoa(binary), mimeType: storagePath.endsWith('.png') ? 'image/png' : storagePath.endsWith('.webp') ? 'image/webp' : 'image/jpeg', kind: 'environment' });
+      await appendStorageReference(storagePath, 'environment', 'referência do projeto');
+      if (references.length >= 8) break;
     }
-    return references;
+
+    // A photo can be persisted in Ambiente/Storage without a corresponding chat
+    // message (for example, when it was attached from the project/environment UI).
+    // Fall back to the durable environment metadata so reopening the project does
+    // not lose the visual reference required by the IARA render pipeline.
+    if (references.length === 0) {
+      const { data: environments } = await db.from('project_environments')
+        .select('metadata,created_at')
+        .eq('project_id', ctx.projectId)
+        .order('created_at', { ascending: false })
+        .limit(8);
+
+      for (const environment of environments ?? []) {
+        const metadata = environment.metadata && typeof environment.metadata === 'object'
+          ? environment.metadata as Record<string, unknown>
+          : {};
+        const storagePath =
+          typeof metadata.storage_path === 'string'
+            ? metadata.storage_path
+            : typeof metadata.storagePath === 'string'
+              ? metadata.storagePath
+              : '';
+        await appendStorageReference(storagePath, 'environment', 'foto do ambiente');
+        if (references.length >= 8) break;
+      }
+    }
   } catch {
-    return [];
+    return references;
   }
+
+  return references;
 }
 
 const createCliente: ToolDefinition<CreateClienteArgs, ClienteData> = { name: 'createCliente', description: 'Cria um novo cliente no tenant atual', version: '1.0.0', inputSchema: z.object({ nome: z.string().min(1), email: z.string().email().optional().or(z.literal('')), telefone: z.string().optional() }), async execute(args, ctx) { const { data, error } = await db.from('clientes').insert({ user_id: ctx.userId, nome: args.nome, email: args.email || null, telefone: args.telefone || null }).select('id, nome').single(); if (error) return { ok: false, error: error.message }; return { ok: true, data: data as ClienteData }; } };
