@@ -73,14 +73,25 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown, req
   const headers = await aiHeaders();
   if (requestId) headers['x-request-id'] = requestId;
   let res: Response;
+  const controller = new AbortController();
+  const timeoutMs = fn === 'ai-image' ? 125_000 : 90_000;
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(fn === 'ai-image'
+        ? 'A geração do render ultrapassou 125 segundos sem resposta do serviço.'
+        : 'O serviço de IA demorou além do limite esperado.');
+    }
     throw new Error('Não foi possível comunicar com o serviço de IA. Verifique sua conexão e tente novamente.');
+  } finally {
+    window.clearTimeout(timeout);
   }
 
   let data: unknown = null;
