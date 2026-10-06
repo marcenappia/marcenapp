@@ -99,6 +99,10 @@ describe('IARA/YARA domain orchestration', () => {
     expect(createDomainIntent({ domain: 'execution', action: 'execution.delivery' }, 'entrega')).toEqual({ domain: 'execution', action: 'delivery', agent: 'JUCA' });
   });
 
+  it('reconhece criação de projeto com linguagem natural', () => {
+    expect(createDomainIntent({ message: 'um projeto para mim de uma cozinha de 2,50 m por 1 m de 80 por 60 cm de profundidade na cor branca' })).toEqual({ domain: 'project', action: 'create_project', agent: 'IARA' });
+  });
+
   it('reconhece criação de projeto somente por texto e normaliza metros para milímetros', () => {
     expect(createDomainIntent({ message: 'Crie um armário de 2,40m x 2,20m x 0,60m com 4 portas e 3 gavetas' })).toEqual({ domain: 'project', action: 'create_project', agent: 'IARA' });
     expect(parseCreateProjectInput({ message: 'Crie um armário de 2,40m x 2,20m x 0,60m com 4 portas e 3 gavetas' })).toMatchObject({
