@@ -230,15 +230,29 @@ async function resolveArchitectureIntent(userPrompt: string, context?: Record<st
     correlationId,
   }, chain);
 }
+function projectStateDimensions(context?: Record<string, unknown>): { width: number; height: number; depth: number } | undefined {
+  const projectState = context?.projectState;
+  if (!projectState || typeof projectState !== 'object') return undefined;
+  const project = (projectState as { project?: unknown }).project;
+  if (!project || typeof project !== 'object') return undefined;
+  const dimensions = (project as { dimensions?: unknown }).dimensions;
+  if (!dimensions || typeof dimensions !== 'object') return undefined;
+  const values = dimensions as Record<string, unknown>;
+  const width = Number(values.width);
+  const height = Number(values.height);
+  const depth = Number(values.depth);
+  return [width, height, depth].every((value) => Number.isFinite(value) && value > 0) ? { width, height, depth } : undefined;
+}
+
 function deterministicCreateProjectPlan(userPrompt: string, context?: Record<string, unknown>): ToolCall[] {
   if (!inferProjectCreationFromConversation(userPrompt, context)) return [];
   const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
   const recentText = conversation.filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string').slice(-6).map((item) => item.text).join(' ');
   const combined = `${recentText} ${userPrompt}`.trim();
-  const dimensions = extractTextProjectDimensions(combined);
+  const dimensions = extractTextProjectDimensions(combined) ?? projectStateDimensions(context);
   if (!dimensions) return [];
   const name = projectNameFromText(combined);
-  const doorsMatch = normalizePortugueseNumberWords(normalizeText(combined)).match(/(\\d+)\\s+portas?\\b/i);
+  const doorsMatch = normalizePortugueseNumberWords(normalizeText(combined)).match(/(\d+)\s+portas?\b/i);
   const doors = doorsMatch ? Number(doorsMatch[1]) : undefined;
   const args = { nome: name, ...dimensions, ...(Number.isInteger(doors) && doors > 0 ? { doors } : {}), tipo: name, confirmado: true };
   return [{ tool: 'createProjeto', args }];
