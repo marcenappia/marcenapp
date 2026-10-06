@@ -3,6 +3,16 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 const MAX_BODY_BYTES = 64 * 1024;
+const PROVIDER_TIMEOUT_MS = 90_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  try { return await fetch(url, { ...init, signal: controller.signal }); }
+  catch (error) { if (error instanceof DOMException && error.name === 'AbortError') throw new Error('provider_timeout'); throw new Error('provider_connection_error'); }
+  finally { clearTimeout(timer); }
+}
+
 const OPERATION_TYPE = "gerarContrato";
 const BodySchema = z.object({ prompt: z.string().trim().min(1).max(4000), idempotencyKey: z.string().trim().min(8).max(200) });
 const allowedSuffixes = [".lovable.app", ".lovableproject.com", ".lovable.dev"];
@@ -75,7 +85,7 @@ serve(async req => {
     const key = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     if (!key) { await refund(guard.userId, idempotencyKey); return json(h, { error: "Serviço de IA não configurado.", code: "missing_api_key" }, 500); }
     const model = "gemini-3.8-flash";
-    const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `Prepare uma cláusula contratual curta e objetiva para um contrato de marcenaria sobre: "${prompt}". Use português formal. Não apresente aconselhamento jurídico e não afirme que o texto substitui revisão profissional.` }] }] }) });
+    const upstream = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `Prepare uma cláusula contratual curta e objetiva para um contrato de marcenaria sobre: "${prompt}". Use português formal. Não apresente aconselhamento jurídico e não afirme que o texto substitui revisão profissional.` }] }] }) });
     if (!upstream.ok) { await refund(guard.userId, idempotencyKey); return json(h, { error: upstream.status === 429 ? "Limite do provedor de IA atingido." : "O serviço de IA está indisponível.", code: upstream.status === 429 ? "rate_limited" : "upstream_error" }, upstream.status === 429 ? 429 : 502); }
     const data = await upstream.json();
     const text = data.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("").trim() ?? "";
