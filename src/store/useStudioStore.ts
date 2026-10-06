@@ -68,20 +68,14 @@ export const useStudioStore = create<StudioState>()(
     }),
     {
       name: 'marcenapp-studio-storage',
-      version: 3,
+      version: 4,
       storage: createSafeJSONStorage(),
       migrate: (persistedState: unknown, version: number) => {
-        const state = asPersistedState(persistedState);
-        if (version === 0) return { ...state, commandQueue: [] };
-        if (version === 1) {
-          const commandQueue = Array.isArray(state.commandQueue) ? state.commandQueue.map(command => asMigratedCommand(command)).filter((command): command is RenderCommand => command !== null) : [];
-          return { ...state, commandQueue };
-        }
-        if (version === 2) {
-          const commandQueue = Array.isArray(state.commandQueue) ? state.commandQueue.map(command => asMigratedCommand(command, true)).filter((command): command is RenderCommand => command !== null) : [];
-          return { ...state, commandQueue };
-        }
-        return state;
+        // Recovery hard-stop: the old persistence layer could revive stale render
+        // commands after reload. Clear the legacy queue once so previously queued
+        // renders cannot be started again. New renders are created normally.
+        if (version < 4) return { commandQueue: [], lastResult: null, generatedImage: null, isRendering: false };
+        return asPersistedState(persistedState);
       },
       // Rendered images are multi-megabyte data URLs and would exceed the browser
       // storage quota. Only unfinished commands keep their reference images so a
