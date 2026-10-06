@@ -76,6 +76,26 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       .single();
     if (insertError) throw new Error(`Falha ao salvar mensagem: ${insertError.message}`);
 
+    // Reflect persisted messages in the local chat immediately. The realtime
+    // subscription below deduplicates the same id, so this avoids the photo
+    // disappearing while the backend finishes processing the request.
+    const localMessage: ChatMessage = {
+      id: insertedMessage?.id ?? globalThis.crypto?.randomUUID?.() ?? `local-${Date.now()}`,
+      user_id: targetUserId,
+      project_id: target.projectId,
+      environment_id: target.environmentId,
+      version_id: target.versionId,
+      sender: String(msg.sender ?? 'iara'),
+      text: typeof msg.text === 'string' ? msg.text : null,
+      image_url: typeof msg.image_url === 'string' ? msg.image_url : null,
+      budget: typeof msg.budget === 'string' ? msg.budget : null,
+      created_at: new Date().toISOString(),
+      metadata: msg.metadata ?? null,
+    };
+    setMessages(prev => prev.some(existing => existing.id === localMessage.id)
+      ? prev
+      : [...prev, localMessage]);
+
     // Semantic memory is deliberately best-effort: a memory failure must never block
     // the conversation or render flow. The provider can later be switched to a
     // multilingual Vercel embedding model without changing this caller.
@@ -322,7 +342,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
         persistedImageUrl = persisted.signedUrl;
         persistedStoragePath = persisted.storagePath;
       }
-      const userMetadata: MessageMetadata = { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: 'requested', ...(uploadKind ? { uploadKind } : {}), ...(persistedStoragePath ? { storagePath: persistedStoragePath } : {}), ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) };
+      const userMetadata: MessageMetadata = { correlationId, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: uploadKind ? 'processing' : 'requested', ...(uploadKind ? { uploadKind } : {}), ...(persistedStoragePath ? { storagePath: persistedStoragePath } : {}), ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) };
       await saveMessage({ sender: 'user', text: promptText, image_url: persistedImageUrl ?? (previewImg?.startsWith('blob:') ? null : previewImg), metadata: userMetadata }, execution);
       if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       await persistIaraContext(user.id, { ...(activeContext ?? {}), projectId: context.projectId, environmentId: context.environmentId, versionId: context.versionId } as IaraContext, correlationId, execution.generation);
@@ -351,7 +371,11 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       // finishes. The commandHistory effect publishes the final image (or failure).
       if (!renderQueued) pendingExecutionsRef.current.delete(correlationId);
       lastFailedRef.current = null;
-    } catch (error: unknown) { lastFailedRef.current = { text: promptText, upload, smartAction }; if (execution) pendingExecutionsRef.current.delete(execution.correlationId); setError(humanizeError(error)); } finally { setIsTyping(false); }
+    } catch (error: unknown) { lastFailedRef.current = { text: promptText, upload, smartAction }; if (execution) pendingExecutionsRef.current.delete(execution.correlationId); setError(humanizeError(error)); setIsTyping(false); } finally {
+      // Keep the processing indicator alive for queued renders. The commandHistory
+      // effect turns it off only when the asynchronous render reaches a terminal state.
+      if (!pendingExecutionsRef.current.size) setIsTyping(false);
+    }
   };
 
   const handleSend = async (textOverride?: string) => {
