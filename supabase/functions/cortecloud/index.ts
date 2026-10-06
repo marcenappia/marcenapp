@@ -14,6 +14,15 @@ const API_BASE_URL = Deno.env.get('CORTECLOUD_API_BASE_URL');
 const EMAIL = Deno.env.get('CORTECLOUD_EMAIL');
 const PASSWORD = Deno.env.get('CORTECLOUD_PASSWORD');
 const API_KEY = Deno.env.get('CORTECLOUD_API_KEY');
+const REQUEST_TIMEOUT_MS = 45_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try { return await fetch(url, { ...init, signal: controller.signal }); }
+  catch (error) { if (error instanceof DOMException && error.name === 'AbortError') throw new Error('cortecloud_timeout'); throw new Error('cortecloud_connection_error'); }
+  finally { clearTimeout(timer); }
+}
 
 function configurationError(): string | null {
   const missing = [['CORTECLOUD_API_BASE_URL', API_BASE_URL], ['CORTECLOUD_EMAIL', EMAIL], ['CORTECLOUD_PASSWORD', PASSWORD], ['CORTECLOUD_API_KEY', API_KEY]].filter(([, value]) => !value).map(([name]) => name);
@@ -24,7 +33,7 @@ function materialPath(type: MaterialType): string { if (!['boards', 'edges', 'co
 async function cortecloudFetch(path: string, init: RequestInit = {}) {
   const url = `${API_BASE_URL!.replace(/\/$/, '')}${path}`;
   const headers = new Headers(init.headers); headers.set('accept', 'application/json'); headers.set('authorization', authHeader()); headers.set('x-dreamfactory-api-key', API_KEY!); headers.set('content-type', 'application/json');
-  const response = await fetch(url, { ...init, headers }); const text = await response.text(); let data: unknown = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  const response = await fetchWithTimeout(url, { ...init, headers }); const text = await response.text(); let data: unknown = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!response.ok) throw new Error(`Cortecloud API ${response.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`); return data;
 }
 function requireStringOrNumber(value: unknown, field: string): string | number { if ((typeof value !== 'string' && typeof value !== 'number') || String(value).trim() === '') throw new Error(`${field} é obrigatório.`); return value; }
@@ -54,5 +63,9 @@ serve(async (request) => {
       case 'update_material': { const type = input.type as MaterialType; const internalCode = requireStringOrNumber(input.internalCode, 'internalCode'); const allowed = ['price', 'stock', 'unit', 'active']; const payload: Record<string, unknown> = {}; for (const key of allowed) if (input[key] !== undefined) payload[key] = input[key]; if (!Object.keys(payload).length) throw new Error('Informe ao menos um campo para atualização.'); return new Response(JSON.stringify(await cortecloudFetch(`${materialPath(type)}/${encodeURIComponent(String(internalCode))}`, { method: 'PUT', body: JSON.stringify(payload) })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
       default: throw new Error('Ação Cortecloud não suportada.');
     }
-  } catch (error) { return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido na integração Cortecloud.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erro desconhecido na integração Cortecloud.';
+    const status = message === 'cortecloud_timeout' ? 504 : message === 'cortecloud_connection_error' ? 502 : 400;
+    return new Response(JSON.stringify({ error: message === 'cortecloud_timeout' ? 'A Cortecloud excedeu o timeout de 45 segundos.' : message === 'cortecloud_connection_error' ? 'Não foi possível comunicar com a Cortecloud.' : message }), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 });
