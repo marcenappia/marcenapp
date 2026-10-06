@@ -18,7 +18,6 @@ export const StudioWorker = () => {
     () => commandHistory.filter(cmd => cmd.target === 'studio' && cmd.payload?.userId === user?.id),
     [commandHistory, user?.id]
   );
-  const isRendering = useStudioStore(state => state.isRendering);
   const startProcessing = useStudioStore(state => state.startProcessing);
   const completeCommand = useStudioStore(state => state.completeCommand);
   const failCommand = useStudioStore(state => state.failCommand);
@@ -160,9 +159,12 @@ export const StudioWorker = () => {
   // persisted store changes without changing the React dependency identity.
   useEffect(() => {
     const timer = window.setInterval(() => {
-      const state = useStudioStore.getState();
-      const nextCommand = state.commandQueue.find(cmd => cmd.status === 'pending');
-      if (nextCommand && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand as RenderCommand & { payload?: Record<string, unknown> });
+      const pending = useMarcenappOS.getState().commandHistory.find(cmd =>
+        cmd.status === 'pending' &&
+        cmd.target === 'studio' &&
+        cmd.payload?.userId === user?.id,
+      );
+      if (pending && currentlyProcessing.current !== pending.id) void processCommand(pending);
     }, 2000);
     return () => window.clearInterval(timer);
   }, [processCommand]);
