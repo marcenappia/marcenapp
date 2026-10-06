@@ -65,6 +65,7 @@ serve(async req => {
   if (req.method !== "POST") return json(h, { error: "Method not allowed" }, 405);
   const guard = await guardRequest(req, h);
   if (!guard.ok) return guard.response;
+  let creditConsumed = false;
   try {
     const length = Number(req.headers.get("content-length") ?? 0);
     if (length > MAX_BODY_BYTES) return json(h, { error: "Corpo da requisição muito grande.", code: "payload_too_large" }, 413);
@@ -82,6 +83,7 @@ serve(async req => {
       const insufficient = consumeError.message.includes("insufficient_credits");
       return json(h, { error: missing ? "Esta operação ainda não possui uma regra comercial configurada." : insufficient ? "Créditos insuficientes para gerar o contrato." : "Não foi possível autorizar o consumo de créditos.", code: missing ? "commercial_rule_missing" : insufficient ? "insufficient_credits" : "credit_authorization_failed" }, 402);
     }
+    creditConsumed = true;
     const key = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     if (!key) { await refund(guard.userId, idempotencyKey); return json(h, { error: "Serviço de IA não configurado.", code: "missing_api_key" }, 500); }
     const model = "gemini-3.8-flash";
@@ -95,6 +97,10 @@ serve(async req => {
     return json(h, { id: inserted.id, text, model, operationType: OPERATION_TYPE, creditConsumption: Array.isArray(consumed) ? consumed[0] : consumed });
   } catch (e) {
     console.error("commercial-contract error:", e);
+    if (creditConsumed) await refund(guard.userId, idempotencyKey).catch(refundError => console.error("commercial-contract refund error:", refundError));
+    const message = e instanceof Error ? e.message : String(e);
+    if (message === "provider_timeout") return json(h, { error: `O provedor de IA excedeu o timeout de ${PROVIDER_TIMEOUT_MS / 1000}s.`, code: "provider_timeout" }, 504);
+    if (message === "provider_connection_error") return json(h, { error: "Não foi possível comunicar com o provedor de IA.", code: "provider_connection_error" }, 502);
     return json(h, { error: "Erro interno ao gerar contrato.", code: "internal_error" }, 500);
   }
 });
