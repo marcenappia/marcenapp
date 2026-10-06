@@ -31,8 +31,7 @@ try {
   }
 
   const navigationStarted = Date.now();
-  const response = await page.goto('/');
-  await page.waitForLoadState('domcontentloaded');
+  const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
   const navigationElapsedMs = Date.now() - navigationStarted;
   const timing = await page.evaluate(() => {
     const entry = performance.getEntriesByType('navigation')[0];
