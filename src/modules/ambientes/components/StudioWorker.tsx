@@ -151,8 +151,21 @@ export const StudioWorker = () => {
 
   useEffect(() => {
     const nextCommand = commandQueue.find(cmd => cmd.status === 'pending');
-    if (nextCommand && !isRendering && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
-  }, [commandQueue, isRendering, processCommand]);
+    if (nextCommand && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
+  }, [commandQueue, processCommand]);
+
+  // Recovery guard: a browser tab can be suspended/reloaded while a command is
+  // marked as processing. The persisted Studio state already migrates processing
+  // commands back to pending; this timer also wakes the worker when another
+  // persisted store changes without changing the React dependency identity.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const state = useStudioStore.getState();
+      const nextCommand = state.commandQueue.find(cmd => cmd.status === 'pending');
+      if (nextCommand && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand as RenderCommand & { payload?: Record<string, unknown> });
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [processCommand]);
 
   return null;
 };
