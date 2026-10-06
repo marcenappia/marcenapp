@@ -51,14 +51,11 @@ export const useMarcenappOS = create<OSState>()(
     {
       name: 'marcenapp-os-core',
       storage: createSafeJSONStorage(),
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown) => {
-        if (!persistedState || typeof persistedState !== 'object') return { commandHistory: [], activeModule: 'chat' };
-        const state = persistedState as Partial<OSState>;
-        return {
-          ...state,
-          commandHistory: (state.commandHistory ?? []).map(command => command.status === 'processing' ? { ...command, status: 'pending' as const } : command),
-        };
+        // Recovery hard-stop: discard the legacy command history so stale
+        // render requests cannot be resurrected after a reload.
+        return { commandHistory: [], activeModule: 'chat' };
       },
       partialize: (state) => ({
         commandHistory: state.commandHistory.map(command => {
