@@ -267,6 +267,15 @@ function deterministicCreateProjectPlan(userPrompt: string, context?: Record<str
   const recentText = conversation.filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string').slice(-6).map((item) => item.text).join(' ');
   const combined = `${recentText} ${userPrompt}`.trim();
   const dimensions = extractTextProjectDimensions(combined) ?? projectStateDimensions(context);
+  const hasVisualReference = Boolean(
+    context?.hasVisualReference ||
+    (context?.referenceImages && Array.isArray(context.referenceImages) && context.referenceImages.length > 0) ||
+    context?.lastImageBase,
+  );
+  // A visual-first project may be created before measurements are confirmed.
+  if (!dimensions && hasVisualReference) {
+    return [{ tool: 'createProjeto', args: { nome: projectNameFromText(combined), tipo: 'projeto_visual', confirmado: true } }];
+  }
   if (!dimensions) return [];
   const name = projectNameFromText(combined);
   const doorsMatch = normalizePortugueseNumberWords(normalizeText(combined)).match(/(\d+)\s+portas?\b/i);
@@ -325,7 +334,15 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
     const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context);
     const architecturePending = architectureIntent?.missingSlots?.length ? { tool: architectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: architectureIntent.missingSlots.map(slot => slot.field), reason: architectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
-    const effectivePendingCreateProject = pendingCreateProject ?? (architecturePending?.tool === 'createProjeto' ? architecturePending : null);
+    const hasVisualReference = Boolean(
+      context?.hasVisualReference ||
+      images.length > 0 ||
+      ctx.lastImageBase ||
+      (context?.referenceImages && Array.isArray(context.referenceImages) && context.referenceImages.length > 0),
+    );
+    const effectivePendingCreateProject = hasVisualReference
+      ? null
+      : (pendingCreateProject ?? (architecturePending?.tool === 'createProjeto' ? architecturePending : null));
     const architectureProjectPlan: ToolCall[] = architectureIntent?.intent === 'create_projeto' && architectureIntent.missingSlots.length === 0 ? [{ tool: 'createProjeto', args: { ...architectureIntent.entities, confirmado: true } }] : [];
     const architectureRenderPlan: ToolCall[] = architectureIntent?.intent === 'gerar_render' ? [{ tool: 'gerarRender', args: { prompt: String(architectureIntent.entities.prompt ?? effectiveUserPrompt), estilo: ctx.decorStyle } }] : [];
     const architectureSmartPlan: ToolCall[] = architectureIntent?.intent === 'smart_action' ? [{ tool: 'iaraSmartAction', args: { ...architectureIntent.entities, projectId: ctx.projectId } }] : [];
