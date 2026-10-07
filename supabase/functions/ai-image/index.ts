@@ -379,7 +379,7 @@ serve(async request => {
         return jsonResponse(cors, { imageBase64: replay.image_url, imageUrl: replayUrl, operationType: OPERATION_TYPE, requestId: idempotencyKey, renderId: idempotencyKey, persisted: true, reused: true });
       }
     }
-    persistGalleryRequired = Boolean(persistGallery?.projectId);
+    persistGalleryRequired = Boolean(persistGallery);
     if (persistGalleryRequired) {
       if (!persistGallery?.projectId) throw new Error("gallery_project_required");
       const { data: context, error: contextError } = await admin
