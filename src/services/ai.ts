@@ -46,24 +46,42 @@ const normalizeAIError = (status: number, data: unknown): Error => {
   switch (body.code) {
     case 'missing_api_key':
     case 'provider_not_configured':
-      return new Error('Nenhum provedor de IA está configurado para esta operação. Verifique a configuração no Admin.');
+      return new Error('YARA: provider de imagem não configurado ou indisponível. Verifique a configuração do provedor.');
     case 'commercial_rule_missing':
-      return new Error('Esta ferramenta de IA ainda não está habilitada comercialmente.');
+      return new Error('YARA: a operação de render ainda não está habilitada comercialmente.');
     case 'insufficient_credits':
-      return new Error('Créditos Marcenapp insuficientes para gerar o render.');
+      return new Error('YARA: créditos Marcenapp insuficientes para gerar o render.');
     case 'provider_credits_exhausted':
     case 'credits_exhausted':
-      return new Error('Os créditos do provedor de IA acabaram. Verifique o provedor configurado no Admin.');
-    case 'rate_limit_unavailable':
-      return new Error('O controle de uso da IA está indisponível. Tente novamente em instantes.');
+      return new Error('YARA: o provider de imagem recusou a geração por falta de créditos/saldo.');
+    case 'provider_auth_error':
+      return new Error('YARA: a credencial do provider de imagem foi recusada. A falha ocorreu na autenticação do provider.');
+    case 'provider_access_denied':
+      return new Error('YARA: o provider recusou acesso à credencial ou ao modelo configurado.');
+    case 'provider_invalid_image':
+      return new Error('YARA: o provider respondeu, mas não entregou uma imagem válida.');
     case 'provider_connection_error':
-      return new Error('Não foi possível comunicar com o provedor de IA. Tente novamente.');
+      return new Error('YARA: não foi possível comunicar com o provider de imagem.');
     case 'provider_timeout':
-      return new Error('O provedor de IA demorou além do limite esperado. Tente novamente.');
-    case 'upstream_error':
-      return new Error('O provedor de IA está indisponível no momento. Tente novamente.');
+      return new Error('YARA: o provider de imagem ultrapassou o tempo limite.');
+    case 'gallery_storage_write_failed':
+      return new Error('YARA: a imagem foi gerada, mas falhou a gravação no Storage.');
+    case 'gallery_signed_url_failed':
+      return new Error('YARA: a imagem foi gerada, mas o Storage não conseguiu criar a URL persistente.');
+    case 'gallery_persist_failed':
+      return new Error('YARA: a imagem foi gerada e armazenada, mas falhou o registro na galeria.');
+    case 'stale_execution_context':
+      return new Error('YARA: o contexto do projeto mudou durante a geração. O render foi descartado para evitar salvar a imagem no projeto errado.');
+    case 'iara_context_read_failed':
+      return new Error('YARA: não foi possível validar o contexto atual do projeto antes de salvar o render.');
+    case 'render_idempotency_lookup_failed':
+      return new Error('YARA: não foi possível validar se este render já havia sido concluído.');
+    case 'rate_limit_unavailable':
+      return new Error('YARA: o controle de uso da IA está indisponível. Tente novamente em instantes.');
     case 'rate_limited':
-      return new Error('O limite do provedor de IA foi atingido. Tente novamente em alguns segundos.');
+      return new Error('YARA: o limite do provider de imagem foi atingido. Tente novamente em alguns segundos.');
+    case 'upstream_error':
+      return new Error(typeof body.error === 'string' && body.error ? `YARA: ${body.error}` : 'YARA: o provider de imagem falhou na etapa de geração.');
     default:
       return new Error(body.error || body.message || `Erro ${status}`);
   }
