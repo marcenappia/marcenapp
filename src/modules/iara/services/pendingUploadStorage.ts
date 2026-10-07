@@ -31,7 +31,23 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-export async function persistIaraPendingUpload(blob: Blob, kind: IaraPendingUploadKind): Promise<void> {
+// Identifies the capture that currently owns the durable slot. Late writes from
+// a previous capture (e.g. background resize finishing after the photo was sent
+// or attached) must never resurrect a preview that the flow already consumed.
+let activeCaptureId: string | null = null;
+const LEGACY_SESSION_KEYS = ['marcenapp.iara.pending-upload.v1', 'marcenapp.iara.environment-photo-handoff.v1'];
+
+export function beginIaraCapture(): string {
+  activeCaptureId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return activeCaptureId;
+}
+
+export function isActiveIaraCapture(captureId: string | undefined): boolean {
+  return !captureId || captureId === activeCaptureId;
+}
+
+export async function persistIaraPendingUpload(blob: Blob, kind: IaraPendingUploadKind, captureId?: string): Promise<void> {
+  if (!isActiveIaraCapture(captureId)) return;
   const db = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -62,6 +78,8 @@ export async function loadIaraPendingUpload(): Promise<PersistedIaraUpload | nul
 }
 
 export async function clearIaraPendingUpload(): Promise<void> {
+  activeCaptureId = null;
+  try { for (const key of LEGACY_SESSION_KEYS) window.sessionStorage.removeItem(key); } catch { /* ignore */ }
   const db = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');

@@ -56,6 +56,9 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   const sketchInputRef = useRef<HTMLInputElement>(null);
   const planInputRef = useRef<HTMLInputElement>(null);
 
+  const pendingUploadRef = useRef(pendingUpload);
+  pendingUploadRef.current = pendingUpload;
+
   useEffect(() => {
     let cancelled = false;
     const restore = async () => {
@@ -63,7 +66,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       // kept only as a compatibility fallback for captures created by older builds.
       try {
         const persisted = await loadIaraPendingUpload();
-        if (!cancelled && persisted) {
+        if (!cancelled && persisted && !pendingUploadRef.current) {
           const previewUrl = createIaraPreviewUrl(persisted.blob);
           setPendingUpload({
             blob: persisted.blob,
@@ -79,14 +82,11 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         // Fall through to legacy temporary storage.
       }
 
-      let handoff = consumeIaraPhotoHandoff();
-      if (!handoff) {
-        try {
-          const raw = sessionStorage.getItem('marcenapp.iara.pending-upload.v1');
-          if (raw) handoff = JSON.parse(raw);
-        } catch { /* ignore invalid temporary state */ }
-      }
-      if (handoff && !cancelled) setPendingUpload(handoff);
+      // Legacy one-shot handoff only (consumed = removed). The old sessionStorage
+      // key was never cleared and re-hydrated a consumed photo on every remount.
+      const handoff = consumeIaraPhotoHandoff();
+      try { sessionStorage.removeItem('marcenapp.iara.pending-upload.v1'); } catch { /* ignore */ }
+      if (handoff && !cancelled && !pendingUploadRef.current) setPendingUpload(handoff);
     };
     void restore();
     return () => { cancelled = true; };
@@ -199,15 +199,12 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       photo={pendingUpload}
       onContinue={() => { setPhotoDestinationOpen(false); setPhotoDestinationHandled(true); }}
       onAttached={async destination => {
-        try {
-          await onPhotoAttached?.(destination);
-          setPhotoDestinationOpen(false);
-          setPhotoDestinationHandled(true);
-          navigateTo?.('iara', { projeto: destination.projectId });
-        } catch (caught) {
-          setOneShotError(caught instanceof Error ? caught.message : 'Não foi possível colocar a foto na conversa.');
-          throw caught;
-        }
+        // Preview closes only after the photo is persisted and in the chat.
+        // Errors propagate to the panel, which keeps the photo and allows retry.
+        await onPhotoAttached?.(destination);
+        setPhotoDestinationOpen(false);
+        setPhotoDestinationHandled(true);
+        navigateTo?.('iara', { projeto: destination.projectId });
       }}
     />}
     {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="fixed inset-0 z-[100] bg-background flex flex-col">
