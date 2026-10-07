@@ -26,6 +26,7 @@ const Contrato = lazy(() => import('@/modules/projetos/components/Contrato').the
 const ClientesModule = lazy(() => import('@/modules/projetos/components/Clientes'));
 const DiarioModule = lazy(() => import('@/modules/projetos/components/Diario'));
 const ConfiguracoesModule = lazy(() => import('@/modules/configuracoes'));
+const MinhaMarcenariaHub = lazy(() => import('@/modules/marcenaria/MinhaMarcenariaHub'));
 
 const emptyProject: ProjectData = { width: 0, height: 0, depth: 0, modules: 0, drawers: 0, doors: 0, internalMaterial: '', externalMaterial: '', backMaterial: '', handleType: '', profitMargin: 0, laborRate: 0 };
 
@@ -85,6 +86,7 @@ const Index = () => {
       case 'contrato': return <Contrato />;
       case 'admin-billing': return <CreditRules />;
       case 'configuracoes': return <ConfiguracoesModule userId={user?.id} profile={profile} onNavigate={setActiveModule} onSaved={() => window.location.reload()} />;
+      case 'marcenaria': return <MinhaMarcenariaHub />;
       default: return null;
     }
   };

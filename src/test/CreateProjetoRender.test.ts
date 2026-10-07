@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const enqueueCommand = vi.fn(() => 'studio-new');
 // Keep the mock observable to TypeScript even when Vitest infers an empty tuple from calls.
-const dispatchCommand = vi.fn(() => 'os-new');
+const dispatchCommand = vi.fn((..._args: [{ payload: Record<string, unknown> }]) => 'os-new');
 const project = { id: '11111111-1111-4111-8111-111111111111', nome: 'Cozinha', width: 2400, height: 2200, depth: 600, doors: 0, drawers: 0, modules: 1 };
 
 vi.mock('@/services/ai', () => ({ callAIContractClause: vi.fn(), callAIText: vi.fn(async () => '{"confidence":0}') }));
