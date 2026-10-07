@@ -163,6 +163,7 @@ function pendingCreateProjectInput(userPrompt: string, context?: Record<string, 
   // reference is present. Dimensions are project data that can be completed
   // later; they are not a prerequisite for creating the project record.
   const hasVisualReference = Boolean(
+    visualReferencePresent ||
     context?.hasVisualReference ||
     (context?.referenceImages && Array.isArray(context.referenceImages) && context.referenceImages.length > 0) ||
     context?.lastImageBase,
@@ -261,7 +262,7 @@ function projectStateDimensions(context?: Record<string, unknown>): { width: num
   return [width, height, depth].every((value) => Number.isFinite(value) && value > 0) ? { width, height, depth } : undefined;
 }
 
-function deterministicCreateProjectPlan(userPrompt: string, context?: Record<string, unknown>): ToolCall[] {
+function deterministicCreateProjectPlan(userPrompt: string, context?: Record<string, unknown>, visualReferencePresent = false): ToolCall[] {
   if (!inferProjectCreationFromConversation(userPrompt, context)) return [];
   const conversation = Array.isArray(context?.conversation) ? context?.conversation : [];
   const recentText = conversation.filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string').slice(-6).map((item) => item.text).join(' ');
@@ -331,7 +332,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       ? Promise.resolve(null)
       : resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
     const architectureIntent = await architectureIntentPromise;
-    const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context);
+    const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context, hasVisualReference);
     const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context);
     const architecturePending = architectureIntent?.missingSlots?.length ? { tool: architectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: architectureIntent.missingSlots.map(slot => slot.field), reason: architectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
     const hasVisualReference = Boolean(
