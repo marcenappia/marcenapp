@@ -8,7 +8,7 @@ import { loadMarcenariaContext } from '@/modules/marcenaria/marcenariaContext';
 import { isIaraCommandForExecution, isIaraExecutionCurrent, type IaraExecutionIdentity } from './iaraExecutionScope';
 import { persistIaraContext, type IaraContext } from '../services/iaraContext';
 import { createProjectStateFromConversation, projectStateSummary, type ProjectState } from '../services/projectState';
-import { blobToDataUrl, persistIaraPendingUpload, clearIaraPendingUpload } from '../services/pendingUploadStorage';
+import { blobToDataUrl, persistIaraPendingUpload, clearIaraPendingUpload, beginIaraCapture, isActiveIaraCapture } from '../services/pendingUploadStorage';
 import { persistIaraChatPhoto } from '../services/photoDestination';
 
 interface SpeechRecognitionResultEventLike { results: ArrayLike<ArrayLike<{ transcript: string }>>; }
@@ -384,10 +384,15 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     const promptText = textOverride?.trim() || chatInput.trim() || 'Analise a imagem anexada e me diga como podemos seguir.';
     const upload = pendingUpload;
     setChatInput('');
-    await sendPrompt(promptText, upload);
-    if (upload?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(upload.previewUrl);
-    setPendingUpload(null);
-    void clearIaraPendingUpload().catch(() => undefined);
+    try {
+      await sendPrompt(promptText, upload);
+    } finally {
+      // The prompt (with its image) is now owned by the chat/retry state; release
+      // the composer preview so it can never stay pinned over the conversation.
+      setPendingUpload(null);
+      await clearIaraPendingUpload().catch(() => undefined);
+      if (upload?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(upload.previewUrl);
+    }
   };
   const publishAttachedPhoto = useCallback(async (destination: { projectId: string; environmentId: string; imageUrl?: string | null; storagePath?: string | null }) => {
     if (!user) throw new Error('Entre na sua conta para continuar.');
@@ -408,8 +413,9 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       },
     });
     if (insertError) throw new Error('A foto foi salva, mas não foi possível colocá-la na conversa.');
-    setPendingUpload(null);
+    if (!/^https?:\/\//.test(destination.imageUrl)) throw new Error('A foto precisa de um endereço permanente antes de ir para a conversa.');
     await clearIaraPendingUpload().catch(() => undefined);
+    setPendingUpload(null);
   }, [user]);
 
   const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
@@ -420,6 +426,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     if (!file) return;
     e.target.value = '';
 
+    const captureId = beginIaraCapture();
     const previewUrl = URL.createObjectURL(file);
     const immediateUpload: PendingUpload = {
       blob: file,
@@ -431,7 +438,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     };
 
     setPendingUpload(immediateUpload);
-    void persistIaraPendingUpload(file, kind).catch(() => {
+    void persistIaraPendingUpload(file, kind, captureId).catch(() => {
       setError('A foto foi capturada, mas não foi possível garantir o armazenamento local. Tente novamente.');
     });
 
@@ -455,8 +462,8 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
         if (!ctx) return;
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
-        if (!blob) return;
-        await persistIaraPendingUpload(blob, kind);
+        if (!blob || !isActiveIaraCapture(captureId)) return;
+        await persistIaraPendingUpload(blob, kind, captureId);
         setPendingUpload(prev => prev?.previewUrl === previewUrl ? { ...prev, blob, baseRaw: '' } : prev);
       } catch {
         // The original Blob remains the durable capture.
