@@ -49,4 +49,35 @@ test.describe('Marcenapp authenticated core', () => {
     await page.goto('/');
     await expect(page.locator('[id^="mobile-nav-"]')).toHaveCount(3);
   });
+
+  test('IARA executes a real photo-to-render production flow', async ({ authenticatedPage: page }) => {
+    test.setTimeout(12 * 60 * 1000);
+    await page.goto('/?module=studio');
+    await expect(page.getByRole('heading', { name: 'IARA', exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Adicionar foto, referência ou planta' }).click();
+    await page.getByRole('button', { name: /Foto do ambiente/ }).click();
+    const environmentInput = page.locator('input[type="file"]').first();
+    await environmentInput.setInputFiles({
+      name: 'e2e-environment.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAeUlEQVR42u3YoRGAMAwF0I6YwRiCIdBoNLrDgMe0XBsB79+XufSeTEvtSUTUCXmuPZpTAAAAAABSAZOSB9jPOrwAAAAAAAAAAAAAAAAAvzgp/UoAAAAAAAAAfAmwrUt775e65hPWAgAAAAAAAAAAAAAAAAAAAAC86gVEZyvu4LqXwgAAAABJRU5ErkJggg==', 'base64'),
+    });
+
+    await expect(page.getByRole('region', { name: 'Escolher destino da foto' })).toBeVisible();
+    await page.getByRole('button', { name: 'Criar cliente e obra' }).click();
+    await page.getByRole('textbox', { name: 'Nome do cliente' }).fill('E2E Cliente');
+    await page.getByRole('textbox', { name: 'Nome da obra' }).fill('E2E Render');
+    await page.getByRole('button', { name: 'Salvar foto' }).click();
+
+    await expect(page.getByText('Foto do ambiente adicionada ao projeto.')).toBeVisible({ timeout: 30_000 });
+    const composer = page.getByLabel('Descreva o que você quer fazer');
+    await expect(composer).toBeVisible();
+    await composer.fill('Gere um render fotorealista do ambiente atual, preservando a referência visual e o layout da foto.');
+    await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+
+    await expect(page.getByText('IARA está trabalhando… preparando o render')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('img', { name: 'Render do projeto' })).toBeVisible({ timeout: 8 * 60 * 1000 });
+    await expect(page.getByText('O render está pronto.')).toBeVisible({ timeout: 30_000 });
+  });
 });

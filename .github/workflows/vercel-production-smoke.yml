@@ -1,6 +1,8 @@
 name: Vercel Production Smoke
 
 on:
+  push:
+    branches: [main]
   deployment_status:
   workflow_dispatch:
     inputs:
@@ -48,6 +50,22 @@ jobs:
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Wait for production deployment to serve this commit
+        run: |
+          set -euo pipefail
+          expected="$GITHUB_SHA"
+          for attempt in $(seq 1 40); do
+            actual="$(curl -fsSL "$PLAYWRIGHT_BASE_URL/version.json" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>process.stdout.write(JSON.parse(s).commit ?? ''))")"
+            if [ "$actual" = "$expected" ]; then
+              echo "Production is serving $expected."
+              exit 0
+            fi
+            echo "Waiting for production commit $expected (currently $actual), attempt $attempt/40."
+            sleep 15
+          done
+          echo "Production did not converge to $expected within 10 minutes." >&2
+          exit 1
 
       - name: Verify production version endpoint
         run: |
