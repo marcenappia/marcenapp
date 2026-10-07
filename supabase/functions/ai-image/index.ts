@@ -76,16 +76,6 @@ async function withTimeout<T>(operation: () => Promise<T>, timeoutMs: number, co
   }
 }
 
-async function gatewayFetch(url: string, init: RequestInit): Promise<Response> {
-  let response: Response | null = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    response = await fetch(url, init);
-    if (response.ok || (response.status !== 429 && response.status < 500)) return response;
-    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, retryDelay(response as Response, attempt)));
-  }
-  return response as Response;
-}
-
 async function readBufferedImage(response: Response): Promise<string> {
   const body = await response.json().catch(() => null) as {
     data?: Array<{ b64_json?: string; url?: string }>;
