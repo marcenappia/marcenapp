@@ -188,13 +188,15 @@ async function resolveArchitectureIntent(userPrompt: string, context?: Record<st
   const llmResolver = {
     name: 'llm',
     async resolve(input: Parameters<typeof resolveIntent>[0]): Promise<ResolvedIntent | null> {
-      const contextBlock = JSON.stringify({
-        projectId: input.context.projectId,
-        environmentId: input.context.environmentId,
-        decorStyle: input.context.decorStyle,
+      const plannerContext = {
+        currentProject: {
+          projectId: input.context.projectId,
+          environmentId: input.context.environmentId,
+          decorStyle: input.context.decorStyle,
+        },
         conversation: input.context.recentMessages.slice(-12),
-      });
-      const response = await planWithLLM(input.text, { conversation: input.context.recentMessages, context: contextBlock });
+      };
+      const response = await planWithLLM(input.text, { ...plannerContext });
       const first = response.plan[0];
       const intentMap: Record<string, ResolvedIntent['intent']> = {
         createCliente: 'create_cliente',
