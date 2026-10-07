@@ -105,15 +105,19 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
 
   const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(storagePath, 60 * 60 * 24 * 7);
   if (signedError || !signed?.signedUrl) throw signedError ?? new Error('Não foi possível preparar a prévia da foto.');
+  // gallery_images does not have a metadata column in the production schema.
+  // storage_path is the durable source of truth for the persisted environment photo.
   const { error: galleryError } = await supabase.from('gallery_images').insert({
     user_id: args.userId,
     project_id: args.projectId,
     environment_id: environment.id,
     image_url: signed.signedUrl,
+    storage_path: storagePath,
     prompt: 'Foto do ambiente capturada pela IARA',
-    metadata: { source: 'iara_camera', storage_path: storagePath },
   });
-  if (galleryError) throw galleryError;
+  if (galleryError) {
+    throw new Error(`Falha ao registrar a foto do ambiente na galeria: ${galleryError.message}`);
+  }
 
   const { data: existingContext } = await supabase.from('project_iara_contexts').select('id').eq('user_id', args.userId).eq('project_id', args.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
   if (existingContext?.id) {
