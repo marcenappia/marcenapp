@@ -159,6 +159,15 @@ function projectNameFromText(text: string): string {
 
 function pendingCreateProjectInput(userPrompt: string, context?: Record<string, unknown>): PendingInput | null {
   if (!inferProjectCreationFromConversation(userPrompt, context)) return null;
+  // Creating a project is allowed with incomplete dimensions when a visual
+  // reference is present. Dimensions are project data that can be completed
+  // later; they are not a prerequisite for creating the project record.
+  const hasVisualReference = Boolean(
+    context?.hasVisualReference ||
+    (context?.referenceImages && Array.isArray(context.referenceImages) && context.referenceImages.length > 0) ||
+    context?.lastImageBase,
+  );
+  if (hasVisualReference) return null;
   const conversation = Array.isArray(context?.conversation) ? context.conversation : [];
   const recentText = conversation.filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string').slice(-6).map((item) => item.text).join(' ');
   const combined = recentText + ' ' + userPrompt;
