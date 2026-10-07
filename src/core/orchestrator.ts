@@ -228,6 +228,7 @@ async function resolveArchitectureIntent(userPrompt: string, context?: Record<st
       environmentId: ctx?.environmentId,
       decorStyle: ctx?.decorStyle,
       recentMessages: conversation,
+      projectState: context?.projectState,
     },
     correlationId,
   }, chain);
