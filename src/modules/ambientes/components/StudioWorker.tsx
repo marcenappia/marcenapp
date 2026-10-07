@@ -13,6 +13,7 @@ export const StudioWorker = () => {
   // IARA can enqueue a render while the user remains in the conversation, so render
   // execution must not depend on the Studio route being active.
   const commandHistory = useMarcenappOS(state => state.commandHistory);
+  const studioCommandQueue = useStudioStore(state => state.commandQueue);
   const updateOSStatus = useMarcenappOS(state => state.updateCommandStatus);
   const commandQueue = useMemo(
     () => commandHistory.filter(cmd => cmd.target === 'studio' && cmd.payload?.userId === user?.id),
@@ -167,11 +168,48 @@ export const StudioWorker = () => {
   }, [user?.id, cancelCommand, updateOSStatus]);
 
   useEffect(() => {
-    const nextCommand = commandQueue.find(cmd =>
-      cmd.status === 'pending' && cmd.timestamp >= workerSessionStartedAt.current,
+    // IARA already writes the real render job to the Studio queue. The OS command
+    // is only coordination metadata; using it as the sole trigger made a valid
+    // queued render stall when the persisted OS store hydrated out of order.
+    const nextStudioCommand = studioCommandQueue.find(cmd =>
+      cmd.status === 'pending' &&
+      cmd.metadata?.origin === 'iara' &&
+      cmd.timestamp >= workerSessionStartedAt.current &&
+      currentlyProcessing.current !== cmd.id,
     );
-    if (nextCommand && currentlyProcessing.current !== nextCommand.id) void processCommand(nextCommand);
-  }, [commandQueue, processCommand]);
+    if (!nextStudioCommand) return;
+
+    void (async () => {
+      const matchingOS = commandHistory.find(cmd =>
+        cmd.target === 'studio' &&
+        cmd.payload?.userId === user?.id &&
+        cmd.payload?.studioCommandId === nextStudioCommand.id &&
+        (cmd.status === 'pending' || cmd.status === 'processing'),
+      );
+      const current = await readCurrentContext({});
+      const payload = matchingOS?.payload ?? {
+        userId: user?.id,
+        ...(current?.project_id ? { projectId: current.project_id } : {}),
+        ...(current?.environment_id ? { environmentId: current.environment_id } : {}),
+        ...(current?.version_id ? { versionId: current.version_id } : {}),
+        ...(current?.last_correlation_id ? { correlationId: current.last_correlation_id } : {}),
+        ...(typeof current?.last_execution_generation === 'number' ? { generation: current.last_execution_generation } : {}),
+        studioCommandId: nextStudioCommand.id,
+        idempotencyKey: nextStudioCommand.idempotencyKey,
+      };
+      const synthetic: OSCommand = matchingOS ?? {
+        id: nextStudioCommand.id,
+        source: 'iara',
+        target: 'studio',
+        action: 'GENERATE_VISUAL',
+        payload,
+        status: 'pending',
+        timestamp: nextStudioCommand.timestamp,
+        idempotencyKey: nextStudioCommand.idempotencyKey,
+      };
+      await processCommand(synthetic);
+    })();
+  }, [studioCommandQueue, commandHistory, user?.id, readCurrentContext, processCommand]);
 
   return null;
 };
