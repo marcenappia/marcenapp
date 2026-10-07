@@ -162,7 +162,7 @@ async function inferProjectStructureFromVisual(args: CreateProjetoArgs, ctx: Exe
   }
 }
 
-const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'createProjeto', description: 'Cria um projeto com dimensões confirmadas e, quando houver foto de referência, vincula o ambiente e gera a visualização inicial a partir dessa foto.', version: '1.3.0', inputSchema: z.object({ nome: z.string().min(1), clienteNome: z.string().optional(), width: z.number().positive(), height: z.number().positive(), depth: z.number().positive(), doors: z.number().int().positive().optional(), drawers: z.number().int().nonnegative().optional(), modules: z.number().int().positive().optional(), tipo: z.string().optional(), confirmado: z.literal(true) }), async execute(args, ctx) {
+const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'createProjeto', description: 'Cria um projeto; dimensões podem ser completadas depois. Quando houver foto de referência, vincula o ambiente e gera a visualização inicial a partir dessa foto.', version: '1.4.0', inputSchema: z.object({ nome: z.string().min(1), clienteNome: z.string().optional(), width: z.number().positive().optional(), height: z.number().positive().optional(), depth: z.number().positive().optional(), doors: z.number().int().positive().optional(), drawers: z.number().int().nonnegative().optional(), modules: z.number().int().positive().optional(), tipo: z.string().optional(), confirmado: z.literal(true) }), async execute(args, ctx) {
   let clienteId: string | null = null;
   if (args.clienteNome) {
     const { data: cli } = await db.from('clientes').select('id').eq('user_id', ctx.userId).ilike('nome', args.clienteNome).maybeSingle();
@@ -197,7 +197,7 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
       if (ctx.correlationId && typeof ctx.generation === 'number') {
         const prompt = [
           'Crie o móvel solicitado dentro do ambiente da foto de referência.',
-          `Dimensões confirmadas do móvel: largura ${project.width} mm, altura ${project.height} mm, profundidade ${project.depth} mm.`,
+          `Dimensões atuais do projeto: largura ${project.width} mm, altura ${project.height} mm, profundidade ${project.depth} mm. Se essas medidas vieram dos valores padrão do cadastro, trate-as como provisórias e não altere proporções da foto sem base visual.`,
           `Estrutura confirmada: ${project.modules ?? 1} módulo(s), ${project.doors ?? 0} porta(s), ${project.drawers ?? 0} gaveta(s).`,
           'Use a foto como referência principal do ambiente, preserve paredes, vãos, perspectiva e elementos fixos, e não entregue um ambiente vazio.',
         ].join(' ');
