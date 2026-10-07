@@ -14,7 +14,7 @@ export type VisualReference = { data: string; mimeType?: string; kind?: 'environ
 export interface ExecutionContext { userId: string; projectId?: string; environmentId?: string; versionId?: string; correlationId?: string; generation?: number; decorStyle?: string; lastImageBase?: string; lastImageMask?: string; referenceImages?: VisualReference[]; }
 
 type CreateClienteArgs = { nome: string; email?: string; telefone?: string };
-type CreateProjetoArgs = { nome: string; clienteNome?: string; width: number; height: number; depth: number; doors?: number; drawers?: number; modules?: number; tipo?: string; confirmado: true };
+type CreateProjetoArgs = { nome: string; clienteNome?: string; width?: number; height?: number; depth?: number; doors?: number; drawers?: number; modules?: number; tipo?: string; confirmado: true };
 type GerarRenderArgs = { prompt: string; estilo?: string };
 type AnalisarPlantaArgs = { prompt: string };
 type CalcularOrcamentoArgs = { projetoId?: string };
