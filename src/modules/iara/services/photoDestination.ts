@@ -103,22 +103,9 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
   const { error: projectPhotoError } = await supabase.from('projects').update({ foto_ambiente_path: storagePath }).eq('id', args.projectId).eq('user_id', args.userId);
   if (projectPhotoError) throw projectPhotoError;
 
-  const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-  if (signedError || !signed?.signedUrl) throw signedError ?? new Error('Não foi possível preparar a prévia da foto.');
-  // gallery_images does not have a metadata column in the production schema.
-  // storage_path is the durable source of truth for the persisted environment photo.
-  const { error: galleryError } = await supabase.from('gallery_images').insert({
-    user_id: args.userId,
-    project_id: args.projectId,
-    environment_id: environment.id,
-    image_url: signed.signedUrl,
-    storage_path: storagePath,
-    prompt: 'Foto do ambiente capturada pela IARA',
-  });
-  if (galleryError) {
-    throw new Error(`Falha ao registrar a foto do ambiente na galeria: ${galleryError.message}`);
-  }
-
+  // The execution context is critical for the render worker. Persist it before any
+  // secondary gallery/UI write so a gallery permission or Data API problem cannot
+  // cancel the render before ai-image is ever reached.
   const { data: existingContext } = await supabase.from('project_iara_contexts').select('id').eq('user_id', args.userId).eq('project_id', args.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
   if (existingContext?.id) {
     const { error } = await supabase.from('project_iara_contexts').update({ client_id: project.cliente_id ?? args.clientId ?? null, environment_id: environment.id, version_id: null, ...(args.correlationId ? { last_correlation_id: args.correlationId } : {}), ...(typeof args.generation === 'number' ? { last_execution_generation: args.generation } : {}), updated_at: new Date().toISOString() }).eq('id', existingContext.id).eq('user_id', args.userId);
@@ -128,13 +115,36 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
     if (error) throw error;
   }
 
+  let signedUrl: string | null = null;
+  const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+  if (!signedError && signed?.signedUrl) {
+    signedUrl = signed.signedUrl;
+  } else {
+    console.error('[IARA_PHOTO_SIGNED_URL_FAILED]', signedError);
+  }
+
+  // The environment photo is already durable in Storage and the execution context
+  // above is the critical render dependency. Gallery registration is best-effort so
+  // a secondary gallery/RLS/Data API issue cannot block the actual render pipeline.
+  const { error: galleryError } = await supabase.from('gallery_images').insert({
+    user_id: args.userId,
+    project_id: args.projectId,
+    environment_id: environment.id,
+    image_url: signedUrl,
+    storage_path: storagePath,
+    prompt: 'Foto do ambiente capturada pela IARA',
+  });
+  if (galleryError) {
+    console.error('[IARA_PHOTO_GALLERY_BEST_EFFORT_FAILED]', galleryError);
+  }
+
   return {
     projectId: project.id,
     environmentId: environment.id,
     clientId: project.cliente_id ?? args.clientId ?? null,
     projectName: project.nome || project.name || null,
     environmentName: environment.name,
-    imageUrl: signed.signedUrl,
+    imageUrl: signedUrl,
     storagePath,
   };
 }
