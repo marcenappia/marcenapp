@@ -35,7 +35,7 @@ function openDatabase(): Promise<IDBDatabase> {
 // a previous capture (e.g. background resize finishing after the photo was sent
 // or attached) must never resurrect a preview that the flow already consumed.
 let activeCaptureId: string | null = null;
-const LEGACY_SESSION_KEYS = ['marcenapp.iara.pending-upload.v1', 'marcenapp.iara.photo-handoff.v1'];
+const LEGACY_SESSION_KEYS = ['marcenapp.iara.pending-upload.v1', 'marcenapp.iara.environment-photo-handoff.v1'];
 
 export function beginIaraCapture(): string {
   activeCaptureId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
