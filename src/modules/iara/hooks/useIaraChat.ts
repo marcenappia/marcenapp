@@ -136,6 +136,9 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     }
     setLastContext(null);
     setProjectState({ intent: null, project: { dimensions: {} }, components: [], pending: [], selectedComponentId: null, sourceTurns: 0 });
+    // A context switch invalidates pending executions. Never leave the local
+    // typing indicator visible after the execution identity was discarded.
+    if (pendingExecutionsRef.current.size === 0) setIsTyping(false);
   }, [context]);
 
   useEffect(() => {
@@ -245,6 +248,8 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
 
           if (!published) {
             console.error('Falha ao publicar resultado do comando IARA:', lastError);
+            pendingExecutionsRef.current.delete(execution.correlationId);
+            setIsTyping(false);
             setError('O render foi concluído, mas não foi possível publicar o resultado na conversa. Tente novamente.');
           }
         } finally {
@@ -362,14 +367,24 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       const artifact = response.artifacts[0];
       const responseStatus = renderQueued ? 'processing' : response.run.status === 'completed' ? 'ready' : response.run.status;
       const metadata: MessageMetadata = { domain: response.domain, action: response.action, agent: response.domainAgent, correlationId: response.correlationId, clientId: activeContext?.clientId ?? undefined, projectId: context.projectId ?? undefined, environmentId: context.environmentId ?? undefined, versionId: context.versionId ?? undefined, status: responseStatus, ...(uploadKind ? { uploadKind } : {}), artifacts: response.artifacts, panel: response.panel, ...(artifact ? { artifact: { type: artifact.type, id: artifact.id } } : {}), ...(response.run.pendingInput ? { pendingInput: response.run.pendingInput } : {}), ...(artifact && !renderQueued ? { actions: [{ id: 'open', label: artifact.type === 'render' ? 'Abrir render' : 'Abrir artefato', kind: 'open-panel' }] } : {}), ...(directRenderImageUrl ? { resultUrl: directRenderImageUrl, imageUrl: directRenderImageUrl } : {}) };
-      const header = response.run.status === 'needs_input' ? 'Preciso confirmar uma informação antes de continuar.' : response.run.status === 'failed' ? 'Não foi possível concluir esta ação.' : directRenderImageUrl ? 'Pronto.' : renderQueued ? 'Render em processamento.' : response.action === 'render' ? 'Render solicitado.' : 'Pronto.';
+      // Queued renders deliberately do not create an intermediate assistant bubble.
+      // The local typing indicator is the only progress UI; the final command result
+      // is published by the commandHistory effect. This avoids a redundant message
+      // and, more importantly, avoids any extra model call just to report progress.
+      if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) {
+        pendingExecutionsRef.current.delete(correlationId);
+        return;
+      }
+      if (renderQueued) {
+        lastFailedRef.current = null;
+        // Keep the execution identity alive until Studio reaches a terminal state.
+        return;
+      }
+      const header = response.run.status === 'needs_input' ? 'Preciso confirmar uma informação antes de continuar.' : response.run.status === 'failed' ? 'Não foi possível concluir esta ação.' : directRenderImageUrl ? 'Pronto.' : response.action === 'render' ? 'Render solicitado.' : 'Pronto.';
       const needsInputDetail = response.run.status === 'needs_input' ? (response.run.error ?? response.run.summary ?? '') : '';
-      const body = needsInputDetail || (lines.length ? lines.join('\n') : renderQueued ? 'A imagem foi colocada na fila. A IARA só vai informar que o render está pronto quando a imagem realmente estiver disponível.' : 'Pode me dizer o que você quer fazer no projeto?');
-      if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
+      const body = needsInputDetail || (lines.length ? lines.join('\n') : 'Pode me dizer o que você quer fazer no projeto?');
       await saveMessage({ sender: 'iara', text: `${header}\n\n${body}`, ...(directRenderImageUrl ? { image_url: directRenderImageUrl } : {}), metadata }, execution);
-      // Keep the execution identity alive until the asynchronous Studio command
-      // finishes. The commandHistory effect publishes the final image (or failure).
-      if (!renderQueued) pendingExecutionsRef.current.delete(correlationId);
+      pendingExecutionsRef.current.delete(correlationId);
       lastFailedRef.current = null;
     } catch (error: unknown) { lastFailedRef.current = { text: promptText, upload, smartAction }; if (execution) pendingExecutionsRef.current.delete(execution.correlationId); setError(humanizeError(error)); setIsTyping(false); } finally {
       // Keep the processing indicator alive for queued renders. The commandHistory
