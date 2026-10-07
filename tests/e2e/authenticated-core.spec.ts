@@ -61,7 +61,7 @@ test.describe('Marcenapp authenticated core', () => {
     await environmentInput.setInputFiles({
       name: 'e2e-environment.png',
       mimeType: 'image/png',
-      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAeUlEQVR42u3YoRGAMAwF0I6YwRiCIdBoNLrDgMe0XBsB79+XufSeTEvtSUTUCXmuPZpTAAAAAABSAZOSB9jPOrwAAAAAAAAAAAAAAAAAvzgp/UoAAAAAAAAAfAmwrUt775e65hPWAgAAAAAAAAAAAAAAAAAAAAC86gVEZyvu4LqXwgAAAABJRU5ErErkJggg==', 'base64'),
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAeUlEQVR42u3YoRGAMAwF0I6YwRiCIdBoNLrDgMe0XBsB79+XufSeTEvtSUTUCXmuPZpTAAAAAABSAZOSB9jPOrwAAAAAAAAAAAAAAAAAvzgp/UoAAAAAAAAAfAmwrUt775e65hPWAgAAAAAAAAAAAAAAAAAAAAC86gVEZyvu4LqXwgAAAABJRU5ErkJggg==', 'base64'),
     });
 
     await expect(page.getByRole('region', { name: 'Escolher destino da foto' })).toBeVisible();
