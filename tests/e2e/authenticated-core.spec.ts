@@ -70,11 +70,13 @@ test.describe('Marcenapp authenticated core', () => {
     await page.getByRole('textbox', { name: 'Nome da obra' }).fill('E2E Render');
     await page.getByRole('button', { name: 'Salvar foto' }).click();
 
-    await expect(page.getByText('Foto do ambiente adicionada ao projeto.')).toBeVisible({ timeout: 30_000 });
+    await expect(page).toHaveURL(/\/\?module=studio(?:&|$)/, { timeout: 30_000 });
+    await expect(page.getByRole('img', { name: 'Imagem de referência' }).first()).toBeVisible({ timeout: 30_000 });
     const composer = page.getByLabel('Descreva o que você quer fazer');
-    await expect(composer).toBeVisible();
+    await expect(composer).toBeVisible({ timeout: 30_000 });
     await composer.fill('Gere um render fotorealista do ambiente atual, preservando a referência visual e o layout da foto.');
-    await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+    await expect(composer).toHaveValue(/Gere um render fotorealista/);
+    await composer.press('Enter');
 
     await expect(page.getByText('IARA está trabalhando… preparando o render')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('img', { name: 'Render do projeto' })).toBeVisible({ timeout: 8 * 60 * 1000 });
