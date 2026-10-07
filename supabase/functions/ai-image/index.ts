@@ -64,6 +64,18 @@ function retryDelay(response: Response, attempt: number): number {
   return Math.min(750 * (2 ** attempt) + Math.floor(Math.random() * 250), 5_000);
 }
 
+async function withTimeout<T>(operation: () => Promise<T>, timeoutMs: number, code = "provider_timeout"): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<T>((_, reject) => { timer = setTimeout(() => reject(new Error(code)), timeoutMs); }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function gatewayFetch(url: string, init: RequestInit): Promise<Response> {
   let response: Response | null = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -160,56 +172,65 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("provider_not_configured");
 
-  // Keep the request contract aligned with the current OpenAI-compatible
-  // Lovable adapter: it owns multipart encoding and image edit semantics.
-  const OpenAI = (await import("npm:openai@7.17.0")).default;
-  const client = new OpenAI({
-    apiKey: key,
-    baseURL: LOVABLE_GATEWAY_BASE_URL,
-    defaultHeaders: {
-      "Lovable-API-Key": key,
-      "X-Lovable-AIG-SDK": "tanstack-ai",
-    },
-  });
-
   const width = size?.width ?? size?.height ?? DEFAULT_DIM;
   const height = size?.height ?? size?.width ?? DEFAULT_DIM;
   const sizeValue = `${width}x${height}`;
 
-  try {
-    if (images.length > 0) {
-      const files = images.map((image, index) => {
-        const binary = atob(image.data);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-        return new File([bytes], `source-${index}.${imageExtension(image.mimeType)}`, { type: image.mimeType });
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const OpenAI = (await import("npm:openai@7.17.0")).default;
+      const client = new OpenAI({
+        apiKey: key,
+        baseURL: LOVABLE_GATEWAY_BASE_URL,
+        defaultHeaders: {
+          "Lovable-API-Key": key,
+          "X-Lovable-AIG-SDK": "tanstack-ai",
+        },
       });
-      const response = await client.images.edit({
-        model: LOVABLE_IMAGE_MODEL,
-        prompt,
-        image: files.length === 1 ? files[0] : files,
-        n: 1,
-        size: sizeValue as "1024x1024" | "1536x1024" | "1024x1536" | "auto",
-      });
-      return readBufferedImage(new Response(JSON.stringify(response)));
+
+      return await withTimeout(async () => {
+        if (images.length > 0) {
+          const files = images.map((image, index) => {
+            const binary = atob(image.data);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+            return new File([bytes], `source-${index}.${imageExtension(image.mimeType)}`, { type: image.mimeType });
+          });
+          const response = await client.images.edit({
+            model: LOVABLE_IMAGE_MODEL,
+            prompt,
+            image: files.length === 1 ? files[0] : files,
+            n: 1,
+            size: sizeValue as "1024x1024" | "1536x1024" | "1024x1536" | "auto",
+          });
+          return readBufferedImage(new Response(JSON.stringify(response)));
+        }
+
+        const response = await client.images.generate({
+          model: LOVABLE_IMAGE_MODEL,
+          prompt,
+          n: 1,
+          size: sizeValue as "1024x1024" | "1536x1024" | "1024x1536" | "auto",
+        });
+        return readBufferedImage(new Response(JSON.stringify(response)));
+      }, 55_000);
+    } catch (error) {
+      lastError = error;
+      const status = typeof error === "object" && error !== null && "status" in error
+        ? Number((error as { status?: unknown }).status)
+        : undefined;
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable = message === "provider_timeout" || status === 429 || (Number.isFinite(status) && status >= 500);
+      console.error("[LOVABLE_IMAGE_ATTEMPT]", JSON.stringify({ attempt: attempt + 1, status: status ?? null, retryable, error: message.slice(0, 300) }));
+      if (!retryable || attempt === 1) {
+        throw new Error(`lovable_http_${Number.isFinite(status) ? status : "unknown"}:${message.slice(0, 500)}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, Math.min(1000 * (attempt + 1), 2000)));
     }
-
-    const response = await client.images.generate({
-      model: LOVABLE_IMAGE_MODEL,
-      prompt,
-      n: 1,
-      size: sizeValue as "1024x1024" | "1536x1024" | "1024x1536" | "auto",
-    });
-    return readBufferedImage(new Response(JSON.stringify(response)));
-  } catch (error) {
-    const status = typeof error === "object" && error !== null && "status" in error
-      ? Number((error as { status?: unknown }).status)
-      : undefined;
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`lovable_http_${Number.isFinite(status) ? status : "unknown"}:${message.slice(0, 500)}`);
   }
+  throw lastError instanceof Error ? lastError : new Error("provider_timeout");
 }
-
 async function generateVercelImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
   const key = Deno.env.get("AI_GATEWAY_API_KEY");
   if (!key) throw new Error("provider_not_configured:vercel");
@@ -249,7 +270,7 @@ async function generateGeminiImage(prompt: string, images: ImageInput[]): Promis
     parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
   }
 
-  const response = await fetch(`${GEMINI_GENERATE_URL}/${GEMINI_IMAGE_MODEL}:generateContent`, {
+  const response = await withTimeout(() => fetch(`${GEMINI_GENERATE_URL}/${GEMINI_IMAGE_MODEL}:generateContent`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -259,7 +280,7 @@ async function generateGeminiImage(prompt: string, images: ImageInput[]): Promis
       contents: [{ role: "user", parts }],
       generationConfig: { responseModalities: ["IMAGE"] },
     }),
-  });
+  }), 55_000);
 
   if (!response.ok) {
     const body = await response.text();
@@ -313,6 +334,8 @@ serve(async request => {
   if (!guard.ok) return guard.response;
   let creditConsumed = false;
   let imageGenerated = false;
+  let persisted = false;
+  let persistGalleryRequired = false;
   let idempotencyKey = "";
   try {
     const body = await readJsonBody(request, MAX_BODY_BYTES);
@@ -356,6 +379,36 @@ serve(async request => {
         return jsonResponse(cors, { imageBase64: replay.image_url, imageUrl: replayUrl, operationType: OPERATION_TYPE, requestId: idempotencyKey, renderId: idempotencyKey, persisted: true, reused: true });
       }
     }
+    persistGalleryRequired = Boolean(persistGallery?.projectId);
+    if (persistGalleryRequired) {
+      if (!persistGallery?.projectId) throw new Error("gallery_project_required");
+      const { data: context, error: contextError } = await admin
+        .from("project_iara_contexts")
+        .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
+        .eq("user_id", guard.userId)
+        .eq("project_id", persistGallery.projectId)
+        .limit(1)
+        .maybeSingle();
+
+      if (contextError) throw new Error("iara_context_read_failed");
+      const contextMatches =
+        !!context &&
+        context.environment_id === (persistGallery.environmentId ?? null) &&
+        context.version_id === (persistGallery.versionId ?? null) &&
+        (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
+        (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
+      if (!contextMatches) throw new Error("stale_execution_context");
+      console.info("[EXECUTION_CONTEXT_VALIDATED]", JSON.stringify({
+        status: "success",
+        requestId: idempotencyKey,
+        renderId: idempotencyKey,
+        projectId: persistGallery.projectId,
+        environmentId: persistGallery.environmentId ?? null,
+        versionId: persistGallery.versionId ?? null,
+        generation: persistGallery.generation ?? null,
+      }));
+    }
+
     const consumed = await admin.rpc("consume_billing_credit", { p_user_id: guard.userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
     if (consumed.error) {
       const missing = consumed.error.message.includes("commercial_rule_missing");
@@ -429,29 +482,11 @@ serve(async request => {
       throw lastProviderError instanceof Error ? lastProviderError : new Error("provider_not_configured");
     }
 
-    let persisted = false;
     let persistedImageUrl = imageBase64;
     let storagePath: string | null = null;
     if (persistGallery) {
       try {
       if (!persistGallery.projectId) throw new Error("gallery_project_required");
-      const { data: context, error: contextError } = await admin
-        .from("project_iara_contexts")
-        .select("project_id,environment_id,version_id,last_correlation_id,last_execution_generation")
-        .eq("user_id", guard.userId)
-        .eq("project_id", persistGallery.projectId ?? "")
-        .limit(1)
-        .maybeSingle();
-
-      if (contextError) throw new Error("iara_context_read_failed");
-      const contextMatches =
-        !!context &&
-        context.environment_id === (persistGallery.environmentId ?? null) &&
-        context.version_id === (persistGallery.versionId ?? null) &&
-        (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
-        (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
-      if (!contextMatches) throw new Error("stale_execution_context");
-
       if (persistGallery.projectId) {
         const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
         if (!match) throw new Error("gallery_image_not_data_url");
@@ -497,7 +532,7 @@ serve(async request => {
     return jsonResponse(cors, { imageBase64, imageUrl: persistedImageUrl, width, height, operationType: OPERATION_TYPE, model: usedModel, provider: usedProvider, requestId: idempotencyKey, renderId: idempotencyKey, storagePath, creditConsumption: Array.isArray(data) ? data[0] : data, persisted, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
     const error = caught as GatewayError;
-    const shouldRefund = creditConsumed && idempotencyKey && !imageGenerated;
+    const shouldRefund = creditConsumed && Boolean(idempotencyKey) && (!imageGenerated || (persistGalleryRequired && !persisted));
     if (shouldRefund) await refund(guard.userId, idempotencyKey).catch(refundError => console.error("ai-image refund error", refundError));
     
     console.error("ai-image error", error.message);
