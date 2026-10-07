@@ -115,17 +115,13 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
     if (error) throw error;
   }
 
-  let signedUrl: string | null = null;
   const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-  if (!signedError && signed?.signedUrl) {
-    signedUrl = signed.signedUrl;
-  } else {
+  if (signedError || !signed?.signedUrl) {
     console.error('[IARA_PHOTO_SIGNED_URL_FAILED]', signedError);
+    throw new Error('A foto foi salva no Storage, mas não foi possível criar a URL persistente para a conversa.');
   }
+  const signedUrl = signed.signedUrl;
 
-  // The environment photo is already durable in Storage and the execution context
-  // above is the critical render dependency. Gallery registration is best-effort so
-  // a secondary gallery/RLS/Data API issue cannot block the actual render pipeline.
   const { error: galleryError } = await supabase.from('gallery_images').insert({
     user_id: args.userId,
     project_id: args.projectId,
@@ -135,7 +131,7 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
     prompt: 'Foto do ambiente capturada pela IARA',
   });
   if (galleryError) {
-    console.error('[IARA_PHOTO_GALLERY_BEST_EFFORT_FAILED]', galleryError);
+    throw new Error('A foto foi salva, mas não foi possível registrar a imagem na galeria: ' + galleryError.message);
   }
 
   return {
