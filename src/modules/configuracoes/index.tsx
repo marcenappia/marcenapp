@@ -94,7 +94,7 @@ export default function ConfiguracoesModule({ userId, profile, onNavigate }: Pro
         {[
           { id: 'operacao', label: 'Minha Marcenaria', icon: Building2 },
           { id: 'dna', label: 'DNA da marcenaria', icon: Brain },
-        ].map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => setSection(id as 'operacao' | 'dna')} className={\`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-black transition \${section === id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}\`}>
+        ].map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => setSection(id as 'operacao' | 'dna')} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-black transition ${section === id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
           <Icon size={15}/>{label}
         </button>)}
       </div>
