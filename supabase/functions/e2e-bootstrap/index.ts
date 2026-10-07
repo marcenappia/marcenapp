@@ -127,6 +127,18 @@ async function createEphemeralSession() {
     throw new Error(`create_profile_failed:${profileError.message}`);
   }
 
+  // Production render E2E is intentionally credit-gated. Give only the ephemeral
+  // smoke user one render credit; cleanup removes the user and wallet afterward.
+  const { error: creditError } = await admin.rpc('grant_billing_credits', {
+    p_user_id: created.user.id,
+    p_credit_type: 'image',
+    p_credits: 1,
+  });
+  if (creditError) {
+    await admin.auth.admin.deleteUser(created.user.id);
+    throw new Error(`create_e2e_credit_failed:${creditError.message}`);
+  }
+
   const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
   if (signInError || !signedIn.session) {
     await admin.auth.admin.deleteUser(created.user.id);
