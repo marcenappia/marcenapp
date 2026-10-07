@@ -522,26 +522,42 @@ serve(async request => {
     return jsonResponse(cors, { imageBase64, imageUrl: persistedImageUrl, width, height, operationType: OPERATION_TYPE, model: usedModel, provider: usedProvider, requestId: idempotencyKey, renderId: idempotencyKey, storagePath, creditConsumption: Array.isArray(data) ? data[0] : data, persisted, promptStats: { wordCount, charCount: prompt.length, tokenEstimate: Math.ceil(prompt.length / 4) } });
   } catch (caught) {
     const error = caught as GatewayError;
+    const message = error.message || String(error);
     const shouldRefund = creditConsumed && Boolean(idempotencyKey) && (!imageGenerated || (persistGalleryRequired && !persisted));
     if (shouldRefund) await refund(guard.userId, idempotencyKey).catch(refundError => console.error("ai-image refund error", refundError));
-    
-    console.error("ai-image error", error.message);
-    if (error.message === "stale_execution_context") return jsonResponse(cors, { message: "A execução do render ficou desatualizada antes da persistência.", code: "stale_execution_context" }, 409);
-    if (error.message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed" }, 500);
-    if (error.message === "render_idempotency_lookup_failed") return jsonResponse(cors, { message: "Não foi possível validar se este render já foi concluído.", code: "render_idempotency_lookup_failed" }, 500);
-    if (error.message === "gallery_project_required") return jsonResponse(cors, { message: "O render da IARA precisa estar vinculado a um projeto.", code: "gallery_project_required" }, 409);
-    if (error.message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "Não foi possível salvar o render na galeria.", code: "gallery_persist_failed" }, 500);
-    if (error.message === "credit_already_refunded") return jsonResponse(cors, { message: "Esta operação já foi estornada e não pode ser reutilizada.", code: "credit_already_refunded" }, 409);
-    if (error.message === "provider_not_configured" || error.message === "PROVIDER_NOT_CONFIGURED") return jsonResponse(cors, { message: "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
-    if (error.message.startsWith("configured_provider_unavailable:")) {
-      const provider = error.message.slice("configured_provider_unavailable:".length);
-      return jsonResponse(cors, { message: "O provider de imagem configurado (" + provider + ") não está disponível nesta publicação.", code: "provider_not_configured", provider, requestId: idempotencyKey, renderId: idempotencyKey }, 503);
+
+    console.error("ai-image error", JSON.stringify({ message, requestId: idempotencyKey, renderId: idempotencyKey, imageGenerated, persisted }));
+
+    if (message === "stale_execution_context") return jsonResponse(cors, { message: "A execução do render ficou desatualizada antes da persistência.", code: "stale_execution_context", stage: "execution_context" }, 409);
+    if (message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed", stage: "execution_context" }, 500);
+    if (message === "render_idempotency_lookup_failed") return jsonResponse(cors, { message: "Não foi possível validar se este render já foi concluído.", code: "render_idempotency_lookup_failed", stage: "idempotency" }, 500);
+    if (message === "gallery_project_required") return jsonResponse(cors, { message: "O render da IARA precisa estar vinculado a um projeto.", code: "gallery_project_required", stage: "execution_context" }, 409);
+    if (message === "gallery_image_not_data_url" || message === "invalid_image_result" || message === "empty_image_result" || message === "gemini_empty_image_result") {
+      return jsonResponse(cors, { message: "O provider respondeu, mas não entregou uma imagem válida.", code: "provider_invalid_image", stage: "generation" }, 502);
     }
-    if (error.status === 400) return jsonResponse(cors, { message: error.message, code: "invalid_image_request" }, 400);
-    if (error.status === 401) return jsonResponse(cors, { message: "A chave do serviço de IA não está configurada corretamente.", code: "provider_auth_error" }, 401);
-    if (error.status === 402) return jsonResponse(cors, { message: error.message, code: "provider_credits_exhausted" }, 402);
-    if (error.status === 403) return jsonResponse(cors, { message: error.message, code: "provider_access_denied" }, 403);
-    if (error.status === 429) return jsonResponse(cors, { message: error.message, code: "rate_limited" }, 429, error.retryAfter ? { "Retry-After": error.retryAfter } : {});
-    return jsonResponse(cors, { message: error.message.startsWith("provider_stream:") ? error.message.slice(16) : "O provedor de imagens está indisponível no momento.", code: "upstream_error" }, 502);
+    if (message === "gallery_signed_url_failed") return jsonResponse(cors, { message: "A imagem foi gerada, mas o Storage não conseguiu produzir a URL persistente.", code: "gallery_signed_url_failed", stage: "storage" }, 500);
+    if (message.startsWith("gallery_storage_write_failed:")) return jsonResponse(cors, { message: "A imagem foi gerada, mas falhou a gravação no Storage: " + message.slice("gallery_storage_write_failed:".length), code: "gallery_storage_write_failed", stage: "storage" }, 500);
+    if (message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "A imagem foi gerada e armazenada, mas falhou o registro na galeria: " + message.slice("gallery_persist_failed:".length), code: "gallery_persist_failed", stage: "database" }, 500);
+    if (message === "credit_already_refunded") return jsonResponse(cors, { message: "Esta operação já foi estornada e não pode ser reutilizada.", code: "credit_already_refunded", stage: "billing" }, 409);
+    if (message === "provider_not_configured" || message === "PROVIDER_NOT_CONFIGURED" || message.startsWith("provider_not_configured:")) {
+      const provider = message.includes(":") ? message.split(":")[1] : undefined;
+      return jsonResponse(cors, { message: provider ? "O provider de imagem " + provider + " não está configurado nesta publicação." : "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", provider, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
+    }
+    if (message.startsWith("configured_provider_unavailable:")) {
+      const provider = message.slice("configured_provider_unavailable:".length);
+      return jsonResponse(cors, { message: "O provider de imagem configurado (" + provider + ") não está disponível nesta publicação.", code: "provider_not_configured", provider, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
+    }
+    if (message === "provider_timeout" || message.includes("provider_timeout")) return jsonResponse(cors, { message: "O provider de imagem excedeu o tempo limite.", code: "provider_timeout", stage: "generation" }, 504);
+    if (message === "provider_connection_error" || message.includes("provider_connection_error")) return jsonResponse(cors, { message: "Não foi possível estabelecer comunicação com o provider de imagem.", code: "provider_connection_error", stage: "generation" }, 502);
+
+    const encodedStatus = message.match(/(?:lovable|gemini|vercel)_http_(\d{3})/i)?.[1];
+    const status = error.status ?? (encodedStatus ? Number(encodedStatus) : undefined);
+    if (status === 400) return jsonResponse(cors, { message: message.replace(/^(?:lovable|gemini|vercel)_http_\d{3}:/i, ""), code: "invalid_image_request", stage: "generation" }, 400);
+    if (status === 401) return jsonResponse(cors, { message: "O provider recusou a autenticação da credencial configurada.", code: "provider_auth_error", stage: "generation" }, 401);
+    if (status === 402) return jsonResponse(cors, { message: "O provider recusou a geração por créditos/saldo insuficiente.", code: "provider_credits_exhausted", stage: "generation" }, 402);
+    if (status === 403) return jsonResponse(cors, { message: "O provider recusou o acesso da credencial ou modelo configurado.", code: "provider_access_denied", stage: "generation" }, 403);
+    if (status === 429) return jsonResponse(cors, { message: "O limite do provider de imagem foi atingido.", code: "rate_limited", stage: "generation" }, 429, error.retryAfter ? { "Retry-After": error.retryAfter } : {});
+
+    return jsonResponse(cors, { message: message.startsWith("provider_stream:") ? message.slice(16) : message, code: "upstream_error", stage: "generation" }, 502);
   }
 });
