@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Calculator, CreditCard, Package, Save, Settings2, Users, ArrowRight } from 'lucide-react';
+import { Building2, Calculator, CreditCard, Package, Save, Settings2, Users, ArrowRight, Brain } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 type Profile = { name?: string | null; company?: string | null };
@@ -10,6 +10,7 @@ const cards = [
   { id: 'billing', icon: CreditCard, title: 'Créditos e financeiro', text: 'Pagamentos, créditos e consumo.' },
   { id: 'corte', icon: Package, title: 'Lista de corte', text: 'Materiais e produção dos projetos.' },
   { id: 'clientes', icon: Users, title: 'Clientes', text: 'Cadastro e acompanhamento.' },
+  { id: 'marcenaria', icon: Brain, title: 'Minha Marcenaria', text: 'Materiais, fornecedores, estoque, documentos e DNA da operação.' },
 ];
 
 export default function ConfiguracoesModule({ userId, profile, onNavigate, onSaved }: Props) {
