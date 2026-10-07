@@ -93,3 +93,24 @@ Deno.test("ai-image: does not double-wrap data URI returned by image decoder", a
   assert(source.includes("imageUrl: imageBase64"));
   assert(!source.includes("imageUrl: `data:image/png;base64,${imageBase64}`"));
 });
+
+Deno.test("ai-image: validates IARA execution context before consuming the operation", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  const validation = source.indexOf("[EXECUTION_CONTEXT_VALIDATED]");
+  const consumption = source.indexOf('admin.rpc("consume_billing_credit"');
+  assert(validation >= 0, "expected pre-consumption context validation");
+  assert(consumption >= 0, "expected operation consumption");
+  assert(validation < consumption, "context must be validated before consumption");
+});
+
+Deno.test("ai-image: refunds when durable gallery persistence fails after generation", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes("persistGalleryRequired && !persisted"), "expected persistence-aware refund guard");
+  assert(source.includes('persistGalleryRequired = Boolean(persistGallery)'), "expected any persistence request to be refundable");
+});
+
+Deno.test("ai-image: bounds the real image provider path", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes("[LOVABLE_IMAGE_ATTEMPT]"), "expected bounded provider retry logging");
+  assert(source.includes("55_000"), "expected provider timeout");
+});
