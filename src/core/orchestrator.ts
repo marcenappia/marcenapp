@@ -163,11 +163,16 @@ function pendingCreateProjectInput(userPrompt: string, context?: Record<string, 
   const recentText = conversation.filter((item): item is { sender: string; text: string } => Boolean(item) && typeof item === 'object' && (item as { sender?: unknown }).sender === 'user' && typeof (item as { text?: unknown }).text === 'string').slice(-6).map((item) => item.text).join(' ');
   const combined = recentText + ' ' + userPrompt;
   const normalized = normalizePortugueseNumberWords(normalizeText(combined));
-  if (extractTextProjectDimensions(combined)) return null;
+  const explicit = extractTextProjectDimensions(combined);
+  const remembered = projectStateDimensions(context);
+  if (explicit || remembered) {
+    const resolved = explicit ?? remembered;
+    if (resolved && [resolved.width, resolved.height, resolved.depth].every((value) => Number.isFinite(value) && value > 0)) return null;
+  }
   const missing: string[] = [];
-  if (extractAxisDimension(normalized, 'width') === undefined) missing.push('width');
-  if (extractAxisDimension(normalized, 'height') === undefined) missing.push('height');
-  if (extractAxisDimension(normalized, 'depth') === undefined) missing.push('depth');
+  if (extractAxisDimension(normalized, 'width') === undefined && !remembered?.width) missing.push('width');
+  if (extractAxisDimension(normalized, 'height') === undefined && !remembered?.height) missing.push('height');
+  if (extractAxisDimension(normalized, 'depth') === undefined && !remembered?.depth) missing.push('depth');
   if (!missing.length) return null;
   return { tool: 'createProjeto', fields: missing, reason: 'Para criar o projeto, informe as dimensões que faltam: ' + missing.join(', ') + '.' };
 }
