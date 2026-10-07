@@ -396,7 +396,9 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
   };
   const publishAttachedPhoto = useCallback(async (destination: { projectId: string; environmentId: string; imageUrl?: string | null; storagePath?: string | null }) => {
     if (!user) throw new Error('Entre na sua conta para continuar.');
-    if (!destination.imageUrl) throw new Error('A foto foi salva, mas a URL da conversa não ficou disponível.');
+    if (!destination.imageUrl || !/^https?:\/\//.test(destination.imageUrl)) {
+      throw new Error('A foto foi salva, mas ainda não existe uma URL persistente para colocá-la na conversa.');
+    }
     const { error: insertError } = await supabase.from('chat_messages').insert({
       user_id: user.id,
       project_id: destination.projectId,
@@ -413,7 +415,6 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       },
     });
     if (insertError) throw new Error('A foto foi salva, mas não foi possível colocá-la na conversa.');
-    if (!/^https?:\/\//.test(destination.imageUrl)) throw new Error('A foto precisa de um endereço permanente antes de ir para a conversa.');
     await clearIaraPendingUpload().catch(() => undefined);
     setPendingUpload(null);
   }, [user]);
