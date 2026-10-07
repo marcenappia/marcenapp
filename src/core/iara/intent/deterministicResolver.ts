@@ -77,20 +77,29 @@ const actions: Record<string, string[]> = {
   check_measurements: ["conferir medida", "conferir medidas"],
 };
 
-function createProject(value: string): ResolvedIntent | null {
+function createProject(value: string, input?: IntentResolverInput): ResolvedIntent | null {
   if (!create.test(value) || !noun.test(value)) return null;
+
   const dimensions = extract(value);
-  const missing: SlotRequirement[] = dimensions
-    ? []
-    : [
-        { tool: "createProjeto", field: "width", label: "Qual a largura do móvel?" },
-        { tool: "createProjeto", field: "height", label: "Qual a altura do móvel?" },
-        { tool: "createProjeto", field: "depth", label: "Qual a profundidade do móvel?" },
-      ];
+  const projectState = input?.context?.projectState as
+    | { project?: { dimensions?: Partial<Record<"width" | "height" | "depth", number>> } }
+    | undefined;
+  const remembered = projectState?.project?.dimensions ?? {};
+  const merged = {
+    ...(remembered.width && remembered.width > 0 ? { width: remembered.width } : {}),
+    ...(remembered.height && remembered.height > 0 ? { height: remembered.height } : {}),
+    ...(remembered.depth && remembered.depth > 0 ? { depth: remembered.depth } : {}),
+    ...(dimensions ?? {}),
+  };
+  const missing: SlotRequirement[] = [];
+  if (!merged.width) missing.push({ tool: "createProjeto", field: "width", label: "Qual a largura do móvel?" });
+  if (!merged.height) missing.push({ tool: "createProjeto", field: "height", label: "Qual a altura do móvel?" });
+  if (!merged.depth) missing.push({ tool: "createProjeto", field: "depth", label: "Qual a profundidade do móvel?" });
+
   return {
     intent: "create_projeto",
-    entities: { nome: "Novo projeto", ...(dimensions ?? {}) },
-    confidence: dimensions ? 0.95 : 0.6,
+    entities: { nome: "Novo projeto", ...merged },
+    confidence: missing.length === 0 ? 0.95 : 0.6,
     missingSlots: missing,
     source: "deterministic",
   } as ResolvedIntent;
@@ -121,7 +130,7 @@ export const deterministicResolver: IntentResolver = {
         source: "deterministic",
       };
     }
-    const project = createProject(value);
+    const project = createProject(value, input);
     if (project) return project;
     for (const [action, keywords] of Object.entries(actions)) {
       if (keywords.some((keyword) => value.includes(keyword))) {
