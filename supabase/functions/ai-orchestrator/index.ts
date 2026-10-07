@@ -107,12 +107,18 @@ serve(async (req) => {
     const parsed = BodySchema.safeParse(read.body); if (!parsed.success) return jsonResponse(corsHeaders, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
     const contextBlock = parsed.data.context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(parsed.data.context, null, 2)}` : "";
     // IARA recovery path: visual renders must not depend on text-provider availability.
-    const hasVisualReference = Boolean(parsed.data.context?.lastImage);
-    const renderIntent = /\b(render|renderizar|imagem|ambiente|móvel|moveis|móveis|armário|marcenaria)\b/i.test(parsed.data.userPrompt);
-    if (hasVisualReference && renderIntent) {
+    const hasVisualReference = Boolean(parsed.data.context?.lastImage || parsed.data.context?.hasVisualReference);
+    const renderIntent = parsed.data.context?.iaraAction === "render"
+      || /\b(render|renderizar|imagem|ambiente|móvel|moveis|móveis|armário|marcenaria)\b/i.test(parsed.data.userPrompt);
+    // Render planning is deterministic: never spend a text-provider call just to
+    // decide whether a visual request should invoke gerarRender. The actual tool
+    // still validates that a visual reference exists before enqueueing ai-image.
+    if (renderIntent) {
       return jsonResponse(corsHeaders, {
         plan: [{ tool: "gerarRender", args: { prompt: parsed.data.userPrompt } }],
-        summary: "Vou gerar o render usando a imagem de referência.",
+        summary: hasVisualReference
+          ? "Vou gerar o render usando a imagem de referência."
+          : "Para gerar o render, preciso de uma imagem de referência ou ambiente com foto.",
         model: "iara-direct-render",
         provider: "direct-render",
       });
