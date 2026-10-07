@@ -4,7 +4,7 @@ import MineriaDaMarcenaria from '@/modules/marcenaria/MineriaDaMarcenaria';
 import MarcenariaDnaPanel from '@/modules/marcenaria/MarcenariaDnaPanel';
 import { supabase } from '@/integrations/supabase/client';
 
-type Profile = { name?: string | null; company?: string | null };
+type Profile = { name?: string | null; company?: string | null; profession?: string | null; reduce_motion?: boolean | null };
 type Props = { userId?: string; profile: Profile | null; onNavigate: (module: string) => void; onSaved?: () => void };
 
 const cards = [
@@ -17,8 +17,8 @@ const cards = [
 export default function ConfiguracoesModule({ userId, profile, onNavigate }: Props) {
   const [name, setName] = useState(profile?.name ?? '');
   const [company, setCompany] = useState(profile?.company ?? '');
-  const [profession, setProfession] = useState((profile as Profile & { profession?: string | null })?.profession ?? '');
-  const [reduceMotion, setReduceMotion] = useState(Boolean((profile as Profile & { reduce_motion?: boolean | null })?.reduce_motion));
+  const [profession, setProfession] = useState(profile?.profession ?? '');
+  const [reduceMotion, setReduceMotion] = useState(Boolean(profile?.reduce_motion));
   const [provider, setProvider] = useState<string | null>(null);
   const [providerLoading, setProviderLoading] = useState(false);
   const [saving, setSaving] = useState(false);
