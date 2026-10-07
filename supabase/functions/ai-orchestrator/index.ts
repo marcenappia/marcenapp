@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
-import { buildCorsHeaders, guardRequest, readJsonBody, jsonResponse } from "../_shared/guard.ts";
+import { buildCorsHeaders, guardRequest, readJsonBody, jsonResponse } from "./guard.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
