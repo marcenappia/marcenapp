@@ -42,7 +42,13 @@ export function resolveProviderSelection(
       // credential/quota into a long, misleading render "processing" state.
       throw new Error(`configured_provider_unavailable:${configured}`);
     }
-    return { primary: configured, fallback: null };
+    // A configured provider remains the primary contract, but a transient
+    // upstream failure (429/5xx/timeout) may use another operational provider.
+    // Credential/configuration absence still fails fast above.
+    return {
+      primary: configured,
+      fallback: operational.find((provider) => provider !== configured) ?? null,
+    };
   }
 
   return {
