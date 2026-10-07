@@ -319,7 +319,17 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const deterministicFloorPlan: ToolCall[] = iara?.action === 'analyze_plan' ? [{ tool: 'analisarPlanta', args: { prompt: effectiveUserPrompt } }] : [];
     const deterministicEnvironmentPlan: ToolCall[] = iara?.action === 'analyze_environment' ? [{ tool: 'iara.analyze_environment', args: {} }] : [];
     const deterministicSmartPlan: ToolCall[] = smartAction ? [{ tool: `iara.${smartAction}`, args: { projectId: ctx.projectId } }] : [];
-    const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicRenderPlan.length ? deterministicRenderPlan : architectureRenderPlan.length ? architectureRenderPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan.length ? deterministicSmartPlan : architectureSmartPlan;
+    // Render requests must pass through the real ai-orchestrator boundary before the
+    // client executes gerarRender. Previously deterministic render plans bypassed the
+    // Edge Function entirely, making the production path different from the intended
+    // IARA -> ai-orchestrator -> tool -> ai-image chain.
+    const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan.length ? deterministicSmartPlan : architectureSmartPlan;
+    const plannerContext = {
+      ...context,
+      iaraAction: iara?.action,
+      hasVisualReference: Boolean(ctx.lastImageBase || (ctx.referenceImages ?? []).some((image) => Boolean(image.data))),
+      decorStyle: ctx.decorStyle,
+    };
 
     if (!deterministicPlan.length && effectivePendingCreateProject) {
       const result: ToolResult = { ok: false, error: effectivePendingCreateProject.reason };
@@ -327,7 +337,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       return { runId, plan: [], summary: pendingCreateProject.reason, results: [{ tool: pendingCreateProject.tool, result }], usedFallback: false, status: 'needs_input', error: pendingCreateProject.reason, pendingInput: effectivePendingCreateProject };
     }
 
-    const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : architectureRenderPlan.length ? 'Render solicitado pela IARA.' : architectureSmartPlan.length ? 'Ação contextual identificada pela IARA.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicRenderPlan.length ? 'Render solicitado diretamente pela IARA.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(effectiveUserPrompt, context);
+    const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : architectureSmartPlan.length ? 'Ação contextual identificada pela IARA.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(effectiveUserPrompt, plannerContext);
     plan = result.plan;
     summary = result.summary;
     provider = result.provider;
