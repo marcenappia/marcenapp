@@ -14,7 +14,6 @@ const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 const VERCEL_IMAGE_MODEL = Deno.env.get("VERCEL_AI_IMAGE_MODEL") ?? "openai/gpt-image-2.5-sunburst";
-const VERCEL_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1";
 // Image output (responseModalities) is documented on v1beta for Gemini image models.
 const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -117,47 +116,6 @@ function gatewayError(response: Response, body: string): GatewayError {
   return error;
 }
 
-async function requestGateway(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<Response> {
-  const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) throw new Error("provider_not_configured");
-
-  const headers = {
-    Authorization: `Bearer ${key}`,
-    "Lovable-API-Key": key,
-    "X-Lovable-AIG-SDK": "tanstack-ai",
-  };
-
-  const width = size?.width ?? size?.height ?? DEFAULT_DIM;
-  const height = size?.height ?? size?.width ?? DEFAULT_DIM;
-  const sizeValue = `${width}x${height}`;
-
-  if (images.length > 0) {
-    const form = new FormData();
-    form.set("model", LOVABLE_IMAGE_MODEL);
-    form.set("prompt", prompt);
-    form.set("size", sizeValue);
-    images.forEach((image, index) => {
-      form.append(images.length === 1 ? "image" : "image[]", imageBlob(image), `reference-${index}.${imageExtension(image.mimeType)}`);
-    });
-    return gatewayFetch(`${LOVABLE_GATEWAY_BASE_URL}/images/edits`, {
-      method: "POST",
-      headers,
-      body: form,
-    });
-  }
-
-  return gatewayFetch(`${LOVABLE_GATEWAY_BASE_URL}/images/generations`, {
-    method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: LOVABLE_IMAGE_MODEL,
-      prompt,
-      size: sizeValue,
-      n: 1,
-    }),
-  });
-}
-
 async function generateLovableImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("provider_not_configured");
@@ -222,34 +180,45 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
   throw lastError instanceof Error ? lastError : new Error("provider_timeout");
 }
 async function generateVercelImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
-  const key = Deno.env.get("AI_GATEWAY_API_KEY");
-  if (!key) throw new Error("provider_not_configured:vercel");
+  const bridgeUrl = Deno.env.get("VERCEL_IMAGE_BRIDGE_URL") ?? "https://marcenapp.com.br/api/ai-image-gateway";
   const width = size?.width ?? size?.height ?? DEFAULT_DIM;
   const height = size?.height ?? size?.width ?? DEFAULT_DIM;
 
-  // Vercel AI Gateway supports reference-image editing through its OpenAI-compatible
-  // image model interface. Use the AI SDK adapter so multipart /images/edits is
-  // encoded correctly instead of sending an unsupported JSON shape.
-  const { createOpenAICompatible } = await import("npm:@ai-sdk/openai-compatible");
-  const { generateImage } = await import("npm:ai");
-  const provider = createOpenAICompatible({
-    name: "vercel-ai-gateway",
-    apiKey: key,
-    baseURL: VERCEL_GATEWAY_BASE_URL,
-  });
-  const inputImages = await Promise.all(images.map(async (image) => new Uint8Array(await imageBlob(image).arrayBuffer())));
-  const result = await generateImage({
-    model: provider.imageModel(VERCEL_IMAGE_MODEL),
-    prompt: inputImages.length > 0 ? { text: prompt, images: inputImages } : prompt,
-    size: `${width}x${height}`,
-    n: 1,
-    maxRetries: 0,
-  });
-  const generated = result.images?.[0] ?? result.image;
-  if (!generated?.base64) throw new Error("empty_image_result");
-  return `data:${generated.mimeType ?? "image/png"};base64,${generated.base64}`;
-}
+  // Keep billing, idempotency and Storage in Supabase, while image inference
+  // runs in Vercel where AI Gateway can authenticate with deployment OIDC.
+  const authorization = currentRequestAuthorization;
+  if (!authorization) throw new Error("provider_auth_error");
 
+  const response = await withTimeout(() => fetch(bridgeUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: authorization,
+    },
+    body: JSON.stringify({
+      prompt,
+      images,
+      size: { width, height },
+    }),
+  }), 55_000);
+
+  const body = await response.json().catch(() => null) as {
+    imageBase64?: string;
+    code?: string;
+    message?: string;
+  } | null;
+
+  if (!response.ok) {
+    const error = new Error(body?.message ?? "Vercel image gateway request failed.") as GatewayError;
+    error.status = response.status;
+    throw error;
+  }
+
+  if (!body?.imageBase64 || !body.imageBase64.startsWith("data:image/")) {
+    throw new Error("empty_image_result");
+  }
+  return body.imageBase64;
+}
 async function generateGeminiImage(prompt: string, images: ImageInput[]): Promise<string> {
   // Must match the availability check in _shared/provider.ts, which accepts both names.
   const key = Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY");
@@ -315,10 +284,13 @@ async function refund(userId: string, idempotencyKey: string) {
   throw new Error(`billing_refund_failed:${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 
+let currentRequestAuthorization = "";
+
 serve(async request => {
   const cors = buildCorsHeaders(request);
-  if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (request.method !== "POST") return jsonResponse(cors, { message: "Método não permitido.", code: "method_not_allowed" }, 405);
+  currentRequestAuthorization = request.headers.get("Authorization") ?? "";
+  if (request.method === "OPTIONS") { currentRequestAuthorization = ""; return new Response("ok", { headers: cors }); }
+  if (request.method !== "POST") { currentRequestAuthorization = ""; return jsonResponse(cors, { message: "Método não permitido.", code: "method_not_allowed" }, 405); }
 
   const guard = await guardRequest(request, cors, { fn: "ai-image", limit: 10, windowSeconds: 60 });
   if (!guard.ok) return guard.response;
