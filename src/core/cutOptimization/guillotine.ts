@@ -104,7 +104,6 @@ function packWithStrategy(parts: CutPart[], options: CutOptions, strategy: strin
     const bottomH=r.h-o.h-options.kerf;
     if (rightW>EPS) free.push({x:r.x+o.w+options.kerf,y:r.y,w:rightW,h:o.h});
     if (bottomH>EPS) free.push({x:r.x,y:r.y+o.h+options.kerf,w:r.w,h:bottomH});
-    if (rightW>EPS && bottomH>EPS) free.push({x:r.x+o.w+options.kerf,y:r.y+o.h+options.kerf,w:rightW,h:bottomH});
   };
 
   for (const part of ordered) {
