@@ -14,7 +14,7 @@ export type VisualReference = { data: string; mimeType?: string; kind?: 'environ
 export interface ExecutionContext { userId: string; projectId?: string; environmentId?: string; versionId?: string; correlationId?: string; generation?: number; decorStyle?: string; lastImageBase?: string; lastImageMask?: string; referenceImages?: VisualReference[]; }
 
 type CreateClienteArgs = { nome: string; email?: string; telefone?: string };
-type CreateProjetoArgs = { nome: string; clienteNome?: string; width?: number; height?: number; depth?: number; doors?: number; drawers?: number; modules?: number; tipo?: string; confirmado: true };
+type CreateProjetoArgs = { nome: string; clienteNome?: string; width?: number; height?: number; depth?: number; doors?: number; drawers?: number; modules?: number; tipo?: string; external_material?: string; internal_material?: string; back_material?: string; handle_type?: string; doorType?: string; confirmado: true };
 type GerarRenderArgs = { prompt: string; estilo?: string };
 type AnalisarPlantaArgs = { prompt: string };
 type CalcularOrcamentoArgs = { projetoId?: string };
@@ -198,7 +198,7 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
         const prompt = [
           'Crie o móvel solicitado dentro do ambiente da foto de referência.',
           `Dimensões atuais do projeto: largura ${project.width} mm, altura ${project.height} mm, profundidade ${project.depth} mm. Se essas medidas vieram dos valores padrão do cadastro, trate-as como provisórias e não altere proporções da foto sem base visual.`,
-          `Estrutura confirmada: ${project.modules ?? 1} módulo(s), ${project.doors ?? 0} porta(s), ${project.drawers ?? 0} gaveta(s).`,
+          `Estrutura confirmada: ${project.modules ?? 1} módulo(s), ${project.doors ?? 0} porta(s), ${project.drawers ?? 0} gaveta(s).${finalArgs.doorType ? ` Tipo de porta: ${finalArgs.doorType}.` : ''}${finalArgs.external_material ? ` Acabamento externo: ${finalArgs.external_material}.` : ''}`,
           'Use a foto como referência principal do ambiente, preserve paredes, vãos, perspectiva e elementos fixos, e não entregue um ambiente vazio.',
         ].join(' ');
 
