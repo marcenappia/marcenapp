@@ -25,7 +25,7 @@ function buildRenderPrompt(prompt: string, hasReferenceImage: boolean): string {
     "",
     "INSTRUÇÃO DO USUÁRIO:",
     prompt,
-  ].join("\\n");
+  ].join("\n");
 }
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
