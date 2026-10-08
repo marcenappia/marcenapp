@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTechnicalStructure } from './projectTechnicalModel';
+import { buildTechnicalStructure, projectDimensionToMm } from './projectTechnicalModel';
 import type { ProjectData } from '@/modules/projetos/types';
 
 const project: ProjectData = {
