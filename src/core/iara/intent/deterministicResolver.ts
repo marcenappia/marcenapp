@@ -16,15 +16,19 @@ const WORDS: Array<[RegExp, string]> = [
 const norm = (s: string) => s.toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
 const words = (s: string) => WORDS.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), s);
 
-function mm(value: string, unit?: string) {
+function mm(value: string, unit?: string, axisName?: "width" | "height" | "depth") {
   const number = Number(value.replace(",", "."));
   if (!Number.isFinite(number) || number <= 0) return undefined;
-  const normalizedUnit = (unit ?? "mm").toLowerCase();
-  return normalizedUnit.startsWith("m") && !normalizedUnit.startsWith("mm")
-    ? number * 1000
-    : normalizedUnit.startsWith("cm")
-      ? number * 10
-      : number;
+  const normalizedUnit = (unit ?? "").toLowerCase();
+  if (normalizedUnit === "m" || normalizedUnit === "metro" || normalizedUnit === "metros") return number * 1000;
+  if (normalizedUnit === "cm" || normalizedUnit === "centímetro" || normalizedUnit === "centímetros") return number * 10;
+  if (normalizedUnit === "mm" || normalizedUnit === "milímetro" || normalizedUnit === "milímetros") return number;
+
+  // Conversa de marcenaria costuma omitir "cm" em medidas de móveis:
+  // "55 de profundidade" = 55 cm; "2,80 de altura" = 2,80 m.
+  if (number < 10) return number * 1000;
+  if (number >= 10 && number <= 300 && axisName) return number * 10;
+  return number;
 }
 
 const triple = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|metros?|centímetros?)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m|metros?|centímetros?)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m|metros?|centímetros?)?/i;
@@ -32,20 +36,46 @@ const triple = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|metros?|centímetros?)?\s*[x×]\s*(
 function dims(value: string) {
   const match = value.match(triple);
   if (!match) return;
-  const width = mm(match[1], match[2]);
-  const height = mm(match[3], match[4]);
-  const depth = mm(match[5], match[6]);
+  const width = mm(match[1], match[2], "width");
+  const height = mm(match[3], match[4], "height");
+  const depth = mm(match[5], match[6], "depth");
   return width && height && depth ? { width, height, depth } : undefined;
 }
 
-function axis(value: string, axisName: "width" | "height" | "depth") {
+function axisCandidates(value: string, axisName: "width" | "height" | "depth"): number[] {
   const axisWords = axisName === "width"
     ? "(?:largura|largo|comprimento)"
     : axisName === "height"
       ? "(?:altura|alto)"
       : "(?:profundidade|profundo)";
-  const match = value.match(new RegExp(`${axisWords}\\s*(?:é|e|de|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|m|metros?|centímetros?)?`, "i"));
-  return match ? mm(match[1], match[2]) : undefined;
+  const number = "(\\d+(?:[.,]\\d+)?)";
+  const unit = "(mm|cm|m|metros?|centímetros?)?";
+
+  const patterns = [
+    new RegExp(axisWords + "\\s*(?:é|e|de|:|=)?\\s*" + number + "\\s*" + unit + "\\b", "gi"),
+    new RegExp(number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
+    new RegExp(number + "\\s*" + unit + "\\s*(?:ou|o|ou\\s+de|e)\\s*" + number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
+  ];
+
+  const result: number[] = [];
+  for (const pattern of patterns) {
+    for (const match of value.matchAll(pattern)) {
+      const numericIndexes = match
+        .map((item, index) => ({ item, index }))
+        .filter(({ item, index }) => index > 0 && /^\d/.test(item))
+        .map(({ index }) => index);
+
+      for (const index of numericIndexes) {
+        const parsed = mm(match[index], match[index + 1], axisName);
+        if (Number.isFinite(parsed) && !result.includes(parsed as number)) result.push(parsed as number);
+      }
+    }
+  }
+  return result;
+}
+
+function axis(value: string, axisName: "width" | "height" | "depth") {
+  return axisCandidates(value, axisName)[0];
 }
 
 function extract(value: string) {
@@ -56,7 +86,6 @@ function extract(value: string) {
   const depth = axis(value, "depth");
   return width && height && depth ? { width, height, depth } : undefined;
 }
-
 const create = /\b(crie|criar|cria|quero|preciso|gostaria|novo projeto|novo móvel|novo movel|monte um projeto|faça um projeto|faca um projeto)\b/i;
 const noun = /\b(projeto|móvel|movel|armário|armario|cozinha|bancada)\b/i;
 const render = /\b(render|renderize|renderizar)\b|\b(gera|gerar|crie|criar|quero ver|visualiza|visualizar|mostra|mostrar)\b.*\b(render|imagem|visualização|visualizacao)\b/i;
@@ -85,16 +114,46 @@ function createProject(value: string, input?: IntentResolverInput): ResolvedInte
     | { project?: { dimensions?: Partial<Record<"width" | "height" | "depth", number>> } }
     | undefined;
   const remembered = projectState?.project?.dimensions ?? {};
-  const merged = {
+  const candidates = {
+    width: axisCandidates(value, "width"),
+    height: axisCandidates(value, "height"),
+    depth: axisCandidates(value, "depth"),
+  };
+
+  // Never discard dimensions just because another slot is still missing.
+  // If a slot has multiple plausible values, keep it unresolved and ask only
+  // for that choice instead of falling back to the generic 3-field question.
+  const merged: Record<string, number> = {
     ...(remembered.width && remembered.width > 0 ? { width: remembered.width } : {}),
     ...(remembered.height && remembered.height > 0 ? { height: remembered.height } : {}),
     ...(remembered.depth && remembered.depth > 0 ? { depth: remembered.depth } : {}),
-    ...(dimensions ?? {}),
   };
+  for (const axisName of ["width", "height", "depth"] as const) {
+    if (!merged[axisName] && candidates[axisName].length === 1) merged[axisName] = candidates[axisName][0];
+  }
+  if (dimensions) Object.assign(merged, dimensions);
+
   const missing: SlotRequirement[] = [];
-  if (!merged.width) missing.push({ tool: "createProjeto", field: "width", label: "Qual a largura do móvel?" });
-  if (!merged.height) missing.push({ tool: "createProjeto", field: "height", label: "Qual a altura do móvel?" });
-  if (!merged.depth) missing.push({ tool: "createProjeto", field: "depth", label: "Qual a profundidade do móvel?" });
+  if (!merged.width) missing.push({
+    tool: "createProjeto",
+    field: "width",
+    label: "Qual a largura do móvel?",
+  });
+  if (!merged.height) {
+    const values = candidates.height;
+    missing.push({
+      tool: "createProjeto",
+      field: "height",
+      label: values.length > 1
+        ? "A altura ficou ambígua. Você quer " + values.map((value) => (value / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })).join(" m ou ") + " m?"
+        : "Qual a altura do móvel?",
+    });
+  }
+  if (!merged.depth) missing.push({
+    tool: "createProjeto",
+    field: "depth",
+    label: "Qual a profundidade do móvel?",
+  });
 
   return {
     intent: "create_projeto",
