@@ -58,6 +58,12 @@ function imageBlob(image: ImageInput): Blob {
   return new Blob([bytes], { type: image.mimeType });
 }
 
+function retryDelay(response: Response, attempt: number): number {
+  const retryAfter = Number(response.headers.get("Retry-After"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return Math.min(retryAfter * 1000, 10_000);
+  return Math.min(750 * (2 ** attempt) + Math.floor(Math.random() * 250), 5_000);
+}
+
 async function withTimeout<T>(operation: () => Promise<T>, timeoutMs: number, code = "provider_timeout"): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -133,14 +139,14 @@ async function requestGateway(prompt: string, images: ImageInput[], size?: { wid
     images.forEach((image, index) => {
       form.append(images.length === 1 ? "image" : "image[]", imageBlob(image), `reference-${index}.${imageExtension(image.mimeType)}`);
     });
-    return fetch(`${LOVABLE_GATEWAY_BASE_URL}/images/edits`, {
+    return gatewayFetch(`${LOVABLE_GATEWAY_BASE_URL}/images/edits`, {
       method: "POST",
       headers,
       body: form,
     });
   }
 
-  return fetch(`${LOVABLE_GATEWAY_BASE_URL}/images/generations`, {
+  return gatewayFetch(`${LOVABLE_GATEWAY_BASE_URL}/images/generations`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -153,27 +159,64 @@ async function requestGateway(prompt: string, images: ImageInput[], size?: { wid
 }
 
 async function generateLovableImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
+  const key = Deno.env.get("LOVABLE_API_KEY");
+  if (!key) throw new Error("provider_not_configured");
+
+  const width = size?.width ?? size?.height ?? DEFAULT_DIM;
+  const height = size?.height ?? size?.width ?? DEFAULT_DIM;
+  const sizeValue = `${width}x${height}`;
+
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const response = await requestGateway(prompt, images, size);
-      if (!response.ok) throw gatewayError(response, await response.text());
-      return await readBufferedImage(response);
+      const OpenAI = (await import("npm:openai@7.17.0")).default;
+      const client = new OpenAI({
+        apiKey: key,
+        baseURL: LOVABLE_GATEWAY_BASE_URL,
+        defaultHeaders: {
+          "Lovable-API-Key": key,
+          "X-Lovable-AIG-SDK": "tanstack-ai",
+        },
+      });
+
+      return await withTimeout(async () => {
+        if (images.length > 0) {
+          const files = images.map((image, index) => {
+            const binary = atob(image.data);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+            return new File([bytes], `source-${index}.${imageExtension(image.mimeType)}`, { type: image.mimeType });
+          });
+          const response = await client.images.edit({
+            model: LOVABLE_IMAGE_MODEL,
+            prompt,
+            image: files.length === 1 ? files[0] : files,
+            n: 1,
+            size: sizeValue as "1024x1024" | "1536x1024" | "1024x1536" | "auto",
+          });
+          return readBufferedImage(new Response(JSON.stringify(response)));
+        }
+
+        const response = await client.images.generate({
+          model: LOVABLE_IMAGE_MODEL,
+          prompt,
+          n: 1,
+          size: sizeValue as "1024x1024" | "1536x1024" | "1024x1536" | "auto",
+        });
+        return readBufferedImage(new Response(JSON.stringify(response)));
+      }, 55_000);
     } catch (error) {
       lastError = error;
       const status = typeof error === "object" && error !== null && "status" in error
         ? Number((error as { status?: unknown }).status)
         : undefined;
       const message = error instanceof Error ? error.message : String(error);
-      const retryable = status === 429 || (typeof status === "number" && status >= 500);
+      const retryable = message === "provider_timeout" || status === 429 || (Number.isFinite(status) && status >= 500);
       console.error("[LOVABLE_IMAGE_ATTEMPT]", JSON.stringify({ attempt: attempt + 1, status: status ?? null, retryable, error: message.slice(0, 300) }));
       if (!retryable || attempt === 1) {
-        throw error;
+        throw new Error(`lovable_http_${Number.isFinite(status) ? status : "unknown"}:${message.slice(0, 500)}`);
       }
-      const retryAfter = (error as GatewayError).retryAfter;
-      const seconds = retryAfter ? Number(retryAfter) : NaN;
-      const delay = Number.isFinite(seconds) ? seconds * 1000 : retryAfter && Number.isFinite(Date.parse(retryAfter)) ? Math.max(0, Date.parse(retryAfter) - Date.now()) : 1000 * (2 ** attempt) + Math.floor(Math.random() * 250);
-      await new Promise(resolve => setTimeout(resolve, Math.max(1000, delay)));
+      await new Promise(resolve => setTimeout(resolve, Math.min(1000 * (attempt + 1), 2000)));
     }
   }
   throw lastError instanceof Error ? lastError : new Error("provider_timeout");
@@ -356,8 +399,6 @@ serve(async request => {
       }));
     }
 
-    // Fail before charging when the explicitly configured adapter is unavailable.
-    const resolution = await resolveProvider(guard.userId, { requiresReference: images.length > 0 });
     const consumed = await admin.rpc("consume_billing_credit", { p_user_id: guard.userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
     if (consumed.error) {
       const missing = consumed.error.message.includes("commercial_rule_missing");
@@ -371,7 +412,10 @@ serve(async request => {
       throw new Error("credit_already_refunded");
     }
     creditConsumed = true;
-    const providers: AIProvider[] = [resolution.primary];
+    const resolution = await resolveProvider(guard.userId, { requiresReference: images.length > 0 });
+    const providers: AIProvider[] = resolution.fallback
+      ? [resolution.primary, resolution.fallback]
+      : [resolution.primary];
     let imageBase64 = "";
     let usedProvider: AIProvider | null = null;
     let usedModel = "";
@@ -470,6 +514,7 @@ serve(async request => {
       console.info("[DATABASE_WRITE]", JSON.stringify({ status: "success", provider: usedProvider, model: usedModel, storagePath: Boolean(storagePath), requestId: idempotencyKey, renderId: idempotencyKey }));
       } catch (persistError) {
         console.error("[DATABASE_WRITE]", JSON.stringify({ status: "error", code: persistError instanceof Error ? persistError.message.split(":")[0] : "unknown", requestId: idempotencyKey, renderId: idempotencyKey }));
+        throw persistError;
       }
     }
 
@@ -478,7 +523,7 @@ serve(async request => {
   } catch (caught) {
     const error = caught as GatewayError;
     const message = error.message || String(error);
-    const shouldRefund = creditConsumed && Boolean(idempotencyKey) && !imageGenerated;
+    const shouldRefund = creditConsumed && Boolean(idempotencyKey) && (!imageGenerated || (persistGalleryRequired && !persisted));
     if (shouldRefund) await refund(guard.userId, idempotencyKey).catch(refundError => console.error("ai-image refund error", refundError));
 
     console.error("ai-image error", JSON.stringify({ message, requestId: idempotencyKey, renderId: idempotencyKey, imageGenerated, persisted }));
@@ -502,7 +547,6 @@ serve(async request => {
       const provider = message.slice("configured_provider_unavailable:".length);
       return jsonResponse(cors, { message: "O provider de imagem configurado (" + provider + ") não está disponível nesta publicação.", code: "provider_not_configured", provider, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
     }
-    if (message === "provider_settings_unavailable") return jsonResponse(cors, { message: "Não foi possível consultar o provedor de imagem configurado.", code: "provider_settings_unavailable", stage: "provider_selection" }, 503);
     if (message === "provider_timeout" || message.includes("provider_timeout")) return jsonResponse(cors, { message: "O provider de imagem excedeu o tempo limite.", code: "provider_timeout", stage: "generation" }, 504);
     if (message === "provider_connection_error" || message.includes("provider_connection_error")) return jsonResponse(cors, { message: "Não foi possível estabelecer comunicação com o provider de imagem.", code: "provider_connection_error", stage: "generation" }, 502);
 
@@ -510,9 +554,8 @@ serve(async request => {
     const status = error.status ?? (encodedStatus ? Number(encodedStatus) : undefined);
     if (status === 400) return jsonResponse(cors, { message: message.replace(/^(?:lovable|gemini|vercel)_http_\d{3}:/i, ""), code: "invalid_image_request", stage: "generation" }, 400);
     if (status === 401) return jsonResponse(cors, { message: "O provider recusou a autenticação da credencial configurada.", code: "provider_auth_error", stage: "generation" }, 401);
-    if (status === 402) return jsonResponse(cors, { message, code: "provider_credits_exhausted", stage: "generation" }, 402);
-    if (status === 403) return jsonResponse(cors, { message, code: "provider_access_denied", stage: "generation" }, 403);
-    if (status === 404) return jsonResponse(cors, { message, code: "provider_unavailable", stage: "generation" }, 404);
+    if (status === 402) return jsonResponse(cors, { message: "O provider recusou a geração por créditos/saldo insuficiente.", code: "provider_credits_exhausted", stage: "generation" }, 402);
+    if (status === 403) return jsonResponse(cors, { message: "O provider recusou o acesso da credencial ou modelo configurado.", code: "provider_access_denied", stage: "generation" }, 403);
     if (status === 429) return jsonResponse(cors, { message: "O limite do provider de imagem foi atingido.", code: "rate_limited", stage: "generation" }, 429, error.retryAfter ? { "Retry-After": error.retryAfter } : {});
 
     return jsonResponse(cors, { message: message.startsWith("provider_stream:") ? message.slice(16) : message, code: "upstream_error", stage: "generation" }, 502);
