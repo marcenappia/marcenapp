@@ -67,9 +67,9 @@ export async function resolveProvider(
 
   const admin = createClient(url, key, { auth: { persistSession: false } });
   const { data, error } = await admin
-    .from("ai_provider_settings")
+    .from("ai_runtime_settings")
     .select("provider")
-    .eq("user_id", userId)
+    .eq("id", "default")
     .maybeSingle();
   if (error) throw new Error("provider_settings_unavailable");
 
