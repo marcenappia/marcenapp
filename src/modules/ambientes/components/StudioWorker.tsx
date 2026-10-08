@@ -6,6 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { isIaraCommandExecutionCurrent } from '@/modules/iara/hooks/iaraExecutionScope';
 
+const WORKER_SESSION_STARTED_AT = Date.now();
+
 export const StudioWorker = () => {
   const { user } = useAuth();
 
@@ -24,7 +26,7 @@ export const StudioWorker = () => {
   const failCommand = useStudioStore(state => state.failCommand);
   const cancelCommand = useStudioStore(state => state.cancelCommand);
   const currentlyProcessing = useRef<string | null>(null);
-  const workerSessionStartedAt = useRef(Date.now());
+  const workerSessionStartedAt = useRef(WORKER_SESSION_STARTED_AT);
 
   const readCurrentContext = useCallback(async (payload?: Record<string, unknown>) => {
     if (!user) return null;
@@ -150,7 +152,7 @@ export const StudioWorker = () => {
       console.error('StudioWorker Error:', error);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
     } finally { currentlyProcessing.current = null; }
-  }, [user, readCurrentContext, isCurrentContext, resolveRenderCommand, cancelCommand, updateOSStatus, failCommand, startProcessing, completeCommand]);
+  }, [user, isCurrentContext, resolveRenderCommand, cancelCommand, updateOSStatus, failCommand, startProcessing, completeCommand]);
 
   useEffect(() => {
     // Hard-stop commands that were already persisted before this worker session.

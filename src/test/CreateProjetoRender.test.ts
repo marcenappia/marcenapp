@@ -12,7 +12,7 @@ vi.mock('@/integrations/supabase/client', () => {
   const chain: Record<string, unknown> = {};
   const self = () => chain;
   Object.assign(chain, {
-    select: vi.fn(self), eq: vi.fn(self), ilike: vi.fn(self), order: vi.fn(self), limit: vi.fn(self), in: vi.fn(self),
+    select: vi.fn(self), eq: vi.fn(self), not: vi.fn(self), ilike: vi.fn(self), order: vi.fn(self), limit: vi.fn(self), in: vi.fn(self),
     maybeSingle: vi.fn(async () => ({ data: null, error: null })),
     single: vi.fn(async () => ({ data: project, error: null })),
     insert: vi.fn(self),

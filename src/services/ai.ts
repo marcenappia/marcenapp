@@ -99,12 +99,7 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown, req
       headers,
       body: JSON.stringify(body),
     });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(fn === 'ai-image'
-        ? 'A geração do render ultrapassou 125 segundos sem resposta do serviço.'
-        : 'O serviço de IA demorou além do limite esperado.');
-    }
+  } catch {
     throw new Error('Não foi possível comunicar com o serviço de IA. Verifique sua conexão e tente novamente.');
   }
 
