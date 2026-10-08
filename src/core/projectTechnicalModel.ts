@@ -1,6 +1,27 @@
 import type { ProjectData } from '@/modules/projetos/types';
 
 export type TechnicalFactStatus = 'confirmed' | 'inferred' | 'estimate';
+export type TechnicalComponentKind = 'cabinet' | 'lateral' | 'divider' | 'shelf' | 'door' | 'drawer' | 'back' | 'special';
+
+export interface TechnicalComponent {
+  id: string;
+  kind: TechnicalComponentKind;
+  name: string;
+  quantity: number;
+  status: TechnicalFactStatus;
+  source: string;
+  details?: string;
+}
+
+export interface TechnicalHardwareRequirement {
+  hardwareId: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  status: TechnicalFactStatus;
+  source: string;
+}
 
 export interface TechnicalPart {
   id: string;
@@ -23,7 +44,9 @@ export interface TechnicalStructure {
   status: 'needs_confirmation' | 'confirmed';
   source: 'project_dimensions' | 'technical_import' | 'iara';
   dimensionsMm: { width: number; height: number; depth: number };
+  components: TechnicalComponent[];
   parts: TechnicalPart[];
+  hardwareRequirements: TechnicalHardwareRequirement[];
   assumptions: string[];
   missingInformation: string[];
 }
@@ -38,6 +61,7 @@ export function buildTechnicalStructure(project: ProjectData): TechnicalStructur
   const doors = Math.max(0, Math.floor(project.doors || 0));
 
   const parts: TechnicalPart[] = [];
+  const components: TechnicalComponent[] = [{ id: 'estrutura', kind: 'cabinet', name: 'Estrutura do móvel', quantity: 1, status: 'inferred', source: 'dimensions' }];
   const assumptions: string[] = [
     'Estrutura inicial derivada apenas das dimensões e quantidades do projeto.',
     'Espessura, folgas construtivas, sentido de veio e fita de borda devem ser confirmados antes da produção.',
@@ -48,8 +72,18 @@ export function buildTechnicalStructure(project: ProjectData): TechnicalStructur
     'sentido de veio e orientação de corte',
     'fita de borda por aresta',
   ];
+  const hardwareRequirements: TechnicalHardwareRequirement[] = [];
 
   if (width && height && depth) {
+    components.push(
+      { id: 'laterais', kind: 'lateral', name: 'Laterais', quantity: 2, status: 'inferred', source: 'dimensions' },
+      { id: 'base', kind: 'special', name: 'Base', quantity: 1, status: 'inferred', source: 'dimensions' },
+      { id: 'topo', kind: 'special', name: 'Topo', quantity: 1, status: 'inferred', source: 'dimensions' },
+    );
+    if (doors > 0) components.push({ id: 'portas', kind: 'door', name: 'Portas', quantity: doors, status: 'inferred', source: 'dimensions' });
+    if (project.drawers > 0) components.push({ id: 'gavetas', kind: 'drawer', name: 'Gavetas', quantity: project.drawers, status: 'inferred', source: 'project' });
+    if (project.modules > 1) components.push({ id: 'divisorias', kind: 'divider', name: 'Divisórias verticais', quantity: project.modules - 1, status: 'inferred', source: 'modules' });
+    if (project.backMaterial?.trim()) components.push({ id: 'fundo', kind: 'back', name: 'Fundo', quantity: 1, status: 'inferred', source: 'backMaterial', details: project.backMaterial });
     parts.push(
       { id: 'lateral-esq', name: 'Lateral esquerda', quantity: 1, widthMm: depth, heightMm: height, thicknessMm: null, material: project.externalMaterial || null, materialId: null, grainSensitive: false, allowRotation: true, edgeBanding: { top: false, right: false, bottom: false, left: false }, status: 'inferred', source: 'dimensions' },
       { id: 'lateral-dir', name: 'Lateral direita', quantity: 1, widthMm: depth, heightMm: height, thicknessMm: null, material: project.externalMaterial || null, materialId: null, grainSensitive: false, allowRotation: true, edgeBanding: { top: false, right: false, bottom: false, left: false }, status: 'inferred', source: 'dimensions' },
@@ -77,12 +111,18 @@ export function buildTechnicalStructure(project: ProjectData): TechnicalStructur
     });
   }
 
+  if (project.drawers > 0) missingInformation.push('construção e dimensões internas das gavetas');
+  if (project.modules > 1) missingInformation.push('distribuição interna de divisórias e prateleiras');
+  if (!project.backMaterial?.trim()) missingInformation.push('material do fundo');
+
   return {
     version: 1,
     status: 'needs_confirmation',
     source: 'project_dimensions',
     dimensionsMm: { width, height, depth },
+    components,
     parts,
+    hardwareRequirements,
     assumptions,
     missingInformation,
   };
