@@ -64,11 +64,11 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     versionId: activeContext?.versionId ?? null,
   }), [user?.id, activeContext?.projectId, activeContext?.environmentId, activeContext?.versionId, projectId]);
 
-  const saveMessage = useCallback(async (msg: Partial<ChatMessage>, execution?: IaraExecutionIdentity) => {
+  const saveMessage = useCallback(async (msg: Partial<ChatMessage>, execution?: IaraExecutionIdentity, targetOverride?: { projectId: string | null; environmentId: string | null; versionId: string | null }) => {
     if (!user) return;
     if (execution && (execution.userId !== user.id || !isIaraExecutionCurrent(execution, context, executionGenerationRef.current))) return;
     const targetUserId = execution?.userId ?? user.id;
-    const target = execution ? { projectId: execution.projectId, environmentId: execution.environmentId, versionId: execution.versionId } : context;
+    const target = targetOverride ?? (execution ? { projectId: execution.projectId, environmentId: execution.environmentId, versionId: execution.versionId } : context);
     const { data: insertedMessage, error: insertError } = await supabase
       .from('chat_messages')
       .insert({ user_id: targetUserId, project_id: target.projectId, environment_id: target.environmentId, version_id: target.versionId, ...msg })
@@ -132,7 +132,9 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     executionGenerationRef.current = persistedGeneration > 0 ? persistedGeneration : executionGenerationRef.current + 1;
     const generation = executionGenerationRef.current;
     for (const [correlationId, identity] of pendingExecutionsRef.current) {
-      if (!isIaraExecutionCurrent(identity, context, generation - 1)) pendingExecutionsRef.current.delete(correlationId);
+      const sameUser = identity.userId === context.userId;
+      const sameGeneration = identity.generation === generation;
+      if (!sameUser || !sameGeneration) pendingExecutionsRef.current.delete(correlationId);
     }
     setLastContext(null);
     setProjectState({ intent: null, project: { dimensions: {} }, components: [], pending: [], selectedComponentId: null, sourceTurns: 0 });
@@ -160,13 +162,25 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
           execution = recovered;
         }
       }
-      if (!execution || !isIaraCommandForExecution(command, execution) || !isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) return [];
+      if (!execution) return [];
+      const payload = (command.payload ?? {}) as Record<string, unknown>;
+      const sameCorrelation = payload.correlationId === execution.correlationId
+        && payload.userId === execution.userId
+        && payload.generation === execution.generation;
+      const exactExecution = isIaraCommandForExecution(command, execution);
+      const projectCreationHandoff = sameCorrelation
+        && execution.projectId === null
+        && typeof payload.projectId === 'string';
+      const currentExecution = isIaraExecutionCurrent(execution, context, executionGenerationRef.current);
+      if (!exactExecution && !projectCreationHandoff) return [];
+      if (!currentExecution && !projectCreationHandoff) return [];
+      return [{ command, execution, projectCreationHandoff }];
       return [{ command, execution }];
     });
     if (pendingResults.length === 0) return;
     const notifyChat = async () => {
-      for (const { command, execution } of pendingResults) {
-        if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
+      for (const { command, execution, projectCreationHandoff } of pendingResults) {
+        if (!projectCreationHandoff && !isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
         if (publishingCommandIdsRef.current.has(command.id)) continue;
         if (command.status !== 'completed' && command.status !== 'failed' && command.status !== 'cancelled') continue;
 
@@ -213,7 +227,11 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
                     actions: [{ id: 'open', label: 'Abrir render', kind: 'open-panel' }],
                     status: 'ready',
                   },
-                }, execution);
+                }, projectCreationHandoff ? undefined : execution, projectCreationHandoff ? {
+                  projectId: typeof (command.payload as Record<string, unknown>)?.projectId === 'string' ? String((command.payload as Record<string, unknown>).projectId) : null,
+                  environmentId: typeof (command.payload as Record<string, unknown>)?.environmentId === 'string' ? String((command.payload as Record<string, unknown>).environmentId) : null,
+                  versionId: typeof (command.payload as Record<string, unknown>)?.versionId === 'string' ? String((command.payload as Record<string, unknown>).versionId) : null,
+                } : undefined);
               } else if (command.status === 'failed' || command.status === 'cancelled') {
                 // A cancelled command (stale execution identity) must also close the
                 // pending render; otherwise the conversation stays in "processing" forever.
@@ -231,7 +249,11 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
                     versionId: execution.versionId ?? undefined,
                     actions: [{ id: 'retry', label: 'Tentar novamente', kind: 'retry' }],
                   },
-                }, execution);
+                }, projectCreationHandoff ? undefined : execution, projectCreationHandoff ? {
+                  projectId: typeof (command.payload as Record<string, unknown>)?.projectId === 'string' ? String((command.payload as Record<string, unknown>).projectId) : null,
+                  environmentId: typeof (command.payload as Record<string, unknown>)?.environmentId === 'string' ? String((command.payload as Record<string, unknown>).environmentId) : null,
+                  versionId: typeof (command.payload as Record<string, unknown>)?.versionId === 'string' ? String((command.payload as Record<string, unknown>).versionId) : null,
+                } : undefined);
               } else {
                 published = true;
                 continue;
