@@ -20,6 +20,48 @@ export async function persistProjectTechnicalStructure(args: {
   if (!args.project.id) throw new Error('Projeto sem id não pode ter estrutura técnica persistida.');
 
   const structure = buildTechnicalStructure(args.project);
+  const materialRoles = [
+    ['external', args.project.externalMaterial],
+    ['internal', args.project.internalMaterial],
+    ['back', args.project.backMaterial],
+  ] as const;
+  for (const [role, name] of materialRoles) {
+    if (!name?.trim()) continue;
+    const { data: rows, error } = await supabase
+      .from('marcenaria_materiais')
+      .select('id,nome,espessura,fornecedor_id,largura_chapa,altura_chapa,sentido_veio')
+      .ilike('nome', name.trim())
+      .limit(10);
+    if (error) throw error;
+    const material = rows?.find((row) => row.nome?.trim().toLocaleLowerCase('pt-BR') === name.trim().toLocaleLowerCase('pt-BR')) ?? rows?.[0];
+    if (!material) continue;
+    structure.materialBindings.push({
+      role,
+      materialId: material.id,
+      name: material.nome,
+      thicknessMm: material.espessura == null ? null : Number(material.espessura),
+      sheetWidthMm: material.largura_chapa == null ? null : Number(material.largura_chapa),
+      sheetHeightMm: material.altura_chapa == null ? null : Number(material.altura_chapa),
+      grainSensitive: Boolean(material.sentido_veio && material.sentido_veio !== 'none' && material.sentido_veio !== 'nenhum'),
+      supplierId: material.fornecedor_id ?? null,
+      supplierName: null,
+      status: 'confirmed',
+      source: 'marcenaria_materiais',
+    });
+    for (const part of structure.parts) {
+      const applies = role === 'external'
+        ? part.material === args.project.externalMaterial
+        : role === 'internal'
+          ? part.material === args.project.internalMaterial
+          : false;
+      if (applies) {
+        part.materialId = material.id;
+        part.thicknessMm = material.espessura == null ? null : Number(material.espessura);
+        part.grainSensitive = Boolean(material.sentido_veio && material.sentido_veio !== 'none' && material.sentido_veio !== 'nenhum');
+      }
+    }
+  }
+
   const { data: hardwareRows, error: hardwareError } = await supabase
     .from('project_hardware_requirements')
     .select('hardware_id,quantity_required,rule_key,hardware_items(name,category,unit)')
