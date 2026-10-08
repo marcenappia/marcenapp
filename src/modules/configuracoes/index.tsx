@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, Brain, Building2, Calculator, CheckCircle2, CreditCard, Package, Save, Settings2, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, Brain, Building2, Calculator, CheckCircle2, CreditCard, Package, Save, Settings2, Users } from 'lucide-react';
 import MineriaDaMarcenaria from '@/modules/marcenaria/MineriaDaMarcenaria';
 import MarcenariaDnaPanel from '@/modules/marcenaria/MarcenariaDnaPanel';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,8 +19,6 @@ export default function ConfiguracoesModule({ userId, profile, onNavigate }: Pro
   const [company, setCompany] = useState(profile?.company ?? '');
   const [profession, setProfession] = useState(profile?.profession ?? '');
   const [reduceMotion, setReduceMotion] = useState(Boolean(profile?.reduce_motion));
-  const [provider, setProvider] = useState<string | null>(null);
-  const [providerLoading, setProviderLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [section, setSection] = useState<'operacao' | 'dna'>('operacao');
@@ -32,26 +30,6 @@ export default function ConfiguracoesModule({ userId, profile, onNavigate }: Pro
     setReduceMotion(Boolean((profile as Profile & { reduce_motion?: boolean | null })?.reduce_motion));
   }, [profile]);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!userId) {
-      setProvider(null);
-      return;
-    }
-    setProviderLoading(true);
-    void Promise.resolve(supabase
-      .from('ai_provider_settings')
-      .select('provider')
-      .eq('user_id', userId)
-      .maybeSingle())
-      .then(({ data }) => {
-        if (!cancelled) setProvider(data?.provider ?? null);
-      })
-      .finally(() => {
-        if (!cancelled) setProviderLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [userId]);
 
   const save = async () => {
     if (!userId) return;
@@ -115,14 +93,6 @@ export default function ConfiguracoesModule({ userId, profile, onNavigate }: Pro
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-5 flex items-start gap-3"><div className="shrink-0 rounded-xl bg-indigo-50 p-2.5 text-indigo-600"><Sparkles size={18}/></div><div><h2 className="font-black text-slate-900">IA / YARA</h2><p className="mt-1 text-xs leading-5 text-slate-500">Configuração registrada para sua conta.</p></div></div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[.16em] text-slate-400">Provedor selecionado</p>
-            <p className="mt-1 text-base font-black text-slate-900">{providerLoading?'Consultando...':provider?provider.toUpperCase():'Não configurado'}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">A credencial não é exibida. Estado operacional só é considerado confirmado após uma geração real.</p>
-          </div>
-        </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
