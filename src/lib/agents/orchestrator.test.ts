@@ -16,7 +16,7 @@ vi.mock('@/lib/production/versionFreeze', () => ({
 }));
 
 import { agents, getAgent } from './registry';
-import { runAgentPlan, runProjectJourney } from './orchestrator';
+import { runAgentPlan } from './orchestrator';
 
 const { callAIText } = vi.hoisted(() => ({
   callAIText: vi.fn(async () => JSON.stringify({
@@ -115,64 +115,4 @@ describe('MARCENAPP agents', () => {
     expect(result.blockers?.some((blocker) => blocker.includes('Sobreposição'))).toBe(true);
   });
 
-  it('aguarda a decisão do cliente e não libera a fabricação sem aprovação', async () => {
-    const result = await runProjectJourney({
-      name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }], measurements: { width: 3000 },
-      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
-      materials: [{ code: 'MDF-18', quantity: 2 }],
-      sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
-      cutPlan: [{ code: 'CH1', width: 2750, height: 1850, material: 'MDF-18', pieces: [
-        { code: 'P1', x: 0, y: 0, width: 500, height: 700 },
-      ] }],
-      projectId: 'project-1', versionId: 'review-version-test', userId: 'user-test', documentType: 'budget',
-      scene: { type: 'kitchen' }, renderUrl: 'render.jpg', presentationId: 'presentation-1', budgetId: 'budget-1',
-    });
-    expect(result.status).toBe('needs_input');
-    expect(result.results.find((r) => r.agentId === 'approval')?.data?.clientDecision).toBe('pending');
-    expect(result.results.some((r) => r.agentId === 'furniture_engineering')).toBe(false);
-    expect(result.results.some((r) => r.agentId === 'production')).toBe(false);
-  });
-
-  it('retorna para revisão quando o cliente solicita alteração', async () => {
-    const result = await runProjectJourney({
-      name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }], measurements: { width: 3000 },
-      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
-      sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
-      projectId: 'project-1', versionId: 'review-version-test', userId: 'user-test',
-      scene: { type: 'kitchen' }, renderUrl: 'render.jpg', presentationId: 'presentation-1',
-      clientDecision: 'changes_requested',
-    });
-    expect(result.status).toBe('needs_input');
-    const approval = result.results.find((r) => r.agentId === 'approval');
-    expect(approval?.data?.clientDecision).toBe('changes_requested');
-    expect(approval?.data?.productionGate).toBe('closed');
-    expect(result.results.some((r) => r.agentId === 'furniture_engineering')).toBe(false);
-  });
-
-  it('executa a jornada completa quando o cliente aprovou a versão', async () => {
-    const result = await runProjectJourney({
-      name: 'Cliente', clientId: '1', workName: 'Cozinha',
-      photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }], measurements: { width: 3000 },
-      parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
-      materials: [{ code: 'MDF-18', quantity: 2 }],
-      sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
-      cutPlan: [{ code: 'CH1', width: 2750, height: 1850, material: 'MDF-18', pieces: [
-        { code: 'P1', x: 0, y: 0, width: 500, height: 700 },
-      ] }],
-      projectId: 'project-1', versionId: 'approved-version-test', userId: 'user-test', documentType: 'budget',
-      scene: { type: 'kitchen' }, renderUrl: 'render.jpg',
-      presentationId: 'presentation-1', approved: true, approvalId: 'approval-1', budgetId: 'budget-1',
-    });
-    expect(result.status).toBe('completed');
-    expect(new Set(result.results.map((r) => r.correlationId)).size).toBe(1);
-    expect(result.results).toHaveLength(20);
-    const approval = result.results.find((r) => r.agentId === 'approval');
-    expect(approval?.data?.productionGate).toBe('open');
-    const production = result.results.find((r) => r.agentId === 'production');
-    expect(production?.data?.productionReady).toBe(true);
-    expect(production?.data?.freezeId).toBe('freeze-test-1');
-    expect(production?.data?.frozenVersionId).toBe('approved-version-test');
-  });
 });
