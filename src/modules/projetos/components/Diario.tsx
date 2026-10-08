@@ -230,7 +230,7 @@ export default function Diario({ navigateTo }: Props) {
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
-          <ProjectTechnicalImport onDraft={(draft) => setTechnicalDraft(draft)} />
+          <ProjectTechnicalImport projectId={selectedProject || undefined} onDraft={(draft) => setTechnicalDraft(draft)} />
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">YARA • orçamento técnico</p>
             <h2 className="mt-1 text-lg font-black text-slate-900">Do projeto do arquiteto para o orçamento</h2>
