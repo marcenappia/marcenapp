@@ -1146,7 +1146,6 @@ The following real repository files were inspected for this specification:
 - `src/modules/iara/components/ChatMessages.tsx`
 - `src/modules/iara/services/iaraService.ts`
 - `src/modules/ambientes/StudioHub.tsx`
-- `src/modules/ambientes/StudioView.tsx`
 - `src/core/orchestrator.ts`
 - `src/core/toolRegistry.ts`
 - `src/store/useMarcenappOS.ts`
