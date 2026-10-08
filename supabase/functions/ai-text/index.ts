@@ -30,6 +30,19 @@ async function resolveProvider(_userId: string): Promise<{ primary: Provider; fa
 }
 async function callLovable(prompt: string, images: Array<{ mimeType: string; data: string }> | undefined, jsonMode: boolean) { const key = Deno.env.get("LOVABLE_API_KEY"); if (!key) throw new Error("provider_not_configured:lovable"); const content: Array<Record<string, unknown>> = [{ type: "text", text: prompt }]; for (const img of images ?? []) content.push({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.data}` } }); const body: Record<string, unknown> = { model: LOVABLE_MODEL, messages: [{ role: "user", content }] }; if (jsonMode) body.response_format = { type: "json_object" }; const response = await fetch(LOVABLE_GATEWAY_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "Lovable-API-Key": key }, body: JSON.stringify(body) }); if (!response.ok) throw new Error(`provider_http:${response.status}`); const data = await response.json(); const message = data.choices?.[0]?.message?.content; const text = Array.isArray(message) ? message.map((part: { text?: string }) => part?.text ?? "").join("") : (message ?? ""); if (!text) throw new Error("empty_text_result"); return { text, model: data.model ?? LOVABLE_MODEL }; }
 async function callGemini(prompt: string, images: Array<{ mimeType: string; data: string }> | undefined, jsonMode: boolean) { const key = Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY"); if (!key) throw new Error("provider_not_configured:gemini"); const parts: Array<Record<string, unknown>> = [{ text: prompt }]; for (const img of images ?? []) parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } }); const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined }) }); if (!response.ok) throw new Error(`provider_http:${response.status}`); const data = await response.json(); const text = (data.candidates?.[0]?.content?.parts ?? []).map((part: { text?: string }) => part.text ?? "").join(""); if (!text) throw new Error("empty_text_result"); return { text, model: GEMINI_MODEL }; }
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 90000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("provider_timeout");
+    throw new Error("provider_connection_error");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callVercel(prompt: string, images: Array<{ mimeType: string; data: string }> | undefined, jsonMode: boolean, authorization: string) {
   if (!authorization) throw new Error("provider_auth_error");
   const parts: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
