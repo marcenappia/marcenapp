@@ -7,6 +7,7 @@ import { callAIContractClause, callAIText } from '@/services/ai';
 import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planService';
 import { attachIaraEnvironmentPhoto } from '@/modules/iara/services/photoDestination';
 import { persistProjectTechnicalStructure } from './projectTechnicalPersistence';
+import { projectDimensionToMm } from './projectTechnicalModel';
 
 const db = supabase as unknown as SupabaseClient;
 export type ToolResult<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
@@ -175,9 +176,10 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
     user_id: ctx.userId,
     nome: finalArgs.nome,
     cliente_id: clienteId,
-    width: finalArgs.width,
-    height: finalArgs.height,
-    depth: finalArgs.depth,
+    // projects stores legacy dimensions in metres; YARA may supply millimetres.
+    width: finalArgs.width != null && finalArgs.width > 20 ? finalArgs.width / 1000 : finalArgs.width,
+    height: finalArgs.height != null && finalArgs.height > 20 ? finalArgs.height / 1000 : finalArgs.height,
+    depth: finalArgs.depth != null && finalArgs.depth > 20 ? finalArgs.depth / 1000 : finalArgs.depth,
     modules: finalArgs.modules ?? 1,
     drawers: finalArgs.drawers ?? 0,
     doors: finalArgs.doors ?? 0,
@@ -222,7 +224,7 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
       if (ctx.correlationId && typeof ctx.generation === 'number') {
         const prompt = [
           'Crie o móvel solicitado dentro do ambiente da foto de referência.',
-          `Dimensões atuais do projeto: largura ${project.width} mm, altura ${project.height} mm, profundidade ${project.depth} mm. Se essas medidas vieram dos valores padrão do cadastro, trate-as como provisórias e não altere proporções da foto sem base visual.`,
+          `Dimensões técnicas canônicas: largura ${projectDimensionToMm(project.width)} mm, altura ${projectDimensionToMm(project.height)} mm, profundidade ${projectDimensionToMm(project.depth)} mm. Se essas medidas vieram dos valores padrão do cadastro, trate-as como provisórias e não altere proporções da foto sem base visual.`,
           `Estrutura confirmada: ${project.modules ?? 1} módulo(s), ${project.doors ?? 0} porta(s), ${project.drawers ?? 0} gaveta(s).${finalArgs.doorType ? ` Tipo de porta: ${finalArgs.doorType}.` : ''}${finalArgs.external_material ? ` Acabamento externo: ${finalArgs.external_material}.` : ''}`,
           'Use a foto como referência principal do ambiente, preserve paredes, vãos, perspectiva e elementos fixos, e não entregue um ambiente vazio.',
         ].join(' ');
