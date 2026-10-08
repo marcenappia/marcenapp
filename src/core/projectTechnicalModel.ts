@@ -13,6 +13,20 @@ export interface TechnicalComponent {
   details?: string;
 }
 
+export interface TechnicalMaterialBinding {
+  role: 'external' | 'internal' | 'back';
+  materialId: string;
+  name: string;
+  thicknessMm: number | null;
+  sheetWidthMm: number | null;
+  sheetHeightMm: number | null;
+  grainSensitive: boolean;
+  supplierId: string | null;
+  supplierName: string | null;
+  status: TechnicalFactStatus;
+  source: string;
+}
+
 export interface TechnicalHardwareRequirement {
   hardwareId: string;
   name: string;
@@ -47,6 +61,7 @@ export interface TechnicalStructure {
   components: TechnicalComponent[];
   parts: TechnicalPart[];
   hardwareRequirements: TechnicalHardwareRequirement[];
+  materialBindings: TechnicalMaterialBinding[];
   assumptions: string[];
   missingInformation: string[];
 }
@@ -75,6 +90,7 @@ export function buildTechnicalStructure(project: ProjectData): TechnicalStructur
     'fita de borda por aresta',
   ];
   const hardwareRequirements: TechnicalHardwareRequirement[] = [];
+  const materialBindings: TechnicalMaterialBinding[] = [];
 
   if (width && height && depth) {
     components.push(
@@ -125,6 +141,7 @@ export function buildTechnicalStructure(project: ProjectData): TechnicalStructur
     components,
     parts,
     hardwareRequirements,
+    materialBindings,
     assumptions,
     missingInformation,
   };
