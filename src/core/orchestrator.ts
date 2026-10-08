@@ -157,7 +157,7 @@ function projectNameFromText(text: string): string {
   return match?.[1]?.trim() || 'Novo projeto';
 }
 
-function pendingCreateProjectInput(userPrompt: string, context?: Record<string, unknown>): PendingInput | null {
+function pendingCreateProjectInput(userPrompt: string, context?: Record<string, unknown>, visualReferencePresent = false): PendingInput | null {
   if (!inferProjectCreationFromConversation(userPrompt, context)) return null;
   // Creating a project is allowed with incomplete dimensions when a visual
   // reference is present. Dimensions are project data that can be completed
@@ -332,15 +332,15 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
       ? Promise.resolve(null)
       : resolveArchitectureIntent(effectiveUserPrompt, context, ctx, images);
     const architectureIntent = await architectureIntentPromise;
-    const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context, hasVisualReference);
-    const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context);
-    const architecturePending = architectureIntent?.missingSlots?.length ? { tool: architectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: architectureIntent.missingSlots.map(slot => slot.field), reason: architectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
     const hasVisualReference = Boolean(
       context?.hasVisualReference ||
       images.length > 0 ||
       ctx.lastImageBase ||
       (context?.referenceImages && Array.isArray(context.referenceImages) && context.referenceImages.length > 0),
     );
+    const fastCreateProjectPlan = deterministicCreateProjectPlan(effectiveUserPrompt, context, hasVisualReference);
+    const pendingCreateProject = pendingCreateProjectInput(effectiveUserPrompt, context, hasVisualReference);
+    const architecturePending = architectureIntent?.missingSlots?.length ? { tool: architectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: architectureIntent.missingSlots.map(slot => slot.field), reason: architectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
     const effectivePendingCreateProject = hasVisualReference
       ? null
       : (pendingCreateProject ?? (architecturePending?.tool === 'createProjeto' ? architecturePending : null));
