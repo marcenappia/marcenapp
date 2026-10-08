@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import type { ProjectData } from '@/modules/projetos/types';
+import { persistProjectTechnicalStructure } from '@/core/projectTechnicalPersistence';
 
 const db = supabase as unknown as SupabaseClient;
 export interface RealBudgetData { salePrice: number | null; materialCost: number | null; hardwareCost: number | null; laborCost: number | null; otherCost: number | null; updatedAt: string | null; }
@@ -36,6 +37,13 @@ export const useOrcamento = (project: ProjectData) => {
     const { error: saveError } = await db.from('project_cost_snapshots').upsert({ user_id: user.id, project_id: project.id, sale_price: budget.salePrice, material_cost: budget.materialCost, hardware_cost: budget.hardwareCost, labor_cost: budget.laborCost, other_cost: budget.otherCost ?? 0, source: 'manual', updated_at: new Date().toISOString() }, { onConflict: 'user_id,project_id' });
     setSaving(false);
     if (saveError) { setError(`Não foi possível salvar o orçamento real: ${saveError.message}`); return false; }
+    try {
+      await persistProjectTechnicalStructure({ project, userId: user.id });
+    } catch (technicalError) {
+      setError(`Orçamento salvo, mas a estrutura técnica não pôde ser sincronizada: ${technicalError instanceof Error ? technicalError.message : 'erro desconhecido'}`);
+      setSaving(false);
+      return false;
+    }
     setSaved(true); await load(); return true;
   }, [budget, load, project.id, user]);
   const calc = useMemo(() => { const costs = [budget.materialCost, budget.hardwareCost, budget.laborCost, budget.otherCost].map(v => v ?? 0); const custoTotal = Number(costs.reduce((sum, value) => sum + value, 0).toFixed(2)); const lucro = budget.salePrice == null ? null : Number((budget.salePrice - custoTotal).toFixed(2)); const margemPct = budget.salePrice && budget.salePrice > 0 && lucro != null ? Number(((lucro / budget.salePrice) * 100).toFixed(2)) : null; return { custoTotal, lucro, margemPct, isComplete: budget.salePrice != null && budget.materialCost != null && budget.hardwareCost != null && budget.laborCost != null }; }, [budget]);
