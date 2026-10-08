@@ -55,9 +55,11 @@ const positiveInt = (value: number, fallback = 0) =>
   Number.isFinite(value) && value > 0 ? Math.round(value) : fallback;
 
 export function buildTechnicalStructure(project: ProjectData): TechnicalStructure {
-  const width = positiveInt(project.width * 1000);
-  const height = positiveInt(project.height * 1000);
-  const depth = positiveInt(project.depth * 1000);
+  // ProjectData stores furniture dimensions in millimetres. Do not convert here:
+  // YARA/createProjeto already normalizes natural-language dimensions to mm.
+  const width = positiveInt(project.width);
+  const height = positiveInt(project.height);
+  const depth = positiveInt(project.depth);
   const doors = Math.max(0, Math.floor(project.doors || 0));
 
   const parts: TechnicalPart[] = [];
