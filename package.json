@@ -72,7 +72,8 @@
     "three": "^0.183.1",
     "vaul": "^0.9.4",
     "zod": "^3.25.76",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.15",
+    "ai": "^7.0.122"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
