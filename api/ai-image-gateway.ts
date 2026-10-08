@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { generateImage, generateText } from 'ai';
 
 const MODEL = 'openai/gpt-image-2.5-sunburst';
+const TEXT_MODEL = process.env.VERCEL_AI_TEXT_MODEL || 'openai/gpt-5.6-luna';
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
 const MAX_PROMPT = 4000;
 const MAX_IMAGES = 4;
@@ -52,12 +53,28 @@ export async function POST(request: Request) {
     if (raw.length > MAX_BODY_BYTES) return json({ code: 'payload_too_large' }, 413);
 
     const body = JSON.parse(raw) as {
+      mode?: unknown;
       prompt?: unknown;
       images?: unknown;
       size?: { width?: unknown; height?: unknown };
+      model?: unknown;
+      messages?: unknown;
+      tools?: unknown;
+      tool_choice?: unknown;
+      response_format?: unknown;
     };
 
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+
+    const gatewayToken = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY;
+    if (!gatewayToken) return json({ code: 'gateway_auth_missing', message: 'Vercel AI Gateway não está autenticado nesta publicação.' }, 503);
+    if (body.mode === 'text') {
+      if (!Array.isArray(body.messages) || body.messages.length === 0) return json({ code: 'validation_error', message: 'Mensagens inválidas.' }, 400);
+      const response = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${gatewayToken}` }, body: JSON.stringify({ model: typeof body.model === 'string' && body.model ? body.model : TEXT_MODEL, messages: body.messages, ...(Array.isArray(body.tools) ? { tools: body.tools } : {}), ...(body.tool_choice !== undefined ? { tool_choice: body.tool_choice } : {}), ...(body.response_format !== undefined ? { response_format: body.response_format } : {}) }) });
+      const responseBody = await response.text();
+      if (!response.ok) return json({ code: 'gateway_text_error', message: responseBody.slice(0, 500) }, response.status);
+      return new Response(responseBody, { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+    }
     if (!prompt || prompt.length > MAX_PROMPT) {
       return json({ code: 'validation_error', message: 'Prompt inválido.' }, 400);
     }
@@ -82,17 +99,7 @@ export async function POST(request: Request) {
           images: images.map(imageBytes),
         }
       : prompt;
-
-    // On Vercel, AI Gateway authenticates through the deployment OIDC token.
-    // Prefer OIDC over any stale API-key environment variable.
-    const gatewayToken = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY;
-    if (!gatewayToken) {
-      return json({ code: 'gateway_auth_missing', message: 'Vercel AI Gateway não está autenticado nesta publicação.' }, 503);
-    }
-
-    const headers = {
-      Authorization: `Bearer ${gatewayToken}`,
-    };
+    const headers = { Authorization: `Bearer ${gatewayToken}` };
 
     try {
       const result = await generateImage({

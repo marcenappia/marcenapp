@@ -7,7 +7,8 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_MODEL = "openai/gpt-5.5";
 const GEMINI_MODEL = Deno.env.get("GEMINI_TEXT_MODEL") ?? "gemini-3.7-flash";
-const VERCEL_GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const VERCEL_GATEWAY_URL = "https://marcenapp.com.br/api/ai-image-gateway";
+const VERCEL_TEXT_MODEL = "openai/gpt-5.6-luna";
 type Provider = "lovable" | "gemini" | "vercel";
 
 const BodySchema = z.object({
@@ -63,7 +64,7 @@ async function resolveProvider(userId: string): Promise<{ primary: Provider; fal
   const { data, error } = await admin.from("ai_provider_settings").select("provider").eq("user_id", userId).maybeSingle();
   if (error) throw new Error("provider_settings_unavailable");
   const configured = data?.provider as string | undefined;
-  const available = { lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")), gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") || Deno.env.get("GEMINI_API_KEY")), vercel: Boolean(Deno.env.get("AI_GATEWAY_API_KEY") && Deno.env.get("AI_GATEWAY_MODEL")) };
+  const available = { lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")), gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") || Deno.env.get("GEMINI_API_KEY")), vercel: true };
   if (configured === "vercel" && available.vercel) return { primary: "vercel", fallback: available.lovable ? "lovable" : (available.gemini ? "gemini" : null) };
   if (configured === "lovable" && available.lovable) return { primary: "lovable", fallback: available.gemini ? "gemini" : null };
   if (configured === "gemini" && available.gemini) return { primary: "gemini", fallback: available.lovable ? "lovable" : null };
@@ -74,11 +75,7 @@ async function callLovable(userPrompt: string, contextBlock: string) {
   const response = await fetchWithTimeout(LOVABLE_GATEWAY_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "Lovable-API-Key": key }, body: JSON.stringify({ model: LOVABLE_MODEL, messages: [{ role: "system", content: SYSTEM_INSTRUCTION }, { role: "user", content: userPrompt + contextBlock }], tools: TOOL_DECLARATIONS, tool_choice: "auto" }) });
   if (!response.ok) throw new Error(`provider_http:${response.status}`); return await response.json();
 }
-async function callVercel(userPrompt: string, contextBlock: string) {
-  const key = Deno.env.get("AI_GATEWAY_API_KEY"); const model = Deno.env.get("AI_GATEWAY_MODEL"); if (!key || !model) throw new Error("provider_not_configured:vercel");
-  const response = await fetchWithTimeout(VERCEL_GATEWAY_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` }, body: JSON.stringify({ model, messages: [{ role: "system", content: SYSTEM_INSTRUCTION }, { role: "user", content: userPrompt + contextBlock }], tools: TOOL_DECLARATIONS, tool_choice: "auto" }) });
-  if (!response.ok) throw new Error(`provider_http:${response.status}`); return await response.json();
-}
+async function callVercel(userPrompt: string, contextBlock: string, authorization: string) { if (!authorization) throw new Error("provider_auth_error"); const response = await fetchWithTimeout(VERCEL_GATEWAY_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: authorization }, body: JSON.stringify({ mode: "text", model: VERCEL_TEXT_MODEL, messages: [{ role: "system", content: SYSTEM_INSTRUCTION }, { role: "user", content: userPrompt + contextBlock }], tools: TOOL_DECLARATIONS, tool_choice: "auto" }) }); if (!response.ok) throw new Error(`provider_http:${response.status}`); return await response.json(); }
 async function callGemini(userPrompt: string, contextBlock: string) {
   const key = Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY"); if (!key) throw new Error("provider_not_configured:gemini");
   const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }, contents: [{ role: "user", parts: [{ text: userPrompt + contextBlock }] }], tools: geminiTools(), toolConfig: { functionCallingConfig: { mode: "AUTO" } } }) });
@@ -105,6 +102,7 @@ serve(async (req) => {
   try {
     const read = await readJsonBody(req, MAX_BODY_BYTES); if (!read.ok) return jsonResponse(corsHeaders, { error: read.reason === "too_large" ? "Corpo da requisição muito grande." : "JSON inválido.", code: read.reason === "too_large" ? "payload_too_large" : "invalid_json" }, read.reason === "too_large" ? 413 : 400);
     const parsed = BodySchema.safeParse(read.body); if (!parsed.success) return jsonResponse(corsHeaders, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
+    const authorization = req.headers.get("Authorization") ?? "";
     const contextBlock = parsed.data.context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(parsed.data.context, null, 2)}` : "";
     // IARA recovery path: visual renders must not depend on text-provider availability.
     const hasVisualReference = Boolean(parsed.data.context?.lastImage || parsed.data.context?.hasVisualReference || parsed.data.context?.uploadKind || parsed.data.context?.environmentId);
@@ -125,7 +123,7 @@ serve(async (req) => {
     }
     let resolution: { primary: Provider; fallback: Provider | null }; try { resolution = await resolveProvider(guard.userId); } catch (error) { if (error instanceof Error && error.message === "provider_settings_unavailable") return jsonResponse(corsHeaders, { error: "Não foi possível ler a configuração do provedor de IA.", code: "provider_configuration_error" }, 503); throw error; }
     const providers: Provider[] = resolution.fallback ? [resolution.primary, resolution.fallback] : [resolution.primary]; let lastError: unknown = null;
-    const providerAdapters: Record<Provider, AIProviderAdapter> = { lovable: callLovable, gemini: callGemini, vercel: callVercel };
+    const providerAdapters: Record<Provider, AIProviderAdapter> = { lovable: callLovable, gemini: callGemini, vercel: (prompt, ctx) => callVercel(prompt, ctx, authorization) };
     for (const provider of providers) { try { const data = await providerAdapters[provider](parsed.data.userPrompt, contextBlock); const result = parseProviderResponse(provider, data); return jsonResponse(corsHeaders, { ...result, provider }); } catch (error) { lastError = error; console.error(`AI orchestrator provider ${provider} failed`, error); } }
     const message = lastError instanceof Error ? lastError.message : String(lastError);
     if (message.startsWith("provider_not_configured")) return jsonResponse(corsHeaders, { error: "Nenhum provedor de IA de texto está configurado. Ative um provedor no Admin.", code: "provider_not_configured" }, 500);
