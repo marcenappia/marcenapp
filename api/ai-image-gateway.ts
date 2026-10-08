@@ -61,13 +61,27 @@ export async function POST(request: Request) {
       messages?: unknown;
       tools?: unknown;
       tool_choice?: unknown;
-      response_format?: unknown;
+      response_format?: unknown;\n      input?: unknown;
     };
 
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
 
     const gatewayToken = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY;
     if (!gatewayToken) return json({ code: 'gateway_auth_missing', message: 'Vercel AI Gateway não está autenticado nesta publicação.' }, 503);
+    if (body.mode === 'responses') {
+      if (body.input === undefined) return json({ code: 'validation_error', message: 'Input inválido.' }, 400);
+      const response = await fetch('https://ai-gateway.vercel.sh/v1/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${gatewayToken}` },
+        body: JSON.stringify({
+          model: typeof body.model === 'string' && body.model ? body.model : TEXT_MODEL,
+          input: body.input,
+        }),
+      });
+      const responseBody = await response.text();
+      if (!response.ok) return json({ code: 'gateway_responses_error', message: responseBody.slice(0, 500) }, response.status);
+      return new Response(responseBody, { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+    }
     if (body.mode === 'text') {
       if (!Array.isArray(body.messages) || body.messages.length === 0) return json({ code: 'validation_error', message: 'Mensagens inválidas.' }, 400);
       const response = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${gatewayToken}` }, body: JSON.stringify({ model: typeof body.model === 'string' && body.model ? body.model : TEXT_MODEL, messages: body.messages, ...(Array.isArray(body.tools) ? { tools: body.tools } : {}), ...(body.tool_choice !== undefined ? { tool_choice: body.tool_choice } : {}), ...(body.response_format !== undefined ? { response_format: body.response_format } : {}) }) });
