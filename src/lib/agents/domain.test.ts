@@ -144,3 +144,27 @@ describe('IARA/YARA domain orchestration', () => {
     expect(new Set(result.results.map((result) => result.correlationId)).size).toBe(1);
   });
 });
+
+describe('project text parsing regressions', () => {
+  it('parses millimetre dimensions and explicit door count without confusing finish numbers', () => {
+    expect(parseCreateProjectInput({ message: 'Crie este projeto 2500x2800x600 na cor branco TX 6 portas de abrir' })).toMatchObject({
+      width: 2500,
+      height: 2800,
+      depth: 600,
+      doors: 6,
+      doorType: 'abrir',
+      external_material: 'branco tx',
+      confirmado: true,
+    });
+  });
+
+  it('parses bare decimal furniture dimensions as metres', () => {
+    expect(parseCreateProjectInput({ message: 'Crie um armário 2,50 x 2,80 x 0,60 com 6 portas de abrir' })).toMatchObject({
+      width: 2500,
+      height: 2800,
+      depth: 600,
+      doors: 6,
+      doorType: 'abrir',
+    });
+  });
+});
