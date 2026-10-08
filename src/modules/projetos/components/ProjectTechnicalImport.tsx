@@ -54,7 +54,17 @@ export default function ProjectTechnicalImport({ projectId, onDraft }: Props) {
         evidences: [],
         status: parsed.missingInformation?.length || parsed.items?.some(item => item.needsConfirmation || item.confidence < 0.82) ? 'needs_confirmation' : 'ready_for_pricing',
       };
-      await supabase.from('project_budget_drafts').insert({\n        user_id: user.id,\n        project_id: projectId || null,\n        source_files: draft.sourceFiles,\n        evidences: draft.evidences,\n        items: draft.items,\n        missing_information: draft.missingInformation,\n        assumptions: draft.assumptions,\n        status: draft.status,\n      });\n      onDraft?.(draft, files);
+      await supabase.from('project_budget_drafts').insert({
+        user_id: user.id,
+        project_id: projectId || null,
+        source_files: draft.sourceFiles,
+        evidences: draft.evidences,
+        items: draft.items,
+        missing_information: draft.missingInformation,
+        assumptions: draft.assumptions,
+        status: draft.status,
+      });
+      onDraft?.(draft, files);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível analisar o projeto.');
     } finally {
