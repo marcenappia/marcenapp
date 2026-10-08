@@ -20,8 +20,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: marcenapp-production-smoke
-  cancel-in-progress: true
+  group: marcenapp-production-smoke-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   smoke:
