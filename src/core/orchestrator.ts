@@ -95,7 +95,7 @@ function normalizePortugueseNumberWords(value: string): string {
   return replacements.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
 }
 
-function toMillimeters(value: string, unit?: string): number {
+function toMillimeters(value: string, unit?: string, axis?: "width" | "height" | "depth"): number {
   const n = Number(value.replace(',', '.'));
   if (!Number.isFinite(n) || n <= 0) return NaN;
   const normalizedUnit = unit?.toLocaleLowerCase('pt-BR');
@@ -105,7 +105,7 @@ function toMillimeters(value: string, unit?: string): number {
   // In furniture/project language, bare values below 10 are conventionally
   // expressed in meters (e.g. 2,50 de largura), while larger bare values
   // are treated as millimeters. Never call replace() on an absent unit.
-  if (!normalizedUnit) return n < 10 ? n * 1000 : n;
+  if (!normalizedUnit) return n < 10 ? n * 1000 : (axis && n <= 300 ? n * 10 : n);
   return n;
 }
 
@@ -122,7 +122,7 @@ function extractAxisDimension(text: string, axis: 'width' | 'height' | 'depth'):
     if (!match) continue;
     const numericIndex = match.findIndex((value, index) => index > 0 && /^\\d/.test(value));
     if (numericIndex < 0) continue;
-    const result = toMillimeters(match[numericIndex], match[numericIndex + 1]);
+    const result = toMillimeters(match[numericIndex], match[numericIndex + 1], axis);
     if (Number.isFinite(result)) return result;
   }
   return undefined;
@@ -348,7 +348,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     const architecturePending = architectureIntent?.missingSlots?.length ? { tool: architectureIntent.intent === 'create_projeto' ? 'createProjeto' : 'unknown', fields: architectureIntent.missingSlots.map(slot => slot.field), reason: architectureIntent.missingSlots.map(slot => slot.label).join(' ') } : null;
     const effectivePendingCreateProject = hasVisualReference
       ? null
-      : (pendingCreateProject ?? (architecturePending?.tool === 'createProjeto' ? architecturePending : null));
+      : (architecturePending?.tool === 'createProjeto' ? architecturePending : pendingCreateProject);
     const architectureProjectPlan: ToolCall[] = architectureIntent?.intent === 'create_projeto' && architectureIntent.missingSlots.length === 0 ? [{ tool: 'createProjeto', args: { ...architectureIntent.entities, confirmado: true } }] : [];
     const architectureRenderPlan: ToolCall[] = architectureIntent?.intent === 'gerar_render' ? [{ tool: 'gerarRender', args: { prompt: String(architectureIntent.entities.prompt ?? effectiveUserPrompt), estilo: ctx.decorStyle } }] : [];
     const architectureSmartPlan: ToolCall[] = architectureIntent?.intent === 'smart_action' ? [{ tool: 'iaraSmartAction', args: { ...architectureIntent.entities, projectId: ctx.projectId } }] : [];
