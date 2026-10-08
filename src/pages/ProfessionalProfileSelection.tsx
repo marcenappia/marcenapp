@@ -59,7 +59,9 @@ export default function ProfessionalProfileSelection() {
     }
     setSaving(true);
     setError('');
-    const { error: updateError } = await supabase.from('profiles').update({ profession: value }).eq('user_id', user.id);
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .upsert({ user_id: user.id, profession: value }, { onConflict: 'user_id' });
     if (updateError) {
       console.error('Falha ao salvar perfil profissional:', updateError);
       setError('Não foi possível salvar seu perfil agora. Tente novamente.');
