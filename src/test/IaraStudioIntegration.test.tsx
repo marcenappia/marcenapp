@@ -102,6 +102,41 @@ describe('IARA-Studio Architecture', () => {
     expect(studioService.generateVisual).not.toHaveBeenCalled();
   });
 
+  it('fails both queues when context lookup fails instead of leaving the worker locked', async () => {
+    const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
+    from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: { message: 'unavailable' } })) }) as never);
+    const ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }]);
+    render(<StudioWorker />);
+    await renderAct(async () => { await new Promise(r => setTimeout(r, 50)); });
+    expect(useStudioStore.getState().commandQueue.find(c => c.id === ids.studioId)?.status).toBe('failed');
+    expect(useMarcenappOS.getState().commandHistory.find(c => c.id === ids.osId)?.error).toContain('validar o contexto');
+    expect(studioService.generateVisual).not.toHaveBeenCalled();
+  });
+
+  it('executes a photo render without a project without requesting project gallery persistence', async () => {
+    vi.mocked(studioService.generateVisual).mockResolvedValue('data:image/png;base64,aGVsbG8=');
+    const ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }]);
+    useMarcenappOS.setState(state => ({ commandHistory: state.commandHistory.map(command => command.id === ids.osId ? { ...command, payload: { userId: 'u1', studioCommandId: ids.studioId, correlationId: 'global', generation: 1 } } : command) }));
+    render(<StudioWorker />);
+    await renderAct(async () => { await new Promise(r => setTimeout(r, 50)); });
+    expect(vi.mocked(studioService.generateVisual).mock.calls[0]?.[5]).toBeUndefined();
+    expect(useStudioStore.getState().generatedImage).toBe('data:image/png;base64,aGVsbG8=');
+  });
+
+  it('does not start a second provider call when coordination changes during generation', async () => {
+    let finish: ((result: string) => void) | undefined;
+    vi.mocked(studioService.generateVisual).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const ids = dispatchRender([{ mimeType: 'image/png', data: 'abc' }]);
+    useMarcenappOS.setState(state => ({ commandHistory: state.commandHistory.map(command => command.id === ids.osId ? { ...command, payload: { userId: 'u1', studioCommandId: ids.studioId } } : command) }));
+    render(<StudioWorker />);
+    await renderAct(async () => { await new Promise(r => setTimeout(r, 30)); });
+    renderAct(() => { useMarcenappOS.getState().updateCommandStatus(ids.osId, 'processing'); });
+    await renderAct(async () => { await new Promise(r => setTimeout(r, 30)); });
+    expect(studioService.generateVisual).toHaveBeenCalledTimes(1);
+    await renderAct(async () => { finish?.('https://example.com/final.png'); });
+    expect(useStudioStore.getState().generatedImage).toBe('https://example.com/final.png');
+  });
+
   it('rejects an IARA render whose generation is missing', async () => {
     const from = vi.mocked((await import('@/integrations/supabase/client')).supabase.from);
     from.mockImplementation(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), maybeSingle: vi.fn(() => Promise.resolve({ data: { project_id: 'A', environment_id: 'E1', version_id: 'V1', last_correlation_id: 'corr-missing', last_execution_generation: 1 }, error: null })), insert: vi.fn(() => Promise.resolve({ error: null })) }) as never);
