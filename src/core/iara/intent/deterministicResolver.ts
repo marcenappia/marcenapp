@@ -110,6 +110,9 @@ function createProject(value: string, input?: IntentResolverInput): ResolvedInte
   if (!create.test(value) || !noun.test(value)) return null;
 
   const dimensions = extract(value);
+  const explicitDoors = value.match(/(?:^|\s)(\d+)\s+portas?\b/i)?.[1];
+  const doorOpening = value.match(/(?:\d+)\s+portas?\s+(?:de\s+)?(abrir|abertura)\b/i)?.[1];
+  const material = value.match(/(?:na|em|com\s+(?:a|o)?)\s+cor\s+([a-záàâãéêíóôõúç0-9\s-]+?)(?=\s+\d+\s+portas?|\s*$)/i)?.[1]?.trim();
   const projectState = input?.context?.projectState as
     | { project?: { dimensions?: Partial<Record<"width" | "height" | "depth", number>> } }
     | undefined;
@@ -157,7 +160,13 @@ function createProject(value: string, input?: IntentResolverInput): ResolvedInte
 
   return {
     intent: "create_projeto",
-    entities: { nome: "Novo projeto", ...merged },
+    entities: {
+      nome: "Novo projeto",
+      ...merged,
+      ...(explicitDoors ? { doors: Number(explicitDoors) } : {}),
+      ...(material ? { external_material: material } : {}),
+      ...(doorOpening ? { doorType: doorOpening.toLowerCase() } : {}),
+    },
     confidence: missing.length === 0 ? 0.95 : 0.6,
     missingSlots: missing,
     source: "deterministic",
