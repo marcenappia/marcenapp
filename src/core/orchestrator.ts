@@ -361,7 +361,7 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
     // client executes gerarRender. Previously deterministic render plans bypassed the
     // Edge Function entirely, making the production path different from the intended
     // IARA -> ai-orchestrator -> tool -> ai-image chain.
-    const deterministicPlan = deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan.length ? deterministicSmartPlan : architectureSmartPlan;
+    const deterministicPlan = deterministicRenderPlan.length ? deterministicRenderPlan : architectureRenderPlan.length ? architectureRenderPlan : deterministicProjectPlan.length ? deterministicProjectPlan : deterministicFloorPlan.length ? deterministicFloorPlan : deterministicEnvironmentPlan.length ? deterministicEnvironmentPlan : deterministicSmartPlan.length ? deterministicSmartPlan : architectureSmartPlan;
     const plannerContext = {
       ...context,
       iaraAction: iara?.action,
