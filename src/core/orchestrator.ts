@@ -102,6 +102,10 @@ function toMillimeters(value: string, unit?: string): number {
   if (normalizedUnit === 'm' || normalizedUnit === 'metro' || normalizedUnit === 'metros') return n * 1000;
   if (normalizedUnit === 'cm' || normalizedUnit === 'centímetro' || normalizedUnit === 'centímetros') return n * 10;
   if (normalizedUnit === 'mm' || normalizedUnit === 'milímetro' || normalizedUnit === 'milímetros') return n;
+  // In furniture/project language, bare values below 10 are conventionally
+  // expressed in meters (e.g. 2,50 de largura), while larger bare values
+  // are treated as millimeters. Never call replace() on an absent unit.
+  if (!normalizedUnit) return n < 10 ? n * 1000 : n;
   return n;
 }
 
@@ -269,6 +273,7 @@ function deterministicCreateProjectPlan(userPrompt: string, context?: Record<str
   const combined = `${recentText} ${userPrompt}`.trim();
   const dimensions = extractTextProjectDimensions(combined) ?? projectStateDimensions(context);
   const hasVisualReference = Boolean(
+    visualReferencePresent ||
     context?.hasVisualReference ||
     (context?.referenceImages && Array.isArray(context.referenceImages) && context.referenceImages.length > 0) ||
     context?.lastImageBase,
