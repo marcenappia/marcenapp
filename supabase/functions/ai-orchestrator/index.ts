@@ -57,18 +57,18 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 9000
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
   try { return await fetch(url, { ...init, signal: controller.signal }); } catch (error) { if (error instanceof DOMException && error.name === "AbortError") throw new Error("provider_timeout"); throw new Error("provider_connection_error"); } finally { clearTimeout(timer); }
 }
-async function resolveProvider(userId: string): Promise<{ primary: Provider; fallback: Provider | null }> {
+async function resolveProvider(_userId: string): Promise<{ primary: Provider; fallback: Provider | null }> {
   const url = Deno.env.get("SUPABASE_URL"); const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) throw new Error("server_config_incomplete");
   const admin = createClient(url, key, { auth: { persistSession: false } });
-  const { data, error } = await admin.from("ai_provider_settings").select("provider").eq("user_id", userId).maybeSingle();
+  const { data, error } = await admin.from("ai_runtime_settings").select("provider").eq("id", "default").maybeSingle();
   if (error) throw new Error("provider_settings_unavailable");
   const configured = data?.provider as string | undefined;
   const available = { lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")), gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") || Deno.env.get("GEMINI_API_KEY")), vercel: true };
   if (configured === "vercel" && available.vercel) return { primary: "vercel", fallback: available.lovable ? "lovable" : (available.gemini ? "gemini" : null) };
-  if (configured === "lovable" && available.lovable) return { primary: "lovable", fallback: available.gemini ? "gemini" : null };
-  if (configured === "gemini" && available.gemini) return { primary: "gemini", fallback: available.lovable ? "lovable" : null };
-  return { primary: available.lovable ? "lovable" : "gemini", fallback: available.lovable && available.gemini ? "gemini" : null };
+  if (configured === "lovable" && available.lovable) return { primary: "lovable", fallback: available.gemini ? "gemini" : (available.vercel ? "vercel" : null) };
+  if (configured === "gemini" && available.gemini) return { primary: "gemini", fallback: available.lovable ? "lovable" : (available.vercel ? "vercel" : null) };
+  return { primary: "vercel", fallback: available.lovable ? "lovable" : (available.gemini ? "gemini" : null) };
 }
 async function callLovable(userPrompt: string, contextBlock: string) {
   const key = Deno.env.get("LOVABLE_API_KEY"); if (!key) throw new Error("provider_not_configured:lovable");
