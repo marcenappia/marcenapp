@@ -6,6 +6,7 @@ import { useMarcenappOS } from '@/store/useMarcenappOS';
 import { callAIContractClause, callAIText } from '@/services/ai';
 import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planService';
 import { attachIaraEnvironmentPhoto } from '@/modules/iara/services/photoDestination';
+import { persistProjectTechnicalStructure } from './projectTechnicalPersistence';
 
 const db = supabase as unknown as SupabaseClient;
 export type ToolResult<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
@@ -184,7 +185,29 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
   if (error) return { ok: false, error: error.message };
   const project = data as ProjetoData;
   let environmentId: string | undefined;
+  let versionId: string | undefined;
   let studioCommandId: string | undefined;
+  const technicalProject = {
+    id: project.id,
+    width: project.width,
+    height: project.height,
+    depth: project.depth,
+    modules: project.modules ?? 1,
+    drawers: project.drawers ?? 0,
+    doors: project.doors ?? 0,
+    internalMaterial: finalArgs.internal_material ?? '',
+    externalMaterial: finalArgs.external_material ?? '',
+    backMaterial: finalArgs.back_material ?? '',
+    handleType: finalArgs.handle_type ?? '',
+    profitMargin: 0,
+    laborRate: 0,
+  };
+  try {
+    const persistedTechnical = await persistProjectTechnicalStructure({ project: technicalProject, userId: ctx.userId });
+    versionId = persistedTechnical.versionId;
+  } catch (e) {
+    return { ok: false, error: `Projeto criado, mas não foi possível persistir a estrutura técnica: ${e instanceof Error ? e.message : 'erro desconhecido'}` };
+  }
   let renderStatus: ProjetoData['renderStatus'];
   let renderError: string | undefined;
 
@@ -193,6 +216,8 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
       const dataUrl = `data:image/jpeg;base64,${ctx.lastImageBase}`;
       const destination = await attachIaraEnvironmentPhoto({ userId: ctx.userId, projectId: project.id, dataUrl, correlationId: ctx.correlationId, generation: ctx.generation });
       environmentId = destination.environmentId;
+      const persistedTechnical = await persistProjectTechnicalStructure({ project: technicalProject, userId: ctx.userId, environmentId });
+      versionId = persistedTechnical.versionId;
 
       if (ctx.correlationId && typeof ctx.generation === 'number') {
         const prompt = [
@@ -211,7 +236,7 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
           // attachIaraEnvironmentPhoto persisted the new project context with
           // version_id = null. Carrying the previous project's versionId made the
           // StudioWorker and ai-image treat the render as stale and discard it.
-          { ...ctx, projectId: project.id, environmentId, versionId: undefined },
+          { ...ctx, projectId: project.id, environmentId, versionId },
         );
         // The project already exists at this point; a render enqueue failure
         // must not report the whole creation as failed.
