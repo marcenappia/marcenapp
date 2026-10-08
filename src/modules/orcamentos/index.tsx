@@ -3,6 +3,7 @@ import { Printer, Calculator, Sliders, Save, RefreshCw } from 'lucide-react';
 import { Button, Card, InputGroup, Modal } from '@/components/marcenaria/shared';
 import { useOrcamento } from './hooks/useOrcamento';
 import type { ProjectData } from '@/modules/projetos/types';
+import { buildTechnicalStructure } from '@/core/projectTechnicalModel';
 
 interface Props {
   project: ProjectData;
@@ -14,6 +15,12 @@ type CostField = 'salePrice' | 'materialCost' | 'hardwareCost' | 'laborCost' | '
 const OrcamentoModule = ({ project }: Props) => {
   const [showModal, setShowModal] = useState(false);
   const { budget, setBudget, calc, formatBRL, loading, saving, saved, error, save, reload } = useOrcamento(project);
+  const technical = React.useMemo(() => buildTechnicalStructure(project), [project]);
+  const materialAreas = React.useMemo(() => technical.parts.reduce<Record<string, number>>((acc, part) => {
+    const key = part.material || 'Material não definido';
+    acc[key] = (acc[key] || 0) + (part.widthMm * part.heightMm * part.quantity) / 1_000_000;
+    return acc;
+  }, {}), [technical.parts]);
 
   const field = (name: CostField, label: string) => (
     <InputGroup label={label} value={budget[name] ?? ''} onChange={value => setBudget(name, value)} prefix="R$" />
@@ -38,11 +45,31 @@ const OrcamentoModule = ({ project }: Props) => {
           </Card>
 
           <Card className="p-6">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><span className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">02</span> Dados do projeto</h3>
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><span className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">02</span> Base técnica do orçamento</h3>
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              Estrutura inicial calculada a partir dos dados confirmados do projeto. Ela é <strong>inferida</strong> e precisa ser confirmada antes de virar orçamento de produção.
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm mb-5">
+              <div><span className="text-slate-400 block">Peças</span><strong>{technical.parts.reduce((sum, part) => sum + part.quantity, 0)}</strong></div>
+              <div><span className="text-slate-400 block">Tipos</span><strong>{technical.parts.length}</strong></div>
+              <div><span className="text-slate-400 block">Área calculada</span><strong>{Object.values(materialAreas).reduce((sum, area) => sum + area, 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} m²</strong></div>
+              <div><span className="text-slate-400 block">Status</span><strong>{technical.status === 'confirmed' ? 'Confirmada' : 'Confirmar'}</strong></div>
+            </div>
+            <div className="space-y-2">
+              {Object.entries(materialAreas).map(([material, area]) => (
+                <div key={material} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                  <span>{material}</span><strong>{area.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} m²</strong>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><span className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">03</span> Dados do projeto</h3>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
-              <div><span className="text-slate-400 block">Largura</span><strong>{project.width} m</strong></div>
-              <div><span className="text-slate-400 block">Altura</span><strong>{project.height} m</strong></div>
-              <div><span className="text-slate-400 block">Prof.</span><strong>{project.depth} m</strong></div>
+              <div><span className="text-slate-400 block">Largura</span><strong>{project.width} mm</strong></div>
+              <div><span className="text-slate-400 block">Altura</span><strong>{project.height} mm</strong></div>
+              <div><span className="text-slate-400 block">Prof.</span><strong>{project.depth} mm</strong></div>
               <div><span className="text-slate-400 block">Portas</span><strong>{project.doors}</strong></div>
               <div><span className="text-slate-400 block">Gavetas</span><strong>{project.drawers}</strong></div>
             </div>
@@ -76,7 +103,7 @@ const OrcamentoModule = ({ project }: Props) => {
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Resumo do Orçamento Real" maxWidth="max-w-md">
         <div className="bg-white p-6 rounded text-slate-800 space-y-4">
           <div className="text-center border-b pb-4"><div className="flex items-center justify-center gap-2 mb-1"><Calculator size={20} className="text-indigo-600" /><h2 className="text-xl font-bold">Orçamento</h2></div><p className="text-slate-400 text-sm">Projeto {project.id ? project.id.slice(0, 8) : 'não salvo'}</p></div>
-          <div className="space-y-2 text-sm"><p><strong>Dimensões:</strong> {project.width} × {project.height} × {project.depth} m</p><p><strong>Estrutura:</strong> {project.doors} portas, {project.drawers} gavetas</p><div className="border-t border-dashed pt-3 mt-3 space-y-1"><p className="flex justify-between"><span>Materiais:</span><span>{formatBRL(budget.materialCost)}</span></p><p className="flex justify-between"><span>Ferragens:</span><span>{formatBRL(budget.hardwareCost)}</span></p><p className="flex justify-between"><span>Mão de Obra:</span><span>{formatBRL(budget.laborCost)}</span></p><p className="flex justify-between"><span>Outros:</span><span>{formatBRL(budget.otherCost)}</span></p><p className="flex justify-between font-bold"><span>Custo total:</span><span>{formatBRL(calc.custoTotal)}</span></p><p className="flex justify-between text-lg font-bold mt-2 border-t pt-2"><span>Preço de venda:</span><span>{formatBRL(budget.salePrice)}</span></p><p className="flex justify-between text-emerald-600 font-bold"><span>Lucro:</span><span>{formatBRL(calc.lucro)}</span></p><p className="flex justify-between text-emerald-600"><span>Margem:</span><span>{calc.margemPct == null ? '—' : `${calc.margemPct.toLocaleString('pt-BR')}%`}</span></p></div></div>
+          <div className="space-y-2 text-sm"><p><strong>Dimensões:</strong> {project.width} × {project.height} × {project.depth} mm</p><p><strong>Estrutura:</strong> {project.doors} portas, {project.drawers} gavetas</p><div className="border-t border-dashed pt-3 mt-3 space-y-1"><p className="flex justify-between"><span>Materiais:</span><span>{formatBRL(budget.materialCost)}</span></p><p className="flex justify-between"><span>Ferragens:</span><span>{formatBRL(budget.hardwareCost)}</span></p><p className="flex justify-between"><span>Mão de Obra:</span><span>{formatBRL(budget.laborCost)}</span></p><p className="flex justify-between"><span>Outros:</span><span>{formatBRL(budget.otherCost)}</span></p><p className="flex justify-between font-bold"><span>Custo total:</span><span>{formatBRL(calc.custoTotal)}</span></p><p className="flex justify-between text-lg font-bold mt-2 border-t pt-2"><span>Preço de venda:</span><span>{formatBRL(budget.salePrice)}</span></p><p className="flex justify-between text-emerald-600 font-bold"><span>Lucro:</span><span>{formatBRL(calc.lucro)}</span></p><p className="flex justify-between text-emerald-600"><span>Margem:</span><span>{calc.margemPct == null ? '—' : `${calc.margemPct.toLocaleString('pt-BR')}%`}</span></p></div></div>
           <Button onClick={() => window.print()} className="w-full"><Printer size={16} /> Imprimir</Button>
         </div>
       </Modal>

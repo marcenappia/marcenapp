@@ -79,6 +79,21 @@ function findDimensionsByOrder(text: string): number[] {
   return [...text.matchAll(/(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\b/gi)].map(match => toMillimeters(match[1], match[2]));
 }
 
+function findOrderedTriple(text: string): number[] {
+  const match = text.match(
+    /(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i,
+  );
+  if (!match) return [];
+  const values = [match[1], match[3], match[5]];
+  const units = [match[2], match[4], match[6]];
+  return values.map((value, index) => {
+    const unit = units[index];
+    if (unit) return toMillimeters(value, unit);
+    const numeric = Number(value.replace(',', '.'));
+    return numeric < 10 ? numeric * 1000 : numeric;
+  });
+}
+
 function inferType(text: string): string | undefined {
   const normalized = normalize(text);
   const candidates = [
@@ -135,12 +150,15 @@ export function extractProjectStatePatch(text: string): ProjectStatePatch {
   const normalized = normalize(text);
   const named = findNamedDimensions(normalized);
   const ordered = findDimensionsByOrder(normalized);
+  const orderedTriple = findOrderedTriple(normalized);
   const useOrderedDimensions = ordered.length > 0 && (ordered.length > 1 || !Object.values(named).some(value => value !== undefined));
   // Keep both strategies: ordered values fill missing axes and named values win for their axis.
+  const orderedValues = orderedTriple.length === 3 ? orderedTriple : ordered;
+  const useOrderedValues = orderedValues.length > 0 && (orderedValues.length > 1 || !Object.values(named).some(value => value !== undefined));
   const dimensions: Partial<Record<ProjectDimensionKey, number>> = {
-    ...(useOrderedDimensions && ordered[0] !== undefined ? { width: ordered[0] } : {}),
-    ...(useOrderedDimensions && ordered[1] !== undefined ? { height: ordered[1] } : {}),
-    ...(useOrderedDimensions && ordered[2] !== undefined ? { depth: ordered[2] } : {}),
+    ...(useOrderedValues && orderedValues[0] !== undefined ? { width: orderedValues[0] } : {}),
+    ...(useOrderedValues && orderedValues[1] !== undefined ? { height: orderedValues[1] } : {}),
+    ...(useOrderedValues && orderedValues[2] !== undefined ? { depth: orderedValues[2] } : {}),
     ...Object.fromEntries(Object.entries(named).filter(([, value]) => value !== undefined)),
   };
   const type = inferType(normalized);

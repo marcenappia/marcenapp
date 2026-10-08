@@ -371,8 +371,8 @@ export async function runOrchestrator(userPrompt: string, ctx: ExecutionContext,
 
     if (!deterministicPlan.length && effectivePendingCreateProject) {
       const result: ToolResult = { ok: false, error: effectivePendingCreateProject.reason };
-      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: [{ tool: effectivePendingCreateProject.tool, result }] as unknown as Json, used_fallback: false, status: 'needs_input', error: pendingCreateProject.reason }).eq('id', runId);
-      return { runId, plan: [], summary: pendingCreateProject.reason, results: [{ tool: pendingCreateProject.tool, result }], usedFallback: false, status: 'needs_input', error: pendingCreateProject.reason, pendingInput: effectivePendingCreateProject };
+      if (runId) await supabase.from('orchestrator_runs').update({ plan: [], results: [{ tool: effectivePendingCreateProject.tool, result }] as unknown as Json, used_fallback: false, status: 'needs_input', error: effectivePendingCreateProject.reason }).eq('id', runId);
+      return { runId, plan: [], summary: effectivePendingCreateProject.reason, results: [{ tool: effectivePendingCreateProject.tool, result }], usedFallback: false, status: 'needs_input', error: effectivePendingCreateProject.reason, pendingInput: effectivePendingCreateProject };
     }
 
     const result = deterministicPlan.length ? { plan: deterministicPlan, summary: deterministicProjectPlan.length ? 'Projeto preparado a partir dos dados informados.' : architectureSmartPlan.length ? 'Ação contextual identificada pela IARA.' : deterministicFloorPlan.length ? 'Planta preparada para análise espacial e perspectiva.' : deterministicEnvironmentPlan.length ? 'Análise do ambiente preparada pela IARA.' : 'Ação da IARA conectada ao contexto real do projeto.', provider: undefined as OrchestratorPlan['provider'] } : await planWithLLM(effectiveUserPrompt, plannerContext);

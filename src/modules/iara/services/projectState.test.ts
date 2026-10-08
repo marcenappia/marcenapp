@@ -13,6 +13,11 @@ describe('projectState', () => {
     expect(patch.project?.dimensions).toEqual({ width: 2000, height: 2400, depth: 600 });
   });
 
+  it('extracts a bare millimeter triple used in furniture commands', () => {
+    const patch = extractProjectStatePatch('Crie este projeto 2500x2800x600 na cor branco TX, 6 portas de abrir.');
+    expect(patch.project?.dimensions).toEqual({ width: 2500, height: 2800, depth: 600 });
+  });
+
   it('keeps facts across turns instead of replacing the whole project', () => {
     const state = createProjectStateFromConversation([
       'Quero um armário de 1,60 m de largura e 2,50 m de altura.',
