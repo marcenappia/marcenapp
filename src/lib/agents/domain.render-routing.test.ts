@@ -25,12 +25,12 @@ function execution(overrides: Record<string, unknown> = {}) {
 }
 
 describe('YARA visual render routing regression', () => {
-  it('forces render when a visual reference exists, even if the text looks like project creation', async () => {
+  it('keeps explicit project creation on createProjeto when a visual reference exists', async () => {
     mockedRunOrchestrator.mockResolvedValue({
       runId: 'run-1',
-      plan: [{ tool: 'gerarRender', args: { prompt: 'crie um armário branco' } }],
-      summary: 'render',
-      results: [{ tool: 'gerarRender', result: { ok: true, data: { status: 'queued' } } }],
+      plan: [{ tool: 'createProjeto', args: { nome: 'armário', confirmado: true } }],
+      summary: 'project',
+      results: [{ tool: 'createProjeto', result: { ok: true, data: { id: 'project-1', renderStatus: 'queued' } } }],
       usedFallback: false,
       status: 'completed',
     });
@@ -45,14 +45,14 @@ describe('YARA visual render routing regression', () => {
       correlationId: 'corr-1',
     });
 
-    expect(response.action).toBe('render');
-    expect(response.intent.action).toBe('render');
+    expect(response.action).toBe('create_project');
+    expect(response.intent.action).toBe('create_project');
 
-    const context = mockedRunOrchestrator.mock.calls[0]?.[2] as { iara?: { action?: string } };
-    expect(context?.iara?.action).toBe('render');
-    expect(response.run.plan[0]?.tool).toBe('gerarRender');
-    expect(response.artifacts.some((artifact) => artifact.type === 'render')).toBe(true);
-    expect(response.artifacts.some((artifact) => artifact.type === 'project')).toBe(false);
+    const context = mockedRunOrchestrator.mock.calls[0]?.[2] as { iara?: { action?: string; createProjectArgs?: Record<string, unknown> } };
+    expect(context?.iara?.action).toBe('create_project');
+    expect(context?.iara?.createProjectArgs).toMatchObject({ confirmado: true });
+    expect(response.run.plan[0]?.tool).toBe('createProjeto');
+    expect(response.artifacts.some((artifact) => artifact.type === 'project')).toBe(true);
   });
 
   it('does not require width/height/depth for a photo-based render', async () => {

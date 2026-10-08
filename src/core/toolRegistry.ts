@@ -177,9 +177,9 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
     nome: finalArgs.nome,
     cliente_id: clienteId,
     // projects stores legacy dimensions in metres; YARA may supply millimetres.
-    width: finalArgs.width != null && finalArgs.width > 20 ? finalArgs.width / 1000 : finalArgs.width,
-    height: finalArgs.height != null && finalArgs.height > 20 ? finalArgs.height / 1000 : finalArgs.height,
-    depth: finalArgs.depth != null && finalArgs.depth > 20 ? finalArgs.depth / 1000 : finalArgs.depth,
+    width: finalArgs.width == null ? 0 : finalArgs.width > 20 ? finalArgs.width / 1000 : finalArgs.width,
+    height: finalArgs.height == null ? 0 : finalArgs.height > 20 ? finalArgs.height / 1000 : finalArgs.height,
+    depth: finalArgs.depth == null ? 0 : finalArgs.depth > 20 ? finalArgs.depth / 1000 : finalArgs.depth,
     modules: finalArgs.modules ?? 1,
     drawers: finalArgs.drawers ?? 0,
     doors: finalArgs.doors ?? 0,

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { generateImage, generateText } from 'ai';
+import { generateImage } from 'ai';
 import { getVercelOidcToken } from '@vercel/oidc';
 
 const MODEL = 'openai/gpt-image-2.5-sunburst';
@@ -62,7 +62,8 @@ export async function POST(request: Request) {
       messages?: unknown;
       tools?: unknown;
       tool_choice?: unknown;
-      response_format?: unknown;\n      input?: unknown;
+      response_format?: unknown;
+      input?: unknown;
     };
 
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
@@ -126,43 +127,18 @@ export async function POST(request: Request) {
         headers,
       });
       const generated = result.images?.[0] ?? result.image;
-      if (generated?.base64) {
-        return json({
-          imageBase64: `data:${generated.mediaType ?? 'image/png'};base64,${generated.base64}`,
-          provider: 'vercel',
-          model: MODEL,
-        });
+      if (!generated?.base64) {
+        return json({ code: 'empty_image_result', message: 'O modelo de imagem Vercel não retornou uma imagem.' }, 502);
       }
+      return json({
+        imageBase64: `data:${generated.mediaType ?? 'image/png'};base64,${generated.base64}`,
+        provider: 'vercel',
+        model: MODEL,
+      });
     } catch (primaryError) {
       console.warn('[AI_IMAGE_PRIMARY_FAILED]', primaryError);
+      return json({ code: 'gateway_generation_error', message: primaryError instanceof Error ? primaryError.message.slice(0, 500) : String(primaryError).slice(0, 500) }, 502);
     }
-
-    // Native multimodal fallback: Nano Banana Pro accepts the reference image
-    // as an image part and returns the generated image in result.files.
-    const content = [
-      { type: 'text' as const, text: prompt },
-      ...images.map((image) => ({
-        type: 'image' as const,
-        image: imageBytes(image),
-      })),
-    ];
-
-    const fallback = await generateText({
-      model: 'google/gemini-3-pro-image',
-      messages: [{ role: 'user', content }],
-      maxRetries: 0,
-      headers,
-    });
-    const generatedFile = fallback.files.find((file) => file.mediaType?.startsWith('image/'));
-    if (!generatedFile) {
-      return json({ code: 'empty_image_result', message: 'Nenhum modelo de imagem retornou uma imagem.' }, 502);
-    }
-
-    return json({
-      imageBase64: `data:${generatedFile.mediaType ?? 'image/png'};base64,${generatedFile.base64}`,
-      provider: 'vercel',
-      model: 'google/gemini-3-pro-image',
-    });
   } catch (error) {
     console.error('[AI_IMAGE_GATEWAY_ERROR]', error);
     const message = error instanceof Error ? error.message : String(error);
