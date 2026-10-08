@@ -10,6 +10,23 @@ const DEFAULT_DIM = 1024;
 const MAX_PROMPT_CHARS = 4000;
 const MAX_PROMPT_WORDS = 800;
 const OPERATION_TYPE = "gerarRender";
+
+function buildRenderPrompt(prompt: string, hasReferenceImage: boolean): string {
+  if (!hasReferenceImage) return prompt;
+  return [
+    "RENDER DE MARCENARIA FOTORREALISTA — a imagem de referência é a fonte de verdade da cena.",
+    "Preserve a arquitetura, enquadramento, proporções, paredes, vãos, piso, teto, iluminação estrutural e elementos existentes que aparecem na referência.",
+    "Não invente cômodos, paredes, janelas, portas, eletros ou objetos estruturais que não estejam na referência.",
+    "Não altere a posição dos móveis existentes sem que isso seja solicitado explicitamente.",
+    "As alterações solicitadas devem ser aplicadas somente ao que foi pedido.",
+    "Materiais devem ter aparência física plausível: MDF, madeira, pedra, vidro, metal, ferragens, reflexos e sombras coerentes com a iluminação da cena.",
+    "Evite aparência de ilustração, 3D genérico, showroom artificial, objetos flutuando, geometria impossível ou proporções irreais.",
+    "Resultado final: fotografia de ambiente realista, com escala humana e construção fisicamente plausível.",
+    "",
+    "INSTRUÇÃO DO USUÁRIO:",
+    prompt,
+  ].join("\n");
+}
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
@@ -302,6 +319,7 @@ serve(async request => {
     const parsed = BodySchema.safeParse(body.body);
     if (!parsed.success) return jsonResponse(cors, { message: "Dados inválidos.", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
     const { prompt, images = [], size, persistGallery } = parsed.data;
+    const providerPrompt = buildRenderPrompt(prompt, images.length > 0);
     idempotencyKey = parsed.data.idempotencyKey;
     console.info("[AI_IMAGE_START]", JSON.stringify({ status: "started", requestId: idempotencyKey, renderId: idempotencyKey, referenceCount: images.length }));
     const wordCount = prompt.split(/\s+/).filter(Boolean).length;
@@ -405,7 +423,7 @@ serve(async request => {
           requestId: idempotencyKey,
           renderId: idempotencyKey,
         }));
-        imageBase64 = await generateImage(provider, prompt, images, size, request.headers.get("Authorization") ?? "");
+        imageBase64 = await generateImage(provider, providerPrompt, images, size, request.headers.get("Authorization") ?? "");
         imageGenerated = true;
         usedProvider = provider;
         usedModel = provider === "gemini" ? GEMINI_IMAGE_MODEL : provider === "vercel" ? VERCEL_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
