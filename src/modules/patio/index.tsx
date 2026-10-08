@@ -4,41 +4,9 @@ import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marce
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import type { ProjectData } from '@/modules/projetos/types';
+import { optimizeGuillotine } from '@/core/cutOptimization/guillotine';
 
 export interface Part { id: number; name: string; w: number; h: number; qtd: number; mat: 'white' | 'wood'; }
-interface ExplodedPart extends Part { uid: string; }
-interface SheetItem extends ExplodedPart { x: number; y: number; rotated: boolean; }
-interface Sheet { items: SheetItem[]; usedArea: number; }
-const SHEET_W = 2730;
-const SHEET_H = 1830;
-const KERF = 3;
-
-function packParts(parts: ExplodedPart[]): { sheets: Sheet[]; invalid: ExplodedPart[] } {
-  const invalid = parts.filter(p => (p.w > SHEET_W && p.w > SHEET_H) || (p.h > SHEET_W && p.h > SHEET_H));
-  const valid = parts.filter(p => !invalid.includes(p));
-  const sorted = [...valid].sort((a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h));
-  const sheets: Sheet[] = [];
-  let currentSheet: Sheet = { items: [], usedArea: 0 };
-  let x = 0, y = 0, rowH = 0;
-  const newSheet = () => { if (currentSheet.items.length) sheets.push(currentSheet); currentSheet = { items: [], usedArea: 0 }; x = 0; y = 0; rowH = 0; };
-  for (const p of sorted) {
-    let rotated = false; let w = p.w; let h = p.h;
-    if (x + w > SHEET_W && x + h <= SHEET_W) { rotated = true; w = p.h; h = p.w; }
-    if (x + w > SHEET_W) { x = 0; y += rowH + KERF; rowH = 0; rotated = false; w = p.w; h = p.h; }
-    if (y + h > SHEET_H) newSheet();
-    if (x + w > SHEET_W || y + h > SHEET_H) {
-      if (x + p.h <= SHEET_W && y + p.w <= SHEET_H) { rotated = true; w = p.h; h = p.w; }
-      else { invalid.push(p); continue; }
-    }
-    currentSheet.items.push({ ...p, x, y, rotated });
-    currentSheet.usedArea += w * h;
-    x += w + KERF;
-    rowH = Math.max(rowH, h);
-  }
-  if (currentSheet.items.length) sheets.push(currentSheet);
-  return { sheets, invalid };
-}
-
 interface Props { parts: Part[]; setParts: (parts: Part[]) => void; project: ProjectData; }
 
 const CorteModule = ({ parts, setParts, project }: Props) => {
@@ -74,7 +42,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
       if (cancelled) return;
       if (loadError) { console.error('[cut-plan] version load failed', loadError); setSaving(false); return; }
       const currentSnapshot = version?.snapshot && typeof version.snapshot === 'object' ? version.snapshot as Record<string, unknown> : {};
-      const nextSnapshot = { ...currentSnapshot, cutPlan: { parts, sheet: { width: SHEET_W, height: SHEET_H, kerf: KERF }, updatedAt: new Date().toISOString() } };
+      const nextSnapshot = { ...currentSnapshot, cutPlan: { parts, sheet: { width: 2750, height: 1850, kerf: 3, algorithm: 'guillotine-multistrategy' }, updatedAt: new Date().toISOString() } };
       const result = version?.id
         ? await supabase.from('project_versions').update({ snapshot: nextSnapshot }).eq('id', version.id).eq('user_id', user.id)
         : await supabase.from('project_versions').insert({ project_id: project.id, user_id: user.id, version_number: 1, status: 'draft', snapshot: nextSnapshot });
@@ -106,7 +74,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
   };
   const deletePart = (id: number) => setParts(parts.filter(p => p.id !== id));
   const exploded = useMemo(() => parts.flatMap(p => filter !== 'all' && p.mat !== filter ? [] : Array.from({ length: Math.max(0, Math.floor(p.qtd)) }, (_, i) => ({ ...p, uid: `${p.id}-${i}` }))), [parts, filter]);
-  const { sheets, invalid } = useMemo(() => packParts(exploded), [exploded]);
+  const { sheets, invalid } = useMemo(() => optimizeGuillotine(exploded, { sheetWidth: 2750, sheetHeight: 1850, kerf: 3, trim: 0, allowRotation: true, sheetGrain: 'none' }), [exploded]);
   const totalParts = parts.reduce((sum, p) => sum + p.qtd, 0);
   const utilization = sheets.length ? (sheets.reduce((sum, s) => sum + s.usedArea, 0) / (sheets.length * SHEET_W * SHEET_H)) * 100 : 0;
 
@@ -136,7 +104,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
 
           <div className="space-y-4">
             {invalid.length > 0 && <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><AlertTriangle className="shrink-0" size={18} /><div><strong>Peças fora do limite da chapa</strong><p className="mt-1 text-xs">Estas peças precisam de revisão antes de qualquer uso em produção.</p>{invalid.map(p => <p key={p.uid} className="mt-1 text-xs">{p.name}: {p.w} × {p.h} mm</p>)}</div></div>}
-            {sheets.length === 0 ? <Card className="flex min-h-[420px] items-center justify-center border-dashed p-8 text-center"><div><Scissors className="mx-auto text-slate-300" size={34} /><p className="mt-3 text-sm font-black text-slate-600">O plano aparecerá aqui</p><p className="mt-1 text-xs text-slate-400">As chapas serão organizadas a partir da lista de peças.</p></div></Card> : sheets.map((s, idx) => <Card key={idx} className="p-4 md:p-5"><div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="text-sm font-black text-slate-900">Chapa {String(idx + 1).padStart(2,'0')}</h3><p className="text-[11px] text-slate-400">{SHEET_W} × {SHEET_H} mm · folga de corte {KERF} mm</p></div><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">{((s.usedArea / (SHEET_W * SHEET_H)) * 100).toFixed(1)}% aproveitamento</span></div><div className="relative overflow-hidden rounded-xl border border-slate-300 bg-slate-100 shadow-inner" style={{ aspectRatio: `${SHEET_W}/${SHEET_H}` }}>{s.items.map(item => { const iw = item.rotated ? item.h : item.w; const ih = item.rotated ? item.w : item.h; return <div key={item.uid} title={`${item.name} ${iw}×${ih}mm`} className={`absolute flex items-center justify-center border border-slate-500/30 text-[9px] font-black ${item.mat === 'white' ? 'bg-slate-200 text-slate-700' : 'bg-stone-300 text-stone-800'}`} style={{ left: `${(item.x / SHEET_W) * 100}%`, top: `${(item.y / SHEET_H) * 100}%`, width: `${(iw / SHEET_W) * 100}%`, height: `${(ih / SHEET_H) * 100}%` }}><span className="truncate px-1">{item.name}</span></div>; })}</div></Card>)}
+            {sheets.length === 0 ? <Card className="flex min-h-[420px] items-center justify-center border-dashed p-8 text-center"><div><Scissors className="mx-auto text-slate-300" size={34} /><p className="mt-3 text-sm font-black text-slate-600">O plano aparecerá aqui</p><p className="mt-1 text-xs text-slate-400">As chapas serão organizadas a partir da lista de peças.</p></div></Card> : sheets.map((s, idx) => <Card key={idx} className="p-4 md:p-5"><div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="text-sm font-black text-slate-900">Chapa {String(idx + 1).padStart(2,'0')}</h3><p className="text-[11px] text-slate-400">{s.width} × {s.height} mm · folga de corte 3 mm · {sheets.length} chapa(s) · estratégia {sheets.length ? 'multiestratégia guilhotina' : '—'}</p></div><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">{((s.usedArea / (SHEET_W * SHEET_H)) * 100).toFixed(1)}% aproveitamento</span></div><div className="relative overflow-hidden rounded-xl border border-slate-300 bg-slate-100 shadow-inner" style={{ aspectRatio: `${s.width}/${s.height}` }}>{s.items.map(item => { const iw = item.rotated ? item.h : item.w; const ih = item.rotated ? item.w : item.h; return <div key={item.uid} title={`${item.name} ${iw}×${ih}mm`} className={`absolute flex items-center justify-center border border-slate-500/30 text-[9px] font-black ${item.mat === 'white' ? 'bg-slate-200 text-slate-700' : 'bg-stone-300 text-stone-800'}`} style={{ left: `${(item.x / s.width) * 100}%`, top: `${(item.y / s.height) * 100}%`, width: `${(iw / s.width) * 100}%`, height: `${(ih / s.height) * 100}%` }}><span className="truncate px-1">{item.name}</span></div>; })}</div></Card>)}
           </div>
         </div>
 
