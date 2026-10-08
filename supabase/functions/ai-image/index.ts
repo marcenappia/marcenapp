@@ -67,19 +67,6 @@ function imageExtension(mimeType: string): string {
   return "png";
 }
 
-function imageBlob(image: ImageInput): Blob {
-  const binary = atob(image.data);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return new Blob([bytes], { type: image.mimeType });
-}
-
-function retryDelay(response: Response, attempt: number): number {
-  const retryAfter = Number(response.headers.get("Retry-After"));
-  if (Number.isFinite(retryAfter) && retryAfter > 0) return Math.min(retryAfter * 1000, 10_000);
-  return Math.min(750 * (2 ** attempt) + Math.floor(Math.random() * 250), 5_000);
-}
-
 async function withTimeout<T>(operation: () => Promise<T>, timeoutMs: number, code = "provider_timeout"): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
