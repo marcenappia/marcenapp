@@ -48,8 +48,9 @@ const EPS = 0.0001;
 
 function canRotate(part: CutPart, options: CutOptions): boolean {
   if (!options.allowRotation) return false;
-  if (!part.grain || part.grain === 'any' || options.sheetGrain === 'any' || options.sheetGrain === 'none') return true;
-  return part.grain !== options.sheetGrain;
+  if (!part.grain || part.grain === 'any' || options.sheetGrain === 'any') return true;
+  if (options.sheetGrain === 'none') return true;
+  return part.grain === 'any';
 }
 
 function orientations(part: CutPart, options: CutOptions) {
