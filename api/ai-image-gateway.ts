@@ -53,9 +53,15 @@ export async function POST(request: Request) {
     if (raw.length > MAX_BODY_BYTES) return json({ code: 'payload_too_large' }, 413);
 
     const body = JSON.parse(raw) as {
+      mode?: unknown;
       prompt?: unknown;
       images?: unknown;
       size?: { width?: unknown; height?: unknown };
+      model?: unknown;
+      messages?: unknown;
+      tools?: unknown;
+      tool_choice?: unknown;
+      response_format?: unknown;
     };
 
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
