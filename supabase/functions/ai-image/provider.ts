@@ -77,7 +77,9 @@ export async function resolveProvider(
     data?.provider as string | undefined,
     {
       lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")),
-      vercel: Boolean(Deno.env.get("AI_GATEWAY_API_KEY")),
+      // Image inference is routed through the Vercel deployment bridge, which
+      // authenticates to AI Gateway with the deployment OIDC token.
+      vercel: true,
       gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY")),
     },
     { requiresReference: options.requiresReference },
