@@ -24,6 +24,7 @@ const OrcamentoModule = lazy(() => import('@/modules/orcamentos'));
 const CorteModule = lazy(() => import('@/modules/patio'));
 const Contrato = lazy(() => import('@/modules/projetos/components/Contrato').then(m => ({ default: m.Contrato })));
 const ClientesModule = lazy(() => import('@/modules/projetos/components/Clientes'));
+const FornecedoresModule = lazy(() => import('@/modules/fornecedores'));
 const DiarioModule = lazy(() => import('@/modules/projetos/components/Diario'));
 const ConfiguracoesModule = lazy(() => import('@/modules/configuracoes'));
 
@@ -76,6 +77,7 @@ const Index = () => {
       case 'inteligencia': return <OperationalIntelligence />;
       case 'novo': return <NovoProjeto key={projetoParam ?? 'novo'} projectId={projetoParam} setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'clientes': return <ClientesModule />;
+      case 'fornecedores': return <FornecedoresModule />;
       case 'diario': return <DiarioModule navigateTo={setActiveModule} />;
       case 'billing': return <BillingPortal />;
       case 'studio': return <StudioHub setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} budgetProject={budgetProject} />;
