@@ -46,7 +46,8 @@ export default function Diario({ navigateTo }: Props) {
   const [selectedProject, setSelectedProject] = useState('');
   const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);\n  const [technicalDraft, setTechnicalDraft] = useState<ProjectBudgetDraft | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [technicalDraft, setTechnicalDraft] = useState<ProjectBudgetDraft | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
