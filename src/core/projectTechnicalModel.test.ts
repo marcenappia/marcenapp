@@ -16,5 +16,10 @@ describe('projectTechnicalModel', () => {
     expect(structure.parts).toHaveLength(5);
     expect(structure.parts.find(part => part.id === 'porta')?.quantity).toBe(6);
     expect(structure.parts.find(part => part.id === 'porta')?.edgeBanding).toEqual({ top: true, right: true, bottom: true, left: true });
+    expect(structure.components.find(component => component.id === 'laterais')?.quantity).toBe(2);
+    expect(structure.components.find(component => component.id === 'portas')?.quantity).toBe(6);
+    expect(structure.components.find(component => component.id === 'fundo')?.quantity).toBe(1);
+    expect(structure.hardwareRequirements).toEqual([]);
+    expect(structure.materialBindings).toEqual([]);
   });
 });
