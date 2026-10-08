@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { generateImage } from 'ai';
+import { generateImage, generateText } from 'ai';
 
 const MODEL = 'openai/gpt-image-2.5-sunburst';
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
@@ -90,27 +90,56 @@ export async function POST(request: Request) {
       return json({ code: 'gateway_auth_missing', message: 'Vercel AI Gateway não está autenticado nesta publicação.' }, 503);
     }
 
-    const result = await generateImage({
-      model: MODEL,
-      prompt: promptInput,
-      size: `${width}x${height}`,
-      n: 1,
-      maxRetries: 0,
-      headers: {
-        Authorization: `Bearer ${gatewayToken}`,
-      },
-    });
+    const headers = {
+      Authorization: `Bearer ${gatewayToken}`,
+    };
 
-    const generated = result.images?.[0] ?? result.image;
-    if (!generated?.base64) {
-      return json({ code: 'empty_image_result', message: 'O gateway não retornou uma imagem.' }, 502);
+    try {
+      const result = await generateImage({
+        model: MODEL,
+        prompt: promptInput,
+        size: `${width}x${height}`,
+        n: 1,
+        maxRetries: 0,
+        headers,
+      });
+      const generated = result.images?.[0] ?? result.image;
+      if (generated?.base64) {
+        return json({
+          imageBase64: `data:${generated.mediaType ?? 'image/png'};base64,${generated.base64}`,
+          provider: 'vercel',
+          model: MODEL,
+        });
+      }
+    } catch (primaryError) {
+      console.warn('[AI_IMAGE_PRIMARY_FAILED]', primaryError);
+    }
+
+    // Native multimodal fallback: Nano Banana Pro accepts the reference image
+    // as an image part and returns the generated image in result.files.
+    const content = [
+      { type: 'text' as const, text: prompt },
+      ...images.map((image) => ({
+        type: 'image' as const,
+        image: imageBytes(image),
+      })),
+    ];
+
+    const fallback = await generateText({
+      model: 'google/gemini-3-pro-image',
+      messages: [{ role: 'user', content }],
+      maxRetries: 0,
+      headers,
+    });
+    const generatedFile = fallback.files.find((file) => file.mediaType?.startsWith('image/'));
+    if (!generatedFile) {
+      return json({ code: 'empty_image_result', message: 'Nenhum modelo de imagem retornou uma imagem.' }, 502);
     }
 
     return json({
-      imageBase64: `data:${generated.mediaType ?? 'image/png'};base64,${generated.base64}`,
+      imageBase64: `data:${generatedFile.mediaType ?? 'image/png'};base64,${generatedFile.base64}`,
       provider: 'vercel',
-      model: MODEL,
-      userId: user.id,
+      model: 'google/gemini-3-pro-image',
     });
   } catch (error) {
     console.error('[AI_IMAGE_GATEWAY_ERROR]', error);
