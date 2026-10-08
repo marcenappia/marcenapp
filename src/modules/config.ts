@@ -1,4 +1,4 @@
-import { House, MessageSquareText, FolderOpen, NotebookPen, WalletCards, Calculator, Scissors, FileSignature, ArrowUpFromLine, type LucideProps } from 'lucide-react';
+import { House, MessageSquareText, FolderOpen, NotebookPen, WalletCards, Calculator, Scissors, FileSignature, ArrowUpFromLine, Building2, type LucideProps } from 'lucide-react';
 
 export type ModuleCategory = 'intelligence' | 'portal' | 'studio' | 'finance' | 'production';
 export interface ModuleConfig { id: string; label: string; mobileLabel: string; icon: React.ComponentType<LucideProps>; category: ModuleCategory; hidden?: boolean; }
@@ -8,6 +8,7 @@ export const modules: ModuleConfig[] = [
   { id: 'inteligencia', label: 'Inteligência Operacional', mobileLabel: 'IARA', icon: MessageSquareText, category: 'intelligence', hidden: true },
   { id: 'novo', label: 'Novo Projeto', mobileLabel: 'Novo', icon: FolderOpen, category: 'portal', hidden: true },
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: FolderOpen, category: 'portal' },
+  { id: 'fornecedores', label: 'Fornecedores e Materiais', mobileLabel: 'Fornecedores', icon: Building2, category: 'portal' },
   { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: NotebookPen, category: 'portal' },
   { id: 'billing', label: 'Créditos e Planos', mobileLabel: 'Créditos', icon: WalletCards, category: 'portal' },
   { id: 'studio', label: 'IARA', mobileLabel: 'IARA', icon: MessageSquareText, category: 'studio' },
