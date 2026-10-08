@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { generateImage, generateText } from 'ai';
+import { getVercelOidcToken } from '@vercel/oidc';
 
 const MODEL = 'openai/gpt-image-2.5-sunburst';
 const TEXT_MODEL = process.env.VERCEL_AI_TEXT_MODEL || 'openai/gpt-5.6-luna';
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
 
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
 
-    const gatewayToken = process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY;
+    const gatewayToken = process.env.AI_GATEWAY_API_KEY || await getVercelOidcToken().catch(() => process.env.VERCEL_OIDC_TOKEN || '');
     if (!gatewayToken) return json({ code: 'gateway_auth_missing', message: 'Vercel AI Gateway não está autenticado nesta publicação.' }, 503);
     if (body.mode === 'responses') {
       if (body.input === undefined) return json({ code: 'validation_error', message: 'Input inválido.' }, 400);
