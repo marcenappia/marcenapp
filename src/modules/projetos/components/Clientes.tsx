@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Users, Plus, Search, Pencil, Trash2, Loader2, X } from 'lucide-react';
+import { Users, Plus, Search, Pencil, Trash2, Loader2, X, Upload, MessageCircle, UserPlus, CheckCircle2 } from 'lucide-react';
 import { Card, Button, Modal, InputGroup } from '@/components/marcenaria/shared';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,6 +27,52 @@ const ClientesModule = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<Array<{ nome: string; telefone: string; email: string | null }>>([]);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importResult, setImportResult] = useState('');
+  
+  const normalizePhone = (value: string) => value.replace(/[^0-9+]/g, '').replace(/^00/, '+').replace(/(?!^)\+/g, '');
+  const whatsappUrl = (value: string) => {
+    const digits = normalizePhone(value).replace(/^\+/, '');
+    return digits ? `https://wa.me/${digits}` : null;
+  };
+  const parseVCard = (raw: string) => {
+    const unfolded = raw.replace(/\r?\n[ \t]/g, '').replace(/\r/g, '');
+    return unfolded.split(/BEGIN:VCARD/i).slice(1).map(block => {
+      const get = (key: string) => {
+        const line = block.split('\n').find(l => new RegExp(`^${key}(?:;[^:]*)?:`, 'i').test(l));
+        return line?.split(':').slice(1).join(':').trim() || '';
+      };
+      const nome = get('FN') || get('N').replace(/;/g, ' ').trim();
+      const telefone = get('TEL');
+      const email = get('EMAIL');
+      return nome && telefone ? { nome, telefone: normalizePhone(telefone), email: email || null } : null;
+    }).filter((v): v is { nome: string; telefone: string; email: string | null } => Boolean(v));
+  };
+  const handleVCard = async (file: File) => {
+    setError(''); setImportResult('');
+    try {
+      const preview = parseVCard(await file.text());
+      if (!preview.length) throw new Error('Nenhum contato com nome e telefone foi encontrado no arquivo.');
+      setImportPreview(preview);
+      setImportOpen(true);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível ler o arquivo de contatos.'); }
+  };
+  const importContacts = async () => {
+    if (!user || !importPreview.length) return;
+    setImporting(true); setError('');
+    try {
+      const existingPhones = new Set(clientes.map(c => normalizePhone(c.telefone || '')).filter(Boolean));
+      const unique = importPreview.filter(c => !existingPhones.has(c.telefone));
+      if (!unique.length) { setImportResult('Todos os contatos selecionados já estão cadastrados.'); setImporting(false); return; }
+      const { error: insertError } = await supabase.from('clientes').insert(unique.map(c => ({ user_id: user.id, nome: c.nome.trim(), telefone: c.telefone, email: c.email })));
+      if (insertError) throw insertError;
+      setImportResult(`${unique.length} contato(s) importado(s).`);
+      setImportOpen(false); setImportPreview([]); await loadClientes();
+    } catch { setError('Não foi possível importar os contatos.'); }
+    finally { setImporting(false); }
+  };
 
   const loadClientes = async () => {
     if (!user) { setClientes([]); setLoading(false); return; }
@@ -83,7 +129,13 @@ const ClientesModule = () => {
           <h2 className="text-2xl font-bold text-slate-950">Clientes</h2>
           <p className="text-slate-500">Organize sua base de contatos e histórico de projetos.</p>
         </div>
-        <Button onClick={openNew}>Novo cliente</Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50">
+            <Upload size={15} /> Importar contatos
+            <input type="file" accept=".vcf,text/vcard" className="sr-only" onChange={e => { const file = e.target.files?.[0]; if (file) void handleVCard(file); e.currentTarget.value = ''; }} />
+          </label>
+          <Button onClick={openNew}><UserPlus size={15} /> Novo cliente</Button>
+        </div>
       </div>
 
       <div className="relative">
@@ -101,7 +153,9 @@ const ClientesModule = () => {
             <Card key={cliente.id} className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0"><h3 className="font-bold text-slate-800 truncate">{cliente.nome}</h3><p className="text-sm text-slate-500 truncate">{cliente.telefone || cliente.email || 'Sem contato informado'}</p></div>
-                <div className="flex gap-1"><button onClick={() => openEdit(cliente)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Editar cliente"><Pencil size={16} /></button><button onClick={() => remove(cliente.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-400" aria-label="Excluir cliente"><Trash2 size={16} /></button></div>
+                <div className="flex gap-1">
+                  {cliente.telefone && whatsappUrl(cliente.telefone) && <a href={whatsappUrl(cliente.telefone)!} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg hover:bg-emerald-50 text-emerald-600" aria-label={`Abrir WhatsApp de ${cliente.nome}`}><MessageCircle size={16} /></a>}
+                  <button onClick={() => openEdit(cliente)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Editar cliente"><Pencil size={16} /></button><button onClick={() => remove(cliente.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-400" aria-label="Excluir cliente"><Trash2 size={16} /></button></div>
               </div>
               {cliente.email && <p className="mt-3 text-sm text-slate-600">{cliente.email}</p>}
               {cliente.endereco && <p className="mt-1 text-xs text-slate-400 line-clamp-2">{cliente.endereco}</p>}
@@ -115,6 +169,17 @@ const ClientesModule = () => {
           {!query && <Button variant="secondary" onClick={openNew}>Adicionar Cliente</Button>}
         </Card>
       )}
+
+
+      {importResult && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"><CheckCircle2 className="mr-2 inline-block" size={16} />{importResult}</div>}
+      <Modal isOpen={importOpen} onClose={() => !importing && setImportOpen(false)} title="Revisar contatos" maxWidth="max-w-xl" footer={<Button onClick={() => void importContacts()} disabled={importing}>{importing ? <Loader2 className="animate-spin" size={16} /> : null}{importing ? 'Importando...' : `Importar ${importPreview.length} contato(s)`}</Button>}>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-500">Os contatos são lidos no seu aparelho e só entram no Marcena depois desta confirmação. Nenhuma agenda é enviada para um serviço externo.</p>
+          <div className="max-h-72 overflow-auto divide-y divide-slate-100 rounded-xl border border-slate-200">
+            {importPreview.map((c, i) => <div key={`${c.telefone}-${i}`} className="flex items-center justify-between gap-3 px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{c.nome}</p><p className="text-xs text-slate-500">{c.telefone}{c.email ? ` · ${c.email}` : ''}</p></div></div>)}
+          </div>
+        </div>
+      </Modal>
 
       <Modal isOpen={open} onClose={() => !saving && setOpen(false)} title={editingId ? 'Editar Cliente' : 'Novo Cliente'} maxWidth="max-w-lg" footer={<Button onClick={save} disabled={saving}>{saving ? <Loader2 className="animate-spin" size={16} /> : null}{saving ? 'Salvando...' : 'Salvar Cliente'}</Button>}>
         <div className="space-y-4">
