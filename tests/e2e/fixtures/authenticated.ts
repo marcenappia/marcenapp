@@ -19,10 +19,7 @@ export const test = base.extend<AuthenticatedFixtures>({
     }
 
     const context = await browser.newContext({ baseURL });
-    const page = await context.newPage();
-
-    await page.goto('/auth');
-    await page.evaluate(
+    await context.addInitScript(
       ({ storageKey, value }) => {
         window.localStorage.setItem(storageKey, value);
       },
@@ -31,7 +28,8 @@ export const test = base.extend<AuthenticatedFixtures>({
         value: JSON.stringify(session),
       },
     );
-    await page.reload();
+    const page = await context.newPage();
+    await page.goto('/');
     await expect(page).toHaveURL(/\/$/);
 
     await fixtureUse(page);

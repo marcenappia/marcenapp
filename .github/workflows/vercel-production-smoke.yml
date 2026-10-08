@@ -103,8 +103,8 @@ jobs:
           NODE
           echo "::add-mask::$(grep '^E2E_SESSION_B64=' "$GITHUB_ENV" | cut -d= -f2-)"
 
-      - name: Run production smoke and IARA workspace tests
-        run: npx playwright test tests/e2e/production-smoke.spec.ts tests/e2e/authenticated-core.spec.ts --project=chromium
+      - name: Run production landing and real IARA render E2E
+        run: npx playwright test tests/e2e/production-smoke.spec.ts -g "production serves the current version manifest and landing page" tests/e2e/authenticated-core.spec.ts -g "IARA executes a real photo-to-render production flow" --project=chromium
 
       - name: Cleanup ephemeral E2E user
         if: ${{ always() && env.E2E_USER_ID != '' }}
