@@ -23,3 +23,14 @@ describe('projectTechnicalModel', () => {
     expect(structure.materialBindings).toEqual([]);
   });
 });
+
+describe('projectDimensionToMm', () => {
+  it('normalizes legacy metre values and preserves millimetre values', () => {
+    expect(projectDimensionToMm(2.5)).toBe(2500);
+    expect(projectDimensionToMm(2.8)).toBe(2800);
+    expect(projectDimensionToMm(0.6)).toBe(600);
+    expect(projectDimensionToMm(2500)).toBe(2500);
+    expect(projectDimensionToMm(2800)).toBe(2800);
+    expect(projectDimensionToMm(600)).toBe(600);
+  });
+});
