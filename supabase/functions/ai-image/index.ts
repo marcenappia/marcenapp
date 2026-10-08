@@ -318,7 +318,8 @@ serve(async request => {
     if (!body.ok) return jsonResponse(cors, { message: body.reason === "too_large" ? "Corpo da solicitação muito grande." : "JSON inválido.", code: body.reason === "too_large" ? "payload_too_large" : "invalid_json" }, body.reason === "too_large" ? 413 : 400);
     const parsed = BodySchema.safeParse(body.body);
     if (!parsed.success) return jsonResponse(cors, { message: "Dados inválidos.", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
-    const { prompt, images = [], size, persistGallery } = parsed.data;\n    const providerPrompt = buildRenderPrompt(prompt, images.length > 0);
+    const { prompt, images = [], size, persistGallery } = parsed.data;
+    const providerPrompt = buildRenderPrompt(prompt, images.length > 0);
     idempotencyKey = parsed.data.idempotencyKey;
     console.info("[AI_IMAGE_START]", JSON.stringify({ status: "started", requestId: idempotencyKey, renderId: idempotencyKey, referenceCount: images.length }));
     const wordCount = prompt.split(/\s+/).filter(Boolean).length;
