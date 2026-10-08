@@ -3,7 +3,6 @@ name: Vercel Production Smoke
 on:
   push:
     branches: [main]
-  deployment_status:
   workflow_dispatch:
     inputs:
       production_url:
@@ -28,9 +27,7 @@ jobs:
   smoke:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'schedule' ||
-      (github.event.deployment_status.state == 'success' &&
-       github.event.deployment_status.environment == 'Production')
+      github.event_name == 'schedule'
     runs-on: ubuntu-latest
     environment: production-smoke
     timeout-minutes: 20
