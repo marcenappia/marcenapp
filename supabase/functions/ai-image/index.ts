@@ -179,14 +179,13 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
   }
   throw lastError instanceof Error ? lastError : new Error("provider_timeout");
 }
-async function generateVercelImage(prompt: string, images: ImageInput[], size?: { width?: number; height?: number }): Promise<string> {
+async function generateVercelImage(prompt: string, images: ImageInput[], size: { width?: number; height?: number } | undefined, authorization: string): Promise<string> {
   const bridgeUrl = Deno.env.get("VERCEL_IMAGE_BRIDGE_URL") ?? "https://marcenapp.com.br/api/ai-image-gateway";
   const width = size?.width ?? size?.height ?? DEFAULT_DIM;
   const height = size?.height ?? size?.width ?? DEFAULT_DIM;
 
   // Keep billing, idempotency and Storage in Supabase, while image inference
   // runs in Vercel where AI Gateway can authenticate with deployment OIDC.
-  const authorization = currentRequestAuthorization;
   if (!authorization) throw new Error("provider_auth_error");
 
   const response = await withTimeout(() => fetch(bridgeUrl, {
@@ -261,10 +260,11 @@ async function generateImage(
   provider: AIProvider,
   prompt: string,
   images: ImageInput[],
-  size?: { width?: number; height?: number },
+  size: { width?: number; height?: number } | undefined,
+  authorization: string,
 ): Promise<string> {
   if (provider === "gemini") return generateGeminiImage(prompt, images);
-  if (provider === "vercel") return generateVercelImage(prompt, images, size);
+  if (provider === "vercel") return generateVercelImage(prompt, images, size, authorization);
   return generateLovableImage(prompt, images, size);
 }
 
@@ -284,12 +284,9 @@ async function refund(userId: string, idempotencyKey: string) {
   throw new Error(`billing_refund_failed:${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 
-let currentRequestAuthorization = "";
-
 serve(async request => {
   const cors = buildCorsHeaders(request);
-  currentRequestAuthorization = request.headers.get("Authorization") ?? "";
-  if (request.method === "OPTIONS") { currentRequestAuthorization = ""; return new Response("ok", { headers: cors }); }
+  if (request.method === "OPTIONS") { return new Response("ok", { headers: cors }); }
   if (request.method !== "POST") { currentRequestAuthorization = ""; return jsonResponse(cors, { message: "Método não permitido.", code: "method_not_allowed" }, 405); }
 
   const guard = await guardRequest(request, cors, { fn: "ai-image", limit: 10, windowSeconds: 60 });
@@ -408,7 +405,7 @@ serve(async request => {
           requestId: idempotencyKey,
           renderId: idempotencyKey,
         }));
-        imageBase64 = await generateImage(provider, prompt, images, size);
+        imageBase64 = await generateImage(provider, prompt, images, size, request.headers.get("Authorization") ?? "");
         imageGenerated = true;
         usedProvider = provider;
         usedModel = provider === "gemini" ? GEMINI_IMAGE_MODEL : provider === "vercel" ? VERCEL_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
