@@ -114,3 +114,19 @@ Deno.test("ai-image: bounds the real image provider path", async () => {
   assert(source.includes("[LOVABLE_IMAGE_ATTEMPT]"), "expected bounded provider retry logging");
   assert(source.includes("55_000"), "expected provider timeout");
 });
+
+Deno.test("ai-image: builds a deterministic scene-preservation prompt for reference renders", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes("RENDER DE MARCENARIA FOTORREALISTA"));
+  assert(source.includes("Preserve a arquitetura, enquadramento, proporções"));
+  assert(source.includes("INSTRUÇÃO DO USUÁRIO:"));
+  assert(source.includes("const providerPrompt = buildRenderPrompt"));
+  assert(source.includes("generateImage(provider, providerPrompt"));
+});
+
+Deno.test("ai-image: provider fallback remains centralized in provider resolver", async () => {
+  const providerSource = await Deno.readTextFile(new URL("./provider.ts", import.meta.url));
+  const imageSource = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(providerSource.includes("fallback"));
+  assert(imageSource.includes("resolution.fallback"));
+});
