@@ -175,7 +175,6 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       if (!exactExecution && !projectCreationHandoff) return [];
       if (!currentExecution && !projectCreationHandoff) return [];
       return [{ command, execution, projectCreationHandoff }];
-      return [{ command, execution }];
     });
     if (pendingResults.length === 0) return;
     const notifyChat = async () => {

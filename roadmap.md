@@ -1,5 +1,10 @@
 # Roadmap
 
+## Auditoria P0 do render — escopo atual
+- [ ] Corrigir perda de imagem, mapeamento de erros e execução da fila sem mudar layout
+- [ ] Executar testes focados e verificar os erros da versão em teste
+- [ ] Verificar geração real (bloqueada se funções de cobrança/contexto estiverem ausentes no banco conectado)
+
 ## Fase 0 (bloqueadores) — concluída
 - [x] JWT nas 3 Edge Functions; cliente envia token da sessão
 - [x] Rate limit por usuário

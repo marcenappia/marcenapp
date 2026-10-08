@@ -41,8 +41,10 @@ const isAIErrorBody = (value: unknown): value is AIErrorBody =>
   typeof value === 'object' && value !== null && ('error' in value || 'message' in value || 'code' in value);
 
 const normalizeAIError = (status: number, data: unknown): Error => {
-  if (status === 401) return new AIAuthError('Sessão expirada. Faça login novamente.');
   const body = isAIErrorBody(data) ? data : {};
+  if (status === 401 && body.code !== 'provider_auth_error') return new AIAuthError('Sessão expirada. Faça login novamente.');
+  // Preserve the safe server reason; a provider failure is not an expired user session.
+  if (body.message) return new Error(body.message);
   switch (body.code) {
     case 'missing_api_key':
     case 'provider_not_configured':
@@ -91,25 +93,14 @@ export const callAIFunction = async <T = unknown>(fn: string, body: unknown, req
   const headers = await aiHeaders();
   if (requestId) headers['x-request-id'] = requestId;
   let res: Response;
-  const controller = new AbortController();
-  const timeoutMs = fn === 'ai-image' ? 125_000 : 90_000;
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: controller.signal,
     });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(fn === 'ai-image'
-        ? 'A geração do render ultrapassou 125 segundos sem resposta do serviço.'
-        : 'O serviço de IA demorou além do limite esperado.');
-    }
+  } catch {
     throw new Error('Não foi possível comunicar com o serviço de IA. Verifique sua conexão e tente novamente.');
-  } finally {
-    window.clearTimeout(timeout);
   }
 
   let data: unknown = null;

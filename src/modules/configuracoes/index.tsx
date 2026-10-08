@@ -39,11 +39,11 @@ export default function ConfiguracoesModule({ userId, profile, onNavigate }: Pro
       return;
     }
     setProviderLoading(true);
-    void supabase
+    void Promise.resolve(supabase
       .from('ai_provider_settings')
       .select('provider')
       .eq('user_id', userId)
-      .maybeSingle()
+      .maybeSingle())
       .then(({ data }) => {
         if (!cancelled) setProvider(data?.provider ?? null);
       })

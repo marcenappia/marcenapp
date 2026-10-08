@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const enqueueCommand = vi.fn(() => 'studio-new');
+const enqueueCommand = vi.fn((_command: unknown) => 'studio-new');
 // Keep the mock observable to TypeScript even when Vitest infers an empty tuple from calls.
 const dispatchCommand = vi.fn(() => 'os-new');
 const project = { id: '11111111-1111-4111-8111-111111111111', nome: 'Cozinha', width: 2400, height: 2200, depth: 600, doors: 0, drawers: 0, modules: 1 };
@@ -12,7 +12,7 @@ vi.mock('@/integrations/supabase/client', () => {
   const chain: Record<string, unknown> = {};
   const self = () => chain;
   Object.assign(chain, {
-    select: vi.fn(self), eq: vi.fn(self), ilike: vi.fn(self), order: vi.fn(self), limit: vi.fn(self), in: vi.fn(self),
+    select: vi.fn(self), eq: vi.fn(self), not: vi.fn(self), ilike: vi.fn(self), order: vi.fn(self), limit: vi.fn(self), in: vi.fn(self),
     maybeSingle: vi.fn(async () => ({ data: null, error: null })),
     single: vi.fn(async () => ({ data: project, error: null })),
     insert: vi.fn(self),

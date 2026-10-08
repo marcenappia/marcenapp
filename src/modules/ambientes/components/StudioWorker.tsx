@@ -6,6 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { isIaraCommandExecutionCurrent } from '@/modules/iara/hooks/iaraExecutionScope';
 
+const WORKER_SESSION_STARTED_AT = Date.now();
+
 export const StudioWorker = () => {
   const { user } = useAuth();
 
@@ -24,7 +26,7 @@ export const StudioWorker = () => {
   const failCommand = useStudioStore(state => state.failCommand);
   const cancelCommand = useStudioStore(state => state.cancelCommand);
   const currentlyProcessing = useRef<string | null>(null);
-  const workerSessionStartedAt = useRef(Date.now());
+  const workerSessionStartedAt = useRef(WORKER_SESSION_STARTED_AT);
 
   const readCurrentContext = useCallback(async (payload?: Record<string, unknown>) => {
     if (!user) return null;
@@ -44,10 +46,12 @@ export const StudioWorker = () => {
     if (payloadEnvironmentId) query = query.eq('environment_id', payloadEnvironmentId);
     if (payloadVersionId) query = query.eq('version_id', payloadVersionId);
 
-    const { data } = await query
+    const { data, error } = await query
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (error) throw new Error('Não foi possível validar o contexto do render. A solicitação não foi enviada para geração.');
 
     return data as {
       project_id: string | null;
@@ -95,19 +99,20 @@ export const StudioWorker = () => {
 
   const processCommand = useCallback(async (osCommand: OSCommand) => {
     if (osCommand.status === 'cancelled' || !user) { currentlyProcessing.current = null; return; }
-    if (currentlyProcessing.current && currentlyProcessing.current !== osCommand.id) return;
+    if (currentlyProcessing.current) return;
     currentlyProcessing.current = osCommand.id;
     console.info('[IARA_START]', JSON.stringify({ status: 'started', commandId: osCommand.id }));
     const payload = (osCommand.payload ?? {}) as Record<string, unknown>;
     const { command, studioCommandId } = resolveRenderCommand(osCommand);
     const storeCommandId = studioCommandId ?? osCommand.id;
+    const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
+    try {
     if (!(await isCurrentContext(payload))) {
       cancelCommand(storeCommandId);
       updateOSStatus(osCommand.id, 'cancelled', undefined, 'Comando descartado: identidade de execução não é mais válida.');
       currentlyProcessing.current = null;
       return;
     }
-    const fail = (message: string) => { failCommand(storeCommandId, message); updateOSStatus(osCommand.id, 'failed', undefined, message); };
     if (!command.prompt) { fail('Comando inválido: falta o prompt de geração.'); currentlyProcessing.current = null; return; }
     if (osCommand.source === 'iara' && (!Array.isArray(command.images) || command.images.length === 0)) {
       fail('Render da IARA bloqueado: falta uma referência visual incorporada. A geração somente por texto está desativada.');
@@ -117,14 +122,13 @@ export const StudioWorker = () => {
     startProcessing(storeCommandId);
     updateOSStatus(osCommand.id, 'processing');
     console.info('[GENERAR_RENDER]', JSON.stringify({ status: 'processing', commandId: osCommand.id, studioCommandId: storeCommandId, referenceCount: Array.isArray(command.images) ? command.images.length : 0 }));
-    try {
       const result = await studioService.generateVisual(
         command.prompt,
         command.images,
         command.style,
         command.decor,
         command.idempotencyKey,
-        osCommand.source === 'iara'
+        osCommand.source === 'iara' && typeof payload.projectId === 'string'
           ? {
               projectId: typeof payload.projectId === 'string' ? payload.projectId : null,
               environmentId: typeof payload.environmentId === 'string' ? payload.environmentId : null,
@@ -148,7 +152,7 @@ export const StudioWorker = () => {
       console.error('StudioWorker Error:', error);
       fail(error instanceof Error ? error.message : 'Erro desconhecido na geração.');
     } finally { currentlyProcessing.current = null; }
-  }, [user, readCurrentContext, isCurrentContext, resolveRenderCommand, cancelCommand, updateOSStatus, failCommand, startProcessing, completeCommand]);
+  }, [user, isCurrentContext, resolveRenderCommand, cancelCommand, updateOSStatus, failCommand, startProcessing, completeCommand]);
 
   useEffect(() => {
     // Hard-stop commands that were already persisted before this worker session.
@@ -186,28 +190,10 @@ export const StudioWorker = () => {
         cmd.payload?.studioCommandId === nextStudioCommand.id &&
         (cmd.status === 'pending' || cmd.status === 'processing'),
       );
-      const current = await readCurrentContext({});
-      const payload = matchingOS?.payload ?? {
-        userId: user?.id,
-        ...(current?.project_id ? { projectId: current.project_id } : {}),
-        ...(current?.environment_id ? { environmentId: current.environment_id } : {}),
-        ...(current?.version_id ? { versionId: current.version_id } : {}),
-        ...(current?.last_correlation_id ? { correlationId: current.last_correlation_id } : {}),
-        ...(typeof current?.last_execution_generation === 'number' ? { generation: current.last_execution_generation } : {}),
-        studioCommandId: nextStudioCommand.id,
-        idempotencyKey: nextStudioCommand.idempotencyKey,
-      };
-      const synthetic: OSCommand = matchingOS ?? {
-        id: nextStudioCommand.id,
-        source: 'iara',
-        target: 'studio',
-        action: 'GENERATE_VISUAL',
-        payload,
-        status: 'pending',
-        timestamp: nextStudioCommand.timestamp,
-        idempotencyKey: nextStudioCommand.idempotencyKey,
-      };
-      await processCommand(synthetic);
+      // Wait for the original execution identity instead of inventing one from
+      // the most recently opened project while the two stores hydrate.
+      if (!matchingOS) return;
+      await processCommand(matchingOS);
     })();
   }, [studioCommandQueue, commandHistory, user?.id, readCurrentContext, processCommand]);
 
