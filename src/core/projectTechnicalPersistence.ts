@@ -42,7 +42,7 @@ export async function persistProjectTechnicalStructure(args: {
       thicknessMm: material.espessura == null ? null : Number(material.espessura),
       sheetWidthMm: material.largura_chapa == null ? null : Number(material.largura_chapa),
       sheetHeightMm: material.altura_chapa == null ? null : Number(material.altura_chapa),
-      grainSensitive: Boolean(material.sentido_veio && material.sentido_veio !== 'none' && material.sentido_veio !== 'nenhum'),
+      grainSensitive: Boolean(material.sentido_veio),
       supplierId: material.fornecedor_id ?? null,
       supplierName: null,
       status: 'confirmed',
