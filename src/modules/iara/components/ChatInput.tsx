@@ -204,7 +204,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         await onPhotoAttached?.(destination);
         setPhotoDestinationOpen(false);
         setPhotoDestinationHandled(true);
-        navigateTo?.('iara', { projeto: destination.projectId });
+        navigateTo?.('studio', { projeto: destination.projectId });
       }}
     />}
     {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="fixed inset-0 z-[100] bg-background flex flex-col">
