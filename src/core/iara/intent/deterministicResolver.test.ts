@@ -53,6 +53,22 @@ describe("IARA deterministic resolver", () => {
     expect(r?.entities.depth).toBe(550);
   });
 
+  it("preserva portas, acabamento e tipo de porta informados explicitamente", async () => {
+    const r = await deterministicResolver.resolve({
+      text: "crie este projeto 2500x2800x600 na cor branco tx 6 portas de abrir",
+      context: ctx,
+      correlationId: "t",
+    });
+    expect(r?.intent).toBe("create_projeto");
+    expect(r?.missingSlots).toHaveLength(0);
+    expect(r?.entities.width).toBe(2500);
+    expect(r?.entities.height).toBe(2800);
+    expect(r?.entities.depth).toBe(600);
+    expect(r?.entities.doors).toBe(6);
+    expect(r?.entities.external_material).toBe("branco tx");
+    expect(r?.entities.doorType).toBe("abrir");
+  });
+
   it("reconhece render por texto", async () => {
     const r = await deterministicResolver.resolve({
       text: "renderize este projeto",
