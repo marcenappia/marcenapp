@@ -8,7 +8,7 @@ interface Props {
   onDraft?: (draft: ProjectBudgetDraft, files: File[]) => void;
 }
 
-export default function ProjectTechnicalImport({ onDraft }: Props) {
+export default function ProjectTechnicalImport({ projectId, onDraft }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<'idle' | 'ready'>('idle');
@@ -54,7 +54,7 @@ export default function ProjectTechnicalImport({ onDraft }: Props) {
         evidences: [],
         status: parsed.missingInformation?.length || parsed.items?.some(item => item.needsConfirmation || item.confidence < 0.82) ? 'needs_confirmation' : 'ready_for_pricing',
       };
-      await supabase.from('project_budget_drafts').insert({\n        user_id: user.id,\n        source_files: draft.sourceFiles,\n        evidences: draft.evidences,\n        items: draft.items,\n        missing_information: draft.missingInformation,\n        assumptions: draft.assumptions,\n        status: draft.status,\n      });\n      onDraft?.(draft, files);
+      await supabase.from('project_budget_drafts').insert({\n        user_id: user.id,\n        project_id: projectId || null,\n        source_files: draft.sourceFiles,\n        evidences: draft.evidences,\n        items: draft.items,\n        missing_information: draft.missingInformation,\n        assumptions: draft.assumptions,\n        status: draft.status,\n      });\n      onDraft?.(draft, files);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível analisar o projeto.');
     } finally {
