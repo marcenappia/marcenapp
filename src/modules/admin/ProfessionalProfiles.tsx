@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BriefcaseBusiness, CheckCircle2, Users } from 'lucide-react';
+import { BriefcaseBusiness, CheckCircle2, HardHat, Ruler, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export const PROFESSIONAL_PROFILES = [
-  { value: 'marceneiro', label: 'Marceneiro', description: 'Produção, projetos, orçamento, corte, ferragens e financeiro.' },
-  { value: 'loja_planejados', label: 'Loja de planejados', description: 'Vendas, clientes, projetos, orçamentos e acompanhamento comercial.' },
-  { value: 'arquiteto', label: 'Arquiteto', description: 'Projetos, especificações, clientes, fornecedores e documentação.' },
-  { value: 'designer_interiores', label: 'Designer de interiores', description: 'Ambientes, materiais, clientes, apresentação e especificações.' },
-  { value: 'projetista', label: 'Projetista', description: 'Projetos técnicos, medidas, detalhamento e preparação para produção.' },
-  { value: 'vendedor_planejados', label: 'Vendedor / consultor de planejados', description: 'Atendimento, oportunidades, orçamento, negociação e acompanhamento.' },
-  { value: 'fabrica', label: 'Fábrica / indústria', description: 'Produção, pedidos, materiais, capacidade e operação.' },
+  { value: 'marceneiro', label: 'Marceneiro', description: 'Produção, projetos, orçamento, corte, materiais, ferragens e financeiro.', icon: HardHat },
+  { value: 'projetista', label: 'Projetista', description: 'Projetos, medidas, detalhamento, especificações e preparação para produção.', icon: Ruler },
 ] as const;
 
 export type ProfessionalProfile = typeof PROFESSIONAL_PROFILES[number]['value'];
@@ -25,7 +20,9 @@ export function ProfessionalProfileCard({ userId, profession, avatarUrl, onSaved
     if (!userId || !selected) return;
     setSaving(true);
     setSaved(false);
-    const { error } = await supabase.from('profiles').update({ profession: selected }).eq('user_id', userId);
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({ user_id: userId, profession: selected }, { onConflict: 'user_id' });
     if (!error) {
       setSaved(true);
       onSaved?.(selected);
