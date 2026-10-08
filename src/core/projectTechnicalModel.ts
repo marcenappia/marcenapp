@@ -69,12 +69,18 @@ export interface TechnicalStructure {
 const positiveInt = (value: number, fallback = 0) =>
   Number.isFinite(value) && value > 0 ? Math.round(value) : fallback;
 
+/** Canonical technical dimensions are always millimetres. The legacy projects table
+ * stores the same dimensions in metres (e.g. 2.5 = 2500 mm). Values above 20 are
+ * accepted as already-normalized mm so YARA's natural-language path is also safe. */
+export const projectDimensionToMm = (value: number): number => {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.round(value <= 20 ? value * 1000 : value);
+};
+
 export function buildTechnicalStructure(project: ProjectData): TechnicalStructure {
-  // ProjectData stores furniture dimensions in millimetres. Do not convert here:
-  // YARA/createProjeto already normalizes natural-language dimensions to mm.
-  const width = positiveInt(project.width);
-  const height = positiveInt(project.height);
-  const depth = positiveInt(project.depth);
+  const width = positiveInt(projectDimensionToMm(project.width));
+  const height = positiveInt(projectDimensionToMm(project.height));
+  const depth = positiveInt(projectDimensionToMm(project.depth));
   const doors = Math.max(0, Math.floor(project.doors || 0));
 
   const parts: TechnicalPart[] = [];
