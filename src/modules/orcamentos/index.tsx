@@ -3,6 +3,7 @@ import { Printer, Calculator, Sliders, Save, RefreshCw } from 'lucide-react';
 import { Button, Card, InputGroup, Modal } from '@/components/marcenaria/shared';
 import { useOrcamento } from './hooks/useOrcamento';
 import type { ProjectData } from '@/modules/projetos/types';
+import { buildTechnicalStructure } from '@/core/projectTechnicalModel';
 
 interface Props {
   project: ProjectData;
@@ -14,6 +15,12 @@ type CostField = 'salePrice' | 'materialCost' | 'hardwareCost' | 'laborCost' | '
 const OrcamentoModule = ({ project }: Props) => {
   const [showModal, setShowModal] = useState(false);
   const { budget, setBudget, calc, formatBRL, loading, saving, saved, error, save, reload } = useOrcamento(project);
+  const technical = React.useMemo(() => buildTechnicalStructure(project), [project]);
+  const materialAreas = React.useMemo(() => technical.parts.reduce<Record<string, number>>((acc, part) => {
+    const key = part.material || 'Material não definido';
+    acc[key] = (acc[key] || 0) + (part.widthMm * part.heightMm * part.quantity) / 1_000_000;
+    return acc;
+  }, {}), [technical.parts]);
 
   const field = (name: CostField, label: string) => (
     <InputGroup label={label} value={budget[name] ?? ''} onChange={value => setBudget(name, value)} prefix="R$" />
@@ -38,7 +45,27 @@ const OrcamentoModule = ({ project }: Props) => {
           </Card>
 
           <Card className="p-6">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><span className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">02</span> Dados do projeto</h3>
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><span className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">02</span> Base técnica do orçamento</h3>
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              Estrutura inicial calculada a partir dos dados confirmados do projeto. Ela é <strong>inferida</strong> e precisa ser confirmada antes de virar orçamento de produção.
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm mb-5">
+              <div><span className="text-slate-400 block">Peças</span><strong>{technical.parts.reduce((sum, part) => sum + part.quantity, 0)}</strong></div>
+              <div><span className="text-slate-400 block">Tipos</span><strong>{technical.parts.length}</strong></div>
+              <div><span className="text-slate-400 block">Área calculada</span><strong>{Object.values(materialAreas).reduce((sum, area) => sum + area, 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} m²</strong></div>
+              <div><span className="text-slate-400 block">Status</span><strong>{technical.status === 'confirmed' ? 'Confirmada' : 'Confirmar'}</strong></div>
+            </div>
+            <div className="space-y-2">
+              {Object.entries(materialAreas).map(([material, area]) => (
+                <div key={material} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                  <span>{material}</span><strong>{area.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} m²</strong>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><span className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">03</span> Dados do projeto</h3>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
               <div><span className="text-slate-400 block">Largura</span><strong>{project.width} m</strong></div>
               <div><span className="text-slate-400 block">Altura</span><strong>{project.height} m</strong></div>
