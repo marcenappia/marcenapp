@@ -287,7 +287,7 @@ async function refund(userId: string, idempotencyKey: string) {
 serve(async request => {
   const cors = buildCorsHeaders(request);
   if (request.method === "OPTIONS") { return new Response("ok", { headers: cors }); }
-  if (request.method !== "POST") { currentRequestAuthorization = ""; return jsonResponse(cors, { message: "Método não permitido.", code: "method_not_allowed" }, 405); }
+  if (request.method !== "POST") { return jsonResponse(cors, { message: "Método não permitido.", code: "method_not_allowed" }, 405); }
 
   const guard = await guardRequest(request, cors, { fn: "ai-image", limit: 10, windowSeconds: 60 });
   if (!guard.ok) return guard.response;
