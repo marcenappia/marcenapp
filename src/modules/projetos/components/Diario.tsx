@@ -8,6 +8,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import DiarioIntake from './DiarioIntake';
 import DiarioFreeLayer from './DiarioFreeLayer';
+import ProjectTechnicalImport from './ProjectTechnicalImport';
+import type { ProjectBudgetDraft } from '@/core/yara/projectIngestion';
 
 interface Props { navigateTo?: (id: string, params?: Record<string, string>) => void; }
 
@@ -44,7 +46,7 @@ export default function Diario({ navigateTo }: Props) {
   const [selectedProject, setSelectedProject] = useState('');
   const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);\n  const [technicalDraft, setTechnicalDraft] = useState<ProjectBudgetDraft | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -224,6 +226,21 @@ export default function Diario({ navigateTo }: Props) {
               <p className="mt-1 text-xs leading-5 text-slate-300">Para análise detalhada de margem, custos, ferragens, recebimentos e alertas, abra a Inteligência Operacional.</p>
               <button type="button" onClick={() => navigateTo?.('inteligencia')} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-xs font-black text-slate-950">Abrir financeiro e inteligência <ArrowRight size={13} /></button>
             </section>
+          </div>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
+          <ProjectTechnicalImport onDraft={(draft) => setTechnicalDraft(draft)} />
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">YARA • orçamento técnico</p>
+            <h2 className="mt-1 text-lg font-black text-slate-900">Do projeto do arquiteto para o orçamento</h2>
+            {technicalDraft ? (
+              <>
+                <p className="mt-2 text-xs text-slate-600">{technicalDraft.items.length} item(ns) identificados. Status: <strong>{technicalDraft.status === 'ready_for_pricing' ? 'pronto para precificação' : 'precisa de confirmação'}</strong>.</p>
+                {technicalDraft.missingInformation.length > 0 && <div className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900"><strong>Falta confirmar:</strong><ul className="mt-1 list-disc pl-4">{technicalDraft.missingInformation.slice(0, 6).map(item => <li key={item}>{item}</li>)}</ul></div>}
+                <button type="button" onClick={() => navigateTo?.('orcamento')} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2.5 text-xs font-black text-white">Continuar no orçamento <ArrowRight size={13} /></button>
+              </>
+            ) : <p className="mt-2 text-xs leading-5 text-slate-600">A YARA analisa o conjunto recebido e cria um rascunho com evidências e pendências. O marceneiro valida antes de transformar em preço.</p>}
           </div>
         </section>
 
