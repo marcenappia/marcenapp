@@ -89,38 +89,3 @@ export async function runSpatialJourney(input: Record<string, unknown>, correlat
   ], correlationId);
 }
 
-/**
- * Canonical business journey:
- * maquete/projeto -> render -> presentation/link -> client decision ->
- * approved-version reference -> materials/hardware -> engineering ->
- * parts/BOM -> cut -> audit -> budget -> order -> production.
- *
- * The client decision is a hard workflow gate. The production agent creates
- * the immutable technical snapshot tied to the approved version. Montage
- * remains a downstream execution operation and is not fabricated as a new
- * registry agent here.
- */
-export async function runProjectJourney(input: Record<string, unknown>): Promise<AgentPlanResult> {
-  return runAgentPlan([
-    { id: 'customer', agentId: 'customer', type: 'customer.validate', input },
-    { id: 'project', agentId: 'project', type: 'project.prepare', input },
-    { id: 'vision', agentId: 'vision', type: 'vision.environment.analyze', input },
-    { id: 'perspective', agentId: 'perspective', type: 'vision.perspective.analyze', input },
-    { id: 'measurement', agentId: 'measurement', type: 'measurement.validate', input },
-    { id: 'measurement_prediction', agentId: 'measurement_prediction', type: 'measurement.predict', input },
-    { id: 'multiview', agentId: 'multiview', type: 'multiview.reconcile', input },
-    { id: 'render', agentId: 'render', type: 'render.prepare', input },
-    { id: 'quality', agentId: 'quality', type: 'quality.validate', input },
-    { id: 'presentation', agentId: 'presentation', type: 'presentation.prepare', input },
-    { id: 'approval', agentId: 'approval', type: 'approval.record', input },
-    { id: 'furniture_engineering', agentId: 'furniture_engineering', type: 'furniture.engineer', input },
-    { id: 'materials', agentId: 'materials', type: 'materials.prepare', input },
-    { id: 'cut_optimization', agentId: 'cut_optimization', type: 'cut.optimize', input },
-    { id: 'cut_audit', agentId: 'cut_audit', type: 'cut.audit', input },
-    { id: 'inventory', agentId: 'inventory', type: 'inventory.check', input },
-    { id: 'budget', agentId: 'budget', type: 'budget.prepare', input },
-    { id: 'order', agentId: 'order', type: 'order.prepare', input },
-    { id: 'production', agentId: 'production', type: 'production.prepare', input },
-    { id: 'documents', agentId: 'documents', type: 'document.prepare', input },
-  ]);
-}
