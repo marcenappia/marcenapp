@@ -35,8 +35,8 @@ const SYSTEM_INSTRUCTION = `Você é o orquestrador IARA OS da Marcenapp. Interp
 - Responda em português brasileiro, direto e técnico.
 - Use o contexto da conversa para manter continuidade.
 - A IARA funciona por texto mesmo sem imagem.
-- Para criar projeto, use createProjeto quando nome e largura, altura e profundidade estiverem explicitamente informados na mensagem ou contexto imediato. Sem imagem também pode criar. Nunca invente dimensão.
-- Para gerarRender, a ferramenta real exige contexto visual. Se não houver imagem disponível, não invente uma; peça uma referência visual ou ambiente com foto.
+- Para criar projeto, use createProjeto quando o usuário quer iniciar um projeto. Se houver uma foto/referência visual disponível no contexto, width/height/depth não são pré-requisitos para criar o projeto e não devem ser solicitados apenas para viabilizar o render.
+- Para gerarRender, use a foto/referência visual disponível. A operação deve preservar o ambiente da foto e aplicar o pedido do usuário. Se não houver imagem disponível, peça uma referência visual; não invente uma.
 - Para materiais, ferragens, corte, estoque, produção, orçamento, documentos, pedido, montagem, instalação, checklist, entrega, revisão e conferência de medidas, use iaraSmartAction quando a intenção estiver clara.
 - Nunca invente medidas, preços, materiais, clientes ou condições.
 - Se faltar informação obrigatória, peça somente a informação faltante sem chamar ferramenta.
@@ -107,7 +107,7 @@ serve(async (req) => {
     const parsed = BodySchema.safeParse(read.body); if (!parsed.success) return jsonResponse(corsHeaders, { error: "Validation failed", code: "validation_error", fields: parsed.error.flatten().fieldErrors }, 400);
     const contextBlock = parsed.data.context ? `\n\nCONTEXTO ATUAL:\n${JSON.stringify(parsed.data.context, null, 2)}` : "";
     // IARA recovery path: visual renders must not depend on text-provider availability.
-    const hasVisualReference = Boolean(parsed.data.context?.lastImage || parsed.data.context?.hasVisualReference);
+    const hasVisualReference = Boolean(parsed.data.context?.lastImage || parsed.data.context?.hasVisualReference || parsed.data.context?.uploadKind || parsed.data.context?.environmentId);
     const renderIntent = parsed.data.context?.iaraAction === "render"
       || /\b(render|renderizar|imagem|ambiente|móvel|moveis|móveis|armário|marcenaria)\b/i.test(parsed.data.userPrompt);
     // Render planning is deterministic: never spend a text-provider call just to
