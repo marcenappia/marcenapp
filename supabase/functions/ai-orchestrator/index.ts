@@ -19,7 +19,7 @@ const BodySchema = z.object({
     decorStyle: z.string().optional(),
     recentClients: z.array(z.object({ id: z.string(), nome: z.string() })).optional(),
     conversation: z.array(z.object({ sender: z.enum(["user", "iara"]), text: z.string().min(1).max(4000) })).max(12).optional(),
-  }).partial().optional(),
+  }).passthrough().partial().optional(),
 });
 
 const TOOL_DECLARATIONS = [
