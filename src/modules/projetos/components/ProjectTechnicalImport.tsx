@@ -5,10 +5,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 interface Props {
+  projectId?: string;
   onDraft?: (draft: ProjectBudgetDraft, files: File[]) => void;
 }
 
 export default function ProjectTechnicalImport({ projectId, onDraft }: Props) {
+  const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<'idle' | 'ready'>('idle');
@@ -46,7 +48,7 @@ export default function ProjectTechnicalImport({ projectId, onDraft }: Props) {
       });
       if (invokeError) throw invokeError;
       const raw = typeof data?.text === 'string' ? data.text : '';
-      const cleaned = raw.replace(/^\`\`\`json\s*/i, '').replace(/\s*\`\`\`$/i, '').trim();
+      const cleaned = raw.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
       const parsed = JSON.parse(cleaned) as Omit<ProjectBudgetDraft, 'sourceFiles' | 'evidences' | 'status'>;
       const draft: ProjectBudgetDraft = {
         ...parsed,

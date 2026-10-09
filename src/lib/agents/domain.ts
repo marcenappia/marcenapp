@@ -13,6 +13,12 @@ const productionKeywords = ['material', 'mdf', 'chapa', 'corte', 'ferragem', 'es
 const businessKeywords = ['orçamento', 'orcamento', 'custo', 'custos', 'preço', 'preco', 'margem', 'documento', 'documentos', 'pedido', 'cobrar'];
 const executionKeywords = ['montagem', 'montar', 'instalação', 'instalacao', 'instalar', 'checklist', 'entrega'];
 function normalize(value: unknown): string { return String(value ?? '').toLocaleLowerCase('pt-BR'); }
+function normalizeText(value: unknown): string { return normalize(value).replace(/\s+/g, ' ').trim(); }
+function normalizePortugueseNumberWords(value: string): string {
+  const words: Record<string, number> = { duas: 2, dois: 2, 'três': 3, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, dezesseis: 16, dezessete: 17, dezoito: 18, dezenove: 19, vinte: 20 };
+  return value.replace(/\S+/g, word => words[word] === undefined ? word : String(words[word]));
+}
+
 function matches(intent: string, keywords: string[]): boolean { return keywords.some((keyword) => intent.includes(keyword)); }
 function requestIntent(request: DomainRequest): string { return normalize(request.intent ?? request.input.intent ?? request.input.message ?? request.input.prompt ?? request.input.request); }
 export function resolveDomain(request: DomainRequest): DomainId { const explicit = normalize(request.input.domain ?? request.input.domainId); if (explicit === 'project' || explicit === 'production' || explicit === 'business' || explicit === 'execution') return explicit; const intent = requestIntent(request); if (matches(intent, executionKeywords)) return 'execution'; if (matches(intent, businessKeywords)) return 'business'; if (matches(intent, productionKeywords)) return 'production'; return 'project'; }

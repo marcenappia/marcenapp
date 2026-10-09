@@ -161,7 +161,7 @@ export default function Diario({ navigateTo }: Props) {
             ['A receber', finance.openReceivables, Clock3]
           ].map(([label, value, Icon]) => (
             <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{String(label)}</span>{React.createElement(Icon as React.ComponentType<{size?: number}>, { size: 15, className: 'text-slate-400' })}</div>
+              <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{String(label)}</span>{React.createElement(Icon as React.ComponentType<{size?: number; className?: string}>, { size: 15, className: 'text-slate-400' })}</div>
               <strong className="mt-2 block truncate text-base font-black text-slate-900">{money(Number(value))}</strong>
             </div>
           ))}

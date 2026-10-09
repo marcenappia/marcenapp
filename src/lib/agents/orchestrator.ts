@@ -5,7 +5,7 @@ import type { AgentId, AgentResult, AgentTask, Evidence } from './types';
 
 export type AgentPlanStep = { id: string; agentId: AgentId; type: string; input: Record<string, unknown> };
 export type AgentPlanResult = { correlationId: string; results: AgentResult[]; status: 'completed' | 'needs_input' | 'failed' };
-function uuid(): string { return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+export function uuid(): string { return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function collectEvidence(results: AgentResult[]): Evidence[] { return results.flatMap((result) => result.evidence ?? []); }
 
 function dependencyData(results: AgentResult[], key: string): unknown {
