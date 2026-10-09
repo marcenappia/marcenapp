@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/production/versionFreeze', () => ({
   freezeProductionPackage: vi.fn(async ({ projectId, versionId, technicalPackage }) => ({
@@ -15,8 +15,11 @@ vi.mock('@/lib/production/versionFreeze', () => ({
   })),
 }));
 
+vi.mock('@/core/orchestrator', () => ({ runOrchestrator: vi.fn() }));
+import { runOrchestrator } from '@/core/orchestrator';
+
 import { agents, getAgent } from './registry';
-import { createDomainIntent, parseCreateProjectInput, resolveDomain } from './domain';
+import { createDomainIntent, parseCreateProjectInput, resolveDomain, runIaraConversation } from './domain';
 
 const { callAIText } = vi.hoisted(() => ({
   callAIText: vi.fn(async () => JSON.stringify({
@@ -104,5 +107,38 @@ describe('project text parsing regressions', () => {
       doors: 6,
       doorType: 'abrir',
     });
+  });
+});
+
+
+describe('current conversation orchestration contract', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('passes identity to the current orchestrator and preserves queued render artifacts', async () => {
+    vi.mocked(runOrchestrator).mockResolvedValue({
+      runId: 'run-render', plan: [{ tool: 'gerarRender', args: { prompt: 'Renderize esta cozinha' } }],
+      summary: 'render', status: 'completed', usedFallback: false,
+      results: [{ tool: 'gerarRender', result: { ok: true, data: { studioCommandId: 'command-1' } } }],
+    });
+    const result = await runIaraConversation({
+      input: { message: 'Renderize esta cozinha' }, projectId: 'project-1', correlationId: 'corr-1',
+      execution: { userId: 'user-1', projectId: 'project-1', lastImageBase: 'reference' },
+    });
+    expect(result.artifacts).toEqual([{ type: 'render', id: 'command-1', context: {
+      projectId: 'project-1', environmentId: undefined, versionId: undefined, correlationId: 'corr-1',
+    } }]);
+    expect(runOrchestrator).toHaveBeenCalledTimes(1);
+    expect(result.run.results[0].result.ok).toBe(true);
+  });
+
+  it('does not expose a successful artifact when the tool fails', async () => {
+    vi.mocked(runOrchestrator).mockResolvedValue({
+      runId: 'run-failed', plan: [], summary: 'failed', status: 'failed', usedFallback: false,
+      results: [{ tool: 'gerarRender', result: { ok: false, error: 'provider unavailable' } }],
+    });
+    const result = await runIaraConversation({ input: { message: 'Renderize esta cozinha' }, execution: { userId: 'user-1' } });
+    expect(result.artifacts).toEqual([]);
+    expect(result.panel).toBeUndefined();
+    expect(result.run.status).toBe('failed');
   });
 });

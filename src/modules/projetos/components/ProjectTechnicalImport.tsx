@@ -48,7 +48,7 @@ export default function ProjectTechnicalImport({ projectId, onDraft }: Props) {
       });
       if (invokeError) throw invokeError;
       const raw = typeof data?.text === 'string' ? data.text : '';
-      const cleaned = raw.replace(/^\`\`\`json\s*/i, '').replace(/\s*\`\`\`$/i, '').trim();
+      const cleaned = raw.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
       const parsed = JSON.parse(cleaned) as Omit<ProjectBudgetDraft, 'sourceFiles' | 'evidences' | 'status'>;
       const draft: ProjectBudgetDraft = {
         ...parsed,
