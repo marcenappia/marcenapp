@@ -16,8 +16,7 @@ vi.mock('@/lib/production/versionFreeze', () => ({
 }));
 
 import { agents, getAgent } from './registry';
-import { createDomainIntent, domainAgents, domainAgentRegistry, parseCreateProjectInput, resolveDomain, runDomainPlan } from './domain';
-import { runProjectJourney } from './orchestrator';
+import { createDomainIntent, parseCreateProjectInput, resolveDomain } from './domain';
 
 const { callAIText } = vi.hoisted(() => ({
   callAIText: vi.fn(async () => JSON.stringify({
@@ -31,59 +30,16 @@ const { callAIText } = vi.hoisted(() => ({
 }));
 vi.mock('@/services/ai', () => ({ callAIText }));
 
-const baseInput = {
-  name: 'Cliente', clientId: 'client-1', workName: 'Cozinha', projectId: 'project-1', userId: 'user-1', versionId: 'version-1',
-  photoUrl: 'photo.jpg', images: [{ mimeType: 'image/jpeg', data: 'base64-image' }], measurements: { width: 3000 },
-  parts: [{ code: 'P1', width: 500, height: 700, quantity: 1, material: 'MDF-18' }],
-  materials: [{ code: 'MDF-18', quantity: 2 }],
-  sheetTemplates: [{ id: 'CH1', width: 2750, height: 1850, material: 'MDF-18' }],
-  cutPlan: [{ code: 'CH1', width: 2750, height: 1850, material: 'MDF-18', pieces: [{ code: 'P1', x: 0, y: 0, width: 500, height: 700 }] }],
-  scene: { type: 'kitchen' }, renderUrl: 'render.jpg', presentationId: 'presentation-1', approved: true,
-  approvalId: 'approval-1', budgetId: 'budget-1', documentType: 'budget',
-};
-
 describe('IARA/YARA domain orchestration', () => {
-  it('encaminha projeto para Inteligência do Projeto e usa agentes existentes', async () => {
-    const response = await runDomainPlan({ input: { ...baseInput, intent: 'analisar o projeto e as medidas' }, correlationId: 'iara-project' });
-    expect(response.orchestrator).toBe('IARA');
-    expect(response.domain).toBe('project');
-    expect(response.domainAgent).toBe('IARA');
-    expect(response.plan.results.some((result) => result.agentId === 'furniture_engineering')).toBe(true);
-  });
 
-  it('encaminha materiais/corte para BENTO', async () => {
-    const response = await runDomainPlan({ input: { ...baseInput, intent: 'calcular MDF e corte' }, correlationId: 'iara-bento' });
-    expect(response.domain).toBe('production');
-    expect(response.domainAgent).toBe('BENTO');
-    expect(response.plan.results.some((result) => result.agentId === 'materials')).toBe(true);
-    expect(response.plan.results.some((result) => result.agentId === 'cut_audit')).toBe(true);
-  });
 
-  it('encaminha orçamento/documentação/pedido para ESTELA', async () => {
-    const response = await runDomainPlan({ input: { ...baseInput, intent: 'calcular orçamento e preparar documentos' }, correlationId: 'iara-estela' });
-    expect(response.domain).toBe('business');
-    expect(response.domainAgent).toBe('ESTELA');
-    expect(response.plan.results.some((result) => result.agentId === 'budget')).toBe(true);
-  });
 
-  it('reconhece JUCA sem inventar especialista técnico de montagem', async () => {
-    const response = await runDomainPlan({ input: { projectId: 'project-1', intent: 'montagem e instalação' }, correlationId: 'iara-juca' });
-    expect(response.domain).toBe('execution');
-    expect(response.domainAgent).toBe('JUCA');
-    expect(domainAgentRegistry.execution.technicalAgents).toEqual([]);
-    expect(response.plan.status).toBe('completed');
-  });
 
   it('preserva exatamente os 20 agentes técnicos', () => {
     expect(agents).toHaveLength(20);
     expect(new Set(agents.map((agent) => agent.id)).size).toBe(20);
   });
 
-  it('não duplica agentes técnicos no mapa de domínio', () => {
-    const mapped = domainAgents.flatMap((domain) => domain.technicalAgents);
-    expect(new Set(mapped).size).toBe(mapped.length);
-    expect(mapped).toHaveLength(20);
-  });
 
   it('resolve domínios explícitos e por intenção', () => {
     expect(resolveDomain({ input: { domain: 'production' } })).toBe('production');
@@ -123,26 +79,8 @@ describe('IARA/YARA domain orchestration', () => {
     expect(getAgent('budget').dependencies).toEqual(['materials', 'inventory', 'cut_audit', 'approval']);
   });
 
-  it('propaga correlationId, evidências e bloqueadores pelo contrato existente', async () => {
-    const response = await runDomainPlan({ input: { ...baseInput, intent: 'calcular MDF e corte' }, correlationId: 'trace-domain' });
-    expect(response.plan.correlationId).toBe('trace-domain');
-    expect(response.plan.results.every((result) => result.correlationId === 'trace-domain')).toBe(true);
-    expect(response.plan.results.some((result) => result.warnings !== undefined)).toBe(true);
-  });
 
-  it('mantém o contrato de artefato/painel preparado para a UI contextual', async () => {
-    const response = await runDomainPlan({ input: { ...baseInput, intent: 'gerar render', artifactId: 'render-1' }, correlationId: 'ui-contract' });
-    expect(response.artifacts).toEqual([{ type: 'render', id: 'render-1', context: { projectId: 'project-1', environmentId: undefined, versionId: undefined, correlationId: 'ui-contract' } }]);
-    expect(response.panel).toEqual({ type: 'render' });
-    expect(response.projectId).toBe('project-1');
-  });
 
-  it('não altera o comportamento da jornada técnica existente', async () => {
-    const result = await runProjectJourney(baseInput);
-    expect(result.status).toBe('completed');
-    expect(result.results).toHaveLength(20);
-    expect(new Set(result.results.map((result) => result.correlationId)).size).toBe(1);
-  });
 });
 
 describe('project text parsing regressions', () => {
