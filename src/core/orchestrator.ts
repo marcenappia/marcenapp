@@ -78,11 +78,11 @@ function isGenericNeed(message: string): boolean {
   return /^(a iara não conseguiu transformar o pedido em uma ação executável\.? reformule o pedido ou informe os dados necessários\.?|tente novamente\.?|pode me dizer o que você quer fazer no projeto\??)$/i.test(normalizeText(message));
 }
 
-function normalizeText(value: unknown): string {
+export function normalizeText(value: unknown): string {
   return String(value ?? '').toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim();
 }
 
-function normalizePortugueseNumberWords(value: string): string {
+export function normalizePortugueseNumberWords(value: string): string {
   const replacements: Array<[RegExp, string]> = [
     [/\bduas\b/g, '2'], [/\bdois\b/g, '2'], [/\btrês\b/g, '3'], [/\btres\b/g, '3'],
     [/\bquatro\b/g, '4'], [/\bcinco\b/g, '5'], [/\bseis\b/g, '6'],
