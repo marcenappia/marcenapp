@@ -5,10 +5,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 interface Props {
+  projectId?: string;
   onDraft?: (draft: ProjectBudgetDraft, files: File[]) => void;
 }
 
 export default function ProjectTechnicalImport({ projectId, onDraft }: Props) {
+  const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<'idle' | 'ready'>('idle');

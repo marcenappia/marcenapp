@@ -1,5 +1,9 @@
 # Roadmap
 
+## Erros da versão de teste — escopo atual
+- [ ] Corrigir imports, contratos de tipos e testes incompatíveis com a implementação atual
+- [ ] Executar os testes relacionados e conferir a verificação automática
+
 ## Auditoria P0 do render — escopo atual
 - [ ] Corrigir perda de imagem, mapeamento de erros e execução da fila sem mudar layout
 - [ ] Executar testes focados e verificar os erros da versão em teste

@@ -12,6 +12,13 @@ type PersistedVersion = {
   snapshot: Record<string, unknown> | null;
 };
 
+type HardwareRequirementRow = {
+  hardware_id: string;
+  quantity_required: number;
+  rule_key: string | null;
+  hardware_items: { name: string; category: string; unit: string } | Array<{ name: string; category: string; unit: string }> | null;
+};
+
 export async function persistProjectTechnicalStructure(args: {
   project: ProjectData;
   userId: string;
@@ -66,7 +73,8 @@ export async function persistProjectTechnicalStructure(args: {
     .from('project_hardware_requirements')
     .select('hardware_id,quantity_required,rule_key,hardware_items(name,category,unit)')
     .eq('user_id', args.userId)
-    .eq('project_id', args.project.id);
+    .eq('project_id', args.project.id)
+    .overrideTypes<HardwareRequirementRow[], { merge: false }>();
   if (hardwareError) throw hardwareError;
   structure.hardwareRequirements = (hardwareRows ?? []).map((row) => {
     const item = Array.isArray(row.hardware_items) ? row.hardware_items[0] : row.hardware_items;
