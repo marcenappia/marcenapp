@@ -31,8 +31,13 @@ async function authenticate(request: Request) {
   if (!authorization.startsWith('Bearer ')) return null;
 
   const token = authorization.slice(7).trim();
-  const url = env('VITE_SUPABASE_URL');
-  const key = env('VITE_SUPABASE_PUBLISHABLE_KEY');
+  if (!token) return null;
+  const url = env('VITE_SUPABASE_URL') || env('SUPABASE_URL');
+  const key = env('VITE_SUPABASE_PUBLISHABLE_KEY') || env('SUPABASE_PUBLISHABLE_KEY') || env('SUPABASE_ANON_KEY');
+  console.info('[AI_IMAGE_AUTH_CONFIG]', {
+    urlConfigured: Boolean(url),
+    publicKeyConfigured: Boolean(key),
+  });
   if (!url || !key) throw new Error('supabase_auth_config_missing');
 
   const client = createClient(url, key, { auth: { persistSession: false } });
@@ -140,6 +145,9 @@ export async function POST(request: Request) {
       return json({ code: 'gateway_generation_error', message: primaryError instanceof Error ? primaryError.message.slice(0, 500) : String(primaryError).slice(0, 500) }, 502);
     }
   } catch (error) {
+    if (error instanceof Error && error.message === 'supabase_auth_config_missing') {
+      return json({ code: 'supabase_auth_config_missing', message: 'Configuração de autenticação do servidor incompleta.' }, 503);
+    }
     console.error('[AI_IMAGE_GATEWAY_ERROR]', error);
     const message = error instanceof Error ? error.message : String(error);
     return json({ code: 'gateway_generation_error', message: message.slice(0, 500) }, 502);
