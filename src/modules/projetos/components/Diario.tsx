@@ -31,7 +31,7 @@ function stageLabel(status: string) {
 function stageTone(status: string) {
   if (status === 'completed') return 'text-emerald-700 bg-emerald-50';
   if (status === 'blocked') return 'text-red-700 bg-red-50';
-  if (status === 'in_progress') return 'text-indigo-700 bg-indigo-50';
+  if (status === 'in_progress') return 'text-blue-700 bg-blue-50';
   return 'text-slate-600 bg-slate-100';
 }
 
@@ -124,7 +124,7 @@ export default function Diario({ navigateTo }: Props) {
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white"><BookOpen size={18} /></div>
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">Bancada da marcenaria</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">Bancada da marcenaria</p>
               <h1 className="truncate text-lg font-black tracking-tight text-slate-950 md:text-xl">Diário do Marceneiro</h1>
               <p className="truncate text-xs text-slate-500">Um lugar para registrar o campo e operar o negócio sem sair do contexto.</p>
             </div>
@@ -144,7 +144,7 @@ export default function Diario({ navigateTo }: Props) {
             const Icon = action.icon;
             return (
               <button key={action.id} type="button" onClick={() => navigateTo?.(action.id)} className="group min-w-0 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm md:p-4">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-hover:bg-indigo-50 group-hover:text-indigo-700"><Icon size={17} /></span>
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-hover:bg-blue-50 group-hover:text-blue-700"><Icon size={17} /></span>
                 <span className="mt-3 block truncate text-sm font-black text-slate-900">{action.label}</span>
                 <span className="mt-1 block text-[10px] leading-4 text-slate-500">{action.detail}</span>
               </button>
@@ -184,7 +184,7 @@ export default function Diario({ navigateTo }: Props) {
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600">{selected.status}</span>
                   <button type="button" onClick={() => navigateTo?.('novo', { projeto: selected.id })} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50"><FileText size={12} /> Editar projeto</button>
-                  <button type="button" onClick={() => navigateTo?.('studio', { projeto: selected.id })} className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100"><PackageOpen size={12} /> Abrir IARA</button>
+                  <button type="button" onClick={() => navigateTo?.('studio', { projeto: selected.id })} className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100"><PackageOpen size={12} /> Abrir IARA</button>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-xl bg-slate-50 p-3"><span className="text-[10px] font-bold text-slate-500">Venda</span><strong className="mt-1 block text-sm">{money(projectFinance.salePrice)}</strong></div>
@@ -218,7 +218,7 @@ export default function Diario({ navigateTo }: Props) {
                 <div className="rounded-xl bg-slate-50 p-3"><strong className="block text-lg">{projects.length}</strong><span className="text-[10px] font-bold text-slate-500">projetos</span></div>
               </div>
               <p className="mt-3 text-xs leading-5 text-slate-500">O Diário usa as mesmas bases da Marcenaria. Não cria uma segunda lista de materiais ou clientes.</p>
-              <button type="button" onClick={() => navigateTo?.('configuracoes')} className="mt-4 inline-flex items-center gap-2 text-xs font-black text-indigo-700">Abrir Minha Marcenaria <ArrowRight size={13} /></button>
+              <button type="button" onClick={() => navigateTo?.('configuracoes')} className="mt-4 inline-flex items-center gap-2 text-xs font-black text-blue-700">Abrir Minha Marcenaria <ArrowRight size={13} /></button>
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-sm md:p-5">
@@ -233,7 +233,7 @@ export default function Diario({ navigateTo }: Props) {
         <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
           <ProjectTechnicalImport projectId={selectedProject || undefined} onDraft={(draft) => setTechnicalDraft(draft)} />
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-600">YARA • orçamento técnico</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">YARA • orçamento técnico</p>
             <h2 className="mt-1 text-lg font-black text-slate-900">Do projeto do arquiteto para o orçamento</h2>
             {technicalDraft ? (
               <>

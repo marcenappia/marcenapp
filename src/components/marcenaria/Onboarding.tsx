@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ChevronRight, ChevronLeft, MessageSquare, BookOpen, Camera, Mic, Sparkles, CheckCircle2, Circle, Users } from 'lucide-react';
+import { ChevronRight, ChevronLeft, MessageSquare, BookOpen, Camera, Mic, ClipboardCheck, CheckCircle2, Circle, Users } from 'lucide-react';
 import { Button } from './shared';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Step { id: string; title: string; description: string; icon: React.ElementType; color: string; targetId?: string; routeId?: string; }
 const steps: Step[] = [
-  { id: 'welcome', title: 'Vamos começar pelo jeito mais simples', description: 'Você não precisa aprender um sistema complicado. No Marcenapp, você registra o que acontece na obra e o sistema organiza o restante.', icon: Sparkles, color: 'text-amber-500' },
+  { id: 'welcome', title: 'Vamos começar pelo jeito mais simples', description: 'Você não precisa aprender um sistema complicado. No Marcenapp, você registra o que acontece na obra e o sistema organiza o restante.', icon: ClipboardCheck, color: 'text-slate-600' },
   { id: 'diario', title: 'O Diário é seu ponto de partida', description: 'Cadastre o cliente, crie a obra e registre o pedido. Você pode escrever, falar por voz ou colocar uma foto do ambiente.', icon: BookOpen, color: 'text-indigo-500', targetId: 'nav-diario', routeId: 'diario' },
   { id: 'cliente', title: 'Cliente e obra ficam organizados', description: 'Comece pelo cliente e pela obra. Assim, as informações não ficam espalhadas e cada etapa do trabalho mantém o contexto certo.', icon: Users, color: 'text-blue-500', targetId: 'nav-diario', routeId: 'diario' },
   { id: 'iara', title: 'Depois, avance o projeto', description: 'No projeto, você pode escrever o que precisa, anexar uma foto ou uma planta e seguir para a próxima etapa. Não precisa aprender comandos especiais.', icon: MessageSquare, color: 'text-purple-500', targetId: 'nav-studio', routeId: 'studio' },
