@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
-import { POST } from './ai-image-gateway';
+import { POST } from './ai-image-gateway.js';
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
 vi.mock('ai', () => ({ generateImage: vi.fn() }));
