@@ -56,30 +56,45 @@ export default function MinhaMarcenaria({ onClose }: Props) {
     if (documentError || !document) { setMessage('Arquivo enviado, mas não foi possível registrar a referência.'); setLoading(false); return; }
 
     try {
-      const extracted = await extractMaterialsFromFile(file);
-      if (extracted.length) {
-        const rows = extracted.map((material) => ({
-          user_id: user.id,
-          nome: material.nome,
-          categoria: material.categoria,
-          unidade: material.unidade,
-          espessura: material.espessura,
-          preco: material.preco,
-          fornecedor: material.fornecedor,
-          ativo: true,
-          origem: 'documento_ia',
-          metadata: { documento_id: document.id, documento_nome: file.name },
-        }));
-        const { error: materialsError } = await supabase.from('marcenaria_materiais').insert(rows);
-        if (materialsError) throw materialsError;
+      const lowerName = file.name.toLowerCase();
+      const canReadAutomatically = file.type === 'application/pdf'
+        || lowerName.endsWith('.pdf')
+        || file.type.startsWith('image/')
+        || /\.(csv|txt|md)$/i.test(lowerName)
+        || file.type.startsWith('text/');
+      if (!canReadAutomatically) {
+        await supabase.from('marcenaria_documentos').update({
+          status: 'recebido',
+          metadata: { origem: 'minha_marcenaria', leitura_automatica: false },
+        }).eq('id', document.id).eq('user_id', user.id);
+        setMessage('Arquivo guardado na sua base. A leitura automática de materiais está disponível para PDF, CSV, TXT e imagens.');
+      } else {
+        const extracted = await extractMaterialsFromFile(file);
+        if (extracted.length) {
+          const rows = extracted.map((material) => ({
+            user_id: user.id,
+            nome: material.nome,
+            categoria: material.categoria,
+            unidade: material.unidade,
+            espessura: material.espessura,
+            preco: material.preco,
+            fornecedor: material.fornecedor,
+            ativo: true,
+            origem: 'documento_ia',
+            metadata: { documento_id: document.id, documento_nome: file.name },
+          }));
+          const { error: materialsError } = await supabase.from('marcenaria_materiais').insert(rows);
+          if (materialsError) throw materialsError;
+        }
+        await supabase.from('marcenaria_documentos').update({ status: extracted.length ? 'processado' : 'sem_materiais', metadata: { origem: 'minha_marcenaria', materiais_extraidos: extracted.length } }).eq('id', document.id).eq('user_id', user.id);
+        setMessage(extracted.length ? `Pronto. Foram identificados ${extracted.length} material(is) e adicionados à base.` : 'Documento recebido. Não foram encontrados materiais estruturados para adicionar automaticamente.');
       }
-      await supabase.from('marcenaria_documentos').update({ status: extracted.length ? 'processado' : 'sem_materiais', metadata: { origem: 'minha_marcenaria', materiais_extraidos: extracted.length } }).eq('id', document.id).eq('user_id', user.id);
-      setMessage(extracted.length ? `Pronto. A IARA encontrou ${extracted.length} material(is) e adicionou à sua base.` : 'Documento recebido. Não encontrei materiais estruturados para adicionar automaticamente.');
       setFile(null);
       await load();
     } catch (error) {
       await supabase.from('marcenaria_documentos').update({ status: 'erro', metadata: { origem: 'minha_marcenaria', erro: error instanceof Error ? error.message : 'falha_na_leitura' } }).eq('id', document.id).eq('user_id', user.id);
-      setMessage('Recebi o documento, mas não consegui estruturá-lo agora. Você pode tentar novamente.');
+      setMessage('O arquivo foi recebido, mas não foi possível concluir a leitura automática. Ele continua salvo nos documentos.');
+      await load();
     } finally { setLoading(false); }
   };
 
