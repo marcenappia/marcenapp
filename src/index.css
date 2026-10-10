@@ -5,7 +5,7 @@
 @layer base {
   :root {
     /* Marcenapp core palette — keep brand identity stable across surfaces. */
-    --background: 220 20% 97%;
+    --background: 0 0% 100%;
     --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
@@ -18,13 +18,13 @@
     --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;
+    --secondary: 210 40% 97%;
     --secondary-foreground: 222 47% 11%;
 
-    --muted: 210 40% 96%;
+    --muted: 210 40% 97%;
     --muted-foreground: 215 19% 35%;
 
-    --accent: 210 40% 96%;
+    --accent: 210 40% 97%;
     --accent-foreground: 222 47% 11%;
 
     --destructive: 0 84% 60%;
@@ -34,7 +34,7 @@
     --input: 214 32% 91%;
     --ring: 221 83% 53%;
 
-    --radius: 0.75rem;
+    --radius: 0.875rem;
 
     /* Sidebar aliases are intentionally mapped to the same canonical tokens
        consumed by shadcn/Tailwind components. */
@@ -76,6 +76,11 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     max-width: 100%;
     overflow-x: clip;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, a, input, textarea, select {
+    touch-action: manipulation;
   }
 
   #root {
