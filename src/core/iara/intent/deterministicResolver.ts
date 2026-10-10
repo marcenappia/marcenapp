@@ -176,6 +176,10 @@ function createProject(value: string, input?: IntentResolverInput): ResolvedInte
 export const deterministicResolver: IntentResolver = {
   name: "deterministic",
   async resolve(input: IntentResolverInput) {
+    const value = words(norm(input.text));
+    const project = createProject(value, input);
+    if (project && (project.confidence >= 0.9 || (!input.images?.length && project.confidence >= 0.6))) return project;
+
     if (input.images?.length) {
       return {
         intent: "gerar_render",
