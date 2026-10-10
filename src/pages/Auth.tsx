@@ -171,23 +171,67 @@ const Auth = () => {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[hsl(var(--sidebar-bg))] px-4 py-8">
-      <div className="w-full max-w-sm space-y-7">
-        <div className="text-center"><img src={logo} alt="Marcenapp" className="w-20 h-20 rounded-full mx-auto mb-4 border-4 border-[hsl(var(--sidebar-active))] shadow-lg shadow-[hsl(var(--sidebar-active)/0.3)]" /><h1 className="text-2xl font-bold text-white tracking-tight">MARCENA<span className="text-[hsl(var(--sidebar-active))]">PP</span></h1><p className="text-[hsl(var(--sidebar-text))] text-sm mt-1">{title}</p></div>
-        <div className="flex items-center gap-3 text-white/70 text-xs"><div className="h-px flex-1 bg-white/15" /><span>Autenticação oficial Marcenapp</span><div className="h-px flex-1 bg-white/15" /></div>
-        {selectedProfile && !isReset && !isRecoveryPath && <div className="rounded-2xl border border-white/10 bg-white/5 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/40">Perfil escolhido</p><p className="mt-1 text-base font-black text-white">{selectedProfile.label}</p><p className="mt-1 text-xs leading-5 text-white/45">{selectedProfile.description}</p></div><Check size={18} className="mt-1 text-[hsl(var(--sidebar-active))]" /></div>{isSignupPath && <button type="button" onClick={() => navigate('/perfil-profissional')} className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-white/60 hover:text-white"><ArrowLeft size={14} /> Trocar perfil</button>}</div>}
-        {isLogin && !isReset && !isRecoveryPath && <><button type="button" onClick={handleGoogleLogin} disabled={loading || googleLoading} className="w-full py-3 rounded-xl bg-white text-gray-900 font-semibold hover:bg-gray-100 transition-all disabled:opacity-50 flex items-center justify-center gap-3">{googleLoading ? <Loader2 className="animate-spin" size={18} /> : <span className="text-lg font-bold">G</span>}{googleLoading ? 'Conectando ao Google...' : 'Continuar com Google'}</button><div className="flex items-center gap-3 text-white/70 text-xs"><div className="h-px flex-1 bg-white/10" /><span>ou entre com e-mail</span><div className="h-px flex-1 bg-white/10" /></div></>}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && !isReset && !isRecoveryPath && <input type="text" placeholder="Nome completo" value={name} onChange={(event) => setName(event.target.value)} required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] focus:border-transparent" />}
-          {!isRecoveryPath && <input type="email" placeholder="E-mail" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] focus:border-transparent" />}
-          {(!isReset || isRecoveryPath) && <input type="password" placeholder={isRecoveryPath ? 'Nova senha' : 'Senha'} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={6} autoComplete={isLogin && !isRecoveryPath ? 'current-password' : 'new-password'} className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--sidebar-active))] focus:border-transparent" />}
-          {isLogin && !isReset && !isRecoveryPath && <div className="text-right"><button type="button" onClick={() => navigate('/forgot-password')} className="text-xs text-[hsl(var(--sidebar-text))] hover:text-[hsl(var(--sidebar-active))] transition-colors">Esqueceu a senha?</button></div>}
-          {error && <div className="space-y-2"><p className="text-red-400 text-sm bg-red-950/50 p-3 rounded-lg">{error}</p>{isReset && supportLink && <p className="text-center"><a href={supportLink} target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(var(--sidebar-text))] hover:text-white underline">Não resolveu? Fale com o suporte</a></p>}</div>}
-          {success && <p className="text-emerald-400 text-sm bg-emerald-950/50 p-3 rounded-lg">{success}</p>}
-          <button type="submit" disabled={loading || googleLoading || (isReset && countdown > 0)} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">{loading && <Loader2 className="animate-spin" size={18} />}{isRecoveryPath ? 'Atualizar senha' : isReset ? (countdown > 0 ? `Aguarde ${countdown}s` : 'Enviar Recuperação') : isLogin ? 'Entrar' : 'Criar conta'}</button>
-        </form>
-        <p className="text-center text-[hsl(var(--sidebar-text))] text-sm">{isRecoveryPath || isReset ? <button type="button" onClick={() => navigate('/auth')} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">Voltar para o login</button> : <>{isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}<button type="button" onClick={() => navigate(isLogin ? '/perfil-profissional' : '/auth')} className="text-[hsl(var(--sidebar-active))] font-semibold hover:underline">{isLogin ? 'Criar conta' : 'Entrar'}</button></>}</p>
-        {appOrigin !== window.location.origin && <p className="text-center text-[10px] text-white/20">Ambiente oficial: {appOrigin}</p>}
+    <main className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-32 -top-36 h-[28rem] w-[28rem] rounded-full bg-blue-100/70 blur-3xl" />
+        <div className="absolute -bottom-40 -right-28 h-[30rem] w-[30rem] rounded-full bg-sky-100/80 blur-3xl" />
+      </div>
+      <div className="relative mx-auto grid min-h-screen w-full max-w-6xl items-center gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:gap-14 lg:px-10 lg:py-10">
+        <section className="hidden lg:flex lg:flex-col lg:justify-between lg:self-stretch lg:py-8">
+          <button type="button" onClick={() => navigate('/')} className="flex w-fit items-center gap-3 rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">
+            <img src={logo} alt="Marcenapp" className="h-12 w-12 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm" />
+            <span><span className="block text-lg font-black tracking-tight text-slate-900">MARCENAPP</span><span className="block text-xs font-medium text-slate-500">Do projeto à produção</span></span>
+          </button>
+          <div className="max-w-lg py-12">
+            <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-blue-800 shadow-sm"><span className="h-2 w-2 rounded-full bg-blue-600" /> Gestão para marcenarias</span>
+            <h1 className="mt-6 text-4xl font-black leading-[1.12] tracking-tight text-slate-950 xl:text-5xl">Seu trabalho, organizado do início à entrega.</h1>
+            <p className="mt-5 max-w-md text-base leading-7 text-slate-600">Projetos, orçamento, materiais e produção conectados em um só lugar — com você no controle de cada decisão.</p>
+            <div className="mt-8 grid max-w-md grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><Check size={18}/></span><p className="mt-3 text-sm font-bold text-slate-800">Mais organização</p><p className="mt-1 text-xs leading-5 text-slate-500">Informações do projeto reunidas.</p></div>
+              <div className="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Check size={18}/></span><p className="mt-3 text-sm font-bold text-slate-800">Mais controle</p><p className="mt-1 text-xs leading-5 text-slate-500">Dados claros para decidir melhor.</p></div>
+            </div>
+          </div>
+          <p className="text-xs text-slate-400">Marcenapp · Ferramentas para o dia a dia da marcenaria</p>
+        </section>
+
+        <section className="mx-auto w-full max-w-md">
+          <div className="mb-5 flex items-center justify-between lg:hidden">
+            <button type="button" onClick={() => navigate('/')} className="flex items-center gap-2 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">
+              <img src={logo} alt="Marcenapp" className="h-10 w-10 rounded-xl border border-slate-200 bg-white p-1 shadow-sm" />
+              <span className="text-sm font-black tracking-tight text-slate-900">MARCENAPP</span>
+            </button>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-500">Acesso seguro</span>
+          </div>
+          <div className="rounded-[28px] border border-slate-200/90 bg-white p-5 shadow-[0_24px_70px_-32px_rgba(15,23,42,.28)] sm:p-8">
+            <div className="mb-7">
+              <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700"><Check size={21}/></div>
+              <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-700">{isRecoveryPath ? 'Segurança da conta' : isReset ? 'Recuperação de acesso' : isLogin ? 'Bem-vindo de volta' : 'Vamos começar'}</p>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{title}</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">{isRecoveryPath ? 'Escolha uma nova senha para voltar a acessar sua conta.' : isReset ? 'Informe seu e-mail e enviaremos as instruções para recuperar o acesso.' : isLogin ? 'Entre para continuar seus projetos e sua produção.' : 'Preencha seus dados para criar seu acesso.'}</p>
+            </div>
+
+            {selectedProfile && !isReset && !isRecoveryPath && <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-blue-600">Perfil escolhido</p><p className="mt-1 text-base font-bold text-slate-900">{selectedProfile.label}</p><p className="mt-1 text-xs leading-5 text-slate-600">{selectedProfile.description}</p></div><Check size={18} className="mt-1 shrink-0 text-blue-700" /></div>{isSignupPath && <button type="button" onClick={() => navigate('/perfil-profissional')} className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900"><ArrowLeft size={14} /> Trocar perfil</button>}</div>}
+
+            {isLogin && !isReset && !isRecoveryPath && <>
+              <button type="button" onClick={handleGoogleLogin} disabled={loading || googleLoading} className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-50">{googleLoading ? <Loader2 className="animate-spin" size={18} /> : <span className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 text-sm font-black text-blue-700">G</span>}{googleLoading ? 'Conectando ao Google...' : 'Continuar com Google'}</button>
+              <div className="my-5 flex items-center gap-3 text-xs text-slate-400"><div className="h-px flex-1 bg-slate-200" /><span>ou entre com e-mail</span><div className="h-px flex-1 bg-slate-200" /></div>
+            </>}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {!isLogin && !isReset && !isRecoveryPath && <label className="block space-y-1.5"><span className="text-sm font-semibold text-slate-700">Nome completo</span><input type="text" placeholder="Como podemos te chamar?" value={name} onChange={(event) => setName(event.target.value)} required autoComplete="name" className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100" /></label>}
+              {!isRecoveryPath && <label className="block space-y-1.5"><span className="text-sm font-semibold text-slate-700">E-mail</span><input type="email" placeholder="voce@empresa.com.br" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100" /></label>}
+              {(!isReset || isRecoveryPath) && <label className="block space-y-1.5"><span className="text-sm font-semibold text-slate-700">{isRecoveryPath ? 'Nova senha' : 'Senha'}</span><input type="password" placeholder={isRecoveryPath ? 'Crie uma nova senha' : 'Digite sua senha'} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={6} autoComplete={isLogin && !isRecoveryPath ? 'current-password' : 'new-password'} className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100" /></label>}
+              {isLogin && !isReset && !isRecoveryPath && <div className="-mt-1 text-right"><button type="button" onClick={() => navigate('/forgot-password')} className="text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline">Esqueceu a senha?</button></div>}
+              {error && <div className="space-y-2" role="alert"><p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm leading-5 text-red-700">{error}</p>{isReset && supportLink && <p className="text-center"><a href={supportLink} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-700 underline">Não resolveu? Fale com o suporte</a></p>}</div>}
+              {success && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm leading-5 text-emerald-700">{success}</p>}
+              <button type="submit" disabled={loading || googleLoading || (isReset && countdown > 0)} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white shadow-sm transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60">{loading && <Loader2 className="animate-spin" size={18} />}{isRecoveryPath ? 'Atualizar senha' : isReset ? (countdown > 0 ? `Aguarde ${countdown}s` : 'Enviar recuperação') : isLogin ? 'Entrar no Marcenapp' : 'Criar minha conta'}</button>
+            </form>
+
+            <div className="mt-6 border-t border-slate-100 pt-5 text-center text-sm text-slate-500">{isRecoveryPath || isReset ? <button type="button" onClick={() => navigate('/auth')} className="font-semibold text-blue-700 hover:underline">Voltar para o login</button> : <>{isLogin ? 'Ainda não tem conta?' : 'Já tem conta?'}{' '}<button type="button" onClick={() => navigate(isLogin ? '/perfil-profissional' : '/auth')} className="font-bold text-blue-700 hover:text-blue-900 hover:underline">{isLogin ? 'Criar conta' : 'Entrar'}</button></>}</div>
+          </div>
+          <p className="mt-5 text-center text-xs leading-5 text-slate-400">Ao continuar, você acessa seu ambiente de trabalho do Marcenapp.</p>
+          {appOrigin !== window.location.origin && <p className="mt-3 text-center text-[10px] text-slate-400">Ambiente oficial: {appOrigin}</p>}
+        </section>
       </div>
     </main>
   );
