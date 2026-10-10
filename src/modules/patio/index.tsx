@@ -125,7 +125,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
                 <button onClick={() => void importTechnicalStructure()} className="p-1.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200" title="Gerar estrutura técnica">
                   <RefreshCcw size={16} />
                 </button>
-                <button onClick={() => setShowAddModal(true)} className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                <button onClick={() => setShowAddModal(true)} className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700">
                   <Plus size={16} />
                 </button>
               </div>
@@ -188,7 +188,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
               </div>
               <div className="bg-slate-200 relative rounded border-2 border-slate-400 overflow-hidden shadow-inner" style={{ aspectRatio: `${s.width}/${s.height}` }}>
                 {s.placements.map(item => (
-                  <div key={item.partId} title={`${item.partId} ${item.width}×${item.height}mm`} className="absolute border border-black/10 flex items-center justify-center text-[10px] font-bold bg-indigo-200 text-indigo-900" style={{ left: `${(item.x / s.width) * 100}%`, top: `${(item.y / s.height) * 100}%`, width: `${(item.width / s.width) * 100}%`, height: `${(item.height / s.height) * 100}%` }}>
+                  <div key={item.partId} title={`${item.partId} ${item.width}×${item.height}mm`} className="absolute border border-black/10 flex items-center justify-center text-[10px] font-bold bg-blue-200 text-blue-900" style={{ left: `${(item.x / s.width) * 100}%`, top: `${(item.y / s.height) * 100}%`, width: `${(item.width / s.width) * 100}%`, height: `${(item.height / s.height) * 100}%` }}>
                     <span className="truncate px-1">{item.partId}</span>
                   </div>
                 ))}
