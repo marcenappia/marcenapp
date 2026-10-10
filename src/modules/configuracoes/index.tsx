@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, Brain, Building2, Calculator, CheckCircle2, CreditCard, Package, Save, Settings2, Users } from 'lucide-react';
+import { ArrowRight, Building2, Ruler, Calculator, CheckCircle2, CreditCard, Package, Save, Settings2, Users } from 'lucide-react';
 import MineriaDaMarcenaria from '@/modules/marcenaria/MineriaDaMarcenaria';
 import MarcenariaDnaPanel from '@/modules/marcenaria/MarcenariaDnaPanel';
 import { supabase } from '@/integrations/supabase/client';
@@ -68,13 +68,13 @@ export default function ConfiguracoesModule({ userId, profile, onNavigate }: Pro
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-700">Configurações</p>
           <h1 className="mt-1 break-words text-xl font-black tracking-tight text-slate-950 sm:text-2xl md:text-3xl">Configurações gerais</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Identidade, preferências, IA e operação em um único lugar.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Identidade, preferências e operação da marcenaria em um único lugar.</p>
         </div>
       </div>
       <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {[
           { id: 'operacao', label: 'Geral', icon: Settings2 },
-          { id: 'dna', label: 'DNA da marcenaria', icon: Brain },
+          { id: 'dna', label: 'DNA da marcenaria', icon: Ruler },
         ].map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => setSection(id as 'operacao' | 'dna')} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-black transition ${section === id ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50/40'}`}>
           <Icon size={15}/>{label}
         </button>)}
