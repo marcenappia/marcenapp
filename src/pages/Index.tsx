@@ -101,7 +101,7 @@ const Index = () => {
   const openMakerData = () => { setMakerName(profile?.name ?? ''); setMakerCompany(profile?.company ?? ''); setShowUserMenu(false); setShowMakerData(true); };
   const openSettings = () => { setShowUserMenu(false); setActiveModule('configuracoes'); };
   const openTools = () => { setShowUserMenu(false); setShowToolsPanel(true); };
-  const isAdmin = user?.app_metadata?.role === 'admin' || user?.user_metadata?.role === 'admin';
+  const isAdmin = user?.app_metadata?.role === 'admin';
   const saveMakerData = async () => { if (!user) return; setSavingMakerData(true); try { const { error } = await supabase.from('profiles').update({ name: makerName.trim(), company: makerCompany.trim() }).eq('user_id', user.id); if (error) throw error; setShowMakerData(false); window.location.reload(); } catch (error) { console.error('Falha ao salvar dados da marcenaria', error); } finally { setSavingMakerData(false); } };
 
   return (
