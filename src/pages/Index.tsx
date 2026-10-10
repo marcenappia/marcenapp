@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, User, LogIn, Sparkles, ChevronRight, MessageCircle, EllipsisVertical, Building2, Settings2, Menu, X, Wrench, NotebookPen, ShieldCheck } from 'lucide-react';
+import { LogOut, User, LogIn, Sparkles, ChevronRight, DraftingCompass, EllipsisVertical, Building2, Settings2, Menu, X, Wrench, NotebookPen, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -68,9 +68,9 @@ const Index = () => {
   useEffect(() => { setMakerName(profile?.name ?? ''); setMakerCompany(profile?.company ?? ''); }, [profile?.name, profile?.company]);
   useProjectPersistence(budgetProject, setBudgetProject);
   const activeModuleData = modules.find(m => m.id === activeModule) ?? modules[0];
-  const ActiveIcon = activeModule === 'studio' ? MessageCircle : activeModule === 'configuracoes' ? Settings2 : activeModuleData.icon;
+  const ActiveIcon = activeModule === 'studio' ? DraftingCompass : activeModule === 'configuracoes' ? Settings2 : activeModuleData.icon;
   const activeTitle = activeModule === 'studio' ? 'IARA' : activeModule === 'configuracoes' ? 'Configurações' : activeModuleData.label;
-  const activeSubtitle = activeModule === 'studio' ? 'Inteligência do seu projeto' : activeModule === 'configuracoes' ? 'Central da marcenaria' : CATEGORY_LABELS[activeModuleData.category];
+  const activeSubtitle = activeModule === 'studio' ? 'Projetos e marcenaria' : activeModule === 'configuracoes' ? 'Central da marcenaria' : CATEGORY_LABELS[activeModuleData.category];
 
   const renderModule = () => {
     switch (activeModule) {
