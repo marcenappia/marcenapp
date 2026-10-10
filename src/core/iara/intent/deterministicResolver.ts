@@ -24,8 +24,6 @@ function mm(value: string, unit?: string, axisName?: "width" | "height" | "depth
   if (normalizedUnit === "cm" || normalizedUnit === "centímetro" || normalizedUnit === "centímetros") return number * 10;
   if (normalizedUnit === "mm" || normalizedUnit === "milímetro" || normalizedUnit === "milímetros") return number;
 
-  // Conversa de marcenaria costuma omitir "cm" em medidas de móveis:
-  // "55 de profundidade" = 55 cm; "2,80 de altura" = 2,80 m.
   if (number < 10) return number * 1000;
   if (number >= 10 && number <= 300 && axisName) return number * 10;
   return number;
@@ -48,12 +46,13 @@ function axisCandidates(value: string, axisName: "width" | "height" | "depth"): 
     : axisName === "height"
       ? "(?:altura|alto)"
       : "(?:profundidade|profundo)";
-  const number = "(\\d+(?:[.,]\\d+)?)";
+  const number = "(\d+(?:[.,]\d+)?)";
   const unit = "(mm|cm|m|metros?|centímetros?)?";
+
   const patterns = [
-    new RegExp(axisWords + "\\s*(?:é|de|:|=)?\\s*" + number + "\\s*" + unit + "\\b", "gi"),
-    new RegExp(number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
-    new RegExp(number + "\\s*" + unit + "\\s*(?:ou|o|ou\\s+de)\\s*" + number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
+    new RegExp(axisWords + "\s*(?:é|e|de|:|=)?\s*" + number + "\s*" + unit + "\b", "gi"),
+    new RegExp(number + "\s*" + unit + "\s*(?:de\s+)?" + axisWords + "\b", "gi"),
+    new RegExp(number + "\s*" + unit + "\s*(?:ou|o|ou\s+de|e)\s*" + number + "\s*" + unit + "\s*(?:de\s+)?" + axisWords + "\b", "gi"),
   ];
 
   const result: number[] = [];
@@ -144,7 +143,7 @@ function createProject(value: string, input?: IntentResolverInput): ResolvedInte
       tool: "createProjeto",
       field: "height",
       label: values.length > 1
-        ? "A altura ficou ambígua. Você quer " + values.map((value) => (value / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })).join(" m ou ") + " m?"
+        ? "A altura ficou ambígua. Você quer " + values.map((val) => (val / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })).join(" m ou ") + " m?"
         : "Qual a altura do móvel?",
     });
   }
@@ -174,13 +173,9 @@ export const deterministicResolver: IntentResolver = {
   async resolve(input: IntentResolverInput) {
     const value = words(norm(input.text));
     const project = createProject(value, input);
-    // Prioritize project creation if we have high confidence OR if there's no image.
-    // If an image is present, we only favor project creation if it's very explicit.
+    
     if (project && (project.confidence >= 0.9 || (!input.images?.length && project.confidence >= 0.6))) return project;
 
-    const value = words(norm(input.text));
-    const project = createProject(value, input);
-    if (project && project.missingSlots.length === 0) return project;
     if (input.images?.length) {
       return {
         intent: "gerar_render",
@@ -191,7 +186,6 @@ export const deterministicResolver: IntentResolver = {
       };
     }
     
-    // Render has precedence when an environment is already selected.
     if (render.test(value) && input.context.environmentId) {
       return {
         intent: "gerar_render",

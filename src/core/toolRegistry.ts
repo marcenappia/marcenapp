@@ -7,6 +7,7 @@ import { callAIContractClause, callAIText } from '@/services/ai';
 import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planService';
 import { attachIaraEnvironmentPhoto } from '@/modules/iara/services/photoDestination';
 import { persistProjectTechnicalStructure } from './projectTechnicalPersistence';
+import { persistIaraContext, emptyIaraContext } from '@/modules/iara/services/iaraContext';
 import { projectDimensionToMm } from './projectTechnicalModel';
 
 const db = supabase as unknown as SupabaseClient;
@@ -164,7 +165,7 @@ async function inferProjectStructureFromVisual(args: CreateProjetoArgs, ctx: Exe
   }
 }
 
-const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'createProjeto', description: 'Cria um projeto; dimensões podem ser completadas depois. Quando houver foto de referência, vincula o ambiente e gera a visualização inicial a partir dessa foto.', version: '1.4.0', inputSchema: z.object({ nome: z.string().min(1), clienteNome: z.string().optional(), width: z.number().positive().optional(), height: z.number().positive().optional(), depth: z.number().positive().optional(), doors: z.number().int().positive().optional(), drawers: z.number().int().nonnegative().optional(), modules: z.number().int().positive().optional(), tipo: z.string().optional(), confirmado: z.literal(true) }), async execute(args, ctx) {
+const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'createProjeto', description: 'Cria um projeto; dimensões podem ser completadas depois. Quando houver foto de referência, vincula o ambiente e gera a visualização inicial a partir dessa foto.', version: '1.4.0', inputSchema: z.object({ nome: z.string().min(1), clienteNome: z.string().optional(), width: z.number().positive().optional(), height: z.number().positive().optional(), depth: z.number().positive().optional(), doors: z.number().int().positive().optional(), drawers: z.number().int().nonnegative().optional(), modules: z.number().int().positive().optional(), tipo: z.string().optional(), external_material: z.string().optional(), internal_material: z.string().optional(), back_material: z.string().optional(), handle_type: z.string().optional(), doorType: z.string().optional(), confirmado: z.literal(true) }), async execute(args, ctx) {
   let clienteId: string | null = null;
   if (args.clienteNome) {
     const { data: cli } = await db.from('clientes').select('id').eq('user_id', ctx.userId).ilike('nome', args.clienteNome).maybeSingle();
@@ -183,6 +184,7 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
     modules: finalArgs.modules ?? 1,
     drawers: finalArgs.drawers ?? 0,
     doors: finalArgs.doors ?? 0,
+    external_material: finalArgs.external_material ?? '',
   }).select('id, nome, width, height, depth, doors, drawers, modules').single();
   if (error) return { ok: false, error: error.message };
   const project = data as ProjetoData;
@@ -220,6 +222,7 @@ const createProjeto: ToolDefinition<CreateProjetoArgs, ProjetoData> = { name: 'c
       environmentId = destination.environmentId;
       const persistedTechnical = await persistProjectTechnicalStructure({ project: technicalProject, userId: ctx.userId, environmentId });
       versionId = persistedTechnical.versionId;
+      await persistIaraContext(ctx.userId, { ...emptyIaraContext, projectId: project.id, environmentId, versionId }, ctx.correlationId, ctx.generation);
 
       if (ctx.correlationId && typeof ctx.generation === 'number') {
         const prompt = [
