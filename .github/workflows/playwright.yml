@@ -28,7 +28,7 @@ jobs:
 
     - name: Install dependencies
       id: install
-      run: npm ci
+      run: npm install --no-audit --no-fund
 
     - name: Dependency audit (high/critical block)
       id: audit
