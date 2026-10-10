@@ -55,7 +55,7 @@ const normalizeAIError = (status: number, data: unknown): Error => {
       return new Error('YARA: créditos Marcenapp insuficientes para gerar o render.');
     case 'provider_credits_exhausted':
     case 'credits_exhausted':
-      return new Error('YARA: o provider de imagem recusou a geração por falta de créditos/saldo.');
+      return new Error('O serviço de imagens está sem cota ou saldo disponível. A foto e os dados do projeto não são a causa; tente mais tarde ou solicite ao administrador a configuração de um provedor disponível.');
     case 'provider_auth_error':
       return new Error('YARA: a credencial do provider de imagem foi recusada. A falha ocorreu na autenticação do provider.');
     case 'provider_access_denied':
@@ -81,7 +81,7 @@ const normalizeAIError = (status: number, data: unknown): Error => {
     case 'rate_limit_unavailable':
       return new Error('YARA: o controle de uso da IA está indisponível. Tente novamente em instantes.');
     case 'rate_limited':
-      return new Error('YARA: o limite do provider de imagem foi atingido. Tente novamente em alguns segundos.');
+      return new Error('O serviço de imagens atingiu o limite de uso disponível. A foto e as informações do projeto não causaram esse erro. Tente novamente quando a cota for renovada ou peça ao administrador para verificar um provedor alternativo.');
     case 'upstream_error':
       return new Error(typeof body.error === 'string' && body.error ? `YARA: ${body.error}` : 'YARA: o provider de imagem falhou na etapa de geração.');
     default:
