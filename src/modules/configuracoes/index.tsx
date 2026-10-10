@@ -111,12 +111,14 @@ export default function ConfiguracoesModule({ userId, profile, onNavigate }: Pro
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{shortcuts.map(({id,icon:Icon,title,text})=><button key={id} type="button" onClick={()=>onNavigate(id)} className="group min-w-0 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md"><div className="flex items-start justify-between gap-3"><span className="shrink-0 rounded-xl bg-slate-50 p-2.5 text-slate-700"><Icon size={18}/></span><ArrowRight size={16} className="mt-1 shrink-0 text-slate-300 group-hover:text-indigo-500"/></div><h3 className="mt-3 break-words font-black text-slate-900">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></button>)}</div>
       </section>
 
-      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.18em] text-indigo-600">Minha Marcenaria</p><h2 className="mt-1 text-lg font-black text-slate-900">Base da operação</h2><p className="mt-1 text-xs leading-5 text-slate-500">Materiais, fornecedores, estoque e documentos que a IARA pode consultar.</p></div>
-        <MineriaDaMarcenaria />
-      </section>
     </>}
 
-    {section === 'dna' && <section><MarcenariaDnaPanel /></section>}
+    {section === 'dna' && <div className="space-y-5">
+      <MarcenariaDnaPanel />
+      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-700">Arquivos e dados</p><h2 className="mt-1 text-lg font-black text-slate-900">Base da marcenaria</h2><p className="mt-1 text-xs leading-5 text-slate-500">Envie, consulte e baixe documentos de referência, materiais, fornecedores e estoque.</p></div>
+        <MineriaDaMarcenaria />
+      </section>
+    </div>}
   </section>;
 }
