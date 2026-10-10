@@ -149,7 +149,7 @@ export const EtapaAnalise = (p: {
           ))}
         </div>
       )}
-      <BotaoPrincipal onClick={p.onNext} loading={p.loading} icon={Sparkles}>
+      <BotaoPrincipal onClick={p.onNext} loading={p.loading} icon={ScanEye}>
         {p.loading ? 'Montando a apresentação…' : 'Gerar apresentação para o cliente'}
       </BotaoPrincipal>
     </div>
