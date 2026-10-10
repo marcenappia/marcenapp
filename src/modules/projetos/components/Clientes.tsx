@@ -140,13 +140,13 @@ const ClientesModule = () => {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-        <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar por nome, e-mail ou telefone..." className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
+        <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar por nome, e-mail ou telefone..." className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
       </div>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       {loading ? (
-        <Card className="p-12 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" /></Card>
+        <Card className="p-12 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" /></Card>
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(cliente => (
@@ -186,7 +186,7 @@ const ClientesModule = () => {
           <InputGroup label="Nome" type="text" value={form.nome} onChange={v => setForm({ ...form, nome: String(v) })} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><InputGroup label="E-mail" type="email" value={form.email || ''} onChange={v => setForm({ ...form, email: String(v) })} /><InputGroup label="Telefone" type="text" value={form.telefone || ''} onChange={v => setForm({ ...form, telefone: String(v) })} /></div>
           <InputGroup label="Endereço" type="text" value={form.endereco || ''} onChange={v => setForm({ ...form, endereco: String(v) })} />
-          <div><label className="text-sm font-medium text-slate-700">Observações</label><textarea value={form.observacoes || ''} onChange={e => setForm({ ...form, observacoes: e.target.value })} rows={4} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" /></div>
+          <div><label className="text-sm font-medium text-slate-700">Observações</label><textarea value={form.observacoes || ''} onChange={e => setForm({ ...form, observacoes: e.target.value })} rows={4} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" /></div>
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       </Modal>
