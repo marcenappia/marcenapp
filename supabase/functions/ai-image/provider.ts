@@ -42,18 +42,16 @@ export function resolveProviderSelection(
       // credential/quota into a long, misleading render "processing" state.
       throw new Error(`configured_provider_unavailable:${configured}`);
     }
-    // A configured provider remains the primary contract, but a transient
-    // upstream failure (429/5xx/timeout) may use another operational provider.
-    // Credential/configuration absence still fails fast above.
+    // Never replay a denied or failed request through a different provider.
     return {
       primary: configured,
-      fallback: operational.find((provider) => provider !== configured) ?? null,
+      fallback: null,
     };
   }
 
   return {
     primary: operational[0],
-    fallback: operational[1] ?? null,
+    fallback: null,
   };
 }
 
@@ -66,20 +64,24 @@ export async function resolveProvider(
   if (!url || !key) throw new Error("server_config_incomplete");
 
   const admin = createClient(url, key, { auth: { persistSession: false } });
+  const missingTable = (error: { code?: string } | null) => error?.code === "42P01" || error?.code === "PGRST205";
+  const { data: userSettings, error: userError } = await admin.from("ai_provider_settings").select("provider").eq("user_id", userId).maybeSingle();
+  if (userError && !missingTable(userError)) throw new Error("provider_settings_unavailable");
   const { data, error } = await admin
     .from("ai_runtime_settings")
     .select("provider")
     .eq("id", "default")
     .maybeSingle();
-  if (error) throw new Error("provider_settings_unavailable");
+  if (error && !missingTable(error)) throw new Error("provider_settings_unavailable");
 
+  console.info("[PROVIDER_CONFIG]", JSON.stringify({ lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")), gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") || Deno.env.get("GEMINI_API_KEY")), vercelBridge: Boolean(Deno.env.get("VERCEL_IMAGE_BRIDGE_URL")) }));
   return resolveProviderSelection(
-    data?.provider as string | undefined,
+    (userSettings?.provider ?? data?.provider) as string | undefined,
     {
       lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")),
       // Image inference is routed through the Vercel deployment bridge, which
       // authenticates to AI Gateway with the deployment OIDC token.
-      vercel: true,
+      vercel: Boolean(Deno.env.get("VERCEL_IMAGE_BRIDGE_URL")) || userSettings?.provider === "vercel" || data?.provider === "vercel",
       gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY")),
     },
     { requiresReference: options.requiresReference },

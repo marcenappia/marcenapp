@@ -2,7 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 type AIImageInput = string | { mimeType: string; data: string };
 type AIErrorBody = { error?: string; message?: string; code?: string };
-type AIImageResponse = { imageBase64?: string | null; imageUrl?: string | null; provider?: string; model?: string; requestId?: string; renderId?: string };
+type AIImageResponse = { imageBase64?: string | null; imageUrl?: string | null; provider?: string; model?: string; requestId?: string; renderId?: string; persisted?: boolean };
 
 export interface AIImagePersistence {
   projectId?: string | null;
@@ -132,6 +132,9 @@ export const callAIImage = async (
     idempotencyKey: stableIdempotencyKey,
     ...(persistence ? { persistGallery: persistence } : {}),
   }, requestId);
+  if (data.persisted !== true || !data.imageUrl?.startsWith("https://")) {
+    throw new Error("A geração não confirmou o armazenamento e o registro na galeria.");
+  }
   // Prefer the private, signed gallery URL when persistence succeeded: it can
   // also be saved in chat without writing a multi-megabyte data URL to the DB.
   const image = data.imageUrl?.startsWith('https://') ? data.imageUrl : data.imageBase64 ?? data.imageUrl ?? null;

@@ -24,8 +24,6 @@ function mm(value: string, unit?: string, axisName?: "width" | "height" | "depth
   if (normalizedUnit === "cm" || normalizedUnit === "centímetro" || normalizedUnit === "centímetros") return number * 10;
   if (normalizedUnit === "mm" || normalizedUnit === "milímetro" || normalizedUnit === "milímetros") return number;
 
-  // Conversa de marcenaria costuma omitir "cm" em medidas de móveis:
-  // "55 de profundidade" = 55 cm; "2,80 de altura" = 2,80 m.
   if (number < 10) return number * 1000;
   if (number >= 10 && number <= 300 && axisName) return number * 10;
   return number;
@@ -48,13 +46,13 @@ function axisCandidates(value: string, axisName: "width" | "height" | "depth"): 
     : axisName === "height"
       ? "(?:altura|alto)"
       : "(?:profundidade|profundo)";
-  const number = "(\\d+(?:[.,]\\d+)?)";
+  const number = "(\d+(?:[.,]\d+)?)";
   const unit = "(mm|cm|m|metros?|centímetros?)?";
 
   const patterns = [
-    new RegExp(axisWords + "\\s*(?:é|e|de|:|=)?\\s*" + number + "\\s*" + unit + "\\b", "gi"),
-    new RegExp(number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
-    new RegExp(number + "\\s*" + unit + "\\s*(?:ou|o|ou\\s+de|e)\\s*" + number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
+    new RegExp(axisWords + "\s*(?:é|e|de|:|=)?\s*" + number + "\s*" + unit + "\b", "gi"),
+    new RegExp(number + "\s*" + unit + "\s*(?:de\s+)?" + axisWords + "\b", "gi"),
+    new RegExp(number + "\s*" + unit + "\s*(?:ou|o|ou\s+de|e)\s*" + number + "\s*" + unit + "\s*(?:de\s+)?" + axisWords + "\b", "gi"),
   ];
 
   const result: number[] = [];
@@ -123,9 +121,6 @@ function createProject(value: string, input?: IntentResolverInput): ResolvedInte
     depth: axisCandidates(value, "depth"),
   };
 
-  // Never discard dimensions just because another slot is still missing.
-  // If a slot has multiple plausible values, keep it unresolved and ask only
-  // for that choice instead of falling back to the generic 3-field question.
   const merged: Record<string, number> = {
     ...(remembered.width && remembered.width > 0 ? { width: remembered.width } : {}),
     ...(remembered.height && remembered.height > 0 ? { height: remembered.height } : {}),
@@ -148,7 +143,7 @@ function createProject(value: string, input?: IntentResolverInput): ResolvedInte
       tool: "createProjeto",
       field: "height",
       label: values.length > 1
-        ? "A altura ficou ambígua. Você quer " + values.map((value) => (value / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })).join(" m ou ") + " m?"
+        ? "A altura ficou ambígua. Você quer " + values.map((val) => (val / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })).join(" m ou ") + " m?"
         : "Qual a altura do móvel?",
     });
   }
@@ -176,6 +171,11 @@ function createProject(value: string, input?: IntentResolverInput): ResolvedInte
 export const deterministicResolver: IntentResolver = {
   name: "deterministic",
   async resolve(input: IntentResolverInput) {
+    const value = words(norm(input.text));
+    const project = createProject(value, input);
+    
+    if (project && (project.confidence >= 0.9 || (!input.images?.length && project.confidence >= 0.6))) return project;
+
     if (input.images?.length) {
       return {
         intent: "gerar_render",
@@ -185,10 +185,7 @@ export const deterministicResolver: IntentResolver = {
         source: "deterministic",
       };
     }
-    const value = words(norm(input.text));
-    // Render has precedence when an environment is already selected.
-    // Otherwise phrases such as "crie uma cozinha renderizada" can be
-    // misclassified as create_projeto before reaching the visual pipeline.
+    
     if (render.test(value) && input.context.environmentId) {
       return {
         intent: "gerar_render",
@@ -198,8 +195,9 @@ export const deterministicResolver: IntentResolver = {
         source: "deterministic",
       };
     }
-    const project = createProject(value, input);
+    
     if (project) return project;
+    
     for (const [action, keywords] of Object.entries(actions)) {
       if (keywords.some((keyword) => value.includes(keyword))) {
         return { intent: "smart_action", entities: { action }, confidence: 0.85, missingSlots: [], source: "deterministic" };

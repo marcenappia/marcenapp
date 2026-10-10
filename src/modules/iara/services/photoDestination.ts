@@ -127,7 +127,6 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
     project_id: args.projectId,
     environment_id: environment.id,
     image_url: signedUrl,
-    storage_path: storagePath,
     prompt: 'Foto do ambiente capturada pela IARA',
   });
   if (galleryError) {
