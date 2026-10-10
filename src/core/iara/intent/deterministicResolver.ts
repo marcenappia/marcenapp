@@ -48,13 +48,12 @@ function axisCandidates(value: string, axisName: "width" | "height" | "depth"): 
     : axisName === "height"
       ? "(?:altura|alto)"
       : "(?:profundidade|profundo)";
-  const number = "(\d+(?:[.,]\d+)?)";
+  const number = "(\\d+(?:[.,]\\d+)?)";
   const unit = "(mm|cm|m|metros?|centímetros?)?";
-
   const patterns = [
-    new RegExp(axisWords + "\s*(?:é|e|de|:|=)?\s*" + number + "\s*" + unit + "\b", "gi"),
-    new RegExp(number + "\s*" + unit + "\s*(?:de\s+)?" + axisWords + "\b", "gi"),
-    new RegExp(number + "\s*" + unit + "\s*(?:ou|o|ou\s+de|e)\s*" + number + "\s*" + unit + "\s*(?:de\s+)?" + axisWords + "\b", "gi"),
+    new RegExp(axisWords + "\\s*(?:é|de|:|=)?\\s*" + number + "\\s*" + unit + "\\b", "gi"),
+    new RegExp(number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
+    new RegExp(number + "\\s*" + unit + "\\s*(?:ou|o|ou\\s+de)\\s*" + number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
   ];
 
   const result: number[] = [];
@@ -179,6 +178,9 @@ export const deterministicResolver: IntentResolver = {
     // If an image is present, we only favor project creation if it's very explicit.
     if (project && (project.confidence >= 0.9 || (!input.images?.length && project.confidence >= 0.6))) return project;
 
+    const value = words(norm(input.text));
+    const project = createProject(value, input);
+    if (project && project.missingSlots.length === 0) return project;
     if (input.images?.length) {
       return {
         intent: "gerar_render",

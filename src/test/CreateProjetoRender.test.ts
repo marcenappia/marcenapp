@@ -6,6 +6,7 @@ const dispatchCommand = vi.fn(() => 'os-new');
 const project = { id: '11111111-1111-4111-8111-111111111111', nome: 'Cozinha', width: 2400, height: 2200, depth: 600, doors: 0, drawers: 0, modules: 1 };
 
 vi.mock('@/services/ai', () => ({ callAIContractClause: vi.fn(), callAIText: vi.fn(async () => '{"confidence":0}') }));
+vi.mock('@/core/projectTechnicalPersistence', () => ({ persistProjectTechnicalStructure: vi.fn(async () => ({ versionId: 'new-version' })) }));
 vi.mock('@/modules/iara/services/planService', () => ({ analyzeFloorPlanAndQueueRender: vi.fn() }));
 vi.mock('@/modules/iara/services/photoDestination', () => ({ attachIaraEnvironmentPhoto: vi.fn(async () => ({ environmentId: '22222222-2222-4222-8222-222222222222' })) }));
 vi.mock('@/integrations/supabase/client', () => {
@@ -58,13 +59,14 @@ describe('createProjeto with a reference photo', () => {
     const payload = dispatchArgs[0].payload;
     expect(payload.projectId).toBe(project.id);
     expect(payload.environmentId).toBe('22222222-2222-4222-8222-222222222222');
-    expect(payload).not.toHaveProperty('versionId');
+    expect(payload.versionId).toBe('new-version');
   });
 });
 
 
 describe('gerarRender with a persisted environment photo', () => {
   beforeEach(() => {
+    enqueueCommand.mockClear(); dispatchCommand.mockClear();
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,

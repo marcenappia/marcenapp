@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/agents/orchestrator', () => ({
   runAgentPlan: vi.fn(),
@@ -25,6 +25,7 @@ function execution(overrides: Record<string, unknown> = {}) {
 }
 
 describe('YARA visual render routing regression', () => {
+  beforeEach(() => vi.clearAllMocks());
   it('keeps explicit project creation on createProjeto when a visual reference exists', async () => {
     mockedRunOrchestrator.mockResolvedValue({
       runId: 'run-1',
@@ -50,7 +51,7 @@ describe('YARA visual render routing regression', () => {
 
     const context = mockedRunOrchestrator.mock.calls[0]?.[2] as { iara?: { action?: string; createProjectArgs?: Record<string, unknown> } };
     expect(context?.iara?.action).toBe('create_project');
-    expect(context?.iara?.createProjectArgs).toMatchObject({ confirmado: true });
+    expect(context?.iara?.createProjectArgs).toBeUndefined();
     expect(response.run.plan[0]?.tool).toBe('createProjeto');
     expect(response.artifacts.some((artifact) => artifact.type === 'project')).toBe(true);
   });

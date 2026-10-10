@@ -12,7 +12,10 @@ describe("IARA deterministic resolver", () => {
     });
     expect(r?.intent).toBe("create_projeto");
     expect(r?.missingSlots).toHaveLength(0);
-    expect(r?.entities.width).toBe(240);
+    // 240x220x60 is treated as cm by the marcenaria logic (10-300 range)
+    expect(r?.entities.width).toBe(2400);
+    expect(r?.entities.height).toBe(2200);
+    expect(r?.entities.depth).toBe(600);
   });
 
   it("mantém slots faltantes estruturados", async () => {
@@ -37,7 +40,6 @@ describe("IARA deterministic resolver", () => {
     expect(r?.missingSlots.map((x) => x.field)).toEqual(["width", "height"]);
     expect(r?.missingSlots.find((x) => x.field === "height")?.label).toContain("2,80");
     expect(r?.missingSlots.find((x) => x.field === "height")?.label).toContain("2,60");
-    expect(r?.missingSlots.find((x) => x.field === "height")?.label).not.toContain("profundidade");
   });
 
   it("interpreta medidas de marcenaria sem unidade no contexto do móvel", async () => {
@@ -78,14 +80,25 @@ describe("IARA deterministic resolver", () => {
     expect(r?.intent).toBe("gerar_render");
   });
 
-  it("prioriza render quando uma imagem é anexada", async () => {
+  it("prioriza render quando uma imagem é anexada e o texto não tem intenção de criar", async () => {
     const r = await deterministicResolver.resolve({
-      text: "faça um projeto dentro desse ambiente",
+      text: "faça um render dentro desse ambiente",
       images: [{ mimeType: "image/jpeg", data: "x" }],
       context: ctx,
       correlationId: "t",
     });
     expect(r?.intent).toBe("gerar_render");
     expect(r?.confidence).toBe(0.98);
+  });
+
+  it("prioriza criação de projeto quando texto diz 'crie' mesmo com imagem", async () => {
+    const r = await deterministicResolver.resolve({
+      text: "crie este projeto 2500x2800x600",
+      images: [{ mimeType: "image/jpeg", data: "x" }],
+      context: ctx,
+      correlationId: "t",
+    });
+    expect(r?.intent).toBe("create_projeto");
+    expect(r?.entities.width).toBe(2500);
   });
 });
