@@ -55,7 +55,7 @@ export const Home = ({ navigateTo }: Props) => {
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Seus clientes, projetos e produção organizados em um só lugar.</p>
         </div>
         <button type="button" onClick={() => navigateTo('studio')} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-          <Sparkles size={17} /> Abrir IARA <ArrowRight size={16} />
+          <MessageSquareText size={17} /> Abrir IARA <ArrowRight size={16} />
         </button>
       </header>
 
