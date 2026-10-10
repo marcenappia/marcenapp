@@ -101,12 +101,20 @@ export default function MinhaMarcenaria({ onClose }: Props) {
   const downloadDocument = async (item: MarcenariaItem) => {
     if (!user || !item.storage_path) return;
     setMessage('');
-    const { data, error } = await supabase.storage.from('obras').createSignedUrl(item.storage_path, 60);
-    if (error || !data?.signedUrl) {
-      setMessage('Não foi possível gerar o link do arquivo. Confira se o documento ainda está disponível.');
+    const { data, error } = await supabase.storage.from('obras').download(item.storage_path);
+    if (error || !data) {
+      setMessage('Não foi possível baixar o arquivo. Confira se o documento ainda está disponível.');
       return;
     }
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    const objectUrl = URL.createObjectURL(data);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = item.nome || 'documento-da-marcenaria';
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
   };
 
   const remove = async (id: string) => {
