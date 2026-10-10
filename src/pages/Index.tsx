@@ -137,7 +137,7 @@ const Index = () => {
 
       <main className="flex-1 flex flex-col min-w-0 bg-white h-full overflow-hidden">
         <header className="bg-white border-b border-slate-100 px-3 sm:px-4 md:px-8 h-16 flex items-center justify-between sticky top-0 z-10 shrink-0">
-          <button type="button" onClick={() => setShowMobileSidebar(true)} aria-label="Abrir menu de navegação" aria-haspopup="dialog" aria-expanded={showMobileSidebar} aria-controls="mobile-navigation-drawer" className="mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:hidden"><Menu size={22} /></button>
+          <button type="button" onClick={() => setShowMobileSidebar(true)} aria-label="Abrir menu de navegação" aria-haspopup="dialog" aria-expanded={showMobileSidebar} className="mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:hidden"><Menu size={22} /></button>
           <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2 truncate min-w-0"><button type="button" onClick={() => setActiveModule('dashboard')} aria-label="Ir para o início do Marcenapp" className="p-2 bg-blue-50 rounded-lg text-blue-700 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">{activeModule === 'studio' ? <img src={logo} alt="M" className="w-5 h-5 object-contain" /> : <ActiveIcon size={20} className="shrink-0" />}</button><div className="flex flex-col min-w-0"><span className="truncate leading-none">{activeTitle}</span><span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter truncate">{activeSubtitle}</span></div></h2>
           <div className="relative shrink-0">
             {user ? <>
@@ -147,7 +147,7 @@ const Index = () => {
           </div>
         </header>
 
-        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-8 pb-24 md:pb-8 scroll-smooth"><div className="w-full min-w-0 max-w-7xl mx-auto"><AnimatePresence mode="wait"><motion.div className="min-w-0" key={activeModule} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}><ModuleErrorBoundary key={activeModule}><Suspense fallback={<ModuleFallback />}>{renderModule()}</Suspense></ModuleErrorBoundary></motion.div></AnimatePresence></div></div>
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-8 pb-4 md:pb-8 scroll-smooth"><div className="w-full min-w-0 max-w-7xl mx-auto"><AnimatePresence mode="wait"><motion.div className="min-w-0" key={activeModule} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}><ModuleErrorBoundary key={activeModule}><Suspense fallback={<ModuleFallback />}>{renderModule()}</Suspense></ModuleErrorBoundary></motion.div></AnimatePresence></div></div>
         <footer className="shrink-0 border-t border-slate-100 bg-white px-4 py-2 text-right text-[10px] font-semibold text-slate-400 md:px-8"><BuildVersion /></footer>
 
       </main>
