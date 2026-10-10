@@ -9,7 +9,7 @@ O repositório oficial é a fonte de código do projeto.
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
-npm ci
+npm install
 npm run dev
 ```
 
