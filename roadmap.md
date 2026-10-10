@@ -51,3 +51,8 @@ Fases 1–3 técnicas: ver `.lovable/plan/auditoria-técnica-completa-marcenapp-
 - [ ] Escolher/criar cliente, obra e ambiente após capturar a foto
 - [ ] Persistir a foto no Storage, galeria e contexto ativo sem base64 no banco
 - [ ] Preservar o anexo ao navegar e cobrir o fluxo com testes focados
+
+## Render real — auditoria atual
+- [ ] Corrigir seleção/configuração, entrega persistente e roteamento sem mudar layout
+- [ ] Executar testes e conferir preview autenticado
+- [ ] Validar render real (depende da cobrança disponível no backend conectado)
