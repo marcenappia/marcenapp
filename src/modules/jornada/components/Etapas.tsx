@@ -108,7 +108,7 @@ export const EtapaPedido = (p: { pedido: string; setPedido: (v: string) => void;
         </button>
       ))}
     </div>
-    <BotaoPrincipal onClick={p.onNext} disabled={!p.pedido.trim()} loading={p.loading} icon={Sparkles}>
+    <BotaoPrincipal onClick={p.onNext} disabled={!p.pedido.trim()} loading={p.loading} icon={ScanEye}>
       {p.loading ? 'IARA está olhando a foto…' : 'Pedir para a IARA conferir'}
     </BotaoPrincipal>
   </div>
