@@ -1,4 +1,4 @@
-import { LayoutDashboard, MessageSquareText, FolderPlus, ClipboardList, WalletCards, Calculator, Scissors, FileText, ArrowUpFromLine, UsersRound, Sparkles, type LucideProps } from 'lucide-react';
+import { LayoutDashboard, MessageSquareText, FolderPlus, ClipboardList, WalletCards, Calculator, Scissors, FileText, ArrowUpFromLine, UsersRound, Activity, type LucideProps } from 'lucide-react';
 
 export type ModuleCategory = 'intelligence' | 'portal' | 'studio' | 'finance' | 'production';
 export interface ModuleConfig {
@@ -14,7 +14,7 @@ export const MOBILE_NAV_IDS = ['dashboard', 'diario', 'studio'];
 
 export const modules: ModuleConfig[] = [
   { id: 'dashboard', label: 'Visão geral', mobileLabel: 'Início', icon: LayoutDashboard, category: 'portal' },
-  { id: 'inteligencia', label: 'Inteligência Operacional', mobileLabel: 'IARA', icon: Sparkles, category: 'intelligence', hidden: true },
+  { id: 'inteligencia', label: 'Inteligência Operacional', mobileLabel: 'IARA', icon: Activity, category: 'intelligence', hidden: true },
   { id: 'novo', label: 'Novo projeto', mobileLabel: 'Novo', icon: FolderPlus, category: 'portal', hidden: true },
   { id: 'clientes', label: 'Clientes', mobileLabel: 'Clientes', icon: UsersRound, category: 'portal' },
   { id: 'diario', label: 'Diário de obra', mobileLabel: 'Diário', icon: ClipboardList, category: 'portal' },
