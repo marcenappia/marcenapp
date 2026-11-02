@@ -53,6 +53,12 @@
     --magic-from: 38 92% 50%;
     --magic-to: 20 90% 58%;
 
+    /* Inverse surface (dark band) — text pairs meet WCAG AA on --inverse. */
+    --inverse: 222 47% 11%;
+    --inverse-foreground: 0 0% 100%;
+    --inverse-muted: 215 20% 75%;
+    --inverse-accent: 213 94% 78%;
+
     /* Surface depth stays restrained: professional workspace, not SaaS cards everywhere. */
     --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.04);
     --shadow-popover: 0 12px 32px hsl(222 47% 11% / 0.12);
@@ -99,6 +105,15 @@
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
