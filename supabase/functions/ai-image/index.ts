@@ -29,6 +29,7 @@ function buildRenderPrompt(prompt: string, hasReferenceImage: boolean): string {
 }
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
+const MARCENARIA_MAGICA_IMAGE_MODEL = Deno.env.get("MARCENARIA_MAGICA_RENDER_MODEL") ?? "marcenaria-magica-render-v1";
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 const VERCEL_IMAGE_MODEL = Deno.env.get("VERCEL_AI_IMAGE_MODEL") ?? "openai/gpt-image-2.5-sunburst";
 // Image output (responseModalities) is documented on v1beta for Gemini image models.
@@ -185,6 +186,37 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
   }
   throw lastError instanceof Error ? lastError : new Error("provider_timeout");
 }
+
+async function generateMarcenariaMagicaImage(prompt: string, images: ImageInput[]): Promise<string> {
+  const bridgeUrl = Deno.env.get("MARCENARIA_MAGICA_RENDER_URL");
+  const sharedSecret = Deno.env.get("MARCENARIA_MAGICA_RENDER_SECRET");
+  if (!bridgeUrl || !sharedSecret) throw new Error("provider_not_configured:marcenaria_magica");
+  if (images.length !== 1) throw new Error("provider_reference_required:marcenaria_magica");
+
+  const response = await withTimeout(() => fetch(bridgeUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Marcenapp-Render-Secret": sharedSecret,
+    },
+    body: JSON.stringify({ prompt, image: images[0] }),
+  }), 55_000);
+  const body = await response.json().catch(() => null) as {
+    imageBase64?: string;
+    imageUrl?: string;
+    code?: string;
+    message?: string;
+  } | null;
+  if (!response.ok) {
+    const error = new Error(body?.message ?? "Marcenaria Mágica recusou a geração.") as GatewayError;
+    error.status = response.status;
+    throw error;
+  }
+  const image = body?.imageBase64 ?? body?.imageUrl;
+  if (!image?.startsWith("data:image/")) throw new Error("empty_image_result");
+  return image;
+}
+
 async function generateVercelImage(prompt: string, images: ImageInput[], size: { width?: number; height?: number } | undefined, authorization: string): Promise<string> {
   const bridgeUrl = Deno.env.get("VERCEL_IMAGE_BRIDGE_URL") ?? "https://marcenapp.com.br/api/ai-image-gateway";
   const width = size?.width ?? size?.height ?? DEFAULT_DIM;
@@ -269,6 +301,7 @@ async function generateImage(
   size: { width?: number; height?: number } | undefined,
   authorization: string,
 ): Promise<string> {
+  if (provider === "marcenaria_magica") return generateMarcenariaMagicaImage(prompt, images);
   if (provider === "gemini") return generateGeminiImage(prompt, images);
   if (provider === "vercel") return generateVercelImage(prompt, images, size, authorization);
   return generateLovableImage(prompt, images, size);
@@ -415,7 +448,7 @@ serve(async request => {
         imageBase64 = await generateImage(provider, providerPrompt, images, size, request.headers.get("Authorization") ?? "");
         imageGenerated = true;
         usedProvider = provider;
-        usedModel = provider === "gemini" ? GEMINI_IMAGE_MODEL : provider === "vercel" ? VERCEL_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
+        usedModel = provider === "marcenaria_magica" ? MARCENARIA_MAGICA_IMAGE_MODEL : provider === "gemini" ? GEMINI_IMAGE_MODEL : provider === "vercel" ? VERCEL_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
         console.info("[UPSTREAM_RESPONSE]", JSON.stringify({
           status: "success",
           provider,

@@ -81,7 +81,9 @@ Deno.test("ai-image: 400 for malformed JSON", async () => {
 Deno.test("ai-image: provider contract stays buffered and uses supported model", async () => {
   const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
   assert(source.includes('const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";'));
-  assert(!source.includes("gpt-image-2.5-sunburst"));
+  assert(source.includes("MARCENARIA_MAGICA_IMAGE_MODEL"));
+  assert(source.includes("MARCENARIA_MAGICA_RENDER_URL"));
+  assert(source.includes("X-Marcenapp-Render-Secret"));
   assert(source.includes("data?.[0]"));
   assert(source.includes("b64_json"));
   assert(source.includes("image?.url"));
@@ -128,5 +130,6 @@ Deno.test("ai-image: provider fallback remains centralized in provider resolver"
   const providerSource = await Deno.readTextFile(new URL("./provider.ts", import.meta.url));
   const imageSource = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
   assert(providerSource.includes("fallback"));
-  assert(imageSource.includes("resolution.fallback"));
+  assert(imageSource.includes("const providers: AIProvider[] = [resolution.primary]"));
+  assert(!imageSource.includes("resolution.fallback"), "image generation must not silently switch providers");
 });
