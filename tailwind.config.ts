@@ -51,6 +51,12 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        inverse: {
+          DEFAULT: "hsl(var(--inverse))",
+          foreground: "hsl(var(--inverse-foreground))",
+          muted: "hsl(var(--inverse-muted))",
+          accent: "hsl(var(--inverse-accent))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
