@@ -202,7 +202,7 @@ const Auth = () => {
             </button>
             <span className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-semibold text-muted-foreground">Acesso seguro</span>
           </div>
-          <div className="rounded-[28px] border border-border bg-card p-5 shadow-[0_24px_70px_-32px_rgba(15,23,42,.28)] sm:p-8">
+          <div className="rounded-[28px] border border-border bg-card p-5 shadow-[var(--shadow-popover)] sm:p-8">
             <div className="mb-7">
               <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Check size={21}/></div>
               <p className="text-xs font-bold uppercase tracking-[.16em] text-primary">{isRecoveryPath ? 'Segurança da conta' : isReset ? 'Recuperação de acesso' : isLogin ? 'Bem-vindo de volta' : 'Vamos começar'}</p>
