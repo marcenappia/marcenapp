@@ -173,8 +173,8 @@ const Auth = () => {
   return (
     <main className="relative min-h-screen overflow-hidden bg-muted text-foreground">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 -top-36 h-[28rem] w-[28rem] rounded-full bg-primary/15/70 blur-3xl" />
-        <div className="absolute -bottom-40 -right-28 h-[30rem] w-[30rem] rounded-full bg-sky-100/80 blur-3xl" />
+        <div className="absolute -left-32 -top-36 h-[28rem] w-[28rem] rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute -bottom-40 -right-28 h-[30rem] w-[30rem] rounded-full bg-primary/5 blur-3xl" />
       </div>
       <div className="relative mx-auto grid min-h-screen w-full max-w-6xl items-center gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:gap-14 lg:px-10 lg:py-10">
         <section className="hidden lg:flex lg:flex-col lg:justify-between lg:self-stretch lg:py-8">
