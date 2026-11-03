@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Camera, ChevronDown, ClipboardList, Factory, Image as ImageIcon, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import logo from '@/assets/marcenapp-logo.svg';
+import heroImg from '@/assets/landing-hero-cozinha.webp';
+import bancadaImg from '@/assets/landing-bancada-projeto.webp';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Plan { id: string; code: string; name: string; description: string | null; monthly_price_cents: number | null; features: { ai_messages_monthly?: number | null } | null }
@@ -12,31 +14,31 @@ const money = (v: number | null) => v == null ? 'Preço a definir' : new Intl.Nu
 const NAV = [['fluxo', 'Como funciona'], ['recursos', 'Recursos'], ['valores', 'Valores'], ['duvidas', 'Dúvidas']] as const;
 
 const STEPS = [
-  { icon: Camera, title: 'Registre o ambiente', text: 'Foto do local, medidas informadas e anotações do cliente ficam no projeto.' },
-  { icon: ClipboardList, title: 'Monte o projeto', text: 'Descreva o móvel. A IARA organiza o pedido e aponta o que ainda precisa ser conferido.' },
-  { icon: ImageIcon, title: 'Mostre ao cliente', text: 'Gere o visual a partir da foto real e envie para aprovação.' },
-  { icon: Factory, title: 'Orce e produza', text: 'Materiais, ferragens, orçamento e plano de corte a partir do mesmo projeto.' },
+  { icon: Camera, title: 'Registre o ambiente', text: 'Tire a foto no local do cliente. Medidas e anotações ficam guardadas no projeto da obra.' },
+  { icon: ClipboardList, title: 'Descreva o móvel', text: 'Conte o que vai fazer. A IARA organiza o pedido e mostra o que ainda precisa ser conferido.' },
+  { icon: ImageIcon, title: 'Mostre ao cliente', text: 'Gere o render em cima da foto real do ambiente e envie para o cliente aprovar.' },
+  { icon: Factory, title: 'Orce e produza', text: 'Orçamento, materiais, ferragens e plano de corte saem do mesmo projeto, sem digitar tudo de novo.' },
 ];
 
 const FEATURES = [
-  ['Medidas e ambiente', 'Trabalhe com medidas informadas, fotos e plantas sem inventar o que não foi validado.'],
-  ['Visual do projeto', 'Render a partir da foto do ambiente para o cliente enxergar a proposta.'],
-  ['Documentação técnica', 'Plantas, vistas, cortes e cotas a partir do modelo do projeto.'],
-  ['Orçamento', 'Leve medidas, materiais e decisões do projeto direto para o orçamento.'],
-  ['Produção', 'Organize materiais, ferragens, plano de corte e informações para a oficina.'],
-  ['Revisão do cliente', 'Envie um link para aprovar ou pedir alterações antes de liberar a produção.'],
+  ['Medidas e ambiente', 'Use as medidas que você tirou. O que não foi conferido fica marcado para revisar.'],
+  ['Visual do projeto', 'O cliente vê o móvel no próprio ambiente antes de fechar.'],
+  ['Documentação técnica', 'Vistas, cortes e cotas tirados do próprio projeto.'],
+  ['Orçamento', 'Medidas e materiais do projeto entram direto no orçamento.'],
+  ['Produção', 'Plano de corte, ferragens e informações prontas para a oficina.'],
+  ['Revisão do cliente', 'Mande um link para o cliente aprovar ou pedir ajustes antes de cortar.'],
 ];
 
 const FAQS = [
-  ['Preciso começar com uma imagem?', 'Não. Para criar projeto, orçamento e documentação, você pode começar pelas medidas e informações do trabalho. Para gerar um render, envie uma foto do ambiente ou uma referência visual.'],
-  ['O Marcenapp muda meu jeito de trabalhar?', 'Não. O projeto continua sendo seu. O sistema organiza informações e acelera tarefas sem tirar de você as decisões do trabalho.'],
-  ['Posso usar só uma parte do Marcenapp?', 'Sim. As capacidades são conectadas, mas você pode usar documentação, orçamento, produção, render ou outras etapas conforme a necessidade do projeto.'],
-  ['Como funcionam os créditos?', 'Algumas operações de processamento consomem créditos. Você pode comprar avulso ou usar a franquia de um plano mensal.'],
+  ['Preciso começar com uma imagem?', 'Não. Dá para começar pelas medidas e informações do trabalho. Para gerar um render, você precisa de uma foto do ambiente ou de uma referência visual.'],
+  ['O Marcenapp decide pelo marceneiro?', 'Não. As decisões continuam suas. O app organiza as informações e aponta o que precisa ser conferido antes de orçar ou cortar.'],
+  ['Posso usar só uma parte do Marcenapp?', 'Sim. As etapas são ligadas, mas você usa só o que a obra precisa: render, orçamento, documentação ou produção.'],
+  ['Como funcionam os créditos?', 'Algumas tarefas, como gerar render, usam créditos. Você compra créditos avulsos ou usa os de um plano mensal.'],
 ];
 
 const eyebrow = 'text-xs font-black uppercase tracking-[.2em] text-primary';
 const h2 = 'mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl text-balance';
-const primaryBtn = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-foreground px-7 py-3 font-black text-background transition-colors hover:bg-foreground/90 active:bg-foreground/80';
+const primaryBtn = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-foreground px-7 py-3 font-black text-background transition-colors hover:bg-foreground/90 active:bg-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 
 export default function LandingV2() {
   const navigate = useNavigate();
@@ -75,7 +77,7 @@ export default function LandingV2() {
           <nav aria-label="Principal" className="hidden items-center gap-6 md:flex">
             {NAV.map(([id, label]) => <a key={id} href={`#${id}`} className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">{label}</a>)}
             <button type="button" onClick={login} className="min-h-11 rounded-xl px-3 text-sm font-bold hover:bg-muted">Entrar</button>
-            <button type="button" onClick={signup} className="min-h-11 rounded-xl bg-foreground px-5 text-sm font-black text-background hover:bg-foreground/90">Começar agora</button>
+            <button type="button" onClick={signup} className="min-h-11 rounded-xl border border-border px-5 text-sm font-bold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Criar conta</button>
           </nav>
           <button type="button" onClick={() => setMenu(!menu)} className="inline-flex h-11 w-11 items-center justify-center rounded-xl hover:bg-muted md:hidden" aria-expanded={menu} aria-controls="menu-mobile" aria-label={menu ? 'Fechar menu' : 'Abrir menu'}>
             {menu ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
@@ -95,24 +97,24 @@ export default function LandingV2() {
         <section id="topo" aria-labelledby="hero-title" className="overflow-hidden bg-background px-4 pb-16 pt-28 sm:px-5 lg:px-8 lg:pb-24 lg:pt-36">
           <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[.9fr_1.1fr]">
             <div className="min-w-0">
-              <p className={`mb-5 ${eyebrow}`}>Para marcenarias que projetam e produzem</p>
+              <p className={`mb-5 ${eyebrow}`}>Para marceneiros e marcenarias</p>
               <h1 id="hero-title" className="max-w-3xl text-4xl font-black leading-[1] tracking-[-.04em] text-balance sm:text-6xl lg:text-7xl">
                 Do ambiente real <span className="text-primary">à produção.</span>
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
-                Fotografe o ambiente, descreva o móvel e avance no mesmo projeto: visual para o cliente, documentação, orçamento e plano de corte para a oficina.
+                Fotografe o ambiente do cliente, descreva o móvel e siga no mesmo projeto: render para aprovar, orçamento e plano de corte para a oficina.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button type="button" onClick={signup} className={primaryBtn}>Começar agora <ArrowRight aria-hidden="true" size={18} /></button>
-                <a href="#fluxo" className="inline-flex min-h-11 items-center justify-center rounded-2xl px-4 font-bold text-foreground underline-offset-4 hover:underline">Ver como funciona</a>
+                <button type="button" onClick={signup} className={primaryBtn}>Criar conta grátis <ArrowRight aria-hidden="true" size={18} /></button>
+                <a href="#fluxo" className="inline-flex min-h-11 items-center justify-center rounded-2xl px-4 font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Ver como funciona</a>
               </div>
-              <p className="mt-5 text-sm font-semibold text-muted-foreground">Cadastro gratuito. Recursos de processamento usam créditos.</p>
+              <p className="mt-5 text-sm font-semibold text-muted-foreground">Cadastro grátis. Render e outras tarefas de IA usam créditos.</p>
             </div>
             <figure className="relative mx-auto w-full max-w-[640px]">
               <div className="overflow-hidden rounded-[28px] border border-border bg-muted shadow-[var(--shadow-popover)]">
-                <img src="/landing/marcenapp-hero.svg" alt="Cozinha planejada em madeira com painel de projeto técnico sobreposto" className="block aspect-[14/9] h-auto w-full object-cover" width={1400} height={900} fetchPriority="high" decoding="async" />
+                <img src={heroImg} alt="Cozinha planejada em madeira clara com armários altos, ilha com bancada branca e banquetas" className="block aspect-[4/3] h-auto w-full object-cover object-center sm:aspect-[25/16]" width={1600} height={1024} loading="eager" fetchPriority="high" decoding="async" />
               </div>
-              <figcaption className="mt-3 text-right text-xs font-semibold uppercase tracking-[.14em] text-muted-foreground">Projeto, materiais e execução no mesmo contexto.</figcaption>
+              <figcaption className="mt-3 text-right text-xs font-semibold uppercase tracking-[.14em] text-muted-foreground">Do ambiente real ao móvel instalado.</figcaption>
             </figure>
           </div>
         </section>
@@ -121,10 +123,13 @@ export default function LandingV2() {
           <div className="mx-auto max-w-7xl">
             <div className="max-w-2xl">
               <p className={eyebrow}>Como funciona</p>
-              <h2 id="fluxo-title" className={h2}>Você não recomeça o projeto a cada etapa.</h2>
-              <p className="mt-4 text-base leading-7 text-muted-foreground">As informações ficam no projeto e seguem com você de uma etapa para a outra.</p>
+              <h2 id="fluxo-title" className={h2}>Uma obra, um projeto, do começo ao fim.</h2>
+              <p className="mt-4 text-base leading-7 text-muted-foreground">Você não precisa recomeçar a cada etapa. O que entrou na visita segue até a produção.</p>
             </div>
-            <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <figure className="mt-10 overflow-hidden rounded-3xl border border-border bg-card">
+              <img src={bancadaImg} alt="Mãos de marceneiro desenhando o projeto de um móvel sobre a bancada, com trena, esquadro e amostras de madeira" className="block aspect-[4/3] h-auto w-full object-cover sm:aspect-[21/9]" width={1280} height={960} loading="lazy" decoding="async" />
+            </figure>
+            <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {STEPS.map(({ icon: Icon, title, text }, i) => (
                 <li key={title} className="rounded-3xl border border-border bg-card p-6">
                   <div className="flex items-center justify-between">
@@ -143,10 +148,10 @@ export default function LandingV2() {
           <div className="mx-auto max-w-7xl">
             <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
               <div>
-                <p className={eyebrow}>Feito para a rotina real</p>
-                <h2 id="recursos-title" className={h2}>Menos trabalho repetido. Mais informação aproveitável.</h2>
+                <p className={eyebrow}>Feito para a rotina da marcenaria</p>
+                <h2 id="recursos-title" className={h2}>Menos retrabalho entre a visita e a oficina.</h2>
               </div>
-              <p className="max-w-md text-sm leading-6 text-muted-foreground">Use somente o que a obra precisa. O restante pode entrar depois, sem perder o contexto.</p>
+              <p className="max-w-md text-sm leading-6 text-muted-foreground">Comece pelo que a obra precisa. O resto entra depois, no mesmo projeto.</p>
             </div>
             <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURES.map(([title, text]) => (
@@ -225,8 +230,8 @@ export default function LandingV2() {
               ))}
             </div>
             <div className="mt-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-border bg-muted p-6">
-              <p className="font-bold">Pronto para levar a próxima obra do ambiente à produção?</p>
-              <button type="button" onClick={signup} className={primaryBtn}>Começar agora <ArrowRight aria-hidden="true" size={18} /></button>
+              <p className="font-bold">Leve a próxima obra do ambiente real à produção.</p>
+              <button type="button" onClick={signup} className={primaryBtn}>Criar conta grátis <ArrowRight aria-hidden="true" size={18} /></button>
             </div>
           </div>
         </section>
