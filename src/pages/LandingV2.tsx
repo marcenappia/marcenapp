@@ -77,7 +77,7 @@ export default function LandingV2() {
           <nav aria-label="Principal" className="hidden items-center gap-6 md:flex">
             {NAV.map(([id, label]) => <a key={id} href={`#${id}`} className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">{label}</a>)}
             <button type="button" onClick={login} className="min-h-11 rounded-xl px-3 text-sm font-bold hover:bg-muted">Entrar</button>
-            <button type="button" onClick={signup} className="min-h-11 rounded-xl bg-foreground px-5 text-sm font-black text-background hover:bg-foreground/90">Começar agora</button>
+            <button type="button" onClick={signup} className="min-h-11 rounded-xl border border-border px-5 text-sm font-bold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Criar conta</button>
           </nav>
           <button type="button" onClick={() => setMenu(!menu)} className="inline-flex h-11 w-11 items-center justify-center rounded-xl hover:bg-muted md:hidden" aria-expanded={menu} aria-controls="menu-mobile" aria-label={menu ? 'Fechar menu' : 'Abrir menu'}>
             {menu ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
