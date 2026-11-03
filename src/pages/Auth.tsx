@@ -173,7 +173,7 @@ const Auth = () => {
   return (
     <main className="relative min-h-screen overflow-hidden bg-muted text-foreground">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 -top-36 h-[28rem] w-[28rem] rounded-full bg-blue-100/70 blur-3xl" />
+        <div className="absolute -left-32 -top-36 h-[28rem] w-[28rem] rounded-full bg-primary/15/70 blur-3xl" />
         <div className="absolute -bottom-40 -right-28 h-[30rem] w-[30rem] rounded-full bg-sky-100/80 blur-3xl" />
       </div>
       <div className="relative mx-auto grid min-h-screen w-full max-w-6xl items-center gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:gap-14 lg:px-10 lg:py-10">
@@ -183,12 +183,12 @@ const Auth = () => {
             <span><span className="block text-lg font-black tracking-tight text-foreground">MARCENAPP</span><span className="block text-xs font-medium text-muted-foreground">Do projeto à produção</span></span>
           </button>
           <div className="max-w-lg py-12">
-            <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-card/80 px-3 py-1.5 text-xs font-bold text-blue-800 shadow-sm"><span className="h-2 w-2 rounded-full bg-blue-600" /> Gestão para marcenarias</span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-card/80 px-3 py-1.5 text-xs font-bold text-primary shadow-sm"><span className="h-2 w-2 rounded-full bg-primary" /> Gestão para marcenarias</span>
             <h1 className="mt-6 text-4xl font-black leading-[1.12] tracking-tight text-foreground xl:text-5xl">Seu trabalho, organizado do início à entrega.</h1>
             <p className="mt-5 max-w-md text-base leading-7 text-muted-foreground">Projetos, orçamento, materiais e produção conectados em um só lugar — com você no controle de cada decisão.</p>
             <div className="mt-8 grid max-w-md grid-cols-2 gap-3">
               <div className="rounded-2xl border border-border bg-card/85 p-4 shadow-sm"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary"><Check size={18}/></span><p className="mt-3 text-sm font-bold text-foreground">Mais organização</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Informações do projeto reunidas.</p></div>
-              <div className="rounded-2xl border border-border bg-card/85 p-4 shadow-sm"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-foreground"><Check size={18}/></span><p className="mt-3 text-sm font-bold text-foreground">Mais controle</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Dados claros para decidir melhor.</p></div>
+              <div className="rounded-2xl border border-border bg-card/85 p-4 shadow-sm"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-foreground"><Check size={18}/></span><p className="mt-3 text-sm font-bold text-foreground">Mais controle</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Dados claros para decidir melhor.</p></div>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">Marcenapp · Ferramentas para o dia a dia da marcenaria</p>
@@ -223,7 +223,7 @@ const Auth = () => {
               {(!isReset || isRecoveryPath) && <label className="block space-y-1.5"><span className="text-sm font-semibold text-foreground">{isRecoveryPath ? 'Nova senha' : 'Senha'}</span><input type="password" placeholder={isRecoveryPath ? 'Crie uma nova senha' : 'Digite sua senha'} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={6} autoComplete={isLogin && !isRecoveryPath ? 'current-password' : 'new-password'} className="min-h-12 w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground hover:border-border focus:border-ring focus:ring-4 focus:ring-ring/40" /></label>}
               {isLogin && !isReset && !isRecoveryPath && <div className="-mt-1 text-right"><button type="button" onClick={() => navigate('/forgot-password')} className="text-sm font-semibold text-primary hover:text-primary/80 hover:underline">Esqueceu a senha?</button></div>}
               {error && <div className="space-y-2" role="alert"><p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm leading-5 text-destructive">{error}</p>{isReset && supportLink && <p className="text-center"><a href={supportLink} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-primary underline">Não resolveu? Fale com o suporte</a></p>}</div>}
-              {success && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm leading-5 text-emerald-700">{success}</p>}
+              {success && <p role="status" className="rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm leading-5 text-foreground">{success}</p>}
               <button type="submit" disabled={loading || googleLoading || (isReset && countdown > 0)} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60">{loading && <Loader2 className="animate-spin" size={18} />}{isRecoveryPath ? 'Atualizar senha' : isReset ? (countdown > 0 ? `Aguarde ${countdown}s` : 'Enviar recuperação') : isLogin ? 'Entrar no Marcenapp' : 'Criar minha conta'}</button>
             </form>
 
