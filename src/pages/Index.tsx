@@ -106,7 +106,7 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
-      <h1 className="sr-only">Marcenapp — do projeto à produção, tudo no lugar.</h1>
+      <h1 className="sr-only">Marcenapp | Do ambiente real à produção</h1>
       <ModuleErrorBoundary><Suspense fallback={null}><StudioWorker /></Suspense><Onboarding onNavigate={setActiveModule} activeModule={activeModule} /></ModuleErrorBoundary>
       <aside className="hidden md:flex w-64 bg-white text-slate-700 flex-col border-r border-slate-200 z-20 shrink-0">
         <div className="p-4 border-b border-slate-100 h-16"><button type="button" onClick={() => setActiveModule('dashboard')} aria-label="Ir para o início do Marcenapp" className="w-full flex items-center gap-3 font-bold text-slate-900 text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><img src={logo} alt="Marcenapp" className="w-9 h-9 rounded-xl" /><div className="leading-tight"><span className="tracking-tight text-sm">MARCENAPP</span><p className="text-[10px] text-slate-500 font-normal tracking-tight">Do projeto à produção</p></div></button></div>

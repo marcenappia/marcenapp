@@ -22,10 +22,10 @@ export default function SeoRoute() {
     const isPublic = PUBLIC_PATHS.has(pathname) && !hasInternalQuery;
 
     if (isPublic) {
-      document.title = 'Marcenapp — Do projeto à produção, tudo no lugar.';
+      document.title = 'Marcenapp | Do ambiente real à produção';
       upsertMeta(
         'description',
-        'O Marcenapp reúne projeto, dimensionamento, visualização, materiais, ferragens, lista de corte e orçamento em um único fluxo de trabalho para marcenaria.',
+        'Fotografe o ambiente do cliente, descreva o móvel e siga no mesmo projeto: render para aprovação, orçamento e plano de corte para a oficina.',
       );
       upsertMeta('robots', 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1');
       return;
