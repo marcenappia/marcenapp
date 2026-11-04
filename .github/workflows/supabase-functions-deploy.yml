@@ -11,6 +11,8 @@ on:
       - "supabase/functions/ai-image/**"
       - "supabase/functions/e2e-bootstrap/**"
       - "supabase/functions/migrate-helper/**"
+      - "supabase/functions/whatsapp-send/**"
+      - "supabase/functions/whatsapp-webhook/**"
       - "supabase/functions/_shared/**"
       - "supabase/config.toml"
   workflow_dispatch:
@@ -55,3 +57,8 @@ jobs:
 
       - name: Deploy migrate helper
         run: supabase functions deploy migrate-helper --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+
+      - name: Deploy WhatsApp functions
+        run: |
+          supabase functions deploy whatsapp-webhook --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+          supabase functions deploy whatsapp-send --project-ref "$SUPABASE_PROJECT_ID"
