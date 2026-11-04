@@ -14,6 +14,23 @@ export type ProviderResolution = {
   fallback: AIProvider | null;
 };
 
+/**
+ * The Marcenaria Mágica engine runs natively inside the ai-image function on
+ * the AI gateway, so the existing LOVABLE_API_KEY enables both the engine and
+ * the generic Lovable adapter. No extra secret or external URL is required.
+ */
+export function providerAvailabilityFromEnv(
+  readEnv: (name: string) => string | undefined = (name) => Deno.env.get(name),
+): ProviderAvailability {
+  const lovable = Boolean(readEnv("LOVABLE_API_KEY"));
+  return {
+    marcenaria_magica: lovable,
+    lovable,
+    gemini: Boolean(readEnv("GOOGLE_GEMINI_API_KEY") ?? readEnv("GEMINI_API_KEY")),
+    vercel: Boolean(readEnv("VERCEL_IMAGE_BRIDGE_URL")),
+  };
+}
+
 export function resolveProviderSelection(
   configured: string | undefined,
   available: ProviderAvailability,
@@ -54,10 +71,5 @@ export async function resolveProvider(userId: string, options?: { requiresRefere
     .maybeSingle();
   if (error) throw new Error("provider_settings_unavailable");
 
-  return resolveProviderSelection(data?.provider as string | undefined, {
-    marcenaria_magica: Boolean(Deno.env.get("MARCENARIA_MAGICA_RENDER_URL") && Deno.env.get("MARCENARIA_MAGICA_RENDER_SECRET")),
-    lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")),
-    gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY")),
-    vercel: Boolean(Deno.env.get("VERCEL_IMAGE_BRIDGE_URL")),
-  }, options);
+  return resolveProviderSelection(data?.provider as string | undefined, providerAvailabilityFromEnv(), options);
 }

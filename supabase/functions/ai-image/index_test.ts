@@ -1,4 +1,4 @@
-import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assert, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import "https://deno.land/std@0.224.0/dotenv/load.ts";
 
 const SUPABASE_URL = Deno.env.get("VITE_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL")!;
@@ -81,18 +81,61 @@ Deno.test("ai-image: 400 for malformed JSON", async () => {
 Deno.test("ai-image: provider contract stays buffered and uses supported model", async () => {
   const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
   assert(source.includes('const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";'));
-  assert(source.includes("MARCENARIA_MAGICA_IMAGE_MODEL"));
-  assert(source.includes("MARCENARIA_MAGICA_RENDER_URL"));
-  assert(source.includes("X-Marcenapp-Render-Secret"));
   assert(source.includes("data?.[0]"));
   assert(source.includes("b64_json"));
   assert(source.includes("image?.url"));
   assert(!source.includes("readImageStream("));
 });
 
+Deno.test("ai-image: Marcenaria Mágica runs natively on the AI gateway", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes('const MARCENARIA_MAGICA_IMAGE_MODEL = "openai/gpt-image-2.5-sunburst";'), "expected the original engine model");
+  assert(source.includes('const MARCENARIA_MAGICA_RENDER_ENDPOINT = "https://ai.gateway.lovable.dev/v1/images/edits";'), "expected the gateway edits endpoint");
+  assert(source.includes('form.set("model", MARCENARIA_MAGICA_IMAGE_MODEL)'), "expected multipart model");
+  assert(source.includes('form.set("prompt", prompt)'), "expected multipart prompt");
+  assert(source.includes('form.append("image", reference)'), "expected multipart reference image");
+  assert(source.includes('form.set("stream", "true")'), "expected SSE streaming request");
+  assert(source.includes('form.set("partial_images", "1")'), "expected partial image events");
+  assert(source.includes('"X-Lovable-AIG-SDK": "fetch"'), "expected the original gateway header");
+  assert(source.includes("image_edit.completed"), "expected the completion event");
+  assert(source.includes("image_generation.completed"), "expected the completion event");
+  assert(source.includes("if (!sawEvent)"), "expected the buffered replay fallback");
+  assert(source.includes('Deno.env.get("LOVABLE_API_KEY")'), "expected the existing gateway credential");
+});
+
+Deno.test("ai-image: Marcenaria Mágica needs no external URL or shared secret", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(!source.includes("MARCENARIA_MAGICA_RENDER_URL"), "external engine URL must be gone");
+  assert(!source.includes("MARCENARIA_MAGICA_RENDER_SECRET"), "external shared secret must be gone");
+  assert(!source.includes("X-Marcenapp-Render-Secret"), "external secret header must be gone");
+  assert(!source.includes("MARCENARIA_MAGICA_RENDER_MODEL"), "engine model must not be overridable by env");
+  assert(!source.includes("marcenaria-magica-render-v1"), "placeholder model must be gone");
+  assert(!source.includes("ai.gateway.vercel.sh"), "Marcenaria Mágica must not be routed to the Vercel bridge");
+});
+
+Deno.test("ai-image: edits the primary reference image only", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes("const primary = images[0]"), "expected the primary reference to be explicit");
+  assert(source.includes("return runMarcenariaMagicaRender(prompt, primary)"), "expected single reference render");
+  assert(source.includes("[MARCENARIA_MAGICA_REFERENCE]"), "expected primary selection to be logged");
+});
+
+Deno.test("ai-image: provider resolver prioritizes Marcenaria Mágica for reference renders", async () => {
+  const { resolveProviderSelection } = await import(new URL("./provider.ts", import.meta.url).href);
+  const available = { marcenaria_magica: true, lovable: true, vercel: false, gemini: true };
+  assertEquals(resolveProviderSelection("automatic", available, { requiresReference: true }).primary, "marcenaria_magica");
+  assertEquals(resolveProviderSelection("automatic", available, { requiresReference: false }).primary, "lovable");
+  assertEquals(resolveProviderSelection("marcenaria_magica", available, { requiresReference: true }).primary, "marcenaria_magica");
+  assertThrows(
+    () => resolveProviderSelection("marcenaria_magica", available, { requiresReference: false }),
+    Error,
+    "configured_provider_unavailable:marcenaria_magica",
+  );
+});
+
 Deno.test("ai-image: does not double-wrap data URI returned by image decoder", async () => {
   const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
-  assert(source.includes("imageUrl: imageBase64"));
+  assert(source.includes("imageUrl: persistedImageUrl"));
   assert(!source.includes("imageUrl: `data:image/png;base64,${imageBase64}`"));
 });
 
@@ -107,7 +150,7 @@ Deno.test("ai-image: validates IARA execution context before consuming the opera
 
 Deno.test("ai-image: refunds when durable gallery persistence fails after generation", async () => {
   const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
-  assert(source.includes("persistGalleryRequired && !persisted"), "expected persistence-aware refund guard");
+  assert(source.includes("(!imageGenerated || !persisted)"), "expected refund guard covering generation and persistence");
   assert(source.includes('persistGalleryRequired = Boolean(persistGallery)'), "expected any persistence request to be refundable");
 });
 

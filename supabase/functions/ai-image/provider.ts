@@ -1,12 +1,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-export type AIProvider = "lovable" | "vercel" | "gemini";
+export type AIProvider = "marcenaria_magica" | "lovable" | "vercel" | "gemini";
 
 export type ProviderAvailability = {
+  marcenaria_magica: boolean;
   lovable: boolean;
   vercel: boolean;
   gemini: boolean;
 };
+
+// Marcenaria Mágica is the specialized render engine and takes priority for
+// reference renders. The remaining order matches the generic providers.
+const PROVIDER_ORDER: AIProvider[] = ["marcenaria_magica", "lovable", "vercel", "gemini"];
 
 export type ProviderResolution = {
   primary: AIProvider;
@@ -18,25 +23,16 @@ export function resolveProviderSelection(
   available: ProviderAvailability,
   options: { requiresReference?: boolean } = {},
 ): ProviderResolution {
-  // All three adapters used by ai-image can accept a reference image in the
-  // current implementation. Keep the capability in the resolver so future
-  // providers can opt out without changing the IARA flow.
-  const supportsReference: Record<AIProvider, boolean> = {
-    lovable: true,
-    vercel: true,
-    gemini: true,
-  };
-
-  const operational: AIProvider[] = [
-    ...(available.lovable ? ["lovable" as const] : []),
-    ...(available.vercel ? ["vercel" as const] : []),
-    ...(available.gemini ? ["gemini" as const] : []),
-  ].filter((provider) => !options.requiresReference || supportsReference[provider]);
+  // Every adapter used by ai-image accepts a reference image, but the
+  // Marcenaria Mágica engine only runs as a photo edit.
+  const operational: AIProvider[] = PROVIDER_ORDER.filter(
+    (provider) => available[provider] && (options.requiresReference || provider !== "marcenaria_magica"),
+  );
 
   if (operational.length === 0) throw new Error("PROVIDER_NOT_CONFIGURED");
 
-  if (configured === "lovable" || configured === "vercel" || configured === "gemini") {
-    if (!available[configured] || (options.requiresReference && !supportsReference[configured])) {
+  if (configured === "marcenaria_magica" || configured === "lovable" || configured === "vercel" || configured === "gemini") {
+    if (!operational.includes(configured)) {
       // A provider explicitly selected by the user is a hard contract.
       // Never silently jump to another provider: that can turn a missing
       // credential/quota into a long, misleading render "processing" state.
@@ -74,10 +70,12 @@ export async function resolveProvider(
     .maybeSingle();
   if (error && !missingTable(error)) throw new Error("provider_settings_unavailable");
 
-  console.info("[PROVIDER_CONFIG]", JSON.stringify({ lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")), gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") || Deno.env.get("GEMINI_API_KEY")), vercelBridge: Boolean(Deno.env.get("VERCEL_IMAGE_BRIDGE_URL")) }));
+  console.info("[PROVIDER_CONFIG]", JSON.stringify({ marcenariaMagica: Boolean(Deno.env.get("LOVABLE_API_KEY")), lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")), gemini: Boolean(Deno.env.get("GOOGLE_GEMINI_API_KEY") || Deno.env.get("GEMINI_API_KEY")), vercelBridge: Boolean(Deno.env.get("VERCEL_IMAGE_BRIDGE_URL")) }));
   return resolveProviderSelection(
     (userSettings?.provider ?? data?.provider) as string | undefined,
     {
+      // The native Marcenaria Mágica engine uses the existing gateway credential.
+      marcenaria_magica: Boolean(Deno.env.get("LOVABLE_API_KEY")),
       lovable: Boolean(Deno.env.get("LOVABLE_API_KEY")),
       // Image inference is routed through the Vercel deployment bridge, which
       // authenticates to AI Gateway with the deployment OIDC token.

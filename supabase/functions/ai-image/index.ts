@@ -29,7 +29,12 @@ function buildRenderPrompt(prompt: string, hasReferenceImage: boolean): string {
 }
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
-const MARCENARIA_MAGICA_IMAGE_MODEL = Deno.env.get("MARCENARIA_MAGICA_RENDER_MODEL") ?? "marcenaria-magica-render-v1";
+// Marcenaria Mágica render engine, ported from the original runRender
+// (marcenaria-m-gica/src/lib/ai.server.ts). It runs on the same AI gateway and
+// the same LOVABLE_API_KEY already configured for this Edge Function.
+const MARCENARIA_MAGICA_IMAGE_MODEL = "openai/gpt-image-2.5-sunburst";
+const MARCENARIA_MAGICA_RENDER_ENDPOINT = "https://ai.gateway.lovable.dev/v1/images/edits";
+const MARCENARIA_MAGICA_TIMEOUT_MS = 110_000;
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 const VERCEL_IMAGE_MODEL = Deno.env.get("VERCEL_AI_IMAGE_MODEL") ?? "openai/gpt-image-2.5-sunburst";
 // Image output (responseModalities) is documented on v1beta for Gemini image models.
@@ -80,17 +85,21 @@ async function withTimeout<T>(operation: () => Promise<T>, timeoutMs: number, co
   }
 }
 
+function toImageDataUrl(base64: string): string {
+  const value = base64.trim();
+  if (!value) throw new Error("empty_image_result");
+  const dataUrl = value.startsWith("data:image/") ? value : `data:image/png;base64,${value}`;
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/i.test(dataUrl)) throw new Error("invalid_image_result");
+  return dataUrl;
+}
+
 async function readBufferedImage(response: Response): Promise<string> {
   const body = await response.json().catch(() => null) as {
     data?: Array<{ b64_json?: string; url?: string }>;
   } | null;
   const image = body?.data?.[0];
   if (typeof image?.b64_json === "string") {
-    const value = image.b64_json.trim();
-    if (!value) throw new Error("empty_image_result");
-    const dataUrl = value.startsWith("data:image/") ? value : `data:image/png;base64,${value}`;
-    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/i.test(dataUrl)) throw new Error("invalid_image_result");
-    return dataUrl;
+    return toImageDataUrl(image.b64_json);
   }
   if (image?.url) {
     const imageResponse = await fetch(image.url);
@@ -187,34 +196,124 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
   throw lastError instanceof Error ? lastError : new Error("provider_timeout");
 }
 
-async function generateMarcenariaMagicaImage(prompt: string, images: ImageInput[]): Promise<string> {
-  const bridgeUrl = Deno.env.get("MARCENARIA_MAGICA_RENDER_URL");
-  const sharedSecret = Deno.env.get("MARCENARIA_MAGICA_RENDER_SECRET");
-  if (!bridgeUrl || !sharedSecret) throw new Error("provider_not_configured:marcenaria_magica");
-  if (images.length !== 1) throw new Error("provider_reference_required:marcenaria_magica");
+type ServerSentEvent = { event: string; data: string };
 
-  const response = await withTimeout(() => fetch(bridgeUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Marcenapp-Render-Secret": sharedSecret,
-    },
-    body: JSON.stringify({ prompt, image: images[0] }),
-  }), 55_000);
-  const body = await response.json().catch(() => null) as {
-    imageBase64?: string;
-    imageUrl?: string;
-    code?: string;
-    message?: string;
-  } | null;
-  if (!response.ok) {
-    const error = new Error(body?.message ?? "Marcenaria Mágica recusou a geração.") as GatewayError;
-    error.status = response.status;
+/** Minimal SSE decoder: the gateway streams image events as `event:`/`data:` blocks. */
+function createSseParser(onEvent: (event: ServerSentEvent) => void) {
+  let buffer = "";
+  return (chunk: string) => {
+    buffer = (buffer + chunk).replace(/\r\n/g, "\n");
+    let separator = buffer.indexOf("\n\n");
+    while (separator >= 0) {
+      const block = buffer.slice(0, separator);
+      buffer = buffer.slice(separator + 2);
+      let event = "";
+      const data: string[] = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+      }
+      if (data.length) onEvent({ event, data: data.join("\n") });
+      separator = buffer.indexOf("\n\n");
+    }
+  };
+}
+
+/**
+ * Original Marcenaria Mágica engine (runRender): edits the reference photo on
+ * the AI gateway with multipart /v1/images/edits, consumes the SSE stream and
+ * replays a buffered request when the gateway sends no events.
+ */
+async function runMarcenariaMagicaRender(prompt: string, image: ImageInput): Promise<string> {
+  const key = Deno.env.get("LOVABLE_API_KEY");
+  if (!key) throw new Error("provider_not_configured:marcenaria_magica");
+
+  const binary = atob(image.data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  const reference = new File([bytes], `ambiente-referencia.${imageExtension(image.mimeType)}`, { type: image.mimeType });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MARCENARIA_MAGICA_TIMEOUT_MS);
+  const send = (stream: boolean) => {
+    const form = new FormData();
+    form.set("model", MARCENARIA_MAGICA_IMAGE_MODEL);
+    form.set("prompt", prompt);
+    form.append("image", reference);
+    if (stream) {
+      form.set("stream", "true");
+      form.set("partial_images", "1");
+    }
+    return fetch(MARCENARIA_MAGICA_RENDER_ENDPOINT, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "X-Lovable-AIG-SDK": "fetch" },
+      body: form,
+      signal: controller.signal,
+    });
+  };
+
+  try {
+    const response = await send(true);
+    if (!response.ok || !response.body) {
+      const failure = gatewayError(response, await response.text().catch(() => ""));
+      throw failure;
+    }
+    // A gateway that answers the streaming request with plain JSON already sent
+    // the final image: read it instead of spending a second generation.
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/event-stream")) return await readBufferedImage(response);
+
+    let finalImage: string | null = null;
+    let sawEvent = false;
+    let streamError: string | null = null;
+    const parse = createSseParser(({ event, data }) => {
+      let payload: { type?: string; b64_json?: string; error?: { message?: string } } | null = null;
+      try { payload = JSON.parse(data); } catch { return; }
+      const type = event || payload?.type;
+      if (type === "error") {
+        sawEvent = true;
+        streamError = payload?.error?.message ?? "Falha na geração da imagem.";
+        return;
+      }
+      if (type === "image_edit.partial_image" || type === "image_generation.partial_image") sawEvent = true;
+      if (type === "image_edit.completed" || type === "image_generation.completed") {
+        sawEvent = true;
+        finalImage = payload?.b64_json ?? null;
+      }
+    });
+
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) parse(value);
+    }
+    if (streamError) throw new Error(`provider_stream:${streamError}`);
+
+    if (!sawEvent) {
+      const replay = await send(false);
+      if (!replay.ok) throw gatewayError(replay, await replay.text().catch(() => ""));
+      return await readBufferedImage(replay);
+    }
+    if (!finalImage) throw new Error("empty_image_result");
+    return toImageDataUrl(finalImage);
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("provider_timeout");
     throw error;
+  } finally {
+    clearTimeout(timer);
   }
-  const image = body?.imageBase64 ?? body?.imageUrl;
-  if (!image?.startsWith("data:image/")) throw new Error("empty_image_result");
-  return image;
+}
+
+async function generateMarcenariaMagicaImage(prompt: string, images: ImageInput[]): Promise<string> {
+  // The engine edits a single reference photo. IARA sends the current
+  // environment photo (or the croqui) as the primary reference first.
+  const primary = images[0];
+  if (!primary) throw new Error("provider_reference_required:marcenaria_magica");
+  if (images.length > 1) {
+    console.info("[MARCENARIA_MAGICA_REFERENCE]", JSON.stringify({ status: "primary_selected", referenceCount: images.length }));
+  }
+  return runMarcenariaMagicaRender(prompt, primary);
 }
 
 async function generateVercelImage(prompt: string, images: ImageInput[], size: { width?: number; height?: number } | undefined, authorization: string): Promise<string> {
@@ -549,11 +648,11 @@ serve(async request => {
     if (message === "provider_settings_unavailable") return jsonResponse(cors, { message: "Não foi possível ler a configuração do provider de imagem.", code: "provider_settings_unavailable", stage: "provider_selection" }, 503);
     if (message === "provider_not_configured" || message === "PROVIDER_NOT_CONFIGURED" || message.startsWith("provider_not_configured:")) {
       const provider = message.includes(":") ? message.split(":")[1] : undefined;
-      return jsonResponse(cors, { message: provider ? "O provider de imagem " + provider + " não está configurado nesta publicação." : "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", provider, missingSecret: provider === "lovable" ? "LOVABLE_API_KEY" : provider === "gemini" ? "GOOGLE_GEMINI_API_KEY ou GEMINI_API_KEY" : undefined, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
+      return jsonResponse(cors, { message: provider ? "O provider de imagem " + provider + " não está configurado nesta publicação." : "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", provider, missingSecret: provider === "marcenaria_magica" || provider === "lovable" ? "LOVABLE_API_KEY" : provider === "gemini" ? "GOOGLE_GEMINI_API_KEY ou GEMINI_API_KEY" : undefined, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
     }
     if (message.startsWith("configured_provider_unavailable:")) {
       const provider = message.slice("configured_provider_unavailable:".length);
-      return jsonResponse(cors, { message: "O provider de imagem configurado (" + provider + ") não está disponível nesta publicação.", code: "provider_not_configured", provider, missingSecret: provider === "lovable" ? "LOVABLE_API_KEY" : provider === "gemini" ? "GOOGLE_GEMINI_API_KEY ou GEMINI_API_KEY" : undefined, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
+      return jsonResponse(cors, { message: "O provider de imagem configurado (" + provider + ") não está disponível nesta publicação.", code: "provider_not_configured", provider, missingSecret: provider === "marcenaria_magica" || provider === "lovable" ? "LOVABLE_API_KEY" : provider === "gemini" ? "GOOGLE_GEMINI_API_KEY ou GEMINI_API_KEY" : undefined, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
     }
     if (message === "provider_timeout" || message.includes("provider_timeout")) return jsonResponse(cors, { message: "O provider de imagem excedeu o tempo limite.", code: "provider_timeout", stage: "generation" }, 504);
     if (message === "provider_connection_error" || message.includes("provider_connection_error")) return jsonResponse(cors, { message: "Não foi possível estabelecer comunicação com o provider de imagem.", code: "provider_connection_error", stage: "generation" }, 502);

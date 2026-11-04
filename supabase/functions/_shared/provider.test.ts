@@ -1,5 +1,5 @@
-import { assertEquals, assertThrows } from "https://deno.land/std@0.168.0/assert/mod.ts";
-import { resolveProviderSelection } from "./provider.ts";
+import { assertEquals, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { providerAvailabilityFromEnv, resolveProviderSelection } from "./provider.ts";
 
 const availability = (overrides: Partial<{ marcenaria_magica: boolean; lovable: boolean; gemini: boolean; vercel: boolean }> = {}) => ({
   marcenaria_magica: false,
@@ -32,6 +32,20 @@ Deno.test("automatic prefers Marcenaria Mágica for reference renders", () => {
 Deno.test("explicit Marcenaria Mágica is selected only for reference renders", () => {
   assertEquals(resolveProviderSelection("marcenaria_magica", availability({ marcenaria_magica: true }), { requiresReference: true }), { primary: "marcenaria_magica", fallback: null });
   assertThrows(() => resolveProviderSelection("marcenaria_magica", availability({ marcenaria_magica: true }), { requiresReference: false }), Error, "PROVIDER_NOT_CONFIGURED");
+});
+
+Deno.test("the existing LOVABLE_API_KEY enables the native Marcenaria Mágica engine", () => {
+  const withKey = providerAvailabilityFromEnv((name) => (name === "LOVABLE_API_KEY" ? "gateway-key" : undefined));
+  assertEquals(withKey, { marcenaria_magica: true, lovable: true, gemini: false, vercel: false });
+  const withoutKey = providerAvailabilityFromEnv(() => undefined);
+  assertEquals(withoutKey.marcenaria_magica, false);
+  assertEquals(withoutKey.lovable, false);
+});
+
+Deno.test("gateway credential keeps Marcenaria Mágica first for reference renders", () => {
+  const availabilityFromEnv = providerAvailabilityFromEnv((name) => (name === "LOVABLE_API_KEY" ? "gateway-key" : undefined));
+  assertEquals(resolveProviderSelection("automatic", availabilityFromEnv, { requiresReference: true }), { primary: "marcenaria_magica", fallback: "lovable" });
+  assertEquals(resolveProviderSelection("automatic", availabilityFromEnv, { requiresReference: false }), { primary: "lovable", fallback: null });
 });
 
 Deno.test("explicit unavailable provider is rejected", () => {
