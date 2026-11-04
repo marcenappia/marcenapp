@@ -25,12 +25,17 @@ Deno.test("explicit Gemini is respected and can fall back", () => {
   assertEquals(resolveProviderSelection("gemini", availability({ lovable: true, gemini: true })), { primary: "gemini", fallback: "lovable" });
 });
 
-Deno.test("automatic prefers Marcenaria Mágica for reference renders", () => {
-  assertEquals(resolveProviderSelection("automatic", availability({ marcenaria_magica: true, lovable: true }), { requiresReference: true }), { primary: "marcenaria_magica", fallback: "lovable" });
+Deno.test("automatic prefers Marcenaria Mágica for reference renders without fallback", () => {
+  assertEquals(resolveProviderSelection("automatic", availability({ marcenaria_magica: true, lovable: true }), { requiresReference: true }), { primary: "marcenaria_magica", fallback: null });
+  assertEquals(resolveProviderSelection("automatic", availability({ marcenaria_magica: true, lovable: true, gemini: true, vercel: true }), { requiresReference: true }), { primary: "marcenaria_magica", fallback: null });
 });
 
 Deno.test("explicit Marcenaria Mágica is selected only for reference renders", () => {
   assertEquals(resolveProviderSelection("marcenaria_magica", availability({ marcenaria_magica: true }), { requiresReference: true }), { primary: "marcenaria_magica", fallback: null });
+  assertEquals(
+    resolveProviderSelection("marcenaria_magica", availability({ marcenaria_magica: true, lovable: true, gemini: true, vercel: true }), { requiresReference: true }),
+    { primary: "marcenaria_magica", fallback: null },
+  );
   assertThrows(() => resolveProviderSelection("marcenaria_magica", availability({ marcenaria_magica: true }), { requiresReference: false }), Error, "PROVIDER_NOT_CONFIGURED");
 });
 
@@ -44,7 +49,7 @@ Deno.test("the existing LOVABLE_API_KEY enables the native Marcenaria Mágica en
 
 Deno.test("gateway credential keeps Marcenaria Mágica first for reference renders", () => {
   const availabilityFromEnv = providerAvailabilityFromEnv((name) => (name === "LOVABLE_API_KEY" ? "gateway-key" : undefined));
-  assertEquals(resolveProviderSelection("automatic", availabilityFromEnv, { requiresReference: true }), { primary: "marcenaria_magica", fallback: "lovable" });
+  assertEquals(resolveProviderSelection("automatic", availabilityFromEnv, { requiresReference: true }), { primary: "marcenaria_magica", fallback: null });
   assertEquals(resolveProviderSelection("automatic", availabilityFromEnv, { requiresReference: false }), { primary: "lovable", fallback: null });
 });
 

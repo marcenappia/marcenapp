@@ -45,17 +45,20 @@ export function resolveProviderSelection(
 
   if (operational.length === 0) throw new Error("PROVIDER_NOT_CONFIGURED");
 
+  // Marcenaria Mágica is never replaced by another engine: when it is the
+  // primary provider the resolution has no fallback. Generic providers keep
+  // their existing fallback chain.
+  const fallbackFor = (primary: AIProvider): AIProvider | null =>
+    primary === "marcenaria_magica" ? null : operational.find((provider) => provider !== primary) ?? null;
+
   if (configured === "marcenaria_magica" || configured === "lovable" || configured === "gemini" || configured === "vercel") {
     if (configured === "marcenaria_magica" && options?.requiresReference === false) throw new Error("PROVIDER_NOT_CONFIGURED");
     if (!available[configured]) throw new Error("PROVIDER_NOT_CONFIGURED");
-    const fallback = operational.find((provider) => provider !== configured) ?? null;
-    return { primary: configured, fallback };
+    return { primary: configured, fallback: fallbackFor(configured) };
   }
 
-  return {
-    primary: operational[0],
-    fallback: operational[1] ?? null,
-  };
+  const primary = operational[0];
+  return { primary, fallback: fallbackFor(primary) };
 }
 
 export async function resolveProvider(userId: string, options?: { requiresReference?: boolean }): Promise<ProviderResolution> {

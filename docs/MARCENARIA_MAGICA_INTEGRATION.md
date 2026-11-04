@@ -38,17 +38,30 @@ idempotência, consumo e estorno de créditos, gravação no Storage `obras` e o
 - Sem referência → o motor não é elegível; segue a ordem dos providers genéricos.
 - Provider escolhido explicitamente em `ai_provider_settings` é contrato rígido: se estiver
   indisponível a execução falha com `provider_not_configured` em vez de trocar de motor.
+- Quando `marcenaria_magica` é o provider primário (automático com referência ou escolhido
+  explicitamente), o fallback é `null`: nenhum outro motor substitui a Marcenaria Mágica. Os
+  providers genéricos mantêm a cadeia de fallback que já existia.
 
 `supabase/functions/_shared/provider.ts` expõe a mesma regra de disponibilidade
 (`providerAvailabilityFromEnv`) para os demais consumidores.
 
 ## Referências múltiplas
 
-O motor original edita **uma** foto. Quando o contexto envia mais de uma referência, a imagem
-principal do contexto atual (`images[0]`: foto do ambiente ou croqui marcado como
-"imagem principal") é a base da edição e a seleção é registrada no log
-`[MARCENARIA_MAGICA_REFERENCE]`. As demais referências não são enviadas ao motor e não são
-descartadas do contexto do projeto.
+O motor original edita **uma** foto. O contrato é a **ordem** das referências: o `ai-image` usa
+sempre `images[0]` como base da edição, e a IARA garante que essa posição seja a planta/foto
+atual do pedido.
+
+Em `src/modules/iara/services/planService.ts`, `recentVisualReferences` delega a
+`orderPlanReferences` (`src/modules/iara/services/planReferences.ts`): a referência cujo
+`data === currentPlan` é sempre movida para a primeira posição preservando `mimeType` e
+`kind`; se ela não existir, é criada como `image/png`/`kind: 'plan'` e colocada em primeiro
+lugar; duplicatas da planta atual são removidas; as demais referências mantêm a ordem atual; o
+total é limitado a 8. Não existe marcação de "imagem principal" nas referências — apenas a
+ordem.
+
+As demais referências continuam no contexto do projeto (análise da planta e prompt do Studio),
+mas apenas `images[0]` é enviada ao motor, e a seleção é registrada no log
+`[MARCENARIA_MAGICA_REFERENCE]`.
 
 ## Configuração
 

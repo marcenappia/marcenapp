@@ -4,6 +4,7 @@ import { useStudioStore } from '@/store/useStudioStore';
 import { useMarcenappOS } from '@/store/useMarcenappOS';
 import type { ExecutionContext } from '@/core/toolRegistry';
 import { humanSpatialLanguagePrompt } from './spatialLanguage';
+import { orderPlanReferences, type PlanVisualReference } from './planReferences';
 import { buildFloorPlanGeometry } from './floorPlanGeometry';
 import type { FurnitureModuleSpec } from '@/lib/furniture/package';
 
@@ -42,7 +43,7 @@ async function markPlanFailed(planId: string, projectId: string, error: unknown)
 }
 
 async function recentVisualReferences(ctx: ExecutionContext, currentPlan: string) {
-  if (!ctx.projectId) return [{ mimeType: 'image/png', data: currentPlan }];
+  if (!ctx.projectId) return [{ mimeType: 'image/png', data: currentPlan, kind: 'plan' }];
   const { data } = await supabase.from('chat_messages').select('image_url,metadata,created_at').eq('user_id', ctx.userId).eq('project_id', ctx.projectId).not('image_url', 'is', null).order('created_at', { ascending: false }).limit(8);
   const refs = (data ?? []).map((row) => {
     const imageUrl = typeof row.image_url === 'string' ? row.image_url : '';
@@ -51,9 +52,8 @@ async function recentVisualReferences(ctx: ExecutionContext, currentPlan: string
     const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
     const action = metadata.action === 'analyze_plan' ? 'plan' : 'environment';
     return { mimeType: imageUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg', data: dataPart, kind: action };
-  }).filter(Boolean) as Array<{ mimeType: string; data: string; kind: string }>;
-  if (!refs.some((ref) => ref.data === currentPlan)) refs.unshift({ mimeType: 'image/png', data: currentPlan, kind: 'plan' });
-  return refs.slice(0, 8);
+  }).filter(Boolean) as PlanVisualReference[];
+  return orderPlanReferences(refs, currentPlan);
 }
 
 export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; planBase64: string }, ctx: ExecutionContext) {
