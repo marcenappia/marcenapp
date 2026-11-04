@@ -6,7 +6,7 @@ const MAX_PERSISTED_COMMANDS = 20;
 
 export type CommandStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export interface ImageData { mimeType: string; data: string; }
-export interface RenderCommand { id: string; prompt: string; images?: ImageData[]; style?: string; decor?: string; status: CommandStatus; error?: string; resultUrl?: string; timestamp: number; idempotencyKey?: string; metadata?: { origin: 'iara' | 'manual'; originalPrompt?: string; targetModule?: string; referenceCount?: number; planId?: string; }; }
+export interface RenderCommand { id: string; prompt: string; images?: ImageData[]; style?: string; decor?: string; status: CommandStatus; error?: string; resultUrl?: string; timestamp: number; idempotencyKey?: string; metadata?: { origin: 'iara' | 'manual'; originalPrompt?: string; targetModule?: string; referenceCount?: number; planId?: string; userId?: string; projectId?: string; environmentId?: string; versionId?: string; correlationId?: string; generation?: number; }; }
 export interface StudioState { commandQueue: RenderCommand[]; lastResult: string | null; generatedImage: string | null; isRendering: boolean; enqueueCommand: (command: Omit<RenderCommand, 'id' | 'status' | 'timestamp'>) => string; startProcessing: (id: string) => void; completeCommand: (id: string, resultUrl: string) => void; failCommand: (id: string, error: string) => void; cancelCommand: (id: string) => void; setGeneratedImage: (url: string | null) => void; clearQueue: () => void; removeFromQueue: (id: string) => void; }
 
 type PersistedStudioState = Partial<StudioState>;
@@ -22,6 +22,12 @@ const asMetadata = (value: unknown): RenderCommand['metadata'] => {
     ...(typeof value.targetModule === 'string' ? { targetModule: value.targetModule } : {}),
     ...(typeof value.referenceCount === 'number' ? { referenceCount: value.referenceCount } : {}),
     ...(typeof value.planId === 'string' ? { planId: value.planId } : {}),
+    ...(typeof value.userId === 'string' ? { userId: value.userId } : {}),
+    ...(typeof value.projectId === 'string' ? { projectId: value.projectId } : {}),
+    ...(typeof value.environmentId === 'string' ? { environmentId: value.environmentId } : {}),
+    ...(typeof value.versionId === 'string' ? { versionId: value.versionId } : {}),
+    ...(typeof value.correlationId === 'string' ? { correlationId: value.correlationId } : {}),
+    ...(typeof value.generation === 'number' ? { generation: value.generation } : {}),
   };
 };
 const asMigratedCommand = (value: unknown, recoverProcessing = false): RenderCommand | null => {

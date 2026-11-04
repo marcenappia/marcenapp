@@ -192,7 +192,34 @@ export const StudioWorker = () => {
       );
       // Wait for the original execution identity instead of inventing one from
       // the most recently opened project while the two stores hydrate.
-      if (!matchingOS) return;
+      if (!matchingOS) {
+        const metadata = nextStudioCommand.metadata;
+        if (!metadata?.userId || metadata.userId !== user?.id) return;
+        // The Studio queue is the durable execution source. Recreate only the
+        // lightweight OS coordination record when hydration or a transient
+        // write race dropped the original bridge command. The idempotency key
+        // prevents a duplicate render and lets the chat publisher observe the
+        // terminal result normally.
+        useMarcenappOS.getState().dispatchCommand({
+          source: 'iara',
+          target: 'studio',
+          action: 'GENERATE_VISUAL',
+          idempotencyKey: nextStudioCommand.idempotencyKey,
+          payload: {
+            prompt: metadata.originalPrompt ?? nextStudioCommand.prompt,
+            estilo: nextStudioCommand.decor ?? nextStudioCommand.style ?? 'Limpo',
+            studioCommandId: nextStudioCommand.id,
+            idempotencyKey: nextStudioCommand.idempotencyKey,
+            userId: metadata.userId,
+            ...(metadata.projectId ? { projectId: metadata.projectId } : {}),
+            ...(metadata.environmentId ? { environmentId: metadata.environmentId } : {}),
+            ...(metadata.versionId ? { versionId: metadata.versionId } : {}),
+            ...(metadata.correlationId ? { correlationId: metadata.correlationId } : {}),
+            ...(typeof metadata.generation === 'number' ? { generation: metadata.generation } : {}),
+          },
+        });
+        return;
+      }
       await processCommand(matchingOS);
     })();
   }, [studioCommandQueue, commandHistory, user?.id, readCurrentContext, processCommand]);
