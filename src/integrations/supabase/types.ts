@@ -35,6 +35,57 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_credit_ledger: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          idempotency_key: string
+          operation_type: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          operation_type: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          operation_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      billing_wallets: {
+        Row: {
+          balance: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           budget: string | null
@@ -511,12 +562,31 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      consume_billing_credit: {
+        Args: {
+          p_idempotency_key: string
+          p_operation_type: string
+          p_user_id: string
+        }
+        Returns: {
+          balance: number
+          status: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      refund_billing_credit: {
+        Args: {
+          p_idempotency_key: string
+          p_operation_type: string
+          p_user_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
