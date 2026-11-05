@@ -87,6 +87,15 @@ describe('IARA/YARA domain orchestration', () => {
 });
 
 describe('project text parsing regressions', () => {
+  it('parses verbal Portuguese measurements with labelled axes', () => {
+    expect(parseCreateProjectInput({ message: 'Crie um armário com 2 metros e cinquenta de largura, 2 metros de altura e 60 centímetros de profundidade' })).toMatchObject({
+      width: 2500,
+      height: 2000,
+      depth: 600,
+      confirmado: true,
+    });
+  });
+
   it('parses millimetre dimensions and explicit door count without confusing finish numbers', () => {
     expect(parseCreateProjectInput({ message: 'Crie este projeto 2500x2800x600 na cor branco TX 6 portas de abrir' })).toMatchObject({
       width: 2500,
