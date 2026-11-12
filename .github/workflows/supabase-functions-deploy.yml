@@ -13,6 +13,7 @@ on:
       - "supabase/functions/migrate-helper/**"
       - "supabase/functions/whatsapp-send/**"
       - "supabase/functions/whatsapp-webhook/**"
+      - "supabase/migrations/**"
       - "supabase/functions/_shared/**"
       - "supabase/config.toml"
   workflow_dispatch:
@@ -40,6 +41,9 @@ jobs:
         run: |
           test -n "$SUPABASE_ACCESS_TOKEN"
           test -n "$SUPABASE_PROJECT_ID"
+
+      - name: Apply database migrations
+        run: supabase db push --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Deploy Asaas functions
         run: |

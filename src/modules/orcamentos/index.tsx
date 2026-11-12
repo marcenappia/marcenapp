@@ -18,7 +18,7 @@ const OrcamentoModule = ({ project }: Props) => {
   const [showModal, setShowModal] = useState(false);
   const [mode, setMode] = useState<'manual' | 'ia'>('manual');
   const [draft, setDraft] = useState<ProjectBudgetDraft | null>(null);
-  const { budget, setBudget, calc, formatBRL, loading, saving, saved, error, save, reload } = useOrcamento(project);
+  const { budget, setBudget, setBudgetText, calc, formatBRL, loading, saving, saved, error, save, reload } = useOrcamento(project);
   const technical = React.useMemo(() => buildTechnicalStructure(project), [project]);
   const materialAreas = React.useMemo(() => technical.parts.reduce<Record<string, number>>((acc, part) => {
     const key = part.material || 'Material não definido';
@@ -55,11 +55,22 @@ const OrcamentoModule = ({ project }: Props) => {
             <p className="text-sm text-slate-500 mb-5">Aqui entram somente custos e preço de venda reais. O Marcenapp não inventa preço de MDF, ferragens ou mão de obra.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {field('salePrice', 'Preço de venda')}
+              {field('discount', 'Desconto comercial')}
               {field('materialCost', 'Materiais / MDF')}
               {field('hardwareCost', 'Ferragens')}
               {field('laborCost', 'Mão de obra')}
+              {field('freightCost', 'Frete')}
+              {field('installationCost', 'Instalação / montagem')}
+              {field('designCost', 'Projeto / medição')}
+              {field('taxCost', 'Impostos / taxas')}
+              {field('contingencyCost', 'Reserva / imprevistos')}
               {field('otherCost', 'Outros custos')}
             </div>
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-1.5"><span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Condições de pagamento</span><input value={budget.paymentTerms} onChange={event => setBudgetText('paymentTerms', event.target.value)} placeholder="Ex.: 50% entrada + 50% na instalação" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" /></label>
+              <label className="flex flex-col gap-1.5"><span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Observações comerciais</span><textarea value={budget.notes} onChange={event => setBudgetText('notes', event.target.value)} placeholder="Prazo, validade, exclusões e premissas" rows={3} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" /></label>
+            </div>
+            <p className="mt-4 text-xs text-slate-500">O desconto reduz o preço líquido; frete, instalação, projeto, impostos, reserva e outros entram no custo total para calcular o lucro real.</p>
           </Card>
 
           <Card className="p-6">
@@ -103,6 +114,7 @@ const OrcamentoModule = ({ project }: Props) => {
               <span style={{ color: '#a5b4fc', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Preço de Venda Real</span>
               <div style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '1rem', marginTop: '0.5rem', color: '#fff' }}>{formatBRL(budget.salePrice)}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#cbd5e1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Preço líquido</span><span style={{ color: '#fff', fontWeight: 600 }}>{formatBRL(calc.precoLiquido)}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Custo total</span><span style={{ color: '#fff', fontWeight: 600 }}>{formatBRL(calc.custoTotal)}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Lucro real</span><span style={{ color: '#34d399', fontWeight: 700 }}>{formatBRL(calc.lucro)}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Margem real</span><span style={{ color: '#34d399', fontWeight: 700 }}>{calc.margemPct == null ? '—' : `${calc.margemPct.toLocaleString('pt-BR')}%`}</span></div>
@@ -121,7 +133,7 @@ const OrcamentoModule = ({ project }: Props) => {
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Resumo do Orçamento Real" maxWidth="max-w-md">
         <div className="bg-white p-6 rounded text-slate-800 space-y-4">
           <div className="text-center border-b pb-4"><div className="flex items-center justify-center gap-2 mb-1"><Calculator size={20} className="text-indigo-600" /><h2 className="text-xl font-bold">Orçamento</h2></div><p className="text-slate-400 text-sm">Projeto {project.id ? project.id.slice(0, 8) : 'não salvo'}</p></div>
-          <div className="space-y-2 text-sm"><p><strong>Dimensões:</strong> {project.width} × {project.height} × {project.depth} mm</p><p><strong>Estrutura:</strong> {project.doors} portas, {project.drawers} gavetas</p><div className="border-t border-dashed pt-3 mt-3 space-y-1"><p className="flex justify-between"><span>Materiais:</span><span>{formatBRL(budget.materialCost)}</span></p><p className="flex justify-between"><span>Ferragens:</span><span>{formatBRL(budget.hardwareCost)}</span></p><p className="flex justify-between"><span>Mão de Obra:</span><span>{formatBRL(budget.laborCost)}</span></p><p className="flex justify-between"><span>Outros:</span><span>{formatBRL(budget.otherCost)}</span></p><p className="flex justify-between font-bold"><span>Custo total:</span><span>{formatBRL(calc.custoTotal)}</span></p><p className="flex justify-between text-lg font-bold mt-2 border-t pt-2"><span>Preço de venda:</span><span>{formatBRL(budget.salePrice)}</span></p><p className="flex justify-between text-emerald-600 font-bold"><span>Lucro:</span><span>{formatBRL(calc.lucro)}</span></p><p className="flex justify-between text-emerald-600"><span>Margem:</span><span>{calc.margemPct == null ? '—' : `${calc.margemPct.toLocaleString('pt-BR')}%`}</span></p></div></div>
+          <div className="space-y-2 text-sm"><p><strong>Dimensões:</strong> {project.width} × {project.height} × {project.depth} mm</p><p><strong>Estrutura:</strong> {project.doors} portas, {project.drawers} gavetas</p><div className="border-t border-dashed pt-3 mt-3 space-y-1"><p className="flex justify-between"><span>Materiais:</span><span>{formatBRL(budget.materialCost)}</span></p><p className="flex justify-between"><span>Ferragens:</span><span>{formatBRL(budget.hardwareCost)}</span></p><p className="flex justify-between"><span>Mão de Obra:</span><span>{formatBRL(budget.laborCost)}</span></p><p className="flex justify-between"><span>Frete + instalação:</span><span>{formatBRL((budget.freightCost ?? 0) + (budget.installationCost ?? 0))}</span></p><p className="flex justify-between"><span>Impostos + reserva:</span><span>{formatBRL((budget.taxCost ?? 0) + (budget.contingencyCost ?? 0))}</span></p><p className="flex justify-between"><span>Desconto:</span><span>{formatBRL(budget.discount)}</span></p><p className="flex justify-between font-bold"><span>Custo total:</span><span>{formatBRL(calc.custoTotal)}</span></p><p className="flex justify-between text-lg font-bold mt-2 border-t pt-2"><span>Preço líquido:</span><span>{formatBRL(calc.precoLiquido)}</span></p><p className="flex justify-between text-emerald-600 font-bold"><span>Lucro:</span><span>{formatBRL(calc.lucro)}</span></p><p className="flex justify-between text-emerald-600"><span>Margem:</span><span>{calc.margemPct == null ? '—' : `${calc.margemPct.toLocaleString('pt-BR')}%`}</span></p>{budget.paymentTerms && <p className="border-t pt-2 text-xs"><strong>Pagamento:</strong> {budget.paymentTerms}</p>}</div></div>
           <Button onClick={() => window.print()} className="w-full"><Printer size={16} /> Imprimir</Button>
         </div>
       </Modal>
