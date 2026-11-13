@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import DiarioIntake from './DiarioIntake';
 import DiarioFreeLayer from './DiarioFreeLayer';
 import ProjectTechnicalImport from './ProjectTechnicalImport';
+import ProjectDocumentsPanel from './ProjectDocumentsPanel';
 import type { ProjectBudgetDraft } from '@/core/yara/projectIngestion';
 
 interface Props { navigateTo?: (id: string, params?: Record<string, string>) => void; }
@@ -244,6 +245,8 @@ export default function Diario({ navigateTo }: Props) {
             ) : <p className="mt-2 text-xs leading-5 text-slate-600">A YARA analisa o conjunto recebido e cria um rascunho com evidências e pendências. O marceneiro valida antes de transformar em preço.</p>}
           </div>
         </section>
+
+        {selectedProject && user?.id && <ProjectDocumentsPanel projectId={selectedProject} userId={user.id} />}
 
         <DiarioFreeLayer navigateTo={navigateTo} />
 
