@@ -11,7 +11,7 @@ interface Props {
   setProject: React.Dispatch<React.SetStateAction<ProjectData>>;
 }
 
-type CostField = 'salePrice' | 'materialCost' | 'hardwareCost' | 'laborCost' | 'otherCost';
+type CostField = 'salePrice' | 'materialCost' | 'hardwareCost' | 'laborCost' | 'otherCost' | 'freightCost' | 'installationCost' | 'designCost' | 'taxCost' | 'contingencyCost' | 'discount';
 
 const OrcamentoModule = ({ project }: Props) => {
   const [showModal, setShowModal] = useState(false);
