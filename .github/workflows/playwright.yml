@@ -2,6 +2,12 @@ name: Playwright Tests
 # Full validation gate for the release branch; never deploys or merges.
 on:
   workflow_dispatch:
+    inputs:
+      run_real_render:
+        description: 'Executar render real da IARA (pode consumir créditos de IA)'
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [ main, master ]
   pull_request:
@@ -146,10 +152,14 @@ jobs:
         console.log(`Billing Sandbox PASS: payment ${body.payment.id} created and persisted.`);
         NODE
 
-    - name: Run Playwright tests
+    - name: Run Playwright tests (excluding credit-consuming render)
       id: playwright
       if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.e2e_bootstrap.outcome == 'success' }}
-      run: npx playwright test
+      run: npx playwright test --grep-invert "IARA executes a real photo-to-render production flow"
+
+    - name: Run real IARA photo-to-render E2E
+      if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.run_real_render == true && steps.e2e_bootstrap.outcome == 'success' }}
+      run: npx playwright test tests/e2e/authenticated-core.spec.ts -g "IARA executes a real photo-to-render production flow"
 
     - name: Cleanup ephemeral E2E user
       if: ${{ always() && steps.e2e_bootstrap.outcome == 'success' }}
