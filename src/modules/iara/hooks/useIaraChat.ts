@@ -478,7 +478,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
         metadata: {
           projectId: destination.projectId,
           environmentId: destination.environmentId,
-          status: 'attached',
+          status: 'completed',
           uploadKind: 'environment',
           ...(destination.correlationId ? { correlationId: destination.correlationId } : {}),
           ...(destination.storagePath ? { storagePath: destination.storagePath } : {}),
