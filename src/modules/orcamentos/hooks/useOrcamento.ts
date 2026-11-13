@@ -55,7 +55,7 @@ export const useOrcamento = (project: ProjectData) => {
       return false;
     }
     setSaved(true); await load(); return true;
-  }, [budget, load, project.id, user]);
+  }, [budget, load, project, user]);
   const calc = useMemo(() => { const costs = [budget.materialCost, budget.hardwareCost, budget.laborCost, budget.otherCost, budget.freightCost, budget.installationCost, budget.designCost, budget.taxCost, budget.contingencyCost].map(v => v ?? 0); const custoTotal = Number(costs.reduce((sum, value) => sum + value, 0).toFixed(2)); const precoLiquido = budget.salePrice == null ? null : Number(Math.max(0, budget.salePrice - (budget.discount ?? 0)).toFixed(2)); const lucro = precoLiquido == null ? null : Number((precoLiquido - custoTotal).toFixed(2)); const margemPct = precoLiquido && precoLiquido > 0 && lucro != null ? Number(((lucro / precoLiquido) * 100).toFixed(2)) : null; return { custoTotal, precoLiquido, lucro, margemPct, isComplete: budget.salePrice != null && budget.materialCost != null && budget.hardwareCost != null && budget.laborCost != null }; }, [budget]);
   return { budget, draft, setBudget: (field: EditableBudgetField, value: string | number) => setBudget(prev => ({ ...prev, [field]: toNullableNumber(value) })), setBudgetText: (field: 'paymentTerms' | 'notes', value: string) => setBudget(prev => ({ ...prev, [field]: value })), calc, loading, saving, saved, error, save, reload: load, formatBRL: (v: number | null) => v == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) };
 };

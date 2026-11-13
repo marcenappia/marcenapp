@@ -106,9 +106,9 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
     allowRotation: part.allowRotation !== false,
   }));
 
-  const templates: CutSheet[] = sheetW > 0 && sheetH > 0 && sheetMaterial
+  const templates = useMemo<CutSheet[]>(() => sheetW > 0 && sheetH > 0 && sheetMaterial
     ? [{ id: 'chapa-real', width: sheetW, height: sheetH, material: sheetMaterial, thickness: sheetThickness ?? undefined }]
-    : [];
+    : [], [sheetW, sheetH, sheetMaterial, sheetThickness]);
 
   const result = useMemo(() => {
     if (!cutParts.length || !templates.length || cutParts.some(part => !part.material)) return null;

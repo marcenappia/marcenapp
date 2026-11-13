@@ -351,7 +351,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     }
     let execution: IaraExecutionIdentity | null = null;
     try {
-      let executionContext = executionContextRef.current;
+      const executionContext = executionContextRef.current;
       const correlationId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const generation = executionGenerationRef.current;
       const nextProjectState = createProjectStateFromConversation([promptText], projectStateRef.current);
