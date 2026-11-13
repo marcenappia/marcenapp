@@ -233,13 +233,15 @@ export async function executeIaraSmartAction(action: SmartAction, projectId?: st
   }
 
   if (action === 'documents') {
-    const [{ data: documents, error: documentError }, { data: contracts, error: contractError }] = await Promise.all([
+    const [{ data: documents, error: documentError }, { data: contracts, error: contractError }, { data: projectDocuments, error: projectDocumentError }] = await Promise.all([
       db.from('marcenaria_documentos').select('id,nome,tipo,storage_path,status,metadata,created_at,updated_at').eq('user_id', userId).order('created_at', { ascending: false }),
       db.from('project_contracts').select('id,contract_number,status,document_path,document_hash,created_at,updated_at').eq('user_id', userId).eq('project_id', projectId!).order('created_at', { ascending: false }),
+      db.from('project_plans').select('id,name,file_path,source_url,status,metadata,created_at,updated_at').eq('project_id', projectId!).order('created_at', { ascending: false }),
     ]);
     if (documentError) return { ok: false, error: documentError.message };
     if (contractError) return { ok: false, error: contractError.message };
-    return { ok: true, data: { action, projectId, documents: documents ?? [], contracts: contracts ?? [] } };
+    if (projectDocumentError) return { ok: false, error: projectDocumentError.message };
+    return { ok: true, data: { action, projectId, documents: documents ?? [], contracts: contracts ?? [], projectDocuments: projectDocuments ?? [] } };
   }
 
   if (action === 'order') {
@@ -255,7 +257,7 @@ export async function executeIaraSmartAction(action: SmartAction, projectId?: st
   if (action === 'assembly' || action === 'installation' || action === 'checklist' || action === 'delivery') {
     const { data, error } = await db.from('project_production_stages').select('id,stage_key,stage_name,status,responsible,started_at,due_at,completed_at,blocked_reason,notes').eq('user_id', userId).eq('project_id', projectId!).order('created_at');
     if (error) return { ok: false, error: error.message };
-    return { ok: true, data: { action, projectId, executionStages: data ?? [], executionSupport: 'status_read_only' } };
+    return { ok: true, data: { action, projectId, executionStages: data ?? [], executionSupport: 'status_managed_in_operational_intelligence' } };
   }
 
   if (action === 'review_project') {
