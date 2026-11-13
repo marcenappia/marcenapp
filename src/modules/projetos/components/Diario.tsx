@@ -49,6 +49,7 @@ export default function Diario({ navigateTo }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [technicalDraft, setTechnicalDraft] = useState<ProjectBudgetDraft | null>(null);
+  useEffect(() => { setTechnicalDraft(null); }, [selectedProject]);
 
   const load = useCallback(async () => {
     if (!user) return;

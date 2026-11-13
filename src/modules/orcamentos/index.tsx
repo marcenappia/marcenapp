@@ -5,7 +5,6 @@ import { useOrcamento } from './hooks/useOrcamento';
 import type { ProjectData } from '@/modules/projetos/types';
 import { buildTechnicalStructure } from '@/core/projectTechnicalModel';
 import ProjectTechnicalImport from '@/modules/projetos/components/ProjectTechnicalImport';
-import type { ProjectBudgetDraft } from '@/core/yara/projectIngestion';
 
 interface Props {
   project: ProjectData;
@@ -17,9 +16,8 @@ type CostField = 'salePrice' | 'materialCost' | 'hardwareCost' | 'laborCost' | '
 const OrcamentoModule = ({ project }: Props) => {
   const [showModal, setShowModal] = useState(false);
   const [mode, setMode] = useState<'manual' | 'ia'>('manual');
-  const [draft, setDraft] = useState<ProjectBudgetDraft | null>(null);
   const { budget, draft: savedDraft, setBudget, setBudgetText, calc, formatBRL, loading, saving, saved, error, save, reload } = useOrcamento(project);
-  const activeDraft = draft ?? savedDraft;
+  const activeDraft = savedDraft;
   const technical = React.useMemo(() => buildTechnicalStructure(project), [project]);
   const materialAreas = React.useMemo(() => technical.parts.reduce<Record<string, number>>((acc, part) => {
     const key = part.material || 'Material não definido';
@@ -44,7 +42,7 @@ const OrcamentoModule = ({ project }: Props) => {
       </Card>
 
       {mode === 'ia' ? <div className="space-y-6 pb-20 md:pb-0">
-        <ProjectTechnicalImport projectId={project.id} onDraft={(nextDraft) => { setDraft(nextDraft); void reload(); }} />
+        <ProjectTechnicalImport projectId={project.id} onDraft={() => { void reload(); }} />
         {activeDraft && <Card className="p-5"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700"><ClipboardCheck size={18} /></span><div><h3 className="font-black text-slate-900">Rascunho recebido pela YARA</h3><p className="mt-1 text-xs text-slate-500">Este resultado ainda não é preço final. Confirme os itens e informe os valores no modo Manual.</p></div></div><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="rounded-xl bg-slate-50 p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Itens</span><strong className="text-lg text-slate-900">{activeDraft.items.length}</strong></div><div className="rounded-xl bg-slate-50 p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Pendências</span><strong className="text-lg text-amber-700">{activeDraft.missingInformation.length}</strong></div><div className="rounded-xl bg-slate-50 p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Premissas</span><strong className="text-lg text-slate-900">{activeDraft.assumptions.length}</strong></div><div className="rounded-xl bg-slate-50 p-3"><span className="block text-[10px] font-bold uppercase text-slate-400">Status</span><strong className="text-sm text-indigo-700">{activeDraft.status === 'ready_for_pricing' ? 'Pronto para precificar' : 'Revisar'}</strong></div></div><div className="mt-5 space-y-2">{activeDraft.items.slice(0, 12).map((item, index) => <div key={`${item.description}-${index}`} className="rounded-xl border border-slate-200 p-3 text-sm"><div className="flex items-start justify-between gap-3"><span className="font-bold text-slate-800">{item.description || `Item ${index + 1}`}</span><span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${item.needsConfirmation ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{item.needsConfirmation ? 'Confirmar' : 'Evidenciado'}</span></div><p className="mt-1 text-xs text-slate-500">{item.quantity || 0} {item.unit || 'un.'}{item.material ? ` • ${item.material}` : ''}{item.confidence != null ? ` • confiança ${Math.round(item.confidence * 100)}%` : ''}</p></div>)}</div><button type="button" onClick={() => setMode('manual')} className="mt-5 inline-flex rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-slate-800">Continuar no orçamento manual</button></Card>}
       </div> :
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in pb-20 md:pb-0">
