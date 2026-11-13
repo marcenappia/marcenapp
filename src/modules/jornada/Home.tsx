@@ -43,7 +43,7 @@ export const Home = ({ navigateTo }: Props) => {
           const stages = stagesResult.data ?? [];
           const budgets = budgetsResult.data ?? [];
           setSummary({
-            activeProjects: mapped.filter(project => project.etapa < 7).length,
+            activeProjects: rows.filter(project => !['concluido', 'completed', 'cancelado', 'cancelled'].includes((project.status || '').toLowerCase())).length,
             budgetedValue: budgets.reduce((sum, row) => sum + Number(row.sale_price || 0), 0),
             budgetCount: budgets.length,
             openReceivables: receivables.filter(row => !row.received_at && row.status === 'open').reduce((sum, row) => sum + Number(row.amount || 0), 0),
