@@ -71,6 +71,10 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
   }, [snapshot.modules, sheetWidth, sheetHeight, kerf, sheetPrices, laborCost, otherCost]);
 
   useEffect(() => {
+    if (initialProjectId) setProjectId(initialProjectId);
+  }, [initialProjectId]);
+
+  useEffect(() => {
     if (!user) return;
     let alive = true;
     void supabase.from('projects').select('id,nome,name').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(100)
