@@ -69,18 +69,46 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     if (!user || !projectId) { setMessage('Selecione um projeto para salvar.'); return; }
     setSaving(true); setMessage('');
     try {
-      const { data: current, error: readError } = await supabase.from('project_versions').select('id,version_number,snapshot').eq('user_id', user.id).eq('project_id', projectId).order('version_number', { ascending: false }).limit(1).maybeSingle();
+      const { data: current, error: readError } = await supabase
+        .from('project_versions')
+        .select('id,version_number,status,snapshot,environment_id')
+        .eq('user_id', user.id)
+        .eq('project_id', projectId)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (readError) throw readError;
+
       const prior = current?.snapshot && typeof current.snapshot === 'object' ? current.snapshot as Record<string, unknown> : {};
       const merged = { ...prior, visualFurnitureEditor: snapshot, visualFurnitureEditorUpdatedAt: new Date().toISOString() };
+
+      let hasApprovalOrFreeze = false;
       if (current?.id) {
+        const [{ data: approval, error: approvalError }, { data: freeze, error: freezeError }] = await Promise.all([
+          supabase.from('project_approvals').select('id').eq('project_version_id', current.id).not('approved_at', 'is', null).limit(1).maybeSingle(),
+          supabase.from('project_production_freezes').select('id').eq('project_version_id', current.id).limit(1).maybeSingle(),
+        ]);
+        if (approvalError) throw approvalError;
+        if (freezeError) throw freezeError;
+        hasApprovalOrFreeze = Boolean(approval || freeze);
+      }
+
+      const canUpdateDraft = current?.id && current.status === 'draft' && !hasApprovalOrFreeze;
+      if (canUpdateDraft) {
         const { error } = await supabase.from('project_versions').update({ snapshot: merged }).eq('id', current.id).eq('user_id', user.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('project_versions').insert({ project_id: projectId, user_id: user.id, version_number: 1, status: 'draft', snapshot: merged });
+        const { error } = await supabase.from('project_versions').insert({
+          project_id: projectId,
+          user_id: user.id,
+          version_number: (current?.version_number ?? 0) + 1,
+          status: 'draft',
+          snapshot: merged,
+          environment_id: current?.environment_id ?? null,
+        });
         if (error) throw error;
       }
-      setMessage('Ambiente salvo na versão técnica do projeto.');
+      setMessage(canUpdateDraft ? 'Estudo salvo na versão em rascunho.' : 'Nova versão de rascunho criada; a versão aprovada/congelada foi preservada.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível salvar o ambiente.');
     } finally { setSaving(false); }
