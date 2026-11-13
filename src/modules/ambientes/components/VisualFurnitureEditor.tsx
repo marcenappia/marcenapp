@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Box, Grid3X3, Plus, Save, Trash2 } from 'lucide-react';
+import { findNextFurniturePosition } from './furnitureLayout';
 
 type Project = { id: string; nome?: string | null; name?: string | null };
 type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string };
@@ -59,8 +60,13 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
 
   const updateRoom = (key: keyof EditorSnapshot['room'], value: number) => setSnapshot(current => ({ ...current, room: { ...current.room, [key]: Math.max(100, Math.min(20000, value || 100)) } }));
   const addModule = (item: typeof catalog[number]) => {
+    const position = findNextFurniturePosition(snapshot.room, snapshot.modules, { width: item.width, depth: item.depth });
+    if (!position) {
+      setMessage('Não há espaço livre para esse módulo. Aumente as dimensões do ambiente ou reorganize os módulos.');
+      return;
+    }
     const id = globalThis.crypto?.randomUUID?.() ?? `module-${Date.now()}`;
-    const next: ModuleItem = { id, ...item, x: 0, y: 0, depth: item.depth, material: 'MDF a definir' };
+    const next: ModuleItem = { id, ...item, ...position, material: 'MDF a definir' };
     setSnapshot(current => ({ ...current, modules: [...current.modules, next] }));
     setSelectedId(id);
     setMessage('');
