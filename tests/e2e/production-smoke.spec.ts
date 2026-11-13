@@ -12,8 +12,8 @@ test.describe('Marcenapp production smoke', () => {
     const pageResponse = await page.goto('/');
     expect(pageResponse?.status()).toBe(200);
     await expect(page).toHaveTitle(/Marcenapp/i);
-    await expect(page.getByRole('heading', { name: /Sua marcenaria trabalha\./i })).toBeVisible();
-    const heroImage = page.getByRole('img', { name: /Cozinha planejada contemporânea em madeira/i });
+    await expect(page.getByRole('heading', { name: /Do ambiente real à produção\./i })).toBeVisible();
+    const heroImage = page.getByRole('img', { name: /Cozinha planejada em madeira clara/i });
     await expect(heroImage).toBeVisible();
     await expect.poll(() => heroImage.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   });

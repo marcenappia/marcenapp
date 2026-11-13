@@ -25,11 +25,11 @@ test.describe('Marcenapp public acceptance', () => {
   });
 
   test('public landing page renders the current product and conversion flow', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: /Sua marcenaria trabalha\./i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /A IARA acelera\./i })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Começar agora' }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Do ambiente real à produção\./i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Uma obra, um projeto, do começo ao fim\./i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Criar conta grátis' }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Ver como funciona' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Você não precisa recomeçar o projeto/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Menos retrabalho entre a visita e a oficina/i })).toBeVisible();
   });
 
   test('serves a version manifest for production verification', async ({ request }) => {
