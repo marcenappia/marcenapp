@@ -197,7 +197,8 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
   return <footer className="bg-card border-t border-border p-3 sm:p-4 shrink-0 relative" aria-label="Compositor da IARA">
     {photoDestinationOpen && pendingUpload?.kind === 'environment' && <PhotoDestinationPanel
       photo={pendingUpload}
-      onContinue={() => { setPhotoDestinationOpen(false); setPhotoDestinationHandled(true); }}
+      currentProjectId={projectId}
+      onCancel={() => { setPhotoDestinationOpen(false); setPhotoDestinationHandled(false); setPendingUpload(null); void clearIaraPendingUpload().catch(() => undefined); }}
       onAttached={async destination => {
         // Preview closes only after the photo is persisted and in the chat.
         // Errors propagate to the panel, which keeps the photo and allows retry.

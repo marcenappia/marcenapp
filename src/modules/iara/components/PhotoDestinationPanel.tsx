@@ -18,11 +18,12 @@ type ProjectOption = { id: string; nome: string | null; name: string | null; cli
 
 interface PhotoDestinationPanelProps {
   photo: PendingPhoto;
-  onContinue: () => void;
+  currentProjectId?: string | null;
+  onCancel: () => void;
   onAttached: (destination: PhotoDestination) => void | Promise<void>;
 }
 
-export function PhotoDestinationPanel({ photo, onContinue, onAttached }: PhotoDestinationPanelProps) {
+export function PhotoDestinationPanel({ photo, currentProjectId = null, onCancel, onAttached }: PhotoDestinationPanelProps) {
   const { user } = useAuth();
   const [mode, setMode] = useState<DestinationMode>('menu');
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -59,6 +60,20 @@ export function PhotoDestinationPanel({ photo, onContinue, onAttached }: PhotoDe
     return attachIaraEnvironmentPhoto({ userId: user.id, projectId: targetProjectId, clientId: targetClientId, dataUrl: await dataUrl() });
   };
 
+  const attachCurrentProject = async () => {
+    if (!user || !currentProjectId || busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const destination = await attach(currentProjectId);
+      await onAttached(destination);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Não foi possível cadastrar a foto.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async () => {
     if (!user || busy) return;
     setError(null);
@@ -89,14 +104,14 @@ export function PhotoDestinationPanel({ photo, onContinue, onAttached }: PhotoDe
     <div className="flex items-start gap-3">
       <img src={preview} alt="Foto do ambiente aguardando destino" className="h-16 w-16 shrink-0 rounded-md border border-border object-cover" />
       <div className="min-w-0 flex-1"><p className="text-sm font-bold text-foreground">Onde esta foto deve ficar?</p><p className="mt-1 text-xs text-muted-foreground">A foto está guardada enquanto você escolhe.</p></div>
-      <Button type="button" variant="ghost" size="icon" onClick={onContinue} aria-label="Fechar e continuar sem cadastrar"><X /></Button>
+      <Button type="button" variant="ghost" size="icon" onClick={onCancel} aria-label="Cancelar foto"><X /></Button>
     </div>
 
     {mode === 'menu' ? <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      {currentProjectId && <Button type="button" variant="outline" className="h-auto justify-start whitespace-normal py-3 text-left" disabled={busy} onClick={() => void attachCurrentProject()}><BriefcaseBusiness />Anexar ao projeto atual</Button>}
       <Button type="button" variant="outline" className="h-auto justify-start whitespace-normal py-3 text-left" onClick={() => setMode('new-client')}><UserPlus />Criar cliente e obra</Button>
       <Button type="button" variant="outline" className="h-auto justify-start whitespace-normal py-3 text-left" onClick={() => setMode('existing-client')} disabled={clients.length === 0}><FolderPlus />Nova obra para cliente</Button>
       <Button type="button" variant="outline" className="h-auto justify-start whitespace-normal py-3 text-left" onClick={() => setMode('existing-project')} disabled={projects.length === 0}><BriefcaseBusiness />Anexar a obra existente</Button>
-      <Button type="button" variant="ghost" className="h-auto justify-start whitespace-normal py-3 text-left" onClick={onContinue}>Continuar sem cadastrar</Button>
     </div> : <div className="mt-3 space-y-2">
       {mode === 'new-client' && <input aria-label="Nome do cliente" value={clientName} onChange={event => setClientName(event.target.value)} placeholder="Nome do cliente" className="w-full rounded-md border border-input bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring" />}
       {mode === 'existing-client' && <select aria-label="Cliente existente" value={clientId} onChange={event => setClientId(event.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"><option value="">Escolha o cliente</option>{clients.map(client => <option key={client.id} value={client.id}>{client.nome}</option>)}</select>}
