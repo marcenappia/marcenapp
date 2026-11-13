@@ -107,6 +107,7 @@ export async function persistIaraChatPhoto(args: { userId: string; projectId: st
   return { environmentId, storagePath: path, signedUrl, correlationId: args.correlationId ?? null };
 }
 export async function attachIaraEnvironmentPhoto(args: { userId: string; projectId: string; dataUrl: string; clientId?: string | null; correlationId?: string; generation?: number }) : Promise<PhotoDestination> {
+  const correlationId = args.correlationId ?? globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const next = await nextEnvironment(args.projectId);
   const { data: environment, error: environmentError } = await supabase.from('project_environments').insert({ project_id: args.projectId, name: next.name, position: next.position, type: 'ambiente', metadata: { source: 'iara_camera' } }).select('id,name,position').single();
   if (environmentError) throw environmentError;
@@ -127,14 +128,13 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
   // cancel the render before ai-image is ever reached.
   const { data: existingContext } = await supabase.from('project_iara_contexts').select('id').eq('user_id', args.userId).eq('project_id', args.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
   if (existingContext?.id) {
-    const { error } = await supabase.from('project_iara_contexts').update({ client_id: project.cliente_id ?? args.clientId ?? null, environment_id: environment.id, version_id: null, ...(args.correlationId ? { last_correlation_id: args.correlationId } : {}), ...(typeof args.generation === 'number' ? { last_execution_generation: args.generation } : {}), updated_at: new Date().toISOString() }).eq('id', existingContext.id).eq('user_id', args.userId);
+    const { error } = await supabase.from('project_iara_contexts').update({ client_id: project.cliente_id ?? args.clientId ?? null, environment_id: environment.id, version_id: null, last_correlation_id: correlationId, last_execution_generation: typeof args.generation === 'number' ? args.generation : null, updated_at: new Date().toISOString() }).eq('id', existingContext.id).eq('user_id', args.userId);
     if (error) throw error;
   } else {
-    const { error } = await supabase.from('project_iara_contexts').insert({ user_id: args.userId, client_id: project.cliente_id ?? args.clientId ?? null, project_id: args.projectId, environment_id: environment.id, version_id: null, last_correlation_id: args.correlationId ?? null, last_execution_generation: typeof args.generation === 'number' ? args.generation : null });
+    const { error } = await supabase.from('project_iara_contexts').insert({ user_id: args.userId, client_id: project.cliente_id ?? args.clientId ?? null, project_id: args.projectId, environment_id: environment.id, version_id: null, last_correlation_id: correlationId, last_execution_generation: typeof args.generation === 'number' ? args.generation : null });
     if (error) throw error;
   }
 
-  const correlationId = args.correlationId ?? globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(storagePath, 60 * 60 * 24 * 7);
   if (signedError || !signed?.signedUrl) {
     console.error('[IARA_PHOTO_SIGNED_URL_FAILED]', signedError);
