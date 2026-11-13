@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Box, Grid3X3, Plus, Save, Trash2 } from 'lucide-react';
-import { findNextFurniturePosition } from './furnitureLayout';
+import { clampFurniturePosition, findNextFurniturePosition } from './furnitureLayout';
 
 type Project = { id: string; nome?: string | null; name?: string | null };
 type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string };
@@ -76,9 +76,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     const next = { ...item, ...patch };
     next.width = Math.max(100, Math.min(current.room.width, next.width));
     next.depth = Math.max(100, Math.min(current.room.depth, next.depth));
-    next.x = Math.max(0, Math.min(current.room.width - next.width, next.x));
-    next.y = Math.max(0, Math.min(current.room.depth - next.depth, next.y));
-    return next;
+    return { ...next, ...clampFurniturePosition({ x: next.x, y: next.y }, next, current.room) };
   }) }));
   const addOpening = (type: OpeningItem['type']) => setSnapshot(current => ({ ...current, openings: [...current.openings, { id: globalThis.crypto?.randomUUID?.() ?? `opening-${Date.now()}`, type, wall: 'top', position: 300, width: type === 'door' ? 800 : 1200, height: type === 'door' ? 2100 : 1000 }] }));
   const updateOpening = (id: string, patch: Partial<OpeningItem>) => setSnapshot(current => ({ ...current, openings: current.openings.map(opening => {
