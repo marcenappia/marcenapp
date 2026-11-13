@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Box, Grid3X3, Plus, Save, Trash2 } from 'lucide-react';
@@ -36,6 +36,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
   const [sheetWidth, setSheetWidth] = useState(2750);
   const [sheetHeight, setSheetHeight] = useState(1850);
   const [kerf, setKerf] = useState(3);
+  const dragRef = useRef<{ id: string; pointerX: number; pointerY: number; x: number; y: number } | null>(null);
   const selected = snapshot.modules.find(item => item.id === selectedId);
   const engineering = useMemo(() => {
     const eligible = snapshot.modules.filter(item => Number(item.carcassThickness) > 0);
@@ -87,7 +88,44 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     return () => { alive = false; };
   }, [user, projectId]);
 
-  const updateRoom = (key: keyof EditorSnapshot['room'], value: number) => setSnapshot(current => ({ ...current, room: { ...current.room, [key]: Math.max(100, Math.min(20000, value || 100)) } }));
+  const updateRoom = (key: keyof EditorSnapshot['room'], value: number) => {
+    const nextRoom = { ...snapshot.room, [key]: Math.max(100, Math.min(20000, value || 100)) };
+    const placed: ModuleItem[] = [];
+    for (const item of snapshot.modules) {
+      const resized = { ...item, width: Math.min(item.width, nextRoom.width), depth: Math.min(item.depth, nextRoom.depth) };
+      const position = clampFurniturePosition({ x: item.x, y: item.y }, resized, nextRoom);
+      const candidate = { ...resized, ...position };
+      if (canPlaceFurniture(candidate, placed, nextRoom)) { placed.push(candidate); continue; }
+      const free = findNextFurniturePosition(nextRoom, placed, { width: resized.width, depth: resized.depth });
+      if (!free) { setMessage('Não é possível reduzir o ambiente: os módulos não cabem sem sobreposição. Aumente a área ou remova módulos primeiro.'); return; }
+      placed.push({ ...resized, ...free });
+    }
+    const openings = snapshot.openings.map(opening => {
+      const wallLength = opening.wall === 'left' || opening.wall === 'right' ? nextRoom.depth : nextRoom.width;
+      const width = Math.min(opening.width, wallLength);
+      return { ...opening, width, position: Math.max(0, Math.min(wallLength - width, opening.position)) };
+    });
+    setSnapshot({ ...snapshot, room: nextRoom, modules: placed, openings });
+    setMessage('');
+  };
+  const startModuleDrag = (event: React.PointerEvent<HTMLButtonElement>, item: ModuleItem) => {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { id: item.id, pointerX: event.clientX, pointerY: event.clientY, x: item.x, y: item.y };
+    setSelectedId(item.id);
+  };
+  const moveModuleDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const current = snapshot;
+    const item = current.modules.find(candidate => candidate.id === drag.id);
+    if (!item) return;
+    const next = { ...item, x: drag.x + (event.clientX - drag.pointerX) / scale, y: drag.y + (event.clientY - drag.pointerY) / scale };
+    Object.assign(next, clampFurniturePosition({ x: next.x, y: next.y }, next, current.room));
+    const others = current.modules.filter(candidate => candidate.id !== drag.id);
+    if (!canPlaceFurniture(next, others, current.room)) return;
+    setSnapshot({ ...current, modules: current.modules.map(candidate => candidate.id === drag.id ? next : candidate) });
+  };
   const addModule = (item: typeof catalog[number]) => {
     const position = findNextFurniturePosition(snapshot.room, snapshot.modules, { width: item.width, depth: item.depth });
     if (!position) {
@@ -240,9 +278,9 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
               const markerStyle = opening.wall === 'top' ? { left: along, top: -5, width: span, height: 10 } : opening.wall === 'bottom' ? { left: along, bottom: -5, width: span, height: 10 } : opening.wall === 'left' ? { left: -5, top: along, width: 10, height: span } : { right: -5, top: along, width: 10, height: span };
               return <div key={opening.id} title={`${opening.type === 'door' ? 'Porta' : 'Janela'} · ${opening.width} mm`} className={`absolute z-20 ${opening.type === 'door' ? 'bg-amber-500' : 'bg-sky-500'}`} style={markerStyle} />;
             })}
-            {snapshot.modules.map(item => <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className={`absolute z-10 flex flex-col items-center justify-center overflow-hidden border-2 p-1 text-center text-[10px] font-bold ${selectedId === item.id ? 'border-indigo-600 bg-indigo-100 text-indigo-900' : 'border-slate-500 bg-slate-200 text-slate-800'}`} style={{ left: item.x * scale, top: item.y * scale, width: Math.max(34, item.width * scale), height: Math.max(28, item.depth * scale) }}><span>{item.label}</span><span>{item.width} × {item.depth}</span></button>)}
+            {snapshot.modules.map(item => <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} onPointerDown={event => startModuleDrag(event, item)} onPointerMove={moveModuleDrag} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className={`absolute z-10 flex touch-none cursor-move flex-col items-center justify-center overflow-hidden border-2 p-1 text-center text-[10px] font-bold ${selectedId === item.id ? 'border-indigo-600 bg-indigo-100 text-indigo-900' : 'border-slate-500 bg-slate-200 text-slate-800'}`} style={{ left: item.x * scale, top: item.y * scale, width: Math.max(34, item.width * scale), height: Math.max(28, item.depth * scale) }}><span>{item.label}</span><span>{item.width} × {item.depth}</span></button>)}
           </div>
-          <p className="mt-3 text-xs text-slate-500">Azul = janela · âmbar = porta. As aberturas são referências esquemáticas posicionadas na parede escolhida.</p>
+          <p className="mt-3 text-xs text-slate-500">Azul = janela · âmbar = porta. Arraste os módulos para reposicionar; o editor bloqueia sobreposição e saída dos limites.</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4"><h2 className="mb-3 flex items-center gap-2 text-sm font-black"><Box size={16}/> Biblioteca de módulos</h2><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{catalog.map(item => <button key={item.kind} type="button" onClick={() => addModule(item)} className="flex min-h-14 items-center justify-between gap-2 rounded-xl border border-slate-200 p-3 text-left text-xs font-bold hover:border-indigo-300 hover:bg-indigo-50"><span>{item.label}<small className="mt-1 block font-medium text-slate-500">{item.width} × {item.height} × {item.depth} mm</small></span><Plus size={15}/></button>)}</div></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4"><h2 className="text-sm font-black">Paredes e aberturas</h2><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => addOpening('door')} className="min-h-10 rounded-lg border border-amber-200 px-3 text-xs font-bold text-amber-800">+ Porta</button><button type="button" onClick={() => addOpening('window')} className="min-h-10 rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-800">+ Janela</button></div>
