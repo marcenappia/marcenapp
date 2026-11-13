@@ -5,7 +5,8 @@ import { Box, Grid3X3, Plus, Save, Trash2 } from 'lucide-react';
 
 type Project = { id: string; nome?: string | null; name?: string | null };
 type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string };
-type EditorSnapshot = { room: { width: number; depth: number; height: number }; modules: ModuleItem[] };
+type OpeningItem = { id: string; type: 'door' | 'window'; wall: 'top' | 'right' | 'bottom' | 'left'; position: number; width: number; height: number };
+type EditorSnapshot = { room: { width: number; depth: number; height: number }; modules: ModuleItem[]; openings: OpeningItem[] };
 
 const catalog = [
   { kind: 'base', label: 'Balcão inferior', width: 800, height: 720, depth: 560 },
@@ -15,7 +16,7 @@ const catalog = [
   { kind: 'closet', label: 'Módulo de closet', width: 900, height: 2400, depth: 600 },
 ];
 
-const defaultSnapshot: EditorSnapshot = { room: { width: 3400, depth: 2800, height: 2700 }, modules: [] };
+const defaultSnapshot: EditorSnapshot = { room: { width: 3400, depth: 2800, height: 2700 }, modules: [], openings: [] };
 
 export default function VisualFurnitureEditor({ projectId: initialProjectId }: { projectId?: string }) {
   const { user } = useAuth();
@@ -50,7 +51,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
         if (!alive) return;
         const stored = data?.snapshot && typeof data.snapshot === 'object' ? data.snapshot as Record<string, unknown> : {};
         const editor = stored.visualFurnitureEditor as EditorSnapshot | undefined;
-        setSnapshot(editor?.room && Array.isArray(editor.modules) ? editor : defaultSnapshot);
+        setSnapshot(editor?.room && Array.isArray(editor.modules) ? { ...editor, openings: Array.isArray(editor.openings) ? editor.openings : [] } : defaultSnapshot);
         setSelectedId('');
       });
     return () => { alive = false; };
@@ -64,7 +65,24 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     setSelectedId(id);
     setMessage('');
   };
-  const updateSelected = (patch: Partial<ModuleItem>) => setSnapshot(current => ({ ...current, modules: current.modules.map(item => item.id === selectedId ? { ...item, ...patch } : item) }));
+  const updateSelected = (patch: Partial<ModuleItem>) => setSnapshot(current => ({ ...current, modules: current.modules.map(item => {
+    if (item.id !== selectedId) return item;
+    const next = { ...item, ...patch };
+    next.width = Math.max(100, Math.min(current.room.width, next.width));
+    next.depth = Math.max(100, Math.min(current.room.depth, next.depth));
+    next.x = Math.max(0, Math.min(current.room.width - next.width, next.x));
+    next.y = Math.max(0, Math.min(current.room.depth - next.depth, next.y));
+    return next;
+  }) }));
+  const addOpening = (type: OpeningItem['type']) => setSnapshot(current => ({ ...current, openings: [...current.openings, { id: globalThis.crypto?.randomUUID?.() ?? `opening-${Date.now()}`, type, wall: 'top', position: 300, width: type === 'door' ? 800 : 1200, height: type === 'door' ? 2100 : 1000 }] }));
+  const updateOpening = (id: string, patch: Partial<OpeningItem>) => setSnapshot(current => ({ ...current, openings: current.openings.map(opening => {
+    if (opening.id !== id) return opening;
+    const next = { ...opening, ...patch };
+    const wallLength = next.wall === 'left' || next.wall === 'right' ? current.room.depth : current.room.width;
+    next.width = Math.max(100, Math.min(wallLength, next.width));
+    next.position = Math.max(0, Math.min(wallLength - next.width, next.position));
+    return next;
+  }) }));
   const save = async () => {
     if (!user || !projectId) { setMessage('Selecione um projeto para salvar.'); return; }
     setSaving(true); setMessage('');
@@ -131,11 +149,20 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
         <div className="overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="mb-3 flex items-center gap-2 text-xs font-bold text-slate-600"><Grid3X3 size={15}/> Planta esquemática · medidas em milímetros</div>
           <div className="relative mx-auto border-2 border-slate-500 bg-white" style={{ width: snapshot.room.width * scale, height: snapshot.room.depth * scale, minWidth: 260, minHeight: 220, backgroundImage: 'linear-gradient(#e2e8f0 1px, transparent 1px),linear-gradient(90deg,#e2e8f0 1px,transparent 1px)', backgroundSize: '20px 20px' }}>
-            {snapshot.modules.map(item => <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className={`absolute flex flex-col items-center justify-center overflow-hidden border-2 p-1 text-center text-[10px] font-bold ${selectedId === item.id ? 'border-indigo-600 bg-indigo-100 text-indigo-900' : 'border-slate-500 bg-slate-200 text-slate-800'}`} style={{ left: item.x * scale, top: item.y * scale, width: Math.max(34, item.width * scale), height: Math.max(28, item.depth * scale) }}><span>{item.label}</span><span>{item.width} × {item.depth}</span></button>)}
+            {snapshot.openings.map(opening => {
+              const along = opening.position * scale;
+              const span = Math.max(24, opening.width * scale);
+              const markerStyle = opening.wall === 'top' ? { left: along, top: -5, width: span, height: 10 } : opening.wall === 'bottom' ? { left: along, bottom: -5, width: span, height: 10 } : opening.wall === 'left' ? { left: -5, top: along, width: 10, height: span } : { right: -5, top: along, width: 10, height: span };
+              return <div key={opening.id} title={`${opening.type === 'door' ? 'Porta' : 'Janela'} · ${opening.width} mm`} className={`absolute z-20 ${opening.type === 'door' ? 'bg-amber-500' : 'bg-sky-500'}`} style={markerStyle} />;
+            })}
+            {snapshot.modules.map(item => <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className={`absolute z-10 flex flex-col items-center justify-center overflow-hidden border-2 p-1 text-center text-[10px] font-bold ${selectedId === item.id ? 'border-indigo-600 bg-indigo-100 text-indigo-900' : 'border-slate-500 bg-slate-200 text-slate-800'}`} style={{ left: item.x * scale, top: item.y * scale, width: Math.max(34, item.width * scale), height: Math.max(28, item.depth * scale) }}><span>{item.label}</span><span>{item.width} × {item.depth}</span></button>)}
           </div>
-          <p className="mt-3 text-xs text-slate-500">Selecione um módulo para editar. O desenho é esquemático e não substitui conferência de medidas no local.</p>
+          <p className="mt-3 text-xs text-slate-500">Azul = janela · âmbar = porta. As aberturas são referências esquemáticas posicionadas na parede escolhida.</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4"><h2 className="mb-3 flex items-center gap-2 text-sm font-black"><Box size={16}/> Biblioteca de módulos</h2><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{catalog.map(item => <button key={item.kind} type="button" onClick={() => addModule(item)} className="flex min-h-14 items-center justify-between gap-2 rounded-xl border border-slate-200 p-3 text-left text-xs font-bold hover:border-indigo-300 hover:bg-indigo-50"><span>{item.label}<small className="mt-1 block font-medium text-slate-500">{item.width} × {item.height} × {item.depth} mm</small></span><Plus size={15}/></button>)}</div></div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4"><h2 className="text-sm font-black">Paredes e aberturas</h2><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => addOpening('door')} className="min-h-10 rounded-lg border border-amber-200 px-3 text-xs font-bold text-amber-800">+ Porta</button><button type="button" onClick={() => addOpening('window')} className="min-h-10 rounded-lg border border-sky-200 px-3 text-xs font-bold text-sky-800">+ Janela</button></div>
+          {snapshot.openings.length ? <div className="mt-3 space-y-3">{snapshot.openings.map(opening => <div key={opening.id} className="rounded-xl border border-slate-200 p-3"><div className="mb-2 flex items-center justify-between"><span className="text-xs font-bold">{opening.type === 'door' ? 'Porta' : 'Janela'}</span><button type="button" onClick={() => setSnapshot(current => ({ ...current, openings: current.openings.filter(item => item.id !== opening.id) }))} className="text-xs font-bold text-red-700">Remover</button></div><label className="block text-xs font-semibold text-slate-600">Parede<select value={opening.wall} onChange={e => updateOpening(opening.id, { wall: e.target.value as OpeningItem['wall'] })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"><option value="top">Frente</option><option value="right">Direita</option><option value="bottom">Fundo</option><option value="left">Esquerda</option></select></label><div className="mt-2 grid grid-cols-2 gap-2">{(['position','width','height'] as const).map(key => <label key={key} className="text-xs font-semibold text-slate-600">{key === 'position' ? 'Distância do canto' : key === 'width' ? 'Largura' : 'Altura'} (mm)<input type="number" min="0" value={opening[key]} onChange={e => updateOpening(opening.id, { [key]: Math.max(0, Number(e.target.value)) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2" /></label>)}</div></div>)}</div> : <p className="mt-2 text-xs text-slate-500">Adicione portas e janelas e informe a parede e as medidas conhecidas.</p>}
+        </div>
       </div>
       <aside className="space-y-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4"><h2 className="text-sm font-black">Módulo selecionado</h2>{selected ? <div className="mt-3 space-y-3">
