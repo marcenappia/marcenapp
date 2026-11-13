@@ -31,10 +31,12 @@ export function consumeIaraPhotoHandoff(): { base64: string; baseRaw?: string; m
   } catch { return null; }
 }
 
-async function uploadEnvironmentPhoto(userId: string, projectId: string, environmentId: string, dataUrl: string) {
+async function uploadEnvironmentPhoto(userId: string, projectId: string, environmentId: string, dataUrl: string, correlationId: string) {
   const blob = dataUrlToBlob(dataUrl);
   const extension = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
-  const path = `${userId}/${projectId}/ambientes/${environmentId}-${Date.now()}.${extension}`;
+  const stableId = correlationId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100);
+  if (!stableId) throw new Error('Identificador inválido para salvar a foto da IARA.');
+  const path = `${userId}/${projectId}/ambientes/iara-${stableId}.${extension}`;
   const { error } = await supabase.storage.from('obras').upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' });
   if (error) throw error;
   return path;
@@ -109,12 +111,18 @@ export async function persistIaraChatPhoto(args: { userId: string; projectId: st
 }
 export async function attachIaraEnvironmentPhoto(args: { userId: string; projectId: string; dataUrl: string; clientId?: string | null; correlationId?: string; generation?: number }) : Promise<PhotoDestination> {
   const correlationId = args.correlationId ?? globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const next = await nextEnvironment(args.projectId);
-  const { data: environment, error: environmentError } = await supabase.from('project_environments').insert({ project_id: args.projectId, name: next.name, position: next.position, type: 'ambiente', metadata: { source: 'iara_camera' } }).select('id,name,position').single();
-  if (environmentError) throw environmentError;
+  const { data: existingEnvironment, error: existingEnvironmentError } = await supabase.from('project_environments').select('id,name,position').eq('project_id', args.projectId).contains('metadata', { correlation_id: correlationId }).maybeSingle();
+  if (existingEnvironmentError) throw existingEnvironmentError;
+  let environment = existingEnvironment;
+  if (!environment) {
+    const next = await nextEnvironment(args.projectId);
+    const { data: createdEnvironment, error: environmentError } = await supabase.from('project_environments').insert({ project_id: args.projectId, name: next.name, position: next.position, type: 'ambiente', metadata: { source: 'iara_camera', correlation_id: correlationId } }).select('id,name,position').single();
+    if (environmentError) throw environmentError;
+    environment = createdEnvironment;
+  }
 
-  const storagePath = await uploadEnvironmentPhoto(args.userId, args.projectId, environment.id, args.dataUrl);
-  const { error: environmentUpdateError } = await supabase.from('project_environments').update({ metadata: { source: 'iara_camera', storage_path: storagePath } }).eq('id', environment.id).eq('project_id', args.projectId);
+  const storagePath = await uploadEnvironmentPhoto(args.userId, args.projectId, environment.id, args.dataUrl, correlationId);
+  const { error: environmentUpdateError } = await supabase.from('project_environments').update({ metadata: { source: 'iara_camera', correlation_id: correlationId, storage_path: storagePath } }).eq('id', environment.id).eq('project_id', args.projectId);
   if (environmentUpdateError) throw environmentUpdateError;
 
   const { data: project, error: projectLoadError } = await supabase.from('projects').select('id,nome,name,cliente_id').eq('id', args.projectId).eq('user_id', args.userId).maybeSingle();
@@ -127,7 +135,8 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
   // The execution context is critical for the render worker. Persist it before any
   // secondary gallery/UI write so a gallery permission or Data API problem cannot
   // cancel the render before ai-image is ever reached.
-  const { data: existingContext } = await supabase.from('project_iara_contexts').select('id').eq('user_id', args.userId).eq('project_id', args.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+  const { data: existingContext, error: contextLoadError } = await supabase.from('project_iara_contexts').select('id,environment_id,last_correlation_id').eq('user_id', args.userId).eq('project_id', args.projectId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+  if (contextLoadError) throw contextLoadError;
   if (existingContext?.id) {
     const { error } = await supabase.from('project_iara_contexts').update({ client_id: project.cliente_id ?? args.clientId ?? null, environment_id: environment.id, version_id: null, last_correlation_id: correlationId, last_execution_generation: typeof args.generation === 'number' ? args.generation : null, updated_at: new Date().toISOString() }).eq('id', existingContext.id).eq('user_id', args.userId);
     if (error) throw error;
@@ -143,8 +152,10 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
   }
   const signedUrl = signed.signedUrl;
 
+  const { data: galleryEntry, error: galleryLookupError } = await supabase.from('gallery_images').select('id').eq('user_id', args.userId).eq('storage_path', storagePath).limit(1).maybeSingle();
+  if (galleryLookupError) throw galleryLookupError;
   try {
-    await persistGalleryImage({
+    if (!galleryEntry) await persistGalleryImage({
       userId: args.userId,
       projectId: args.projectId,
       environmentId: environment.id,
