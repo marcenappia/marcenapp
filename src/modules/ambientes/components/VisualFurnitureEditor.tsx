@@ -54,13 +54,14 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
       }],
     }));
     const parts = results.flatMap(result => result.parts.filter(part => !(part.role === 'shelf' && part.id.endsWith(':estrutura'))));
+    const hardware = results.flatMap(result => result.hardware);
     const materials = [...new Set(parts.map(part => part.material))];
     const cutPlan = sheetWidth > 0 && sheetHeight > 0 && parts.length
       ? optimizeCutList(parts.map(part => ({ id: part.id, width: part.width, height: part.height, quantity: part.quantity, material: part.material, grainSensitive: part.grainSensitive, allowRotation: part.allowRotation })), materials.map((material, index) => ({ id: `sheet-${index + 1}`, width: sheetWidth, height: sheetHeight, material })), kerf)
       : null;
     const sheetMaterialCost = cutPlan?.sheets.reduce((sum, sheet) => sum + Math.max(0, sheetPrices[sheet.material] || 0), 0) ?? 0;
     const missingSheetPrices = [...new Set(cutPlan?.sheets.map(sheet => sheet.material).filter(material => !(Number(sheetPrices[material]) > 0)) ?? [])];
-    return { eligibleCount: eligible.length, missingThickness: snapshot.modules.filter(item => !(Number(item.carcassThickness) > 0)).map(item => item.label), materials, sheetMaterialCost, missingSheetPrices, results, parts, blockers: results.flatMap(result => result.blockers), assumptions: results.flatMap(result => result.assumptions), cutPlan };
+    return { eligibleCount: eligible.length, missingThickness: snapshot.modules.filter(item => !(Number(item.carcassThickness) > 0)).map(item => item.label), materials, sheetMaterialCost, missingSheetPrices, results, parts, hardware, blockers: results.flatMap(result => result.blockers), assumptions: results.flatMap(result => result.assumptions), cutPlan };
   }, [snapshot.modules, sheetWidth, sheetHeight, kerf, sheetPrices]);
 
   useEffect(() => {
@@ -222,6 +223,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     const rows: Array<Array<string | number>> = [
       ['TIPO', 'IDENTIFICADOR', 'DESCRIÇÃO', 'LARGURA_MM', 'ALTURA_MM', 'QUANTIDADE', 'MATERIAL', 'PAPEL'],
       ...engineering.parts.map(part => ['PEÇA', part.id, part.name, part.width, part.height, part.quantity, part.material, part.role]),
+      ...engineering.hardware.map(item => ['FERRAGEM', item.code, item.name, '', '', item.quantity, '', item.unit ?? 'un']),
       ...(engineering.cutPlan?.sheets.flatMap(sheet => sheet.placements.map(placement => ['CORTE', placement.partId, sheet.id, placement.x, placement.y, 1, placement.material, placement.rotated ? 'ROTACIONADA' : 'ORIGINAL'])) ?? []),
       ...engineering.blockers.map((blocker, index) => ['BLOQUEIO', String(index + 1), blocker, '', '', '', '', 'VALIDAR']),
     ];
@@ -369,6 +371,10 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
             <div className="max-h-56 overflow-auto rounded-lg border border-slate-200">
               <table className="w-full text-left text-xs"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-2">Peça</th><th className="p-2">Medida (mm)</th><th className="p-2">Qtd.</th><th className="p-2">Material</th></tr></thead><tbody>{engineering.parts.map(part => <tr key={part.id} className="border-t border-slate-100"><td className="p-2">{part.name}</td><td className="p-2 tabular-nums">{part.width} × {part.height}</td><td className="p-2">{part.quantity}</td><td className="p-2">{part.material}</td></tr>)}</tbody></table>
             </div>
+            {engineering.hardware.length > 0 && <div className="rounded-lg border border-slate-200 p-3">
+              <p className="mb-2 text-xs font-bold">Ferragens e acessórios</p>
+              <div className="space-y-1">{engineering.hardware.map((item, index) => <div key={`${item.code}-${index}`} className="flex justify-between gap-3 text-xs"><span>{item.code} · {item.name}</span><span className="shrink-0 font-bold">{item.quantity} {item.unit ?? 'un'}</span></div>)}</div>
+            </div>}
             {engineering.cutPlan && <div className="rounded-lg bg-slate-50 p-3 text-xs">
               <p className="font-bold">Plano de corte preliminar</p>
               <p className="mt-1">{engineering.cutPlan.sheets.length} chapas · aproveitamento {engineering.cutPlan.utilizationPct.toFixed(1)}% · perda {(engineering.cutPlan.wasteArea / 1000000).toFixed(2)} m²</p>
