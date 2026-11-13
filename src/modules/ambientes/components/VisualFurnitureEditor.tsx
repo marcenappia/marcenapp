@@ -143,18 +143,6 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
   };
 
   const save = async () => {
-      });
-      if (!result.ok) throw new Error(result.error);
-      setMessage(`IARA analisou a imagem e colocou a perspectiva na fila do Studio. Plano: ${result.data.planId} · análise: ${result.data.analysisId}.`);
-      setPlanFile(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Não foi possível enviar a imagem à IARA.');
-    } finally {
-      setSendingToIara(false);
-    }
-  };
-
-  const save = async () => {
     if (!user || !projectId) { setMessage('Selecione um projeto para salvar.'); return; }
     setSaving(true); setMessage('');
     try {
