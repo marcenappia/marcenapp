@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { FileUp, CheckCircle2, AlertTriangle, FileText } from 'lucide-react';
-import { detectProjectFileKind, type ProjectBudgetDraft } from '@/core/yara/projectIngestion';
+import { detectProjectFileKind, finalizeBudgetDraft, type ProjectBudgetDraft } from '@/core/yara/projectIngestion';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -32,40 +32,57 @@ export default function ProjectTechnicalImport({ projectId, onDraft }: Props) {
     setProcessing(true);
     setError('');
     try {
-      const uploaded: Array<{ name: string; mimeType: string; url: string }> = [];
+      const uploaded: Array<{ name: string; mimeType: string; url: string; path: string }> = [];
       for (const file of files) {
         const path = `project-intake/${user.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
         const { error: uploadError } = await supabase.storage.from('obras').upload(path, file, { upsert: false, contentType: file.type || 'application/octet-stream' });
         if (uploadError) throw uploadError;
         const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(path, 60 * 15);
         if (signedError || !signed?.signedUrl) throw signedError ?? new Error('Não foi possível preparar o arquivo para análise.');
-        uploaded.push({ name: file.name, mimeType: file.type || 'application/octet-stream', url: signed.signedUrl });
+        uploaded.push({ name: file.name, mimeType: file.type || 'application/octet-stream', url: signed.signedUrl, path });
       }
 
       const prompt = `Você é a YARA, engenheira de orçamento de uma marcenaria. Analise TODOS os arquivos anexados do projeto técnico, página por página e planilha por planilha. Leia textos, tabelas, especificações, desenhos e dimensões visíveis. NÃO invente medidas, materiais, ferragens, quantidades ou preços. Gere SOMENTE JSON válido neste formato: {"projectName":"","clientName":"","items":[{"category":"furniture|material|hardware|labor|other","description":"","quantity":0,"unit":"","widthMm":0,"heightMm":0,"depthMm":0,"material":"","evidenceRefs":["arquivo/página"],"confidence":0,"needsConfirmation":true}],"missingInformation":[],"assumptions":[]}. Se houver informação suficiente para iniciar um orçamento, preencha os itens; se não houver, retorne o que foi comprovado e liste exatamente o que falta. O resultado é um RASCUNHO DE ORÇAMENTO, não uma aprovação final.`;
       const { data, error: invokeError } = await supabase.functions.invoke('ai-text', {
-        body: { prompt, files: uploaded, jsonMode: false },
+        body: { prompt, files: uploaded.map(({ name, mimeType, url }) => ({ name, mimeType, url })), jsonMode: true },
       });
       if (invokeError) throw invokeError;
       const raw = typeof data?.text === 'string' ? data.text : '';
       const cleaned = raw.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
       const parsed = JSON.parse(cleaned) as Omit<ProjectBudgetDraft, 'sourceFiles' | 'evidences' | 'status'>;
-      const draft: ProjectBudgetDraft = {
+      if (!parsed || !Array.isArray(parsed.items) || !Array.isArray(parsed.missingInformation) || !Array.isArray(parsed.assumptions)) {
+        throw new Error('A YARA retornou um orçamento incompleto. Nenhum rascunho foi salvo.');
+      }
+      const evidenceMap = new Map<string, ProjectBudgetDraft['evidences'][number]>();
+      for (const item of parsed.items) {
+        for (const sourceRef of Array.isArray(item.evidenceRefs) ? item.evidenceRefs : []) {
+          if (!evidenceMap.has(sourceRef)) {
+            evidenceMap.set(sourceRef, {
+              fileName: sourceRef.split(/[\\/]/)[0] || 'arquivo',
+              kind: 'text',
+              text: item.description,
+              confidence: item.confidence,
+              sourceRef,
+            });
+          }
+        }
+      }
+      const draft = finalizeBudgetDraft({
         ...parsed,
         sourceFiles: files.map(file => file.name),
-        evidences: [],
-        status: parsed.missingInformation?.length || parsed.items?.some(item => item.needsConfirmation || item.confidence < 0.82) ? 'needs_confirmation' : 'ready_for_pricing',
-      };
-      await supabase.from('project_budget_drafts').insert({
+        evidences: [...evidenceMap.values()],
+      });
+      const { error: persistError } = await supabase.from('project_budget_drafts').insert({
         user_id: user.id,
         project_id: projectId || null,
-        source_files: draft.sourceFiles,
+        source_files: uploaded.map(({ name, mimeType, path }) => ({ name, mimeType, path })),
         evidences: draft.evidences,
         items: draft.items,
         missing_information: draft.missingInformation,
         assumptions: draft.assumptions,
         status: draft.status,
       });
+      if (persistError) throw persistError;
       onDraft?.(draft, files);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível analisar o projeto.');
