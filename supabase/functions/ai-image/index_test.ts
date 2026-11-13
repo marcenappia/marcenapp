@@ -148,3 +148,10 @@ Deno.test("ai-image: updates the owning project presentation path when project p
   assert(source.includes('.eq("user_id", guard.userId)'));
   assert(source.includes("gallery_project_path_update_failed"));
 });
+
+Deno.test("ai-image: keeps provider selection admin-only and supports the configured render provider", async () => {
+  const source = await Deno.readTextFile(new URL("./provider.ts", import.meta.url));
+  assert(source.includes('"marcenaria_magica"'));
+  assert(source.includes('from("ai_runtime_settings")'));
+  assert(!source.includes('from("ai_provider_settings")'), "provider choice must not be user-controlled");
+});
