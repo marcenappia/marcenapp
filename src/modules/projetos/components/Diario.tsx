@@ -116,6 +116,7 @@ export default function Diario({ navigateTo }: Props) {
     { id: 'corte', label: 'Plano de corte', detail: 'Peças, chapas e aproveitamento', icon: Scissors },
     { id: 'inteligencia', label: 'Financeiro', detail: 'Resultado, recebimentos e alertas', icon: WalletCards },
     { id: 'studio', label: 'Projeto / IARA', detail: 'Alterar, incluir e desenvolver', icon: PackageOpen },
+    { id: 'editor', label: 'Editor visual', detail: 'Ambiente, módulos e medidas', icon: Ruler },
     { id: 'configuracoes', label: 'Marcenaria', detail: 'Materiais, fornecedores e operação', icon: Building2 }
   ];
 
@@ -145,7 +146,7 @@ export default function Diario({ navigateTo }: Props) {
           {quickActions.map(action => {
             const Icon = action.icon;
             return (
-              <button key={action.id} type="button" onClick={() => navigateTo?.(action.id)} className="group min-w-0 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm md:p-4">
+              <button key={action.id} type="button" onClick={() => navigateTo?.(action.id, action.id === 'editor' && selectedProject ? { projeto: selectedProject } : {})} className="group min-w-0 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm md:p-4">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-hover:bg-indigo-50 group-hover:text-indigo-700"><Icon size={17} /></span>
                 <span className="mt-3 block truncate text-sm font-black text-slate-900">{action.label}</span>
                 <span className="mt-1 block text-[10px] leading-4 text-slate-500">{action.detail}</span>

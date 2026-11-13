@@ -12,6 +12,7 @@ const etapaDaObra = (p: { id: string; status?: string | null; jornada?: unknown 
   const local = carregarProgresso(p.id)?.etapa;
   return (concluida ? Math.max(remota ?? local ?? 1, 7) : (remota ?? local ?? 1)) as EtapaId;
 };
+interface DashboardSummary { activeProjects: number; budgetedValue: number; budgetCount: number; openReceivables: number; pendingStages: number; blockedStages: number; }
 interface Props { navigateTo: (id: string, params?: Record<string, string>) => void; }
 
 export const Home = ({ navigateTo }: Props) => {
@@ -19,17 +20,37 @@ export const Home = ({ navigateTo }: Props) => {
   const [obras, setObras] = useState<ObraResumo[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(false);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
 
   useEffect(() => {
     if (!user?.id) { setObras([]); return; }
     let cancelled = false;
     setCarregando(true);
     setErro(false);
-    void supabase.from('projects').select('id, nome, name, updated_at, status, jornada, clientes(nome)').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20).then(({ data, error }) => {
+    void Promise.all([
+      supabase.from('projects').select('id, nome, name, updated_at, status, jornada, clientes(nome)').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(1000),
+      supabase.from('project_receivables').select('amount,received_at,status').eq('user_id', user.id).limit(5000),
+      supabase.from('project_production_stages').select('status,blocked_reason').eq('user_id', user.id).limit(5000),
+      supabase.from('project_cost_snapshots').select('sale_price').eq('user_id', user.id).limit(5000),
+    ]).then(([projectsResult, receivablesResult, stagesResult, budgetsResult]) => {
       if (cancelled) return;
-      if (error) { setErro(true); setObras([]); } else {
-        const rows = (data ?? []) as unknown as HomeProjectRow[];
-        setObras(rows.map(p => ({ id: p.id, nome: p.nome || p.name || 'Obra sem nome', cliente: p.clientes?.nome ?? null, atualizadoEm: p.updated_at, etapa: etapaDaObra(p) })));
+      if (projectsResult.error) { setErro(true); setObras([]); setSummary(null); } else {
+        const rows = (projectsResult.data ?? []) as unknown as HomeProjectRow[];
+        const mapped = rows.map(p => ({ id: p.id, nome: p.nome || p.name || 'Obra sem nome', cliente: p.clientes?.nome ?? null, atualizadoEm: p.updated_at, etapa: etapaDaObra(p) }));
+        setObras(mapped);
+        if (!receivablesResult.error && !stagesResult.error && !budgetsResult.error) {
+          const receivables = receivablesResult.data ?? [];
+          const stages = stagesResult.data ?? [];
+          const budgets = budgetsResult.data ?? [];
+          setSummary({
+            activeProjects: rows.filter(project => !['concluido', 'completed', 'cancelado', 'cancelled'].includes((project.status || '').toLowerCase())).length,
+            budgetedValue: budgets.reduce((sum, row) => sum + Number(row.sale_price || 0), 0),
+            budgetCount: budgets.length,
+            openReceivables: receivables.filter(row => !row.received_at && row.status === 'open').reduce((sum, row) => sum + Number(row.amount || 0), 0),
+            pendingStages: stages.filter(stage => stage.status === 'pending' || stage.status === 'in_progress').length,
+            blockedStages: stages.filter(stage => stage.status === 'blocked' || Boolean(stage.blocked_reason)).length,
+          });
+        } else setSummary(null);
       }
       setCarregando(false);
     });
@@ -49,6 +70,13 @@ export const Home = ({ navigateTo }: Props) => {
         <button type="button" onClick={() => navigateTo('studio')} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 active:scale-[.99]"><Sparkles size={17} /> Registrar no Diário <ArrowRight size={15} /></button>
       </header>
 
+      {summary && <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores da marcenaria">
+        <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">Obras em andamento</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.activeProjects}</p><p className="mt-1 text-[11px] text-slate-400">Carteira de projetos</p></article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">Orçamentos registrados</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.budgetCount}</p><p className="mt-1 text-[11px] text-slate-400">Valor: {summary.budgetedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</p></article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">A receber</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.openReceivables.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</p><p className="mt-1 text-[11px] text-slate-400">Parcelas em aberto</p></article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">Etapas pendentes</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.pendingStages}</p><p className="mt-1 text-[11px] text-slate-400">Produção e execução</p></article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">Etapas bloqueadas</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.blockedStages}</p><p className="mt-1 text-[11px] text-slate-400">Precisam de atenção</p></article>
+      </section>}
       <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm md:p-7" aria-labelledby="start-work">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl">

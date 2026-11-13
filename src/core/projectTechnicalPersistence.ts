@@ -97,7 +97,7 @@ export async function persistProjectTechnicalStructure(args: {
   }
   const { data: existing, error: readError } = await supabase
     .from('project_versions')
-    .select('id,version_number,status,snapshot')
+    .select('id,version_number,status,snapshot,environment_id')
     .eq('user_id', args.userId)
     .eq('project_id', args.project.id)
     .order('version_number', { ascending: false })
@@ -112,7 +112,19 @@ export async function persistProjectTechnicalStructure(args: {
     technicalStructureUpdatedAt: new Date().toISOString(),
   };
 
-  if (existing) {
+  let hasApprovalOrFreeze = false;
+  if (existing?.id) {
+    const [{ data: approval, error: approvalError }, { data: freeze, error: freezeError }] = await Promise.all([
+      supabase.from('project_approvals').select('id').eq('project_version_id', existing.id).not('approved_at', 'is', null).limit(1).maybeSingle(),
+      supabase.from('project_production_freezes').select('id').eq('project_version_id', existing.id).limit(1).maybeSingle(),
+    ]);
+    if (approvalError) throw approvalError;
+    if (freezeError) throw freezeError;
+    hasApprovalOrFreeze = Boolean(approval || freeze);
+  }
+
+  const canUpdateDraft = Boolean(existing?.id && existing.status === 'draft' && !hasApprovalOrFreeze);
+  if (canUpdateDraft && existing) {
     const { error } = await supabase
       .from('project_versions')
       .update({
@@ -125,15 +137,16 @@ export async function persistProjectTechnicalStructure(args: {
     return { versionId: existing.id, versionNumber: existing.version_number, structure };
   }
 
+  const nextVersionNumber = (existing?.version_number ?? 0) + 1;
   const { data: created, error: createError } = await supabase
     .from('project_versions')
     .insert({
       project_id: args.project.id,
       user_id: args.userId,
-      version_number: 1,
+      version_number: nextVersionNumber,
       status: 'draft',
       snapshot,
-      environment_id: args.environmentId ?? null,
+      environment_id: args.environmentId ?? existing?.environment_id ?? null,
     })
     .select('id,version_number,status,snapshot')
     .single();

@@ -26,6 +26,7 @@ const Contrato = lazy(() => import('@/modules/projetos/components/Contrato').the
 const ClientesModule = lazy(() => import('@/modules/projetos/components/Clientes'));
 const DiarioModule = lazy(() => import('@/modules/projetos/components/Diario'));
 const ConfiguracoesModule = lazy(() => import('@/modules/configuracoes'));
+const VisualFurnitureEditor = lazy(() => import('@/modules/ambientes/components/VisualFurnitureEditor'));
 
 const emptyProject: ProjectData = { width: 0, height: 0, depth: 0, modules: 0, drawers: 0, doors: 0, internalMaterial: '', externalMaterial: '', backMaterial: '', handleType: '', profitMargin: 0, laborRate: 0 };
 
@@ -81,6 +82,7 @@ const Index = () => {
       case 'diario': return <DiarioModule navigateTo={setActiveModule} />;
       case 'billing': return <BillingPortal />;
       case 'studio': return <StudioHub setBudgetProject={setBudgetProject} navigateTo={setActiveModule} gallery={gallery} setGallery={setGallery} budgetProject={budgetProject} />;
+      case 'editor': return <VisualFurnitureEditor projectId={projetoParam ?? undefined} />;
       case 'elevator': return <Elevator setBudgetProject={setBudgetProject} navigateTo={setActiveModule} />;
       case 'orcamento': return <OrcamentoModule project={budgetProject} setProject={setBudgetProject} />;
       case 'corte': return <CorteModule parts={parts} setParts={setParts} project={budgetProject} />;

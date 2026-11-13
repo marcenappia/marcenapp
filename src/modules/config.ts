@@ -1,8 +1,8 @@
-import { House, DraftingCompass, FolderPlus, NotebookPen, CreditCard, Calculator, Scissors, FileSignature, ArrowUpFromLine, UsersRound, type LucideProps } from 'lucide-react';
+import { House, DraftingCompass, FolderPlus, NotebookPen, CreditCard, Calculator, Scissors, FileSignature, ArrowUpFromLine, UsersRound, Ruler, type LucideProps } from 'lucide-react';
 
 export type ModuleCategory = 'intelligence' | 'portal' | 'studio' | 'finance' | 'production';
 export interface ModuleConfig { id: string; label: string; mobileLabel: string; icon: React.ComponentType<LucideProps>; category: ModuleCategory; hidden?: boolean; }
-export const MOBILE_NAV_IDS = ['dashboard', 'diario', 'studio'];
+export const MOBILE_NAV_IDS = ['dashboard', 'diario', 'studio', 'editor'];
 export const modules: ModuleConfig[] = [
   { id: 'dashboard', label: 'Início', mobileLabel: 'Início', icon: House, category: 'portal' },
   { id: 'inteligencia', label: 'Inteligência Operacional', mobileLabel: 'IARA', icon: DraftingCompass, category: 'intelligence', hidden: true },
@@ -11,6 +11,7 @@ export const modules: ModuleConfig[] = [
   { id: 'diario', label: 'Diário de Obra', mobileLabel: 'Diário', icon: NotebookPen, category: 'portal' },
   { id: 'billing', label: 'Créditos e Planos', mobileLabel: 'Créditos', icon: CreditCard, category: 'portal' },
   { id: 'studio', label: 'IARA', mobileLabel: 'IARA', icon: DraftingCompass, category: 'studio' },
+  { id: 'editor', label: 'Editor de móveis', mobileLabel: 'Editor', icon: Ruler, category: 'studio' },
   { id: 'elevator', label: 'Elevação de planta', mobileLabel: 'Elevação', icon: ArrowUpFromLine, category: 'studio', hidden: true },
   { id: 'orcamento', label: 'Orçamento', mobileLabel: 'Orçamento', icon: Calculator, category: 'finance' },
   { id: 'corte', label: 'Lista de Corte', mobileLabel: 'Corte', icon: Scissors, category: 'production' },
