@@ -8,9 +8,9 @@ import { optimizeCutList } from '@/lib/cut/maxRects';
 import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planService';
 
 type Project = { id: string; nome?: string | null; name?: string | null };
-type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string; carcassThickness?: number | null; backThickness?: number | null; shelfCount?: number; doorCount?: number; doorFrontWidth?: number | null; doorFrontHeight?: number | null; drawerCount?: number; drawerFrontWidth?: number | null; drawerFrontHeight?: number | null; drawerBoxWidth?: number | null; drawerBoxHeight?: number | null; drawerBoxDepth?: number | null; drawerMaterial?: string; hardware?: Array<{ code: string; name: string; quantity: number; unit?: string; category?: string }> };
+type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string; carcassThickness?: number | null; backThickness?: number | null; shelfCount?: number; doorCount?: number; doorFrontWidth?: number | null; doorFrontHeight?: number | null; drawerCount?: number; drawerFrontWidth?: number | null; drawerFrontHeight?: number | null; drawerBoxWidth?: number | null; drawerBoxHeight?: number | null; drawerBoxDepth?: number | null; drawerMaterial?: string; hardware?: Array<{ code: string; name: string; quantity: number; unit?: string; category?: string; unitPrice?: number | null }> };
 type OpeningItem = { id: string; type: 'door' | 'window'; wall: 'top' | 'right' | 'bottom' | 'left'; position: number; width: number; height: number };
-type EditorSnapshot = { room: { width: number; depth: number; height: number }; modules: ModuleItem[]; openings: OpeningItem[]; fabrication?: { sheetWidth: number; sheetHeight: number; kerf: number; sheetPrices: Record<string, number> } };
+type EditorSnapshot = { room: { width: number; depth: number; height: number }; modules: ModuleItem[]; openings: OpeningItem[]; fabrication?: { sheetWidth: number; sheetHeight: number; kerf: number; sheetPrices: Record<string, number>; laborCost: number; otherCost: number } };
 
 const catalog = [
   { kind: 'base', label: 'Balcão inferior', width: 800, height: 720, depth: 560 },
@@ -37,6 +37,8 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
   const [sheetHeight, setSheetHeight] = useState(1850);
   const [kerf, setKerf] = useState(3);
   const [sheetPrices, setSheetPrices] = useState<Record<string, number>>({});
+  const [laborCost, setLaborCost] = useState(0);
+  const [otherCost, setOtherCost] = useState(0);
   const dragRef = useRef<{ id: string; pointerX: number; pointerY: number; x: number; y: number } | null>(null);
   const selected = snapshot.modules.find(item => item.id === selectedId);
   const engineering = useMemo(() => {
@@ -55,14 +57,18 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     }));
     const parts = results.flatMap(result => result.parts.filter(part => !(part.role === 'shelf' && part.id.endsWith(':estrutura'))));
     const hardware = results.flatMap(result => result.hardware);
+    const hardwareRows = snapshot.modules.flatMap(item => item.hardware ?? []);
+    const hardwareCost = hardwareRows.reduce((sum, item) => sum + (Number(item.unitPrice) || 0) * item.quantity, 0);
+    const missingHardwarePrices = hardwareRows.filter(item => !(Number(item.unitPrice) > 0)).map(item => item.name || item.code || 'Ferragem sem descrição');
+    const quoteEstimate = sheetMaterialCost + hardwareCost + laborCost + otherCost;
     const materials = [...new Set(parts.map(part => part.material))];
     const cutPlan = sheetWidth > 0 && sheetHeight > 0 && parts.length
       ? optimizeCutList(parts.map(part => ({ id: part.id, width: part.width, height: part.height, quantity: part.quantity, material: part.material, grainSensitive: part.grainSensitive, allowRotation: part.allowRotation })), materials.map((material, index) => ({ id: `sheet-${index + 1}`, width: sheetWidth, height: sheetHeight, material })), kerf)
       : null;
     const sheetMaterialCost = cutPlan?.sheets.reduce((sum, sheet) => sum + Math.max(0, sheetPrices[sheet.material] || 0), 0) ?? 0;
     const missingSheetPrices = [...new Set(cutPlan?.sheets.map(sheet => sheet.material).filter(material => !(Number(sheetPrices[material]) > 0)) ?? [])];
-    return { eligibleCount: eligible.length, missingThickness: snapshot.modules.filter(item => !(Number(item.carcassThickness) > 0)).map(item => item.label), materials, sheetMaterialCost, missingSheetPrices, results, parts, hardware, blockers: results.flatMap(result => result.blockers), assumptions: results.flatMap(result => result.assumptions), cutPlan };
-  }, [snapshot.modules, sheetWidth, sheetHeight, kerf, sheetPrices]);
+    return { eligibleCount: eligible.length, missingThickness: snapshot.modules.filter(item => !(Number(item.carcassThickness) > 0)).map(item => item.label), materials, sheetMaterialCost, missingSheetPrices, hardwareCost, missingHardwarePrices, quoteEstimate, results, parts, hardware, blockers: results.flatMap(result => result.blockers), assumptions: results.flatMap(result => result.assumptions), cutPlan };
+  }, [snapshot.modules, sheetWidth, sheetHeight, kerf, sheetPrices, laborCost, otherCost]);
 
   useEffect(() => {
     if (!user) return;
@@ -92,8 +98,10 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
           setSheetHeight(editor.fabrication.sheetHeight || 1850);
           setKerf(editor.fabrication.kerf ?? 3);
           setSheetPrices(editor.fabrication.sheetPrices || {});
+          setLaborCost(editor.fabrication.laborCost || 0);
+          setOtherCost(editor.fabrication.otherCost || 0);
         } else {
-          setSheetWidth(2750); setSheetHeight(1850); setKerf(3); setSheetPrices({});
+          setSheetWidth(2750); setSheetHeight(1850); setKerf(3); setSheetPrices({}); setLaborCost(0); setOtherCost(0);
         }
         setSelectedId('');
       });
@@ -252,7 +260,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
       if (readError) throw readError;
 
       const prior = current?.snapshot && typeof current.snapshot === 'object' ? current.snapshot as Record<string, unknown> : {};
-      const snapshotToSave: EditorSnapshot = { ...snapshot, fabrication: { sheetWidth, sheetHeight, kerf, sheetPrices } };
+      const snapshotToSave: EditorSnapshot = { ...snapshot, fabrication: { sheetWidth, sheetHeight, kerf, sheetPrices, laborCost, otherCost } };
       const merged = { ...prior, visualFurnitureEditor: snapshotToSave, visualFurnitureEditorUpdatedAt: new Date().toISOString() };
 
       let hasApprovalOrFreeze = false;
@@ -336,10 +344,11 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
             </div>}
             <div className="col-span-2 rounded-lg border border-slate-200 p-2">
               <div className="mb-2 flex items-center justify-between"><span className="text-xs font-bold text-slate-700">Ferragens e acessórios</span><button type="button" onClick={() => updateSelected({ hardware: [...(selected.hardware ?? []), { code: '', name: '', quantity: 1, unit: 'un' }] })} className="min-h-9 rounded-lg border border-slate-200 px-2 text-xs font-bold">+ Ferragem</button></div>
-              {(selected.hardware ?? []).map((item, index) => <div key={index} className="mb-2 grid grid-cols-[1fr_1fr_64px_32px] gap-1">
-                <input aria-label="Código da ferragem" value={item.code} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, code: e.target.value } : row) })} placeholder="Código" className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[11px]"/>
-                <input aria-label="Nome da ferragem" value={item.name} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, name: e.target.value } : row) })} placeholder="Ferragem" className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[11px]"/>
-                <input aria-label="Quantidade da ferragem" type="number" min="1" value={item.quantity} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Math.max(1, Math.floor(Number(e.target.value) || 1)) } : row) })} className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[11px]"/>
+              {(selected.hardware ?? []).map((item, index) => <div key={index} className="mb-2 grid grid-cols-[1fr_1fr_52px_72px_28px] gap-1">
+                <input aria-label="Código da ferragem" value={item.code} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, code: e.target.value } : row) })} placeholder="Código" className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[10px]"/>
+                <input aria-label="Nome da ferragem" value={item.name} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, name: e.target.value } : row) })} placeholder="Ferragem" className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[10px]"/>
+                <input aria-label="Quantidade da ferragem" type="number" min="1" value={item.quantity} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Math.max(1, Math.floor(Number(e.target.value) || 1)) } : row) })} className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[10px]"/>
+                <input aria-label="Preço unitário da ferragem" type="number" min="0" step="0.01" value={item.unitPrice ?? ''} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, unitPrice: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) } : row) })} placeholder="R$/un" className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[10px]"/>
                 <button type="button" aria-label="Remover ferragem" onClick={() => updateSelected({ hardware: (selected.hardware ?? []).filter((_, rowIndex) => rowIndex !== index) })} className="min-h-9 rounded border border-red-200 text-xs text-red-700">×</button>
               </div>)}
               <p className="text-[10px] text-slate-500">Informe código, descrição e quantidade reais. Linhas incompletas bloqueiam a lista técnica.</p>
@@ -362,6 +371,8 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
             <label className="text-xs font-semibold text-slate-600">Chapa · altura (mm)<input type="number" min="1" value={sheetHeight} onChange={e => setSheetHeight(Math.max(1, Number(e.target.value)))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
             <label className="col-span-2 text-xs font-semibold text-slate-600">Kerf / espessura do corte (mm)<input type="number" min="0" step="0.1" value={kerf} onChange={e => setKerf(Math.max(0, Number(e.target.value)))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
             {engineering.materials.map(material => <label key={material} className="col-span-2 text-xs font-semibold text-slate-600">Preço por chapa · {material} (R$)<input type="number" min="0" step="0.01" value={sheetPrices[material] ?? ''} onChange={e => setSheetPrices(current => ({ ...current, [material]: Math.max(0, Number(e.target.value) || 0) }))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2" placeholder="Informe o preço real da chapa"/></label>)}
+            <label className="text-xs font-semibold text-slate-600">Mão de obra (R$)<input type="number" min="0" step="0.01" value={laborCost} onChange={e => setLaborCost(Math.max(0, Number(e.target.value) || 0))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+            <label className="text-xs font-semibold text-slate-600">Outros custos (R$)<input type="number" min="0" step="0.01" value={otherCost} onChange={e => setOtherCost(Math.max(0, Number(e.target.value) || 0))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
           </div>
           {engineering.missingThickness.length > 0 && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Informe a espessura da caixa destes módulos para incluir na engenharia: {engineering.missingThickness.join(', ')}.</p>}
           {engineering.blockers.map((blocker, index) => <p key={index} className="mt-2 text-xs text-red-700">{blocker}</p>)}
@@ -380,7 +391,9 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
               <p className="mt-1">{engineering.cutPlan.sheets.length} chapas · aproveitamento {engineering.cutPlan.utilizationPct.toFixed(1)}% · perda {(engineering.cutPlan.wasteArea / 1000000).toFixed(2)} m²</p>
               {engineering.missingSheetPrices.length === 0 && engineering.sheetMaterialCost > 0 && <p className="mt-1 font-bold">Subtotal estimado das chapas: {engineering.sheetMaterialCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>}
               {engineering.missingSheetPrices.length > 0 && <p className="mt-1 text-amber-800">Informe o preço por chapa para calcular o subtotal de material: {engineering.missingSheetPrices.join(', ')}.</p>}
-              <p className="mt-1 text-[11px] text-slate-500">Subtotal somente das chapas calculadas. Não inclui ferragens, fita de borda, usinagem, mão de obra, impostos, transporte ou perdas adicionais.</p>
+              {engineering.missingSheetPrices.length === 0 && engineering.missingHardwarePrices.length === 0 && engineering.blockers.length === 0 && <p className="mt-2 rounded-lg bg-indigo-50 p-3 text-sm font-black text-indigo-950">Estimativa preliminar: {engineering.quoteEstimate.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}<span className="mt-1 block text-[10px] font-medium text-indigo-800">Chapas + ferragens informadas + mão de obra + outros custos informados.</span></p>}
+              {engineering.missingHardwarePrices.length > 0 && <p className="mt-1 text-xs text-amber-800">Informe o preço unitário destas ferragens: {engineering.missingHardwarePrices.join(', ')}.</p>}
+              <p className="mt-1 text-[11px] text-slate-500">Estimativa preliminar. Não inclui fita de borda, usinagem, impostos, transporte, instalação ou perdas adicionais.</p>
               {engineering.cutPlan.unplaced.length > 0 && <p className="mt-1 text-red-700">{engineering.cutPlan.unplaced.length} peça(s) não couberam nas chapas informadas. Confira as dimensões e materiais.</p>}
               {engineering.cutPlan.sheets.map(sheet => <p key={sheet.id} className="mt-1">Chapa {sheet.id}: {sheet.material} · {sheet.placements.length} peças · {sheet.utilizationPct.toFixed(1)}%</p>)}
             </div>}
