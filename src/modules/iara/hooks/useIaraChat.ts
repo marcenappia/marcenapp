@@ -35,7 +35,7 @@ function toolFailureMessage(tool: string, error: unknown): string {
   return humanizeError(error);
 }
 
-export const useIaraChat = (factors: { L: number; A: number; P?: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void }, projectId: string | null = null, activeContext?: IaraContext) => {
+export const useIaraChat = (factors: { L: number; A: number; P?: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void; onEnvironmentCreated?: (environmentId: string) => void }, projectId: string | null = null, activeContext?: IaraContext) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
