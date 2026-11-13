@@ -89,7 +89,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       // key was never cleared and re-hydrated a consumed photo on every remount.
       const handoff = consumeIaraPhotoHandoff();
       try { sessionStorage.removeItem('marcenapp.iara.pending-upload.v1'); } catch { /* ignore */ }
-      if (handoff && !cancelled && !pendingUploadRef.current) setPendingUpload(handoff);
+      if (handoff && !cancelled && !pendingUploadRef.current) setPendingUpload({ ...handoff, captureId: resumeIaraCapture() });
     };
     void restore();
     return () => { cancelled = true; };
