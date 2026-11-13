@@ -3,10 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Box, Grid3X3, Plus, Save, Trash2 } from 'lucide-react';
 import { canPlaceFurniture, clampFurniturePosition, findNextFurniturePosition } from './furnitureLayout';
+import { engineerBasicCarcass } from '@/lib/furniture/engineering';
+import { optimizeCutList } from '@/lib/cut/maxRects';
 import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planService';
 
 type Project = { id: string; nome?: string | null; name?: string | null };
-type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string };
+type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string; carcassThickness?: number | null; backThickness?: number | null; shelfCount?: number };
 type OpeningItem = { id: string; type: 'door' | 'window'; wall: 'top' | 'right' | 'bottom' | 'left'; position: number; width: number; height: number };
 type EditorSnapshot = { room: { width: number; depth: number; height: number }; modules: ModuleItem[]; openings: OpeningItem[] };
 
@@ -31,7 +33,26 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
   const [message, setMessage] = useState('');
   const [planFile, setPlanFile] = useState<File | null>(null);
   const [sendingToIara, setSendingToIara] = useState(false);
+  const [sheetWidth, setSheetWidth] = useState(2750);
+  const [sheetHeight, setSheetHeight] = useState(1850);
+  const [kerf, setKerf] = useState(3);
   const selected = snapshot.modules.find(item => item.id === selectedId);
+  const engineering = useMemo(() => {
+    const eligible = snapshot.modules.filter(item => Number(item.carcassThickness) > 0);
+    const results = eligible.map(item => engineerBasicCarcass({
+      id: item.id, name: item.label, width: item.width, height: item.height, depth: item.depth,
+      carcassThickness: Number(item.carcassThickness),
+      ...(Number(item.backThickness) > 0 ? { backThickness: Number(item.backThickness), backMaterial: item.material } : {}),
+      shelfCount: Math.max(0, Math.floor(item.shelfCount ?? 0)),
+      material: item.material, grainSensitive: true,
+    }));
+    const parts = results.flatMap(result => result.parts);
+    const materials = [...new Set(parts.map(part => part.material))];
+    const cutPlan = sheetWidth > 0 && sheetHeight > 0 && parts.length
+      ? optimizeCutList(parts.map(part => ({ id: part.id, width: part.width, height: part.height, quantity: part.quantity, material: part.material, grainSensitive: part.grainSensitive, allowRotation: part.allowRotation })), materials.map((material, index) => ({ id: `sheet-${index + 1}`, width: sheetWidth, height: sheetHeight, material })), kerf)
+      : null;
+    return { eligibleCount: eligible.length, missingThickness: snapshot.modules.filter(item => !(Number(item.carcassThickness) > 0)).map(item => item.label), results, parts, blockers: results.flatMap(result => result.blockers), assumptions: results.flatMap(result => result.assumptions), cutPlan };
+  }, [snapshot.modules, sheetWidth, sheetHeight, kerf]);
 
   useEffect(() => {
     if (!user) return;
@@ -69,7 +90,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
       return;
     }
     const id = globalThis.crypto?.randomUUID?.() ?? `module-${Date.now()}`;
-    const next: ModuleItem = { id, ...item, ...position, material: 'MDF a definir' };
+    const next: ModuleItem = { id, ...item, ...position, material: 'MDF a definir', carcassThickness: null, backThickness: null, shelfCount: 0 };
     setSnapshot(current => ({ ...current, modules: [...current.modules, next] }));
     setSelectedId(id);
     setMessage('');
@@ -228,8 +249,37 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
           <p className="text-xs font-semibold text-slate-500">{selected.label}</p>
           {(['width','height','depth','x','y'] as const).map(key => <label key={key} className="block text-xs font-bold text-slate-600">{({width:'Largura',height:'Altura',depth:'Profundidade',x:'Posição X',y:'Posição Y'})[key]} (mm)<input type="number" min="0" value={selected[key]} onChange={e => updateSelected({[key]: Math.max(0, Number(e.target.value))})} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"/></label>)}
           <label className="block text-xs font-bold text-slate-600">Material / acabamento<input value={selected.material} onChange={e => updateSelected({material:e.target.value})} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" placeholder="Ex.: MDF Gianduia"/></label>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <label className="block text-xs font-bold text-slate-600">Espessura da caixa (mm)<input type="number" min="1" max="50" value={selected.carcassThickness ?? ''} onChange={e => updateSelected({ carcassThickness: e.target.value === '' ? null : Math.max(1, Number(e.target.value)) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm" placeholder="Obrigatória"/></label>
+            <label className="block text-xs font-bold text-slate-600">Espessura do fundo (mm)<input type="number" min="1" max="20" value={selected.backThickness ?? ''} onChange={e => updateSelected({ backThickness: e.target.value === '' ? null : Math.max(1, Number(e.target.value)) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm" placeholder="Opcional"/></label>
+            <label className="col-span-2 block text-xs font-bold text-slate-600">Quantidade de prateleiras<input type="number" min="0" max="50" value={selected.shelfCount ?? 0} onChange={e => updateSelected({ shelfCount: Math.max(0, Math.min(50, Math.floor(Number(e.target.value) || 0))) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm"/></label>
+          </div>
           <button type="button" onClick={() => { setSnapshot(current => ({...current,modules:current.modules.filter(item => item.id !== selectedId)})); setSelectedId(''); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-700"><Trash2 size={14}/> Remover módulo</button>
         </div> : <p className="mt-2 text-xs text-slate-500">Adicione um módulo ou selecione um existente na planta para editar suas medidas e acabamento.</p>}</div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h2 className="text-sm font-black">Engenharia · lista de peças e plano de corte</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-500">A engenharia só calcula módulos com espessura de caixa informada. Não inventa folgas, ferragens, encaixes ou dimensões ausentes.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <label className="text-xs font-semibold text-slate-600">Chapa · largura (mm)<input type="number" min="1" value={sheetWidth} onChange={e => setSheetWidth(Math.max(1, Number(e.target.value)))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+            <label className="text-xs font-semibold text-slate-600">Chapa · altura (mm)<input type="number" min="1" value={sheetHeight} onChange={e => setSheetHeight(Math.max(1, Number(e.target.value)))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+            <label className="col-span-2 text-xs font-semibold text-slate-600">Kerf / espessura do corte (mm)<input type="number" min="0" step="0.1" value={kerf} onChange={e => setKerf(Math.max(0, Number(e.target.value)))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+          </div>
+          {engineering.missingThickness.length > 0 && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Informe a espessura da caixa destes módulos para incluir na engenharia: {engineering.missingThickness.join(', ')}.</p>}
+          {engineering.blockers.map((blocker, index) => <p key={index} className="mt-2 text-xs text-red-700">{blocker}</p>)}
+          {engineering.parts.length > 0 ? <div className="mt-3 space-y-2">
+            <p className="text-xs font-bold text-slate-700">{engineering.parts.reduce((sum, part) => sum + part.quantity, 0)} peças calculadas · {engineering.eligibleCount} módulos</p>
+            <div className="max-h-56 overflow-auto rounded-lg border border-slate-200">
+              <table className="w-full text-left text-xs"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-2">Peça</th><th className="p-2">Medida (mm)</th><th className="p-2">Qtd.</th><th className="p-2">Material</th></tr></thead><tbody>{engineering.parts.map(part => <tr key={part.id} className="border-t border-slate-100"><td className="p-2">{part.name}</td><td className="p-2 tabular-nums">{part.width} × {part.height}</td><td className="p-2">{part.quantity}</td><td className="p-2">{part.material}</td></tr>)}</tbody></table>
+            </div>
+            {engineering.cutPlan && <div className="rounded-lg bg-slate-50 p-3 text-xs">
+              <p className="font-bold">Plano de corte preliminar</p>
+              <p className="mt-1">{engineering.cutPlan.sheets.length} chapas · aproveitamento {engineering.cutPlan.utilizationPct.toFixed(1)}% · perda {(engineering.cutPlan.wasteArea / 1000000).toFixed(2)} m²</p>
+              {engineering.cutPlan.unplaced.length > 0 && <p className="mt-1 text-red-700">{engineering.cutPlan.unplaced.length} peça(s) não couberam nas chapas informadas. Confira as dimensões e materiais.</p>}
+              {engineering.cutPlan.sheets.map(sheet => <p key={sheet.id} className="mt-1">Chapa {sheet.id}: {sheet.material} · {sheet.placements.length} peças · {sheet.utilizationPct.toFixed(1)}%</p>)}
+            </div>}
+            {engineering.assumptions.map((assumption, index) => <p key={index} className="text-[11px] text-amber-800">{assumption}</p>)}
+          </div> : <p className="mt-3 text-xs text-slate-500">Selecione um módulo e informe espessura da caixa e material para gerar a lista técnica.</p>}
+        </div>
         <div className="rounded-2xl border border-indigo-200 bg-white p-4">
           <h2 className="text-sm font-black">IARA · analisar imagem e preparar render</h2>
           <p className="mt-1 text-xs leading-5 text-slate-500">Envie uma foto do ambiente ou planta baixa. A IARA usa a imagem e o levantamento deste editor para registrar a análise e enfileirar a perspectiva no Studio.</p>
