@@ -12,7 +12,7 @@ const etapaDaObra = (p: { id: string; status?: string | null; jornada?: unknown 
   const local = carregarProgresso(p.id)?.etapa;
   return (concluida ? Math.max(remota ?? local ?? 1, 7) : (remota ?? local ?? 1)) as EtapaId;
 };
-interface DashboardSummary { activeProjects: number; openReceivables: number; pendingStages: number; blockedStages: number; }
+interface DashboardSummary { activeProjects: number; budgetedValue: number; budgetCount: number; openReceivables: number; pendingStages: number; blockedStages: number; }
 interface Props { navigateTo: (id: string, params?: Record<string, string>) => void; }
 
 export const Home = ({ navigateTo }: Props) => {
@@ -31,17 +31,21 @@ export const Home = ({ navigateTo }: Props) => {
       supabase.from('projects').select('id, nome, name, updated_at, status, jornada, clientes(nome)').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(1000),
       supabase.from('project_receivables').select('amount,received_at,status').eq('user_id', user.id).limit(5000),
       supabase.from('project_production_stages').select('status,blocked_reason').eq('user_id', user.id).limit(5000),
-    ]).then(([projectsResult, receivablesResult, stagesResult]) => {
+      supabase.from('project_cost_snapshots').select('sale_price').eq('user_id', user.id).limit(5000),
+    ]).then(([projectsResult, receivablesResult, stagesResult, budgetsResult]) => {
       if (cancelled) return;
       if (projectsResult.error) { setErro(true); setObras([]); setSummary(null); } else {
         const rows = (projectsResult.data ?? []) as unknown as HomeProjectRow[];
         const mapped = rows.map(p => ({ id: p.id, nome: p.nome || p.name || 'Obra sem nome', cliente: p.clientes?.nome ?? null, atualizadoEm: p.updated_at, etapa: etapaDaObra(p) }));
         setObras(mapped);
-        if (!receivablesResult.error && !stagesResult.error) {
+        if (!receivablesResult.error && !stagesResult.error && !budgetsResult.error) {
           const receivables = receivablesResult.data ?? [];
           const stages = stagesResult.data ?? [];
+          const budgets = budgetsResult.data ?? [];
           setSummary({
             activeProjects: mapped.filter(project => project.etapa < 7).length,
+            budgetedValue: budgets.reduce((sum, row) => sum + Number(row.sale_price || 0), 0),
+            budgetCount: budgets.length,
             openReceivables: receivables.filter(row => !row.received_at && row.status === 'open').reduce((sum, row) => sum + Number(row.amount || 0), 0),
             pendingStages: stages.filter(stage => stage.status === 'pending' || stage.status === 'in_progress').length,
             blockedStages: stages.filter(stage => stage.status === 'blocked' || Boolean(stage.blocked_reason)).length,
@@ -66,8 +70,9 @@ export const Home = ({ navigateTo }: Props) => {
         <button type="button" onClick={() => navigateTo('studio')} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 active:scale-[.99]"><Sparkles size={17} /> Registrar no Diário <ArrowRight size={15} /></button>
       </header>
 
-      {summary && <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores da marcenaria">
+      {summary && <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores da marcenaria">
         <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">Obras em andamento</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.activeProjects}</p><p className="mt-1 text-[11px] text-slate-400">Carteira de projetos</p></article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">Orçamentos registrados</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.budgetCount}</p><p className="mt-1 text-[11px] text-slate-400">Valor: {summary.budgetedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</p></article>
         <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">A receber</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.openReceivables.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</p><p className="mt-1 text-[11px] text-slate-400">Parcelas em aberto</p></article>
         <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">Etapas pendentes</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.pendingStages}</p><p className="mt-1 text-[11px] text-slate-400">Produção e execução</p></article>
         <article className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">Etapas bloqueadas</p><p className="mt-2 text-2xl font-black tabular-nums text-slate-950">{summary.blockedStages}</p><p className="mt-1 text-[11px] text-slate-400">Precisam de atenção</p></article>
