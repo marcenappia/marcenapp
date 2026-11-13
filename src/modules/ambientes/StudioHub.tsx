@@ -44,16 +44,30 @@ export const StudioHub = (props: StudioHubProps) => {
     return () => { cancelled = true; };
   }, [user, projectId, context.environmentId]);
 
-  const selectEnvironment = async (environmentId: string) => {
-    if (!user || !projectId) return;
-    let environment = environments.find(item => item.id === environmentId);
+  const selectEnvironment = async (environmentId: string, targetProjectId: string = projectId ?? '') => {
+    if (!user || !targetProjectId) return;
+    let environment = targetProjectId === projectId ? environments.find(item => item.id === environmentId) : undefined;
     if (!environment) {
-      const { data, error } = await supabase.from('project_environments').select('id,name,position').eq('id', environmentId).eq('project_id', projectId).maybeSingle();
+      const { data, error } = await supabase.from('project_environments').select('id,name,position').eq('id', environmentId).eq('project_id', targetProjectId).maybeSingle();
       if (error || !data) return;
       environment = data as EnvironmentOption;
+    }
+    let projectContext = context;
+    if (targetProjectId !== projectId) {
+      const { data: project, error: projectError } = await supabase.from('projects').select('id,nome,name,cliente_id').eq('id', targetProjectId).eq('user_id', user.id).maybeSingle();
+      if (projectError || !project) return;
+      let clientName: string | null = null;
+      if (project.cliente_id) {
+        const { data: client } = await supabase.from('clientes').select('nome').eq('id', project.cliente_id).eq('user_id', user.id).maybeSingle();
+        clientName = client?.nome ?? null;
+      }
+      projectContext = { ...emptyIaraContext, clientId: project.cliente_id ?? null, clientName, projectId: targetProjectId, projectName: project.nome || project.name || null };
+      setEnvironments([environment]);
+      setVersions([]);
+    } else {
       setEnvironments(current => current.some(item => item.id === environmentId) ? current : [...current, environment as EnvironmentOption].sort((a, b) => a.position - b.position));
     }
-    const next = { ...context, projectId, environmentId, environmentName: environment.name, versionId: null, versionNumber: null };
+    const next = { ...projectContext, projectId: targetProjectId, environmentId, environmentName: environment.name, versionId: null, versionNumber: null };
     setContext(next);
     await persistIaraContext(user.id, next);
   };

@@ -35,7 +35,7 @@ function toolFailureMessage(tool: string, error: unknown): string {
   return humanizeError(error);
 }
 
-export const useIaraChat = (factors: { L: number; A: number; P?: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void; onEnvironmentCreated?: (environmentId: string) => void }, projectId: string | null = null, activeContext?: IaraContext) => {
+export const useIaraChat = (factors: { L: number; A: number; P?: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void; onEnvironmentCreated?: (projectId: string, environmentId: string) => void }, projectId: string | null = null, activeContext?: IaraContext) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
@@ -480,7 +480,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     const previousProjectId = executionContextRef.current.projectId;
     executionContextRef.current = { userId: user.id, projectId: destination.projectId, environmentId: destination.environmentId, versionId: null };
     setLastContext({ baseRaw, maskRaw: '', kind: 'environment' });
-    if (previousProjectId === destination.projectId) hooks?.onEnvironmentCreated?.(destination.environmentId);
+    hooks?.onEnvironmentCreated?.(destination.projectId, destination.environmentId);
     await clearIaraPendingUpload().catch(() => undefined);
     setPendingUpload(null);
   }, [user, hooks]);
