@@ -3,7 +3,7 @@ import { Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scis
 import type { LucideProps } from 'lucide-react';
 import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
 import { consumeIaraPhotoHandoff } from '../services/photoDestination';
-import { blobToDataUrl, clearIaraPendingUpload, createIaraPreviewUrl, loadIaraPendingUpload } from '../services/pendingUploadStorage';
+import { blobToDataUrl, clearIaraPendingUpload, createIaraPreviewUrl, loadIaraPendingUpload, persistIaraPendingUpload, resumeIaraCapture } from '../services/pendingUploadStorage';
 import { PhotoDestinationPanel } from './PhotoDestinationPanel';
 
 type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; blob?: Blob; previewUrl?: string; captureId?: string };
@@ -67,6 +67,8 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       try {
         const persisted = await loadIaraPendingUpload();
         if (!cancelled && persisted && !pendingUploadRef.current) {
+          const captureId = resumeIaraCapture(persisted.captureId);
+          if (!persisted.captureId) await persistIaraPendingUpload(persisted.blob, persisted.kind, captureId);
           const previewUrl = createIaraPreviewUrl(persisted.blob);
           setPendingUpload({
             blob: persisted.blob,
@@ -75,7 +77,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
             baseRaw: '',
             maskRaw: '',
             kind: persisted.kind,
-            captureId: persisted.captureId,
+            captureId,
           });
           return;
         }
