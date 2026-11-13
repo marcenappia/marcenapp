@@ -330,7 +330,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
               <label className="block text-xs font-bold text-slate-600">Largura caixa gaveta (mm)<input type="number" min="1" value={selected.drawerBoxWidth ?? ''} onChange={e => updateSelected({ drawerBoxWidth: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
               <label className="block text-xs font-bold text-slate-600">Altura caixa gaveta (mm)<input type="number" min="1" value={selected.drawerBoxHeight ?? ''} onChange={e => updateSelected({ drawerBoxHeight: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
               <label className="col-span-2 block text-xs font-bold text-slate-600">Profundidade caixa gaveta (mm)<input type="number" min="1" value={selected.drawerBoxDepth ?? ''} onChange={e => updateSelected({ drawerBoxDepth: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
-            </div>
+            </div>}
           </div>
           <button type="button" onClick={() => { setSnapshot(current => ({...current,modules:current.modules.filter(item => item.id !== selectedId)})); setSelectedId(''); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-700"><Trash2 size={14}/> Remover módulo</button>
         </div> : <p className="mt-2 text-xs text-slate-500">Adicione um módulo ou selecione um existente na planta para editar suas medidas e acabamento.</p>}</div>
