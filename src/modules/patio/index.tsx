@@ -3,6 +3,7 @@ import { Plus, Trash2, RefreshCcw, AlertTriangle } from 'lucide-react';
 import { Button, Card, Modal, InputGroup, SelectGroup } from '@/components/marcenaria/shared';
 import type { ProjectData } from '@/modules/projetos/types';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { persistProjectTechnicalStructure } from '@/core/projectTechnicalPersistence';
 import { optimizeCutList, type CutPart, type CutSheet } from '@/lib/cut/maxRects';
 
@@ -34,6 +35,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
   const [sheetMaterial, setSheetMaterial] = useState('');
   const [sheetThickness, setSheetThickness] = useState<number | null>(null);
   const [technicalMessage, setTechnicalMessage] = useState<string | null>(null);
+  const [savingPlan, setSavingPlan] = useState(false);
 
   const importTechnicalStructure = async () => {
     if (!user || !project.id) {
@@ -78,6 +80,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
   };
 
   const addPart = () => {
+    if (!newPart.material?.trim()) { setTechnicalMessage('Informe o material exato de cada peça antes de otimizar.'); return; }
     if (newPart.name.trim() && newPart.w > 0 && newPart.h > 0 && newPart.qtd > 0) {
       setParts([...parts, { ...newPart, name: newPart.name.trim(), id: Date.now(), qtd: Math.floor(newPart.qtd) }]);
       setNewPart({ name: '', w: 0, h: 0, qtd: 1, mat: 'white' });
@@ -98,7 +101,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
     width: part.w,
     height: part.h,
     quantity: 1,
-    material: part.material || 'Material não definido',
+    material: part.material?.trim() ?? '',
     grainSensitive: Boolean(part.grainSensitive),
     allowRotation: part.allowRotation !== false,
   }));
@@ -108,11 +111,47 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
     : [];
 
   const result = useMemo(() => {
-    if (!cutParts.length || !templates.length) return null;
+    if (!cutParts.length || !templates.length || cutParts.some(part => !part.material)) return null;
     return optimizeCutList(cutParts, templates, DEFAULT_KERF);
   }, [cutParts, templates]);
 
   const invalid = result?.unplaced ?? [];
+
+  const saveCutPlan = async () => {
+    if (!user || !project.id || !result || !templates.length) {
+      setTechnicalMessage('Gere o plano com peças e chapa de material real antes de salvar.');
+      return;
+    }
+    setSavingPlan(true);
+    try {
+      const { versionId } = await persistProjectTechnicalStructure({ project, userId: user.id });
+      const { data: version, error: readError } = await supabase.from('project_versions').select('snapshot').eq('id', versionId).eq('project_id', project.id).eq('user_id', user.id).maybeSingle();
+      if (readError) throw readError;
+      if (!version) throw new Error('A versão técnica do projeto não foi encontrada para salvar o plano.');
+      const snapshot = version.snapshot && typeof version.snapshot === 'object' ? version.snapshot as Record<string, unknown> : {};
+      const needsConfirmation = invalid.length > 0 || parts.some(part => part.status === 'inferred' || part.status === 'estimate');
+      const cutPlan = {
+        version: 1,
+        status: needsConfirmation ? 'needs_confirmation' : 'ready',
+        optimizer: 'max_rects_best_short_side_fit',
+        generatedAt: new Date().toISOString(),
+        kerf: DEFAULT_KERF,
+        inputs: { parts: cutParts, sheetTemplates: templates },
+        result,
+        warnings: [
+          ...(invalid.length ? [`${invalid.length} peça(s) não couberam nas chapas informadas.`] : []),
+          ...(parts.some(part => part.status === 'inferred' || part.status === 'estimate') ? ['Existem medidas inferidas ou estimadas que precisam de conferência.'] : []),
+        ],
+      };
+      const { error: saveError } = await supabase.from('project_versions').update({ snapshot: { ...snapshot, cutPlan } }).eq('id', versionId).eq('project_id', project.id).eq('user_id', user.id);
+      if (saveError) throw saveError;
+      setTechnicalMessage(needsConfirmation ? 'Plano salvo como rascunho: confira as peças e medidas sinalizadas antes da produção.' : 'Plano de corte salvo na versão técnica do projeto.');
+    } catch (error) {
+      setTechnicalMessage(error instanceof Error ? error.message : 'Não foi possível salvar o plano de corte.');
+    } finally {
+      setSavingPlan(false);
+    }
+  };
 
   return (
     <>
@@ -166,6 +205,7 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
         </div>
 
         <div className="lg:col-span-8 space-y-4">
+          {result && <div className="flex justify-end"><Button onClick={() => void saveCutPlan()} disabled={savingPlan}>{savingPlan ? 'Salvando...' : 'Salvar plano de corte'}</Button></div>}
           {invalid.length > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex gap-3">
               <AlertTriangle className="shrink-0" size={18} />
@@ -201,13 +241,14 @@ const CorteModule = ({ parts, setParts, project }: Props) => {
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Nova Peça" maxWidth="max-w-sm" footer={<Button onClick={addPart}>Adicionar</Button>}>
         <div className="space-y-4">
           <InputGroup label="Nome" type="text" value={newPart.name} onChange={v => setNewPart({ ...newPart, name: String(v) })} placeholder="Ex: Lateral, Base, Porta..." />
+          <InputGroup label="Material exato" type="text" value={newPart.material ?? ''} onChange={v => setNewPart({ ...newPart, material: String(v) })} placeholder="Ex: MDF Branco TX 15 mm" />
           <div className="grid grid-cols-2 gap-3">
             <InputGroup label="Largura (mm)" value={newPart.w} onChange={v => setNewPart({ ...newPart, w: Number(v) })} />
             <InputGroup label="Altura (mm)" value={newPart.h} onChange={v => setNewPart({ ...newPart, h: Number(v) })} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <InputGroup label="Qtd" value={newPart.qtd} onChange={v => setNewPart({ ...newPart, qtd: Number(v) })} />
-            <SelectGroup label="Material" value={newPart.mat} onChange={v => setNewPart({ ...newPart, mat: v as 'white' | 'wood' })} options={[{ value: 'white', label: 'Branco' }, { value: 'wood', label: 'Madeirado' }]} />
+            <SelectGroup label="Categoria" value={newPart.mat} onChange={v => setNewPart({ ...newPart, mat: v as 'white' | 'wood' })} options={[{ value: 'white', label: 'Branco' }, { value: 'wood', label: 'Madeirado' }]} />
           </div>
         </div>
       </Modal>
