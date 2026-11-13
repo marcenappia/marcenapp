@@ -40,9 +40,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Never cache Vite /assets in the service worker. Those files are content-
-  // hashed and should always be resolved from the current deployment/CDN.
-  if (url.pathname.startsWith('/assets/')) return;
+  // Vite assets use content hashes, so cache-first is safe across deployments.
+  // This lets the cached app shell load its JS/CSS after the device goes offline.
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(request).then((cached) => cached ?? fetch(request).then((response) => {
+        if (!response.ok) return response;
+        const copy = response.clone();
+        void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        return response;
+      })),
+    );
+    return;
+  }
 
   if (url.pathname.startsWith('/icons/')) {
     event.respondWith(

@@ -28,7 +28,7 @@ test.describe('Marcenapp public acceptance', () => {
     await expect(page.getByRole('heading', { name: /Do ambiente real à produção\./i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Uma obra, um projeto, do começo ao fim\./i })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Criar conta grátis' }).first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Ver como funciona' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Como funciona' })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Menos retrabalho entre a visita e a oficina/i })).toBeVisible();
   });
 
@@ -70,7 +70,7 @@ test.describe('Marcenapp public acceptance', () => {
     const response = await request.get('/sw.js');
     expect(response.ok()).toBe(true);
     expect(response.headers()['content-type']).toContain('javascript');
-    expect(await response.text()).toContain('marcenapp-static-v1');
+    expect(await response.text()).toContain('marcenapp-static-v3');
   });
 
   test('public landing page passes an axe accessibility audit', async ({ page }) => {
@@ -82,7 +82,7 @@ test.describe('Marcenapp public acceptance', () => {
     const assertClean = assertNoLovableNavigation(page);
     await page.goto('/auth');
     await expect(page.getByRole('heading', { name: /MARCENAPP/i })).toBeVisible();
-    await expect(page.getByPlaceholder('E-mail')).toBeVisible();
+    await expect(page.getByLabel(/E-mail/i)).toBeVisible();
     await expect(page.getByPlaceholder('Senha')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Continuar com Google/i })).toBeVisible();
@@ -118,7 +118,7 @@ test.describe('Marcenapp public acceptance', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('button', { name: 'Abrir menu' })).toBeVisible();
     await page.getByRole('button', { name: 'Abrir menu' }).click();
-    await expect(page.getByRole('button', { name: 'Começar agora' }).last()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Como funciona' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Produto' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Recursos' })).toBeVisible();
   });

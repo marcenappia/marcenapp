@@ -4,7 +4,7 @@ test.describe('Marcenapp authenticated core', () => {
   test('dashboard opens as the professional workspace', async ({ authenticatedPage: page }) => {
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByText(/Seu espaço de trabalho/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Desenvolver projeto/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Desenvolver projeto/i }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /Registrar no Diário/i })).toBeVisible();
   });
 
@@ -18,7 +18,7 @@ test.describe('Marcenapp authenticated core', () => {
 
   test('professional navigation reaches IARA and client area', async ({ authenticatedPage: page }) => {
     await page.goto('/?module=studio');
-    await expect(page.getByText('IARA', { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('main').getByText('IARA', { exact: true })).toBeVisible();
 
     await page.goto('/?module=clientes');
     await expect(page.locator('main')).toBeVisible();
@@ -28,7 +28,7 @@ test.describe('Marcenapp authenticated core', () => {
     const pageErrors: string[] = [];
     page.on('pageerror', error => pageErrors.push(error.message));
     await page.goto('/?module=studio');
-    await expect(page.getByRole('heading', { name: 'IARA', exact: true })).toBeVisible();
+    await expect(page.getByRole('main').getByText('IARA', { exact: true })).toBeVisible();
     await expect(page.getByLabel('Mensagem para a IARA')).toBeVisible();
     await expect(page.getByTestId('build-version')).toHaveText(/Build (dev|[a-f0-9]{8})/i);
     expect(pageErrors, `IARA runtime errors: ${pageErrors.join(' | ')}`).toEqual([]);
@@ -40,7 +40,7 @@ test.describe('Marcenapp authenticated core', () => {
     await page.goto('/?module=clientes');
     await expect(page.locator('main')).toBeVisible();
     await page.goto('/?module=studio');
-    await expect(page.getByText('IARA', { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('main').getByText('IARA', { exact: true })).toBeVisible();
     await expect(page.getByLabel('Mensagem para a IARA')).toBeVisible();
   });
 
@@ -53,7 +53,7 @@ test.describe('Marcenapp authenticated core', () => {
   test('IARA executes a real photo-to-render production flow', async ({ authenticatedPage: page }) => {
     test.setTimeout(12 * 60 * 1000);
     await page.goto('/?module=studio');
-    await expect(page.getByRole('heading', { name: 'IARA', exact: true })).toBeVisible();
+    await expect(page.getByRole('main').getByText('IARA', { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Adicionar foto, referência ou planta' }).click();
     await page.getByRole('button', { name: /Foto do ambiente/ }).click();
