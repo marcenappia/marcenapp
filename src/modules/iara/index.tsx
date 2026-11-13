@@ -7,7 +7,7 @@ import AuthDialog from '../../components/marcenaria/AuthDialog';
 import { useIaraChat } from './hooks/useIaraChat';
 import type { IaraContext } from './services/iaraContext';
 
-interface IaraModuleProps { syncProject?: { width?: number; height?: number; depth?: number } | null; onProjectChange?: (p: { width: number; height: number; depth: number }) => void; embedded?: boolean; projectId?: string | null; activeContext?: IaraContext; navigateTo?: (id: string, params?: Record<string, string>) => void; environments?: Array<{ id: string; name: string; position: number }>; versions?: Array<{ id: string; version_number: number; environment_id: string }>; onEnvironmentChange?: (id: string, projectId?: string) => void; onVersionChange?: (id: string) => void; }
+interface IaraModuleProps { syncProject?: { width?: number; height?: number; depth?: number } | null; onProjectChange?: (p: { width: number; height: number; depth: number }) => void; embedded?: boolean; projectId?: string | null; activeContext?: IaraContext; navigateTo?: (id: string, params?: Record<string, string>) => void; environments?: Array<{ id: string; name: string; position: number }>; versions?: Array<{ id: string; version_number: number; environment_id: string }>; onEnvironmentChange?: (id: string, projectId?: string) => void | Promise<void>; onVersionChange?: (id: string) => void; }
 
 type UploadKind = 'environment' | 'reference' | 'sketch' | 'plan';
 type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind?: UploadKind; blob?: Blob; previewUrl?: string };

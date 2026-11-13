@@ -35,7 +35,7 @@ function toolFailureMessage(tool: string, error: unknown): string {
   return humanizeError(error);
 }
 
-export const useIaraChat = (factors: { L: number; A: number; P?: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void; onEnvironmentCreated?: (projectId: string, environmentId: string) => void }, projectId: string | null = null, activeContext?: IaraContext) => {
+export const useIaraChat = (factors: { L: number; A: number; P?: number }, decorStyle: string, setShowAuthDialog: (val: boolean) => void, hooks?: { onProjectCreated?: (p: { width: number; height: number; depth: number }) => void; onEnvironmentCreated?: (projectId: string, environmentId: string) => void | Promise<void> }, projectId: string | null = null, activeContext?: IaraContext) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
@@ -445,7 +445,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       if (upload?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(upload.previewUrl);
     }
   };
-  const publishAttachedPhoto = useCallback(async (destination: { projectId: string; environmentId: string; imageUrl?: string | null; storagePath?: string | null; correlationId?: string | null }) => {
+  const publishAttachedPhoto = useCallback(async (destination: { projectId: string; environmentId: string; imageUrl?: string | null; storagePath?: string | null; correlationId?: string | null; dataUrl?: string | null }) => {
     if (!user) throw new Error('Entre na sua conta para continuar.');
     if (!destination.imageUrl || !/^https?:\/\//.test(destination.imageUrl)) {
       throw new Error('A foto foi salva, mas ainda não existe uma URL persistente para colocá-la na conversa.');
@@ -477,10 +477,9 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     });
     if (insertError) throw new Error('A foto foi salva, mas não foi possível colocá-la na conversa.');
 
-    const previousProjectId = executionContextRef.current.projectId;
     executionContextRef.current = { userId: user.id, projectId: destination.projectId, environmentId: destination.environmentId, versionId: null };
     setLastContext({ baseRaw, maskRaw: '', kind: 'environment' });
-    hooks?.onEnvironmentCreated?.(destination.projectId, destination.environmentId);
+    await hooks?.onEnvironmentCreated?.(destination.projectId, destination.environmentId);
     await clearIaraPendingUpload().catch(() => undefined);
     setPendingUpload(null);
   }, [user, hooks]);
