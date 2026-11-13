@@ -7,6 +7,9 @@ export interface PersistGalleryImageInput {
   storagePath: string;
   imageUrl: string;
   prompt: string;
+  versionId?: string | null;
+  correlationId?: string | null;
+  generation?: number | null;
 }
 
 /**
@@ -28,6 +31,9 @@ export async function persistGalleryImage(input: PersistGalleryImageInput): Prom
     user_id: input.userId,
     project_id: input.projectId ?? null,
     environment_id: input.environmentId ?? null,
+    version_id: input.versionId ?? null,
+    correlation_id: input.correlationId ?? null,
+    execution_generation: input.generation ?? null,
     storage_path: storagePath,
     image_url: imageUrl,
     prompt: input.prompt,

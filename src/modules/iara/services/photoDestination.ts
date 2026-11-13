@@ -11,6 +11,7 @@ export type PhotoDestination = {
   environmentName?: string | null;
   imageUrl?: string | null;
   storagePath?: string | null;
+  correlationId?: string | null;
 };
 
 const PHOTO_HANDOFF_KEY = 'marcenapp.iara.environment-photo-handoff.v1';
@@ -45,10 +46,12 @@ async function nextEnvironment(projectId: string) {
   return { name: `Ambiente ${position + 1}`, position };
 }
 
-export async function persistIaraChatPhoto(args: { userId: string; projectId: string; environmentId?: string | null; dataUrl: string }) {
+export async function persistIaraChatPhoto(args: { userId: string; projectId: string; environmentId?: string | null; dataUrl: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; versionId?: string | null; correlationId?: string | null; generation?: number | null }) {
+  const kind = args.kind ?? 'reference';
+  const isEnvironment = kind === 'environment';
   const blob = dataUrlToBlob(args.dataUrl);
   const extension = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
-  const environmentId = args.environmentId ?? (await (async () => {
+  const environmentId = isEnvironment ? (args.environmentId ?? (await (async () => {
     const next = await nextEnvironment(args.projectId);
     const { data, error } = await supabase.from('project_environments')
       .insert({ project_id: args.projectId, name: next.name, position: next.position, type: 'ambiente', metadata: { source: 'iara_chat' } })
@@ -56,38 +59,53 @@ export async function persistIaraChatPhoto(args: { userId: string; projectId: st
       .single();
     if (error) throw error;
     return data.id as string;
-  })());
-  const path = `${args.userId}/${args.projectId}/ambientes/${environmentId}-iara-${Date.now()}.${extension}`;
+  })())) : (args.environmentId ?? null);
+  const folder = isEnvironment ? 'ambientes' : 'referencias';
+  const fileName = isEnvironment ? `${environmentId}-iara-${Date.now()}` : `${kind}-iara-${Date.now()}`;
+  const path = `${args.userId}/${args.projectId}/${folder}/${fileName}.${extension}`;
   const { error: uploadError } = await supabase.storage.from('obras').upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' });
   if (uploadError) throw uploadError;
 
-  const { data: environment, error: environmentLoadError } = await supabase
-    .from('project_environments')
-    .select('metadata')
-    .eq('id', environmentId)
-    .eq('project_id', args.projectId)
-    .maybeSingle();
-  if (environmentLoadError) throw environmentLoadError;
-  const metadata = environment?.metadata && typeof environment.metadata === 'object' ? environment.metadata as Record<string, unknown> : {};
-  const { error: environmentUpdateError } = await supabase
-    .from('project_environments')
-    .update({ metadata: { ...metadata, source: metadata.source ?? 'iara_chat', storage_path: path } })
-    .eq('id', environmentId)
-    .eq('project_id', args.projectId);
-  if (environmentUpdateError) throw environmentUpdateError;
+  if (isEnvironment && environmentId) {
+    const { data: environment, error: environmentLoadError } = await supabase
+      .from('project_environments')
+      .select('metadata')
+      .eq('id', environmentId)
+      .eq('project_id', args.projectId)
+      .maybeSingle();
+    if (environmentLoadError) throw environmentLoadError;
+    const metadata = environment?.metadata && typeof environment.metadata === 'object' ? environment.metadata as Record<string, unknown> : {};
+    const { error: environmentUpdateError } = await supabase
+      .from('project_environments')
+      .update({ metadata: { ...metadata, source: metadata.source ?? 'iara_chat', storage_path: path } })
+      .eq('id', environmentId)
+      .eq('project_id', args.projectId);
+    if (environmentUpdateError) throw environmentUpdateError;
 
-  const { error: projectError } = await supabase
-    .from('projects')
-    .update({ foto_ambiente_path: path })
-    .eq('id', args.projectId)
-    .eq('user_id', args.userId);
-  if (projectError) throw projectError;
+    const { error: projectError } = await supabase
+      .from('projects')
+      .update({ foto_ambiente_path: path })
+      .eq('id', args.projectId)
+      .eq('user_id', args.userId);
+    if (projectError) throw projectError;
+  }
 
   const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(path, 60 * 60 * 24 * 7);
   if (signedError || !signed?.signedUrl) throw signedError ?? new Error('Não foi possível preparar a foto persistida.');
-  return { environmentId, storagePath: path, signedUrl: signed.signedUrl };
+  const signedUrl = signed.signedUrl;
+  await persistGalleryImage({
+    userId: args.userId,
+    projectId: args.projectId,
+    environmentId,
+    versionId: args.versionId,
+    storagePath: path,
+    imageUrl: signedUrl,
+    correlationId: args.correlationId,
+    generation: args.generation,
+    prompt: `Anexo ${kind} enviado à IARA`,
+  });
+  return { environmentId, storagePath: path, signedUrl, correlationId: args.correlationId ?? null };
 }
-
 export async function attachIaraEnvironmentPhoto(args: { userId: string; projectId: string; dataUrl: string; clientId?: string | null; correlationId?: string; generation?: number }) : Promise<PhotoDestination> {
   const next = await nextEnvironment(args.projectId);
   const { data: environment, error: environmentError } = await supabase.from('project_environments').insert({ project_id: args.projectId, name: next.name, position: next.position, type: 'ambiente', metadata: { source: 'iara_camera' } }).select('id,name,position').single();
@@ -116,6 +134,7 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
     if (error) throw error;
   }
 
+  const correlationId = args.correlationId ?? globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const { data: signed, error: signedError } = await supabase.storage.from('obras').createSignedUrl(storagePath, 60 * 60 * 24 * 7);
   if (signedError || !signed?.signedUrl) {
     console.error('[IARA_PHOTO_SIGNED_URL_FAILED]', signedError);
@@ -130,6 +149,8 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
       environmentId: environment.id,
       storagePath,
       imageUrl: signedUrl,
+      correlationId,
+      generation: args.generation,
       prompt: 'Foto do ambiente capturada pela IARA',
     });
   } catch (error) {
@@ -145,6 +166,7 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
     environmentName: environment.name,
     imageUrl: signedUrl,
     storagePath,
+    correlationId,
   };
 }
 
