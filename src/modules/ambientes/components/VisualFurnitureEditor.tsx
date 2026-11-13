@@ -60,13 +60,13 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     const hardwareRows = snapshot.modules.flatMap(item => item.hardware ?? []);
     const hardwareCost = hardwareRows.reduce((sum, item) => sum + (Number(item.unitPrice) || 0) * item.quantity, 0);
     const missingHardwarePrices = hardwareRows.filter(item => !(Number(item.unitPrice) > 0)).map(item => item.name || item.code || 'Ferragem sem descrição');
-    const quoteEstimate = sheetMaterialCost + hardwareCost + laborCost + otherCost;
     const materials = [...new Set(parts.map(part => part.material))];
     const cutPlan = sheetWidth > 0 && sheetHeight > 0 && parts.length
       ? optimizeCutList(parts.map(part => ({ id: part.id, width: part.width, height: part.height, quantity: part.quantity, material: part.material, grainSensitive: part.grainSensitive, allowRotation: part.allowRotation })), materials.map((material, index) => ({ id: `sheet-${index + 1}`, width: sheetWidth, height: sheetHeight, material })), kerf)
       : null;
     const sheetMaterialCost = cutPlan?.sheets.reduce((sum, sheet) => sum + Math.max(0, sheetPrices[sheet.material] || 0), 0) ?? 0;
     const missingSheetPrices = [...new Set(cutPlan?.sheets.map(sheet => sheet.material).filter(material => !(Number(sheetPrices[material]) > 0)) ?? [])];
+    const quoteEstimate = sheetMaterialCost + hardwareCost + laborCost + otherCost;
     return { eligibleCount: eligible.length, missingThickness: snapshot.modules.filter(item => !(Number(item.carcassThickness) > 0)).map(item => item.label), materials, sheetMaterialCost, missingSheetPrices, hardwareCost, missingHardwarePrices, quoteEstimate, results, parts, hardware, blockers: results.flatMap(result => result.blockers), assumptions: results.flatMap(result => result.assumptions), cutPlan };
   }, [snapshot.modules, sheetWidth, sheetHeight, kerf, sheetPrices, laborCost, otherCost]);
 
