@@ -37,6 +37,8 @@ export async function persistProjectTechnicalStructure(args: {
     const { data: rows, error } = await supabase
       .from('marcenaria_materiais')
       .select('id,nome,espessura,fornecedor_id,largura_chapa,altura_chapa,sentido_veio')
+      .eq('user_id', args.userId)
+      .eq('ativo', true)
       .ilike('nome', name.trim())
       .limit(10);
     if (error) throw error;
