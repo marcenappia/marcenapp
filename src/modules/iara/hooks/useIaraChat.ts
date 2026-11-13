@@ -18,7 +18,7 @@ type BrowserWithSpeechRecognition = Window & { SpeechRecognition?: SpeechRecogni
 type SmartAction = { id: string; label: string; prompt: string; domain: 'project' | 'production' | 'business' | 'execution' };
 type MessageMetadata = NonNullable<ChatMessage['metadata']>;
 type UploadKind = 'environment' | 'reference' | 'sketch' | 'plan';
-type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind: UploadKind; blob?: Blob; previewUrl?: string };
+type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind: UploadKind; blob?: Blob; previewUrl?: string; captureId?: string };
 const CHAT_PAGE_SIZE = 50;
 type ChatCursor = { createdAt: string; id: string };
 
@@ -501,6 +501,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       baseRaw: '',
       maskRaw: '',
       kind,
+      captureId,
     };
 
     setPendingUpload(immediateUpload);
