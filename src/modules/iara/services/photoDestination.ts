@@ -12,6 +12,7 @@ export type PhotoDestination = {
   imageUrl?: string | null;
   storagePath?: string | null;
   correlationId?: string | null;
+  dataUrl?: string | null;
 };
 
 const PHOTO_HANDOFF_KEY = 'marcenapp.iara.environment-photo-handoff.v1';
@@ -167,6 +168,7 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
     imageUrl: signedUrl,
     storagePath,
     correlationId,
+    dataUrl: args.dataUrl,
   };
 }
 

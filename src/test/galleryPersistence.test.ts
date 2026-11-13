@@ -28,6 +28,9 @@ describe('persistGalleryImage', () => {
       storagePath: 'user-1/project-1/ambientes/render.png',
       imageUrl: 'https://example.supabase.co/storage/v1/object/sign/obras/render.png?token=abc',
       prompt: 'Render da cozinha',
+      versionId: 'version-1',
+      correlationId: 'correlation-1',
+      generation: 7,
     });
 
     expect(mocks.from).toHaveBeenCalledWith('gallery_images');
@@ -36,6 +39,9 @@ describe('persistGalleryImage', () => {
       project_id: 'project-1',
       environment_id: 'environment-1',
       storage_path: 'user-1/project-1/ambientes/render.png',
+      version_id: 'version-1',
+      correlation_id: 'correlation-1',
+      execution_generation: 7,
       image_url: expect.stringMatching(/^https:\/\//),
       prompt: 'Render da cozinha',
     }));

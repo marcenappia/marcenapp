@@ -183,7 +183,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     if (pendingResults.length === 0) return;
     const notifyChat = async () => {
       for (const { command, execution, projectCreationHandoff } of pendingResults) {
-        if (!projectCreationHandoff && !isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) continue;
+        if (!projectCreationHandoff && !isIaraExecutionCurrent(execution, executionContextRef.current, executionGenerationRef.current)) continue;
         if (publishingCommandIdsRef.current.has(command.id)) continue;
         if (command.status !== 'completed' && command.status !== 'failed' && command.status !== 'cancelled') continue;
 
@@ -208,7 +208,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
                 continue;
               }
 
-              if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) {
+              if (!isIaraExecutionCurrent(execution, executionContextRef.current, executionGenerationRef.current)) {
                 published = true;
                 continue;
               }
@@ -385,13 +385,13 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       const intentInput = { message: promptText, projectId: executionContext.projectId, environmentId: executionContext.environmentId, versionId: executionContext.versionId, ...(uploadKind ? { uploadKind } : {}), ...(projectStateSummaryText ? { projectState: nextProjectState, projectStateSummary: projectStateSummaryText } : {}), ...(smartAction ? { domain: smartAction.domain, action: smartAction.id } : {}) } as Record<string, unknown>;
       const userMetadata: MessageMetadata = { correlationId, projectId: executionContext.projectId ?? undefined, environmentId: executionContext.environmentId ?? undefined, versionId: executionContext.versionId ?? undefined, status: uploadKind ? 'processing' : 'requested', ...(uploadKind ? { uploadKind } : {}), ...(persistedStoragePath ? { storagePath: persistedStoragePath } : {}), ...(smartAction ? { intent: { domain: smartAction.domain, action: smartAction.id, agent: 'IARA' } } : {}), ...(projectStateSummaryText ? { projectStateSummary: projectStateSummaryText } : {}) };
       await saveMessage({ sender: 'user', text: promptText, image_url: persistedImageUrl ?? (previewImg?.startsWith('blob:') ? null : previewImg), metadata: userMetadata }, execution);
-      if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
+      if (!isIaraExecutionCurrent(execution, executionContextRef.current, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       await persistIaraContext(user.id, { ...(activeContext ?? {}), projectId: executionContext.projectId, environmentId: executionContext.environmentId, versionId: executionContext.versionId } as IaraContext, correlationId, execution.generation);
       const conversationMessages: Array<Pick<ChatMessage, 'sender' | 'text' | 'metadata'>> = [...messages, { sender: 'user', text: promptText, metadata: null }];
       const conversation = conversationMessages.filter(message => typeof message.text === 'string' && message.text.trim()).slice(-12).map(message => ({ sender: message.sender === 'user' ? 'user' : 'iara', text: message.text!.trim(), ...(message.metadata?.pendingInput ? { metadata: { pendingInput: message.metadata.pendingInput } } : {}) }));
       const marcenaria = await loadMarcenariaContext(user.id);
        const response = await runIaraConversation({ input: intentInput, intent: promptText, projectId: executionContext.projectId ?? undefined, environmentId: executionContext.environmentId ?? undefined, versionId: executionContext.versionId ?? undefined, correlationId, execution: { userId: user.id, projectId: executionContext.projectId ?? undefined, environmentId: executionContext.environmentId ?? undefined, versionId: executionContext.versionId ?? undefined, correlationId, generation: execution.generation, decorStyle, lastImageBase: currentBaseRaw ?? undefined, lastImageMask: currentMaskRaw ?? undefined }, context: { decorStyle, clientId: activeContext?.clientId ?? undefined, projectId: executionContext.projectId ?? undefined, environmentId: executionContext.environmentId ?? undefined, versionId: executionContext.versionId ?? undefined, currentProject: { id: executionContext.projectId, largura: factors.L, altura: factors.A }, conversation, marcenaria, projectState: nextProjectState, projectStateSummary: projectStateSummaryText } });
-      if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
+      if (!isIaraExecutionCurrent(execution, executionContextRef.current, executionGenerationRef.current)) { pendingExecutionsRef.current.delete(correlationId); return; }
       const lines = response.run.results.map(({ tool, result }) => { if (result.ok === false) return toolFailureMessage(tool, result.error); const data = result.data as Record<string, unknown>; switch (tool) { case 'createCliente': return `Cliente **${String(data.nome ?? 'sem nome')}** cadastrado.`; case 'createProjeto': { const width = Number(data.width); const height = Number(data.height); const depth = Number(data.depth); if (Number.isFinite(width) && Number.isFinite(height) && Number.isFinite(depth)) hooks?.onProjectCreated?.({ width, height, depth }); const created = `Projeto **${String(data.nome ?? 'Projeto')}** criado.`; if (data.renderStatus === 'queued') return `${created} A visualização inicial está sendo gerada a partir da foto e ficará salva na galeria do projeto.`; if (data.renderStatus === 'failed') return `${created} A visualização inicial não pôde ser iniciada${typeof data.renderError === 'string' && data.renderError ? `: ${data.renderError}` : '.'} Abra o projeto e peça o render novamente.`; return created; } case 'gerarRender': return typeof data.imageUrl === 'string' && data.imageUrl ? 'O render foi gerado e está pronto.' : 'A solicitação de render foi recebida. Aviso quando estiver pronto.'; case 'calcularOrcamento': { const precoVenda = Number(data.precoVenda); const materiais = Number(data.materiais); const ferragens = Number(data.ferragens); const maoDeObra = Number(data.maoDeObra); const outros = Number(data.outros); const lucro = Number(data.lucro); const margemPct = Number(data.margemPct); return `Orçamento atualizado: **R$ ${precoVenda.toLocaleString('pt-BR')}**. Custos: R$ ${materiais.toLocaleString('pt-BR')} em materiais, R$ ${ferragens.toLocaleString('pt-BR')} em ferragens, R$ ${maoDeObra.toLocaleString('pt-BR')} de mão de obra e R$ ${outros.toLocaleString('pt-BR')} em outros custos. Lucro: R$ ${lucro.toLocaleString('pt-BR')} (${margemPct.toLocaleString('pt-BR')}%).`; } case 'gerarContrato': return `Documento preparado para **${String(data.cliente ?? 'cliente')}**.`; case 'operationalIntelligence': return 'Informações operacionais do projeto atualizadas.'; default: return 'Ação concluída.'; } });
       const directRenderResult = response.run.results.find(({ tool, result }) => tool === 'gerarRender' && result.ok === true)?.result;
       const directRenderImageUrl = directRenderResult && 'data' in directRenderResult && typeof (directRenderResult.data as Record<string, unknown>)?.imageUrl === 'string' ? String((directRenderResult.data as Record<string, unknown>)?.imageUrl) : null;
@@ -407,7 +407,7 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
       // The local typing indicator is the only progress UI; the final command result
       // is published by the commandHistory effect. This avoids a redundant message
       // and, more importantly, avoids any extra model call just to report progress.
-      if (!isIaraExecutionCurrent(execution, context, executionGenerationRef.current)) {
+      if (!isIaraExecutionCurrent(execution, executionContextRef.current, executionGenerationRef.current)) {
         pendingExecutionsRef.current.delete(correlationId);
         return;
       }
@@ -450,9 +450,12 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     if (!destination.imageUrl || !/^https?:\/\//.test(destination.imageUrl)) {
       throw new Error('A foto foi salva, mas ainda não existe uma URL persistente para colocá-la na conversa.');
     }
-    const response = await fetch(destination.imageUrl);
-    if (!response.ok) throw new Error('A foto foi salva, mas não foi possível carregá-la como referência para a IARA.');
-    const dataUrl = await blobToDataUrl(await response.blob());
+    let dataUrl = destination.dataUrl ?? null;
+    if (!dataUrl) {
+      const response = await fetch(destination.imageUrl);
+      if (!response.ok) throw new Error('A foto foi salva, mas não foi possível carregá-la como referência para a IARA.');
+      dataUrl = await blobToDataUrl(await response.blob());
+    }
     const baseRaw = dataUrl.split(',')[1] ?? '';
     if (!baseRaw) throw new Error('A foto foi salva, mas não foi possível preparar a referência visual para a IARA.');
 
