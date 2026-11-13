@@ -8,7 +8,7 @@ import { optimizeCutList } from '@/lib/cut/maxRects';
 import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planService';
 
 type Project = { id: string; nome?: string | null; name?: string | null };
-type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string; carcassThickness?: number | null; backThickness?: number | null; shelfCount?: number; doorCount?: number; doorFrontWidth?: number | null; doorFrontHeight?: number | null; drawerCount?: number; drawerFrontWidth?: number | null; drawerFrontHeight?: number | null; drawerBoxWidth?: number | null; drawerBoxHeight?: number | null; drawerBoxDepth?: number | null; drawerMaterial?: string };
+type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string; carcassThickness?: number | null; backThickness?: number | null; shelfCount?: number; doorCount?: number; doorFrontWidth?: number | null; doorFrontHeight?: number | null; drawerCount?: number; drawerFrontWidth?: number | null; drawerFrontHeight?: number | null; drawerBoxWidth?: number | null; drawerBoxHeight?: number | null; drawerBoxDepth?: number | null; drawerMaterial?: string; hardware?: Array<{ code: string; name: string; quantity: number; unit?: string; category?: string }> };
 type OpeningItem = { id: string; type: 'door' | 'window'; wall: 'top' | 'right' | 'bottom' | 'left'; position: number; width: number; height: number };
 type EditorSnapshot = { room: { width: number; depth: number; height: number }; modules: ModuleItem[]; openings: OpeningItem[]; fabrication?: { sheetWidth: number; sheetHeight: number; kerf: number; sheetPrices: Record<string, number> } };
 
@@ -48,7 +48,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
       shelfCount: Math.max(0, Math.floor(item.shelfCount ?? 0)),
       material: item.material, grainSensitive: true,
       modules: [{
-        id: item.id, name: item.label, width: item.width, height: item.height, depth: item.depth, material: item.material,
+        id: item.id, name: item.label, width: item.width, height: item.height, depth: item.depth, material: item.material, hardware: item.hardware ?? [],
         ...(Number(item.doorCount) > 0 ? { door: { count: Number(item.doorCount), frontWidth: Number(item.doorFrontWidth), frontHeight: Number(item.doorFrontHeight), material: item.material } } : {}),
         ...(Number(item.drawerCount) > 0 ? { drawer: { count: Number(item.drawerCount), frontWidth: Number(item.drawerFrontWidth), frontHeight: Number(item.drawerFrontHeight), boxWidth: Number(item.drawerBoxWidth), boxHeight: Number(item.drawerBoxHeight), boxDepth: Number(item.drawerBoxDepth), material: item.drawerMaterial || item.material } } : {}),
       }],
@@ -314,6 +314,16 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
               <label className="block text-xs font-bold text-slate-600">Largura frente porta (mm)<input type="number" min="1" value={selected.doorFrontWidth ?? ''} onChange={e => updateSelected({ doorFrontWidth: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
               <label className="block text-xs font-bold text-slate-600">Altura frente porta (mm)<input type="number" min="1" value={selected.doorFrontHeight ?? ''} onChange={e => updateSelected({ doorFrontHeight: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
             </div>}
+            <div className="col-span-2 rounded-lg border border-slate-200 p-2">
+              <div className="mb-2 flex items-center justify-between"><span className="text-xs font-bold text-slate-700">Ferragens e acessórios</span><button type="button" onClick={() => updateSelected({ hardware: [...(selected.hardware ?? []), { code: '', name: '', quantity: 1, unit: 'un' }] })} className="min-h-9 rounded-lg border border-slate-200 px-2 text-xs font-bold">+ Ferragem</button></div>
+              {(selected.hardware ?? []).map((item, index) => <div key={index} className="mb-2 grid grid-cols-[1fr_1fr_64px_32px] gap-1">
+                <input aria-label="Código da ferragem" value={item.code} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, code: e.target.value } : row) })} placeholder="Código" className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[11px]"/>
+                <input aria-label="Nome da ferragem" value={item.name} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, name: e.target.value } : row) })} placeholder="Ferragem" className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[11px]"/>
+                <input aria-label="Quantidade da ferragem" type="number" min="1" value={item.quantity} onChange={e => updateSelected({ hardware: (selected.hardware ?? []).map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Math.max(1, Math.floor(Number(e.target.value) || 1)) } : row) })} className="min-h-9 min-w-0 rounded border border-slate-200 px-1 text-[11px]"/>
+                <button type="button" aria-label="Remover ferragem" onClick={() => updateSelected({ hardware: (selected.hardware ?? []).filter((_, rowIndex) => rowIndex !== index) })} className="min-h-9 rounded border border-red-200 text-xs text-red-700">×</button>
+              </div>)}
+              <p className="text-[10px] text-slate-500">Informe código, descrição e quantidade reais. Linhas incompletas bloqueiam a lista técnica.</p>
+            </div>
             {Number(selected.drawerCount) > 0 && <div className="contents">
               <label className="block text-xs font-bold text-slate-600">Largura frente gaveta (mm)<input type="number" min="1" value={selected.drawerFrontWidth ?? ''} onChange={e => updateSelected({ drawerFrontWidth: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
               <label className="block text-xs font-bold text-slate-600">Altura frente gaveta (mm)<input type="number" min="1" value={selected.drawerFrontHeight ?? ''} onChange={e => updateSelected({ drawerFrontHeight: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
