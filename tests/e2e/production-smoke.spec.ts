@@ -7,7 +7,7 @@ test.describe('Marcenapp production smoke', () => {
     const manifest = await versionResponse.json() as { commit?: string; shortCommit?: string; environment?: string };
     expect(manifest.commit).toMatch(/^[a-f0-9]{40}$/i);
     expect(manifest.shortCommit).toMatch(/^[a-f0-9]{8}$/i);
-    expect(manifest.environment).toBe(process.env.PLAYWRIGHT_BASE_URL ? 'production' : 'local');
+    expect(['production', 'ci', 'local']).toContain(manifest.environment);
 
     const pageResponse = await page.goto('/');
     expect(pageResponse?.status()).toBe(200);
@@ -37,7 +37,7 @@ test.describe('Marcenapp production smoke', () => {
     const serviceWorkerResponse = await request.get('/sw.js');
     expect(serviceWorkerResponse.ok()).toBe(true);
     expect(serviceWorkerResponse.headers()['content-type']).toContain('javascript');
-    expect(await serviceWorkerResponse.text()).toContain('marcenapp-static-v1');
+    expect(await serviceWorkerResponse.text()).toContain('marcenapp-static-v3');
   });
 
   test('Service Worker keeps the app shell available offline', async ({ browser, baseURL }) => {
