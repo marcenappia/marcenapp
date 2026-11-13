@@ -260,6 +260,7 @@ export type Database = {
           execution_generation: number | null
           id: string
           image_url: string
+          storage_path: string | null
           project_id: string | null
           prompt: string | null
           user_id: string
@@ -272,6 +273,7 @@ export type Database = {
           execution_generation?: number | null
           id?: string
           image_url: string
+          storage_path?: string | null
           project_id?: string | null
           prompt?: string | null
           user_id: string
@@ -284,6 +286,7 @@ export type Database = {
           execution_generation?: number | null
           id?: string
           image_url?: string
+          storage_path?: string | null
           project_id?: string | null
           prompt?: string | null
           user_id?: string

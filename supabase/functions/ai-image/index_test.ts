@@ -81,7 +81,7 @@ Deno.test("ai-image: 400 for malformed JSON", async () => {
 Deno.test("ai-image: provider contract stays buffered and uses supported model", async () => {
   const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
   assert(source.includes('const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";'));
-  assert(source.includes("MARCENARIA_MAGICA_IMAGE_MODEL"));
+  assert(source.includes("MARCENARIA_MAGICA_MODEL"));
   assert(source.includes("MARCENARIA_MAGICA_RENDER_URL"));
   assert(source.includes("X-Marcenapp-Render-Secret"));
   assert(source.includes("data?.[0]"));
@@ -92,7 +92,7 @@ Deno.test("ai-image: provider contract stays buffered and uses supported model",
 
 Deno.test("ai-image: does not double-wrap data URI returned by image decoder", async () => {
   const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
-  assert(source.includes("imageUrl: imageBase64"));
+  assert(source.includes("imageUrl: persistedImageUrl"));
   assert(!source.includes("imageUrl: `data:image/png;base64,${imageBase64}`"));
 });
 
@@ -132,4 +132,11 @@ Deno.test("ai-image: provider fallback remains centralized in provider resolver"
   assert(providerSource.includes("fallback"));
   assert(imageSource.includes("const providers: AIProvider[] = [resolution.primary]"));
   assert(!imageSource.includes("resolution.fallback"), "image generation must not silently switch providers");
+});
+
+Deno.test("ai-image: stores durable gallery path and refreshes signed URLs on replay", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes('.select("image_url,storage_path")'), "replay must read the durable Storage path");
+  assert(source.includes("storage_path: storagePath"), "gallery row must persist the Storage path");
+  assert(source.includes("createSignedUrl(replay.storage_path"), "replay must create a fresh signed URL from the durable path");
 });

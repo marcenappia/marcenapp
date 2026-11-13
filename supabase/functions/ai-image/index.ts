@@ -29,9 +29,9 @@ function buildRenderPrompt(prompt: string, hasReferenceImage: boolean): string {
 }
 const LOVABLE_IMAGE_MODEL = "openai/gpt-image-2";
 const LOVABLE_GATEWAY_BASE_URL = "https://ai.gateway.lovable.dev/v1";
-const MARCENARIA_MAGICA_IMAGE_MODEL = Deno.env.get("MARCENARIA_MAGICA_RENDER_MODEL") ?? "marcenaria-magica-render-v1";
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 const VERCEL_IMAGE_MODEL = Deno.env.get("VERCEL_AI_IMAGE_MODEL") ?? "openai/gpt-image-2.5-sunburst";
+const MARCENARIA_MAGICA_MODEL = Deno.env.get("MARCENARIA_MAGICA_RENDER_MODEL") ?? "marcenaria-magica-render-v1";
 // Image output (responseModalities) is documented on v1beta for Gemini image models.
 const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -136,15 +136,13 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
       const client = new OpenAI({
         apiKey: key,
         baseURL: LOVABLE_GATEWAY_BASE_URL,
-        maxRetries: 0,
-        timeout: 0,
         defaultHeaders: {
           "Lovable-API-Key": key,
           "X-Lovable-AIG-SDK": "tanstack-ai",
         },
       });
 
-      return await (async () => {
+      return await withTimeout(async () => {
         if (images.length > 0) {
           const files = images.map((image, index) => {
             const binary = atob(image.data);
@@ -169,54 +167,23 @@ async function generateLovableImage(prompt: string, images: ImageInput[], size?:
           size: sizeValue as "1024x1024" | "1536x1024" | "1024x1536" | "auto",
         });
         return readBufferedImage(new Response(JSON.stringify(response)));
-      })();
+      }, 55_000);
     } catch (error) {
       lastError = error;
       const status = typeof error === "object" && error !== null && "status" in error
         ? Number((error as { status?: unknown }).status)
         : undefined;
       const message = error instanceof Error ? error.message : String(error);
-      const retryable = status === 429 || (Number.isFinite(status) && Number(status) >= 500);
+      const retryable = message === "provider_timeout" || status === 429 || (Number.isFinite(status) && status >= 500);
       console.error("[LOVABLE_IMAGE_ATTEMPT]", JSON.stringify({ attempt: attempt + 1, status: status ?? null, retryable, error: message.slice(0, 300) }));
       if (!retryable || attempt === 1) {
-        throw error;
+        throw new Error(`lovable_http_${Number.isFinite(status) ? status : "unknown"}:${message.slice(0, 500)}`);
       }
-      await new Promise(resolve => setTimeout(resolve, Math.max(1000, Number((error as GatewayError).retryAfter) * 1000 || 1000)));
+      await new Promise(resolve => setTimeout(resolve, Math.min(1000 * (attempt + 1), 2000)));
     }
   }
   throw lastError instanceof Error ? lastError : new Error("provider_timeout");
 }
-
-async function generateMarcenariaMagicaImage(prompt: string, images: ImageInput[]): Promise<string> {
-  const bridgeUrl = Deno.env.get("MARCENARIA_MAGICA_RENDER_URL");
-  const sharedSecret = Deno.env.get("MARCENARIA_MAGICA_RENDER_SECRET");
-  if (!bridgeUrl || !sharedSecret) throw new Error("provider_not_configured:marcenaria_magica");
-  if (images.length !== 1) throw new Error("provider_reference_required:marcenaria_magica");
-
-  const response = await withTimeout(() => fetch(bridgeUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Marcenapp-Render-Secret": sharedSecret,
-    },
-    body: JSON.stringify({ prompt, image: images[0] }),
-  }), 55_000);
-  const body = await response.json().catch(() => null) as {
-    imageBase64?: string;
-    imageUrl?: string;
-    code?: string;
-    message?: string;
-  } | null;
-  if (!response.ok) {
-    const error = new Error(body?.message ?? "Marcenaria Mágica recusou a geração.") as GatewayError;
-    error.status = response.status;
-    throw error;
-  }
-  const image = body?.imageBase64 ?? body?.imageUrl;
-  if (!image?.startsWith("data:image/")) throw new Error("empty_image_result");
-  return image;
-}
-
 async function generateVercelImage(prompt: string, images: ImageInput[], size: { width?: number; height?: number } | undefined, authorization: string): Promise<string> {
   const bridgeUrl = Deno.env.get("VERCEL_IMAGE_BRIDGE_URL") ?? "https://marcenapp.com.br/api/ai-image-gateway";
   const width = size?.width ?? size?.height ?? DEFAULT_DIM;
@@ -256,6 +223,32 @@ async function generateVercelImage(prompt: string, images: ImageInput[], size: {
   }
   return body.imageBase64;
 }
+async function generateMarcenariaMagicaImage(prompt: string, images: ImageInput[]): Promise<string> {
+  const endpoint = Deno.env.get("MARCENARIA_MAGICA_RENDER_URL");
+  const secret = Deno.env.get("MARCENARIA_MAGICA_RENDER_SECRET");
+  if (!endpoint || !secret) throw new Error("provider_not_configured:marcenaria_magica");
+  if (images.length === 0) throw new Error("reference_image_required");
+  const image = images[0];
+  const response = await withTimeout(() => fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Marcenapp-Render-Secret": secret,
+    },
+    body: JSON.stringify({ prompt, image }),
+  }), 55_000);
+  const body = await response.json().catch(() => null) as { imageBase64?: string; model?: string; code?: string } | null;
+  if (!response.ok) {
+    const error = new Error(body?.code ?? "marcenaria_magica_request_failed") as GatewayError;
+    error.status = response.status;
+    throw error;
+  }
+  if (typeof body?.imageBase64 !== "string" || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/i.test(body.imageBase64)) {
+    throw new Error("invalid_image_result");
+  }
+  return body.imageBase64;
+}
+
 async function generateGeminiImage(prompt: string, images: ImageInput[]): Promise<string> {
   // Must match the availability check in _shared/provider.ts, which accepts both names.
   const key = Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? Deno.env.get("GEMINI_API_KEY");
@@ -357,7 +350,7 @@ serve(async request => {
     if (persistGallery?.projectId && persistGallery.correlationId && persistGallery.generation != null) {
       let replayQuery = admin
         .from("gallery_images")
-        .select("image_url")
+        .select("image_url,storage_path")
         .eq("user_id", guard.userId)
         .eq("project_id", persistGallery.projectId)
         .eq("correlation_id", persistGallery.correlationId)
@@ -370,14 +363,12 @@ serve(async request => {
       if (replayError) throw new Error("render_idempotency_lookup_failed");
       if (typeof replay?.image_url === "string" && replay.image_url) {
         let replayUrl = replay.image_url;
-        const storedPath = replay.image_url.match(/\/storage\/v1\/object\/sign\/obras\/([^?]+)/)?.[1];
-        if (storedPath) {
-          const { data: signed, error: signError } = await admin.storage.from("obras").createSignedUrl(decodeURIComponent(storedPath), 60 * 60 * 24 * 7);
-          if (signError || !signed?.signedUrl) throw new Error("gallery_signed_url_failed");
-          replayUrl = signed.signedUrl;
+        if (typeof replay.storage_path === "string" && replay.storage_path) {
+          const { data: signed } = await admin.storage.from("obras").createSignedUrl(replay.storage_path, 60 * 60 * 24);
+          if (signed?.signedUrl) replayUrl = signed.signedUrl;
         }
         console.info("[IDEMPOTENT_RENDER_REPLAY]", JSON.stringify({ status: "reused", requestId: idempotencyKey, renderId: idempotencyKey }));
-        return jsonResponse(cors, { imageBase64: replayUrl, imageUrl: replayUrl, operationType: OPERATION_TYPE, requestId: idempotencyKey, renderId: idempotencyKey, persisted: true, reused: true });
+        return jsonResponse(cors, { imageBase64: replay.image_url, imageUrl: replayUrl, operationType: OPERATION_TYPE, requestId: idempotencyKey, renderId: idempotencyKey, persisted: true, reused: true });
       }
     }
     persistGalleryRequired = Boolean(persistGallery);
@@ -394,8 +385,8 @@ serve(async request => {
       if (contextError) throw new Error("iara_context_read_failed");
       const contextMatches =
         !!context &&
-        context.environment_id === (persistGallery?.environmentId ?? null) &&
-        context.version_id === (persistGallery?.versionId ?? null) &&
+        context.environment_id === (persistGallery.environmentId ?? null) &&
+        context.version_id === (persistGallery.versionId ?? null) &&
         (!persistGallery.correlationId || context.last_correlation_id === persistGallery.correlationId) &&
         (persistGallery.generation == null || context.last_execution_generation === persistGallery.generation);
       if (!contextMatches) throw new Error("stale_execution_context");
@@ -404,13 +395,12 @@ serve(async request => {
         requestId: idempotencyKey,
         renderId: idempotencyKey,
         projectId: persistGallery.projectId,
-        environmentId: persistGallery?.environmentId ?? null,
-        versionId: persistGallery?.versionId ?? null,
-        generation: persistGallery?.generation ?? null,
+        environmentId: persistGallery.environmentId ?? null,
+        versionId: persistGallery.versionId ?? null,
+        generation: persistGallery.generation ?? null,
       }));
     }
 
-    const resolution = await resolveProvider(guard.userId, { requiresReference: images.length > 0 });
     const consumed = await admin.rpc("consume_billing_credit", { p_user_id: guard.userId, p_operation_type: OPERATION_TYPE, p_idempotency_key: idempotencyKey });
     if (consumed.error) {
       const missing = consumed.error.message.includes("commercial_rule_missing");
@@ -424,7 +414,10 @@ serve(async request => {
       throw new Error("credit_already_refunded");
     }
     creditConsumed = true;
-    const providers: AIProvider[] = [resolution.primary];
+    const resolution = await resolveProvider(guard.userId, { requiresReference: images.length > 0 });
+    const providers: AIProvider[] = resolution.fallback
+      ? [resolution.primary, resolution.fallback]
+      : [resolution.primary];
     let imageBase64 = "";
     let usedProvider: AIProvider | null = null;
     let usedModel = "";
@@ -448,7 +441,7 @@ serve(async request => {
         imageBase64 = await generateImage(provider, providerPrompt, images, size, request.headers.get("Authorization") ?? "");
         imageGenerated = true;
         usedProvider = provider;
-        usedModel = provider === "marcenaria_magica" ? MARCENARIA_MAGICA_IMAGE_MODEL : provider === "gemini" ? GEMINI_IMAGE_MODEL : provider === "vercel" ? VERCEL_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
+        usedModel = provider === "marcenaria_magica" ? MARCENARIA_MAGICA_MODEL : provider === "gemini" ? GEMINI_IMAGE_MODEL : provider === "vercel" ? VERCEL_IMAGE_MODEL : LOVABLE_IMAGE_MODEL;
         console.info("[UPSTREAM_RESPONSE]", JSON.stringify({
           status: "success",
           provider,
@@ -483,9 +476,10 @@ serve(async request => {
 
     let persistedImageUrl = imageBase64;
     let storagePath: string | null = null;
-    {
+    if (persistGallery) {
       try {
-      {
+      if (!persistGallery.projectId) throw new Error("gallery_project_required");
+      if (persistGallery.projectId) {
         const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
         if (!match) throw new Error("gallery_image_not_data_url");
         const mimeType = match[1];
@@ -493,7 +487,7 @@ serve(async request => {
         const binary = atob(match[2]);
         const bytes = new Uint8Array(binary.length);
         for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-        storagePath = `${guard.userId}/${persistGallery?.projectId ?? "unassigned"}/renders/${idempotencyKey}.${extension}`;
+        storagePath = `${guard.userId}/${persistGallery.projectId}/renders/${idempotencyKey}.${extension}`;
         const { error: storageError } = await admin.storage.from("obras").upload(storagePath, bytes, {
           contentType: mimeType,
           upsert: true,
@@ -509,12 +503,13 @@ serve(async request => {
       const { error: galleryError } = await admin.from("gallery_images").insert({
         user_id: guard.userId,
         image_url: persistedImageUrl,
+        storage_path: storagePath,
         prompt,
-        project_id: persistGallery?.projectId ?? null,
-        environment_id: persistGallery?.environmentId ?? null,
-        version_id: persistGallery?.versionId ?? null,
-        correlation_id: persistGallery?.correlationId ?? null,
-        execution_generation: persistGallery?.generation ?? null,
+        project_id: persistGallery.projectId ?? null,
+        environment_id: persistGallery.environmentId ?? null,
+        version_id: persistGallery.versionId ?? null,
+        correlation_id: persistGallery.correlationId ?? null,
+        execution_generation: persistGallery.generation ?? null,
       });
       if (galleryError) throw new Error(`gallery_persist_failed:${galleryError.message}`);
       persisted = true;
@@ -530,7 +525,7 @@ serve(async request => {
   } catch (caught) {
     const error = caught as GatewayError;
     const message = error.message || String(error);
-    const shouldRefund = creditConsumed && Boolean(idempotencyKey) && (!imageGenerated || !persisted);
+    const shouldRefund = creditConsumed && Boolean(idempotencyKey) && (!imageGenerated || (persistGalleryRequired && !persisted));
     if (shouldRefund) await refund(guard.userId, idempotencyKey).catch(refundError => console.error("ai-image refund error", refundError));
 
     console.error("ai-image error", JSON.stringify({ message, requestId: idempotencyKey, renderId: idempotencyKey, imageGenerated, persisted }));
@@ -539,6 +534,7 @@ serve(async request => {
     if (message === "iara_context_read_failed") return jsonResponse(cors, { message: "Não foi possível validar o contexto atual do render.", code: "iara_context_read_failed", stage: "execution_context" }, 500);
     if (message === "render_idempotency_lookup_failed") return jsonResponse(cors, { message: "Não foi possível validar se este render já foi concluído.", code: "render_idempotency_lookup_failed", stage: "idempotency" }, 500);
     if (message === "gallery_project_required") return jsonResponse(cors, { message: "O render da IARA precisa estar vinculado a um projeto.", code: "gallery_project_required", stage: "execution_context" }, 409);
+    if (message === "reference_image_required") return jsonResponse(cors, { message: "A Marcenaria Mágica exige uma foto de referência para editar o ambiente.", code: "reference_image_required", stage: "generation" }, 400);
     if (message === "gallery_image_not_data_url" || message === "invalid_image_result" || message === "empty_image_result" || message === "gemini_empty_image_result") {
       return jsonResponse(cors, { message: "O provider respondeu, mas não entregou uma imagem válida.", code: "provider_invalid_image", stage: "generation" }, 502);
     }
@@ -546,14 +542,13 @@ serve(async request => {
     if (message.startsWith("gallery_storage_write_failed:")) return jsonResponse(cors, { message: "A imagem foi gerada, mas falhou a gravação no Storage: " + message.slice("gallery_storage_write_failed:".length), code: "gallery_storage_write_failed", stage: "storage" }, 500);
     if (message.startsWith("gallery_persist_failed:")) return jsonResponse(cors, { message: "A imagem foi gerada e armazenada, mas falhou o registro na galeria: " + message.slice("gallery_persist_failed:".length), code: "gallery_persist_failed", stage: "database" }, 500);
     if (message === "credit_already_refunded") return jsonResponse(cors, { message: "Esta operação já foi estornada e não pode ser reutilizada.", code: "credit_already_refunded", stage: "billing" }, 409);
-    if (message === "provider_settings_unavailable") return jsonResponse(cors, { message: "Não foi possível ler a configuração do provider de imagem.", code: "provider_settings_unavailable", stage: "provider_selection" }, 503);
     if (message === "provider_not_configured" || message === "PROVIDER_NOT_CONFIGURED" || message.startsWith("provider_not_configured:")) {
       const provider = message.includes(":") ? message.split(":")[1] : undefined;
-      return jsonResponse(cors, { message: provider ? "O provider de imagem " + provider + " não está configurado nesta publicação." : "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", provider, missingSecret: provider === "lovable" ? "LOVABLE_API_KEY" : provider === "gemini" ? "GOOGLE_GEMINI_API_KEY ou GEMINI_API_KEY" : undefined, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
+      return jsonResponse(cors, { message: provider ? "O provider de imagem " + provider + " não está configurado nesta publicação." : "Nenhum provider de imagem operacional está configurado nesta publicação.", code: "provider_not_configured", provider, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
     }
     if (message.startsWith("configured_provider_unavailable:")) {
       const provider = message.slice("configured_provider_unavailable:".length);
-      return jsonResponse(cors, { message: "O provider de imagem configurado (" + provider + ") não está disponível nesta publicação.", code: "provider_not_configured", provider, missingSecret: provider === "lovable" ? "LOVABLE_API_KEY" : provider === "gemini" ? "GOOGLE_GEMINI_API_KEY ou GEMINI_API_KEY" : undefined, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
+      return jsonResponse(cors, { message: "O provider de imagem configurado (" + provider + ") não está disponível nesta publicação.", code: "provider_not_configured", provider, stage: "provider_selection", requestId: idempotencyKey, renderId: idempotencyKey }, 503);
     }
     if (message === "provider_timeout" || message.includes("provider_timeout")) return jsonResponse(cors, { message: "O provider de imagem excedeu o tempo limite.", code: "provider_timeout", stage: "generation" }, 504);
     if (message === "provider_connection_error" || message.includes("provider_connection_error")) return jsonResponse(cors, { message: "Não foi possível estabelecer comunicação com o provider de imagem.", code: "provider_connection_error", stage: "generation" }, 502);
@@ -562,9 +557,8 @@ serve(async request => {
     const status = error.status ?? (encodedStatus ? Number(encodedStatus) : undefined);
     if (status === 400) return jsonResponse(cors, { message: message.replace(/^(?:lovable|gemini|vercel)_http_\d{3}:/i, ""), code: "invalid_image_request", stage: "generation" }, 400);
     if (status === 401) return jsonResponse(cors, { message: "O provider recusou a autenticação da credencial configurada.", code: "provider_auth_error", stage: "generation" }, 401);
-    if (status === 402) return jsonResponse(cors, { message, code: "provider_credits_exhausted", stage: "generation" }, 402);
-    if (status === 403) return jsonResponse(cors, { message, code: "provider_access_denied", stage: "generation" }, 403);
-    if (status === 404) return jsonResponse(cors, { message, code: "provider_unavailable", stage: "generation" }, 404);
+    if (status === 402) return jsonResponse(cors, { message: "O provider recusou a geração por créditos/saldo insuficiente.", code: "provider_credits_exhausted", stage: "generation" }, 402);
+    if (status === 403) return jsonResponse(cors, { message: "O provider recusou o acesso da credencial ou modelo configurado.", code: "provider_access_denied", stage: "generation" }, 403);
     if (status === 429) return jsonResponse(cors, { message: "O limite do provider de imagem foi atingido.", code: "rate_limited", stage: "generation" }, 429, error.retryAfter ? { "Retry-After": error.retryAfter } : {});
 
     return jsonResponse(cors, { message: message.startsWith("provider_stream:") ? message.slice(16) : message, code: "upstream_error", stage: "generation" }, 502);
