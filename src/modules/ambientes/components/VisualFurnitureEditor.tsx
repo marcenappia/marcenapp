@@ -28,6 +28,8 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [planFile, setPlanFile] = useState<File | null>(null);
+  const [sendingToIara, setSendingToIara] = useState(false);
   const selected = snapshot.modules.find(item => item.id === selectedId);
 
   useEffect(() => {
@@ -96,6 +98,48 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     next.position = Math.max(0, Math.min(wallLength - next.width, next.position));
     return next;
   }) }));
+  const sendToIara = async () => {
+    if (!user || !projectId) { setMessage('Selecione um projeto antes de enviar à IARA.'); return; }
+    if (!planFile) { setMessage('Selecione uma foto ou planta baixa.'); return; }
+    if (!planFile.type.startsWith('image/')) { setMessage('O arquivo precisa ser uma imagem.'); return; }
+    if (planFile.size > 12 * 1024 * 1024) { setMessage('A imagem deve ter até 12 MB.'); return; }
+
+    setSendingToIara(true);
+    setMessage('');
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Não foi possível ler a imagem.'));
+        reader.onerror = () => reject(new Error('Falha ao ler a imagem selecionada.'));
+        reader.readAsDataURL(planFile);
+      });
+      const planBase64 = dataUrl.split(',')[1] || '';
+      if (!planBase64) throw new Error('A imagem não contém dados válidos.');
+      const manualContext = {
+        room: snapshot.room,
+        openings: snapshot.openings,
+        modules: snapshot.modules.map(({ id, kind, label, x, y, width, height, depth, material }) => ({ id, kind, label, x, y, width, height, depth, material })),
+      };
+      const correlationId = globalThis.crypto?.randomUUID?.() ?? `iara-${Date.now()}`;
+      const result = await analyzeFloorPlanAndQueueRender({
+        prompt: `Analise esta imagem para o projeto e prepare uma perspectiva fiel. Levantamento manual informado no editor (mm; use como dados fornecidos, não invente complementos): ${JSON.stringify(manualContext)}. Preserve proporções, paredes, vãos e elementos fixos. Diferencie medidas fornecidas, estimadas e desconhecidas.`,
+        planBase64,
+      }, {
+        userId: user.id,
+        projectId,
+        correlationId,
+        generation: Date.now(),
+      });
+      if (!result.ok) throw new Error(result.error);
+      setMessage(`IARA analisou a imagem e colocou a perspectiva na fila do Studio. Plano: ${result.data.planId} · análise: ${result.data.analysisId}.`);
+      setPlanFile(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível enviar a imagem à IARA.');
+    } finally {
+      setSendingToIara(false);
+    }
+  };
+
   const save = async () => {
     if (!user || !projectId) { setMessage('Selecione um projeto para salvar.'); return; }
     setSaving(true); setMessage('');
@@ -184,6 +228,14 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
           <label className="block text-xs font-bold text-slate-600">Material / acabamento<input value={selected.material} onChange={e => updateSelected({material:e.target.value})} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" placeholder="Ex.: MDF Gianduia"/></label>
           <button type="button" onClick={() => { setSnapshot(current => ({...current,modules:current.modules.filter(item => item.id !== selectedId)})); setSelectedId(''); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-700"><Trash2 size={14}/> Remover módulo</button>
         </div> : <p className="mt-2 text-xs text-slate-500">Adicione um módulo ou selecione um existente na planta para editar suas medidas e acabamento.</p>}</div>
+        <div className="rounded-2xl border border-indigo-200 bg-white p-4">
+          <h2 className="text-sm font-black">IARA · analisar imagem e preparar render</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Envie uma foto do ambiente ou planta baixa. A IARA usa a imagem e o levantamento deste editor para registrar a análise e enfileirar a perspectiva no Studio.</p>
+          <input type="file" accept="image/*" onChange={e => setPlanFile(e.target.files?.[0] ?? null)} className="mt-3 block min-h-11 w-full text-xs file:mr-3 file:min-h-10 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:font-bold" />
+          {planFile && <p className="mt-2 truncate text-xs text-slate-600">{planFile.name}</p>}
+          <button type="button" onClick={() => void sendToIara()} disabled={sendingToIara || !planFile || !projectId} className="mt-3 min-h-11 w-full rounded-xl bg-indigo-700 px-4 text-sm font-bold text-white disabled:opacity-50">{sendingToIara ? 'IARA analisando…' : 'Analisar com IARA e preparar render'}</button>
+          <p className="mt-2 text-[11px] leading-4 text-slate-500">A confirmação inicia análise por IA e coloca a geração visual na fila do Studio; pode consumir créditos do provedor configurado.</p>
+        </div>
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-xs font-black text-amber-900">Validação de fabricação</p><p className="mt-1 text-xs leading-5 text-amber-800">As dimensões iniciais são referências editáveis. Confirme medidas reais, espessuras, folgas, ferragens e esquadro antes de gerar peças ou plano de corte.</p></div>
         {message && <p role="status" className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">{message}</p>}
       </aside>
