@@ -72,6 +72,8 @@ const normalizeAIError = (status: number, data: unknown): Error => {
       return new Error('YARA: a imagem foi gerada, mas o Storage não conseguiu criar a URL persistente.');
     case 'gallery_persist_failed':
       return new Error('YARA: a imagem foi gerada e armazenada, mas falhou o registro na galeria.');
+    case 'gallery_project_path_update_failed':
+      return new Error('YARA: a imagem foi salva, mas não foi possível atualizar a apresentação do projeto.');
     case 'stale_execution_context':
       return new Error('YARA: o contexto do projeto mudou durante a geração. O render foi descartado para evitar salvar a imagem no projeto errado.');
     case 'iara_context_read_failed':

@@ -12,6 +12,7 @@ import { studioService } from '@/modules/ambientes/services/studioService';
 
 describe('studioService image persistence', () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
     mocks.callAIImage.mockResolvedValue('https://example.supabase.co/storage/v1/object/sign/obras/render.png?token=test');
   });

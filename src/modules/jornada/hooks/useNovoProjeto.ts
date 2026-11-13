@@ -95,7 +95,7 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
     setBudgetProject(prev => ({ ...prev, id: projectId ?? prev.id, ...confirmed }));
   };
 
-  const gerarApresentacao = () => comAuth(async (currentUser) => {
+  const gerarApresentacao = () => comAuth(async () => {
     if (!foto) return; if (!projectId) { setErro('Salve o projeto antes de gerar a apresentação.'); return; } setLoading('gerando'); setErro(null);
     try {
       const extras = Object.entries(respostas).filter(([, v]) => v.trim()).map(([k, v]) => `${k}: ${v}`).join('; ');
@@ -105,7 +105,7 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
     } catch (error: unknown) { setErro(error instanceof Error ? error.message : 'Não deu para gerar a apresentação. Tente de novo.'); } finally { setLoading(null); }
   });
 
-  const ajustarApresentacao = () => comAuth(async (currentUser) => {
+  const ajustarApresentacao = () => comAuth(async () => {
     if (!imagem || !ajuste.trim()) return; if (!projectId) { setErro('Salve o projeto antes de ajustar a apresentação.'); return; } setLoading('ajustando'); setErro(null);
     try { const img = await studioService.refineVisual(imagem, ajuste.trim(), { projectId }); if (!img) throw new Error('Não saiu imagem. Tente de novo.'); setImagem(img); setGeneratedImage(img); setAjuste(''); }
     catch (error: unknown) { setErro(error instanceof Error ? error.message : 'Não deu para ajustar. Tente de novo.'); } finally { setLoading(null); }
