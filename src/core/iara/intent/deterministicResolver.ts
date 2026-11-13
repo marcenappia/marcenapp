@@ -46,13 +46,13 @@ function axisCandidates(value: string, axisName: "width" | "height" | "depth"): 
     : axisName === "height"
       ? "(?:altura|alto)"
       : "(?:profundidade|profundo)";
-  const number = "(\d+(?:[.,]\d+)?)";
+  const number = "(\\d+(?:[.,]\\d+)?)";
   const unit = "(mm|cm|m|metros?|centímetros?)?";
 
   const patterns = [
-    new RegExp(axisWords + "\s*(?:é|e|de|:|=)?\s*" + number + "\s*" + unit + "\b", "gi"),
-    new RegExp(number + "\s*" + unit + "\s*(?:de\s+)?" + axisWords + "\b", "gi"),
-    new RegExp(number + "\s*" + unit + "\s*(?:ou|o|ou\s+de|e)\s*" + number + "\s*" + unit + "\s*(?:de\s+)?" + axisWords + "\b", "gi"),
+    new RegExp(axisWords + "\\s*(?:é|e|de|:|=)?\\s*" + number + "\\s*" + unit + "\\b", "gi"),
+    new RegExp(number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
+    new RegExp(number + "\\s*" + unit + "\\s*(?:ou|o|ou\\s+de|e)\\s*" + number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
   ];
 
   const result: number[] = [];
