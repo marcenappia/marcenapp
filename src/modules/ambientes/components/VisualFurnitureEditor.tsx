@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Box, Check, Grid3X3, Minus, Plus, Ruler, Save, Trash2 } from 'lucide-react';
+import { Box, Grid3X3, Plus, Save, Trash2 } from 'lucide-react';
 
 type Project = { id: string; nome?: string | null; name?: string | null };
 type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string };
