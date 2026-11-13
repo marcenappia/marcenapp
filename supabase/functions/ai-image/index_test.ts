@@ -140,3 +140,11 @@ Deno.test("ai-image: stores durable gallery path and refreshes signed URLs on re
   assert(source.includes("storage_path: storagePath"), "gallery row must persist the Storage path");
   assert(source.includes("createSignedUrl(replay.storage_path"), "replay must create a fresh signed URL from the durable path");
 });
+
+Deno.test("ai-image: updates the owning project presentation path when project persistence is requested", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes('update({ imagem_apresentacao_path: storagePath })'));
+  assert(source.includes('.eq("id", persistGallery.projectId)'));
+  assert(source.includes('.eq("user_id", guard.userId)'));
+  assert(source.includes("gallery_project_path_update_failed"));
+});

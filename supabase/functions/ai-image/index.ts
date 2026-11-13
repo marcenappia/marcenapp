@@ -500,6 +500,17 @@ serve(async request => {
         console.info("[STORAGE_WRITE]", JSON.stringify({ status: "success", bucket: "obras", requestId: idempotencyKey, renderId: idempotencyKey }));
       }
 
+      if (typeof persistGallery.projectId === "string") {
+        const { data: updatedProject, error: projectUpdateError } = await admin
+          .from("projects")
+          .update({ imagem_apresentacao_path: storagePath })
+          .eq("id", persistGallery.projectId)
+          .eq("user_id", guard.userId)
+          .select("id")
+          .maybeSingle();
+        if (projectUpdateError || !updatedProject) throw new Error("gallery_project_path_update_failed");
+      }
+
       const { error: galleryError } = await admin.from("gallery_images").insert({
         user_id: guard.userId,
         image_url: persistedImageUrl,

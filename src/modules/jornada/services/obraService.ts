@@ -1,7 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 import { AnaliseIara, EtapaId, ProgressoObra, salvarProgresso } from '../types';
-import { persistGalleryImage } from '@/services/galleryPersistence';
 
 /**
  * Persistência da jornada "Novo Projeto" no backend.
@@ -128,24 +127,4 @@ export const carregarObra = async (projectId: string): Promise<ObraCarregada | n
     imagemPath: data.imagem_apresentacao_path,
     aprovadoEm: data.aprovado_em,
   };
-};
-
-/** Persiste a apresentação no Storage e registra somente uma URL HTTPS com caminho durável na galeria. */
-export const salvarApresentacaoNaGaleria = async (
-  userId: string,
-  projectId: string,
-  dataUrl: string,
-  prompt: string,
-) => {
-  const storagePath = await enviarApresentacao(userId, projectId, dataUrl);
-  const imageUrl = await urlAssinada(storagePath, 60 * 60 * 24 * 7);
-  if (!imageUrl) throw new Error('A imagem foi enviada ao Storage, mas não foi possível criar o link da galeria.');
-  await persistGalleryImage({
-    userId,
-    projectId,
-    storagePath,
-    imageUrl,
-    prompt,
-  });
-  return { storagePath, imageUrl };
 };
