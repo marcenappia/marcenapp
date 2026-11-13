@@ -217,6 +217,24 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     }
   };
 
+  const exportFabricationCsv = () => {
+    const quote = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+    const rows: Array<Array<string | number>> = [
+      ['TIPO', 'IDENTIFICADOR', 'DESCRIÇÃO', 'LARGURA_MM', 'ALTURA_MM', 'QUANTIDADE', 'MATERIAL', 'PAPEL'],
+      ...engineering.parts.map(part => ['PEÇA', part.id, part.name, part.width, part.height, part.quantity, part.material, part.role]),
+      ...(engineering.cutPlan?.sheets.flatMap(sheet => sheet.placements.map(placement => ['CORTE', placement.partId, sheet.id, placement.x, placement.y, 1, placement.material, placement.rotated ? 'ROTACIONADA' : 'ORIGINAL'])) ?? []),
+      ...engineering.blockers.map((blocker, index) => ['BLOQUEIO', String(index + 1), blocker, '', '', '', '', 'VALIDAR']),
+    ];
+    const csv = '\uFEFF' + rows.map(row => row.map(quote).join(';')).join('\n');
+    const file = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `marcenapp-lista-tecnica-${projectId || 'projeto'}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const save = async () => {
     if (!user || !projectId) { setMessage('Selecione um projeto para salvar.'); return; }
     setSaving(true); setMessage('');
@@ -347,6 +365,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
           {engineering.blockers.map((blocker, index) => <p key={index} className="mt-2 text-xs text-red-700">{blocker}</p>)}
           {engineering.parts.length > 0 ? <div className="mt-3 space-y-2">
             <p className="text-xs font-bold text-slate-700">{engineering.parts.reduce((sum, part) => sum + part.quantity, 0)} peças calculadas · {engineering.eligibleCount} módulos</p>
+            <button type="button" onClick={exportFabricationCsv} className="min-h-10 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700">Exportar lista técnica e plano de corte (CSV)</button>
             <div className="max-h-56 overflow-auto rounded-lg border border-slate-200">
               <table className="w-full text-left text-xs"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-2">Peça</th><th className="p-2">Medida (mm)</th><th className="p-2">Qtd.</th><th className="p-2">Material</th></tr></thead><tbody>{engineering.parts.map(part => <tr key={part.id} className="border-t border-slate-100"><td className="p-2">{part.name}</td><td className="p-2 tabular-nums">{part.width} × {part.height}</td><td className="p-2">{part.quantity}</td><td className="p-2">{part.material}</td></tr>)}</tbody></table>
             </div>
