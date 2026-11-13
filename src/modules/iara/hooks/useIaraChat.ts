@@ -459,30 +459,39 @@ export const useIaraChat = (factors: { L: number; A: number; P?: number }, decor
     const baseRaw = dataUrl.split(',')[1] ?? '';
     if (!baseRaw) throw new Error('A foto foi salva, mas não foi possível preparar a referência visual para a IARA.');
 
-    const { error: insertError } = await supabase.from('chat_messages').insert({
-      user_id: user.id,
-      project_id: destination.projectId,
-      environment_id: destination.environmentId,
-      sender: 'user',
-      text: 'Foto do ambiente adicionada ao projeto.',
-      image_url: destination.imageUrl,
-      metadata: {
-        projectId: destination.projectId,
-        environmentId: destination.environmentId,
-        status: 'attached',
-        uploadKind: 'environment',
-        ...(destination.correlationId ? { correlationId: destination.correlationId } : {}),
-        ...(destination.storagePath ? { storagePath: destination.storagePath } : {}),
-      },
-    });
-    if (insertError) throw new Error('A foto foi salva, mas não foi possível colocá-la na conversa.');
+    let alreadyPublished = false;
+    if (destination.correlationId) {
+      const { data: existingMessage, error: lookupError } = await supabase.from('chat_messages')
+        .select('id')
+        .eq('user_id', user.id)
+        .contains('metadata', { correlationId: destination.correlationId })
+        .limit(1)
+        .maybeSingle();
+      if (lookupError) throw new Error('A foto foi salva, mas não foi possível verificar a conversa.');
+      alreadyPublished = Boolean(existingMessage);
+    }
+    if (!alreadyPublished) {
+      await saveMessage({
+        sender: 'user',
+        text: 'Foto do ambiente adicionada ao projeto.',
+        image_url: destination.imageUrl,
+        metadata: {
+          projectId: destination.projectId,
+          environmentId: destination.environmentId,
+          status: 'attached',
+          uploadKind: 'environment',
+          ...(destination.correlationId ? { correlationId: destination.correlationId } : {}),
+          ...(destination.storagePath ? { storagePath: destination.storagePath } : {}),
+        },
+      }, undefined, { projectId: destination.projectId, environmentId: destination.environmentId, versionId: null });
+    }
 
     executionContextRef.current = { userId: user.id, projectId: destination.projectId, environmentId: destination.environmentId, versionId: null };
     setLastContext({ baseRaw, maskRaw: '', kind: 'environment' });
     await hooks?.onEnvironmentCreated?.(destination.projectId, destination.environmentId);
     await clearIaraPendingUpload().catch(() => undefined);
     setPendingUpload(null);
-  }, [user, hooks]);
+  }, [user, hooks, saveMessage]);
 
   const handleSmartAction = async (action: SmartAction) => { if (!user) { setShowAuthDialog(true); return; } setChatInput(''); await sendPrompt(action.prompt, null, action); };
   const retryLast = async () => { const failed = lastFailedRef.current; if (!failed) { setError(null); return; } await sendPrompt(failed.text, failed.upload, failed.smartAction); };
