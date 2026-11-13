@@ -37,7 +37,7 @@ describe('Auth Page - Reset Password Flow', () => {
     (supabase.auth.resetPasswordForEmail as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {}, error: null });
 
     renderAuth();
-    fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByLabelText(/E-mail/i), { target: { value: 'test@example.com' } });
 
     const submitButton = screen.getByRole('button', { name: /Enviar Recuperação/i });
     expect(submitButton).toBeEnabled();
@@ -58,7 +58,7 @@ describe('Auth Page - Reset Password Flow', () => {
     });
 
     renderAuth();
-    fireEvent.change(screen.getByPlaceholderText(/E-mail/i), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByLabelText(/E-mail/i), { target: { value: 'test@example.com' } });
 
     const submitButton = screen.getByRole('button', { name: /Enviar Recuperação/i });
     expect(submitButton).toBeEnabled();

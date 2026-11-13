@@ -50,7 +50,7 @@ function axisCandidates(value: string, axisName: "width" | "height" | "depth"): 
   const unit = "(mm|cm|m|metros?|centímetros?)?";
 
   const patterns = [
-    new RegExp(axisWords + "\\s*(?:é|e|de|:|=)?\\s*" + number + "\\s*" + unit + "\\b", "gi"),
+    new RegExp(axisWords + "\\s*(?:é|de|:|=)?\\s*" + number + "\\s*" + unit + "\\b", "gi"),
     new RegExp(number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
     new RegExp(number + "\\s*" + unit + "\\s*(?:ou|o|ou\\s+de|e)\\s*" + number + "\\s*" + unit + "\\s*(?:de\\s+)?" + axisWords + "\\b", "gi"),
   ];
