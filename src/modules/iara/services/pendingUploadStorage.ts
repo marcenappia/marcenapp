@@ -8,6 +8,7 @@ export type PersistedIaraUpload = {
   blob: Blob;
   kind: IaraPendingUploadKind;
   createdAt: number;
+  captureId?: string;
 };
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -51,7 +52,7 @@ export async function persistIaraPendingUpload(blob: Blob, kind: IaraPendingUplo
   const db = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put({ blob, kind, createdAt: Date.now() } satisfies PersistedIaraUpload, KEY);
+    tx.objectStore(STORE_NAME).put({ blob, kind, createdAt: Date.now(), captureId } satisfies PersistedIaraUpload, KEY);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error ?? new Error('Não foi possível guardar a foto da IARA.'));
     tx.onabort = () => reject(tx.error ?? new Error('Não foi possível guardar a foto da IARA.'));
