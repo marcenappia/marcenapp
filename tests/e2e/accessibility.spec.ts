@@ -28,7 +28,7 @@ test.describe('Marcenapp public acceptance', () => {
     await expect(page.getByRole('heading', { name: /Do ambiente real à produção\./i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Uma obra, um projeto, do começo ao fim\./i })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Criar conta grátis' }).first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Ver como funciona' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Como funciona' })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Menos retrabalho entre a visita e a oficina/i })).toBeVisible();
   });
 
