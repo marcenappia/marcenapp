@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Box, Grid3X3, Plus, Save, Trash2 } from 'lucide-react';
 import { canPlaceFurniture, clampFurniturePosition, findNextFurniturePosition } from './furnitureLayout';
+import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planService';
 
 type Project = { id: string; nome?: string | null; name?: string | null };
 type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string };
@@ -124,11 +125,24 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
       const result = await analyzeFloorPlanAndQueueRender({
         prompt: `Analise esta imagem para o projeto e prepare uma perspectiva fiel. Levantamento manual informado no editor (mm; use como dados fornecidos, não invente complementos): ${JSON.stringify(manualContext)}. Preserve proporções, paredes, vãos e elementos fixos. Diferencie medidas fornecidas, estimadas e desconhecidas.`,
         planBase64,
+        mimeType: planFile.type,
       }, {
         userId: user.id,
         projectId,
         correlationId,
         generation: Date.now(),
+      });
+      if (!result.ok) throw new Error(result.error);
+      setMessage(`IARA analisou a imagem e colocou a perspectiva na fila do Studio. Plano: ${result.data.planId} · análise: ${result.data.analysisId}.`);
+      setPlanFile(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível enviar a imagem à IARA.');
+    } finally {
+      setSendingToIara(false);
+    }
+  };
+
+  const save = async () => {
       });
       if (!result.ok) throw new Error(result.error);
       setMessage(`IARA analisou a imagem e colocou a perspectiva na fila do Studio. Plano: ${result.data.planId} · análise: ${result.data.analysisId}.`);

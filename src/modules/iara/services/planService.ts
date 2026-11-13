@@ -41,8 +41,8 @@ async function markPlanFailed(planId: string, projectId: string, error: unknown)
   }
 }
 
-async function recentVisualReferences(ctx: ExecutionContext, currentPlan: string) {
-  if (!ctx.projectId) return [{ mimeType: 'image/png', data: currentPlan }];
+async function recentVisualReferences(ctx: ExecutionContext, currentPlan: string, currentMimeType = 'image/png') {
+  if (!ctx.projectId) return [{ mimeType: currentMimeType, data: currentPlan }];
   const { data } = await supabase.from('chat_messages').select('image_url,metadata,created_at').eq('user_id', ctx.userId).eq('project_id', ctx.projectId).not('image_url', 'is', null).order('created_at', { ascending: false }).limit(8);
   const refs = (data ?? []).map((row) => {
     const imageUrl = typeof row.image_url === 'string' ? row.image_url : '';
@@ -52,11 +52,11 @@ async function recentVisualReferences(ctx: ExecutionContext, currentPlan: string
     const action = metadata.action === 'analyze_plan' ? 'plan' : 'environment';
     return { mimeType: imageUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg', data: dataPart, kind: action };
   }).filter(Boolean) as Array<{ mimeType: string; data: string; kind: string }>;
-  if (!refs.some((ref) => ref.data === currentPlan)) refs.unshift({ mimeType: 'image/png', data: currentPlan, kind: 'plan' });
+  if (!refs.some((ref) => ref.data === currentPlan)) refs.unshift({ mimeType: currentMimeType, data: currentPlan, kind: 'plan' });
   return refs.slice(0, 8);
 }
 
-export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; planBase64: string }, ctx: ExecutionContext) {
+export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; planBase64: string; mimeType?: string }, ctx: ExecutionContext) {
   if (!ctx.projectId) return { ok: false as const, error: 'Selecione um projeto antes de enviar a planta para a IARA.' };
   if (!args.planBase64) return { ok: false as const, error: 'Nenhuma planta foi anexada.' };
 
@@ -68,7 +68,7 @@ export async function analyzeFloorPlanAndQueueRender(args: { prompt: string; pla
   const { error: planError } = await supabase.from('project_plans').insert({ id: planId, project_id: ctx.projectId, name: `Planta analisada pela IARA ${new Date().toLocaleString('pt-BR')}`, status: 'analyzing', metadata: { origin: 'iara', correlationId: ctx.correlationId ?? null } });
   if (planError) return { ok: false as const, error: planError.message };
 
-  const references = await recentVisualReferences(ctx, args.planBase64);
+  const references = await recentVisualReferences(ctx, args.planBase64, args.mimeType || 'image/png');
   const analysisPrompt = [
     'Analise a planta baixa e as fotos de referência deste mesmo projeto para móveis planejados.',
     'A planta é a fonte geométrica principal. As fotos complementam aparência, aberturas, elementos fixos e relação espacial.',
