@@ -133,11 +133,11 @@ jobs:
         }
         NODE
 
-        customer="$(curl -fsSL -X POST           "$SUPABASE_URL/functions/v1/asaas"           -H "Authorization: Bearer $access_token"           -H "Content-Type: application/json"           --data '{"action":"create_customer"}')"
+        customer="$(curl -fsSL -X POST           "$SUPABASE_URL/functions/v1/asaas"           -H "Authorization: Bearer $access_token"           -H "Content-Type: application/json"           --data '{"action":"create_customer","cpfCnpj":"12345678909"}')"
         customer_id="$(node - "$customer" <<'NODE'
         const body = JSON.parse(process.argv[2]);
         const id = body.customer?.id;
-        if (!id) throw new Error(`Asaas customer creation failed: ${JSON.stringify(body)}`);
+        if (!id || body.requiresDocument) throw new Error(`Asaas customer creation failed: ${JSON.stringify(body)}`);
         process.stdout.write(String(id));
         NODE
         )"
