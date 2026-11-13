@@ -123,7 +123,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     const openings = snapshot.openings.map(opening => {
       const wallLength = opening.wall === 'left' || opening.wall === 'right' ? nextRoom.depth : nextRoom.width;
       const width = Math.min(opening.width, wallLength);
-      return { ...opening, width, position: Math.max(0, Math.min(wallLength - width, opening.position)) };
+      return { ...opening, width, height: Math.min(opening.height, nextRoom.height), position: Math.max(0, Math.min(wallLength - width, opening.position)) };
     });
     setSnapshot({ ...snapshot, room: nextRoom, modules: placed, openings });
     setMessage('');
@@ -180,6 +180,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     const next = { ...opening, ...patch };
     const wallLength = next.wall === 'left' || next.wall === 'right' ? current.room.depth : current.room.width;
     next.width = Math.max(100, Math.min(wallLength, next.width));
+    next.height = Math.max(100, Math.min(current.room.height, next.height));
     next.position = Math.max(0, Math.min(wallLength - next.width, next.position));
     return next;
   }) }));
