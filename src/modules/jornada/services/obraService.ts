@@ -81,16 +81,6 @@ export const enviarFotoAmbiente = async (userId: string, projectId: string, blob
   return path;
 };
 
-export const enviarApresentacao = async (userId: string, projectId: string, dataUrl: string) => {
-  const { blob, mime } = dataUrlParaBlob(dataUrl);
-  const path = caminhoArquivo(userId, projectId, `apresentacao-${Date.now()}.${extensaoDoMime(mime)}`);
-  const { error } = await supabase.storage.from(BUCKET_OBRAS).upload(path, blob, { upsert: true, contentType: mime });
-  if (error) throw error;
-  const { error: e2 } = await supabase.from('projects').update({ imagem_apresentacao_path: path }).eq('id', projectId);
-  if (e2) throw e2;
-  return path;
-};
-
 export const urlAssinada = async (path: string, segundos = 60 * 60) => {
   const { data, error } = await supabase.storage.from(BUCKET_OBRAS).createSignedUrl(path, segundos);
   if (error || !data?.signedUrl) return null;
