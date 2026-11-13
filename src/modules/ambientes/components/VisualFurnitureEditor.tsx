@@ -10,7 +10,7 @@ import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planServ
 type Project = { id: string; nome?: string | null; name?: string | null };
 type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string; carcassThickness?: number | null; backThickness?: number | null; shelfCount?: number; doorCount?: number; doorFrontWidth?: number | null; doorFrontHeight?: number | null; drawerCount?: number; drawerFrontWidth?: number | null; drawerFrontHeight?: number | null; drawerBoxWidth?: number | null; drawerBoxHeight?: number | null; drawerBoxDepth?: number | null; drawerMaterial?: string };
 type OpeningItem = { id: string; type: 'door' | 'window'; wall: 'top' | 'right' | 'bottom' | 'left'; position: number; width: number; height: number };
-type EditorSnapshot = { room: { width: number; depth: number; height: number }; modules: ModuleItem[]; openings: OpeningItem[] };
+type EditorSnapshot = { room: { width: number; depth: number; height: number }; modules: ModuleItem[]; openings: OpeningItem[]; fabrication?: { sheetWidth: number; sheetHeight: number; kerf: number; sheetPrices: Record<string, number> } };
 
 const catalog = [
   { kind: 'base', label: 'Balcão inferior', width: 800, height: 720, depth: 560 },
@@ -86,6 +86,14 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
         const stored = data?.snapshot && typeof data.snapshot === 'object' ? data.snapshot as Record<string, unknown> : {};
         const editor = stored.visualFurnitureEditor as EditorSnapshot | undefined;
         setSnapshot(editor?.room && Array.isArray(editor.modules) ? { ...editor, openings: Array.isArray(editor.openings) ? editor.openings : [] } : defaultSnapshot);
+        if (editor?.fabrication) {
+          setSheetWidth(editor.fabrication.sheetWidth || 2750);
+          setSheetHeight(editor.fabrication.sheetHeight || 1850);
+          setKerf(editor.fabrication.kerf ?? 3);
+          setSheetPrices(editor.fabrication.sheetPrices || {});
+        } else {
+          setSheetWidth(2750); setSheetHeight(1850); setKerf(3); setSheetPrices({});
+        }
         setSelectedId('');
       });
     return () => { alive = false; };
@@ -224,7 +232,8 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
       if (readError) throw readError;
 
       const prior = current?.snapshot && typeof current.snapshot === 'object' ? current.snapshot as Record<string, unknown> : {};
-      const merged = { ...prior, visualFurnitureEditor: snapshot, visualFurnitureEditorUpdatedAt: new Date().toISOString() };
+      const snapshotToSave: EditorSnapshot = { ...snapshot, fabrication: { sheetWidth, sheetHeight, kerf, sheetPrices } };
+      const merged = { ...prior, visualFurnitureEditor: snapshotToSave, visualFurnitureEditorUpdatedAt: new Date().toISOString() };
 
       let hasApprovalOrFreeze = false;
       if (current?.id) {
