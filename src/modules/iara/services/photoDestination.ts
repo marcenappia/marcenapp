@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { dataUrlToBlob } from './pendingUploadStorage';
+import { persistGalleryImage } from '@/services/galleryPersistence';
 
 export type PhotoDestination = {
   projectId: string;
@@ -122,15 +123,18 @@ export async function attachIaraEnvironmentPhoto(args: { userId: string; project
   }
   const signedUrl = signed.signedUrl;
 
-  const { error: galleryError } = await supabase.from('gallery_images').insert({
-    user_id: args.userId,
-    project_id: args.projectId,
-    environment_id: environment.id,
-    image_url: signedUrl,
-    prompt: 'Foto do ambiente capturada pela IARA',
-  });
-  if (galleryError) {
-    throw new Error('A foto foi salva, mas não foi possível registrar a imagem na galeria: ' + galleryError.message);
+  try {
+    await persistGalleryImage({
+      userId: args.userId,
+      projectId: args.projectId,
+      environmentId: environment.id,
+      storagePath,
+      imageUrl: signedUrl,
+      prompt: 'Foto do ambiente capturada pela IARA',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'erro desconhecido';
+    throw new Error('A foto foi salva, mas não foi possível registrar a imagem na galeria: ' + message);
   }
 
   return {

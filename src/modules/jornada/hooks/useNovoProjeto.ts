@@ -6,7 +6,7 @@ import { callAIText, requireAuth } from '@/services/ai';
 import { studioService } from '@/modules/ambientes/services/studioService';
 import { useStudioStore } from '@/store/useStudioStore';
 import { AnaliseIara, EtapaId, carregarProgresso, salvarProgresso } from '../types';
-import { baixarComoDataUrl, dataUrlParaBlob, carregarObra, enviarApresentacao, enviarFotoAmbiente, salvarJornada, JornadaSalva, StatusObra } from '../services/obraService';
+import { baixarComoDataUrl, dataUrlParaBlob, carregarObra, salvarApresentacaoNaGaleria, enviarFotoAmbiente, salvarJornada, JornadaSalva, StatusObra } from '../services/obraService';
 import type { ProjectData } from '@/modules/projetos/types';
 
 interface Foto { dataUrl: string; base64: string; mime: string; }
@@ -96,18 +96,18 @@ export const useNovoProjeto = ({ projectId: inicialId, setBudgetProject }: Opcoe
   };
 
   const gerarApresentacao = () => comAuth(async (currentUser) => {
-    if (!foto) return; setLoading('gerando'); setErro(null);
+    if (!foto) return; if (!projectId) { setErro('Salve o projeto antes de gerar a apresentação.'); return; } setLoading('gerando'); setErro(null);
     try {
       const extras = Object.entries(respostas).filter(([, v]) => v.trim()).map(([k, v]) => `${k}: ${v}`).join('; ');
       const prompt = `Insira móveis planejados de marcenaria neste ambiente real, mantendo paredes, piso, janelas e iluminação da foto. Pedido do cliente: ${pedido}. ${analise?.resumo ?? ''}. Detalhes: ${extras || 'nenhum'}.`;
       const img = await studioService.generateVisual(prompt, [{ mimeType: foto.mime, data: foto.base64 }], 'photorealistic, 8k, architectural photography', 'modern Brazilian carpentry, MDF cabinetry');
-      if (!img) throw new Error('Não saiu imagem. Tente de novo.'); setImagem(img); setGeneratedImage(img); aplicarMedidas(); const { error: galleryError } = await supabase.from('gallery_images').insert({ user_id: currentUser.id, image_url: img, prompt }); if (galleryError) throw galleryError; if (projectId) await enviarApresentacao(currentUser.id, projectId, img); await persistir({ etapa: 5, respostas }); setEtapa(5);
+      if (!img) throw new Error('Não saiu imagem. Tente de novo.'); setImagem(img); setGeneratedImage(img); aplicarMedidas(); await salvarApresentacaoNaGaleria(currentUser.id, projectId, img, prompt); await persistir({ etapa: 5, respostas }); setEtapa(5);
     } catch (error: unknown) { setErro(error instanceof Error ? error.message : 'Não deu para gerar a apresentação. Tente de novo.'); } finally { setLoading(null); }
   });
 
   const ajustarApresentacao = () => comAuth(async (currentUser) => {
-    if (!imagem || !ajuste.trim()) return; setLoading('ajustando'); setErro(null);
-    try { const img = await studioService.refineVisual(imagem, ajuste.trim()); if (!img) throw new Error('Não saiu imagem. Tente de novo.'); setImagem(img); setGeneratedImage(img); setAjuste(''); const { error: galleryError } = await supabase.from('gallery_images').insert({ user_id: currentUser.id, image_url: img, prompt: ajuste.trim() }); if (galleryError) throw galleryError; if (projectId) await enviarApresentacao(currentUser.id, projectId, img); }
+    if (!imagem || !ajuste.trim()) return; if (!projectId) { setErro('Salve o projeto antes de ajustar a apresentação.'); return; } setLoading('ajustando'); setErro(null);
+    try { const img = await studioService.refineVisual(imagem, ajuste.trim()); if (!img) throw new Error('Não saiu imagem. Tente de novo.'); setImagem(img); setGeneratedImage(img); setAjuste(''); await salvarApresentacaoNaGaleria(currentUser.id, projectId, img, ajuste.trim()); }
     catch (error: unknown) { setErro(error instanceof Error ? error.message : 'Não deu para ajustar. Tente de novo.'); } finally { setLoading(null); }
   });
 
