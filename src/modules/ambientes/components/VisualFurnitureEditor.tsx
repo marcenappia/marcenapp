@@ -3,12 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Box, Grid3X3, Plus, Save, Trash2 } from 'lucide-react';
 import { canPlaceFurniture, clampFurniturePosition, findNextFurniturePosition } from './furnitureLayout';
-import { engineerBasicCarcass } from '@/lib/furniture/engineering';
+import { buildFurniturePackage } from '@/lib/furniture/package';
 import { optimizeCutList } from '@/lib/cut/maxRects';
 import { analyzeFloorPlanAndQueueRender } from '@/modules/iara/services/planService';
 
 type Project = { id: string; nome?: string | null; name?: string | null };
-type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string; carcassThickness?: number | null; backThickness?: number | null; shelfCount?: number };
+type ModuleItem = { id: string; kind: string; label: string; x: number; y: number; width: number; height: number; depth: number; material: string; carcassThickness?: number | null; backThickness?: number | null; shelfCount?: number; doorCount?: number; doorFrontWidth?: number | null; doorFrontHeight?: number | null; drawerCount?: number; drawerFrontWidth?: number | null; drawerFrontHeight?: number | null; drawerBoxWidth?: number | null; drawerBoxHeight?: number | null; drawerBoxDepth?: number | null; drawerMaterial?: string };
 type OpeningItem = { id: string; type: 'door' | 'window'; wall: 'top' | 'right' | 'bottom' | 'left'; position: number; width: number; height: number };
 type EditorSnapshot = { room: { width: number; depth: number; height: number }; modules: ModuleItem[]; openings: OpeningItem[] };
 
@@ -39,14 +39,19 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
   const selected = snapshot.modules.find(item => item.id === selectedId);
   const engineering = useMemo(() => {
     const eligible = snapshot.modules.filter(item => Number(item.carcassThickness) > 0);
-    const results = eligible.map(item => engineerBasicCarcass({
+    const results = eligible.map(item => buildFurniturePackage({
       id: item.id, name: item.label, width: item.width, height: item.height, depth: item.depth,
       carcassThickness: Number(item.carcassThickness),
       ...(Number(item.backThickness) > 0 ? { backThickness: Number(item.backThickness), backMaterial: item.material } : {}),
       shelfCount: Math.max(0, Math.floor(item.shelfCount ?? 0)),
       material: item.material, grainSensitive: true,
+      modules: [{
+        id: item.id, name: item.label, width: item.width, height: item.height, depth: item.depth, material: item.material,
+        ...(Number(item.doorCount) > 0 ? { door: { count: Number(item.doorCount), frontWidth: Number(item.doorFrontWidth), frontHeight: Number(item.doorFrontHeight), material: item.material } } : {}),
+        ...(Number(item.drawerCount) > 0 ? { drawer: { count: Number(item.drawerCount), frontWidth: Number(item.drawerFrontWidth), frontHeight: Number(item.drawerFrontHeight), boxWidth: Number(item.drawerBoxWidth), boxHeight: Number(item.drawerBoxHeight), boxDepth: Number(item.drawerBoxDepth), material: item.drawerMaterial || item.material } } : {}),
+      }],
     }));
-    const parts = results.flatMap(result => result.parts);
+    const parts = results.flatMap(result => result.parts.filter(part => !(part.role === 'shelf' && part.id.endsWith(':estrutura'))));
     const materials = [...new Set(parts.map(part => part.material))];
     const cutPlan = sheetWidth > 0 && sheetHeight > 0 && parts.length
       ? optimizeCutList(parts.map(part => ({ id: part.id, width: part.width, height: part.height, quantity: part.quantity, material: part.material, grainSensitive: part.grainSensitive, allowRotation: part.allowRotation })), materials.map((material, index) => ({ id: `sheet-${index + 1}`, width: sheetWidth, height: sheetHeight, material })), kerf)
@@ -90,7 +95,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
       return;
     }
     const id = globalThis.crypto?.randomUUID?.() ?? `module-${Date.now()}`;
-    const next: ModuleItem = { id, ...item, ...position, material: 'MDF a definir', carcassThickness: null, backThickness: null, shelfCount: 0 };
+    const next: ModuleItem = { id, ...item, ...position, material: 'MDF a definir', carcassThickness: null, backThickness: null, shelfCount: 0, doorCount: 0, drawerCount: 0 };
     setSnapshot(current => ({ ...current, modules: [...current.modules, next] }));
     setSelectedId(id);
     setMessage('');
@@ -253,6 +258,19 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
             <label className="block text-xs font-bold text-slate-600">Espessura da caixa (mm)<input type="number" min="1" max="50" value={selected.carcassThickness ?? ''} onChange={e => updateSelected({ carcassThickness: e.target.value === '' ? null : Math.max(1, Number(e.target.value)) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm" placeholder="Obrigatória"/></label>
             <label className="block text-xs font-bold text-slate-600">Espessura do fundo (mm)<input type="number" min="1" max="20" value={selected.backThickness ?? ''} onChange={e => updateSelected({ backThickness: e.target.value === '' ? null : Math.max(1, Number(e.target.value)) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm" placeholder="Opcional"/></label>
             <label className="col-span-2 block text-xs font-bold text-slate-600">Quantidade de prateleiras<input type="number" min="0" max="50" value={selected.shelfCount ?? 0} onChange={e => updateSelected({ shelfCount: Math.max(0, Math.min(50, Math.floor(Number(e.target.value) || 0))) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm"/></label>
+            <label className="block text-xs font-bold text-slate-600">Quantidade de portas<input type="number" min="0" max="30" value={selected.doorCount ?? 0} onChange={e => updateSelected({ doorCount: Math.max(0, Math.min(30, Math.floor(Number(e.target.value) || 0))) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm"/></label>
+            <label className="block text-xs font-bold text-slate-600">Quantidade de gavetas<input type="number" min="0" max="30" value={selected.drawerCount ?? 0} onChange={e => updateSelected({ drawerCount: Math.max(0, Math.min(30, Math.floor(Number(e.target.value) || 0))) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2 text-sm"/></label>
+            {Number(selected.doorCount) > 0 && <>
+              <label className="block text-xs font-bold text-slate-600">Largura frente porta (mm)<input type="number" min="1" value={selected.doorFrontWidth ?? ''} onChange={e => updateSelected({ doorFrontWidth: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+              <label className="block text-xs font-bold text-slate-600">Altura frente porta (mm)<input type="number" min="1" value={selected.doorFrontHeight ?? ''} onChange={e => updateSelected({ doorFrontHeight: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+            </>}
+            {Number(selected.drawerCount) > 0 && <>
+              <label className="block text-xs font-bold text-slate-600">Largura frente gaveta (mm)<input type="number" min="1" value={selected.drawerFrontWidth ?? ''} onChange={e => updateSelected({ drawerFrontWidth: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+              <label className="block text-xs font-bold text-slate-600">Altura frente gaveta (mm)<input type="number" min="1" value={selected.drawerFrontHeight ?? ''} onChange={e => updateSelected({ drawerFrontHeight: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+              <label className="block text-xs font-bold text-slate-600">Largura caixa gaveta (mm)<input type="number" min="1" value={selected.drawerBoxWidth ?? ''} onChange={e => updateSelected({ drawerBoxWidth: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+              <label className="block text-xs font-bold text-slate-600">Altura caixa gaveta (mm)<input type="number" min="1" value={selected.drawerBoxHeight ?? ''} onChange={e => updateSelected({ drawerBoxHeight: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+              <label className="col-span-2 block text-xs font-bold text-slate-600">Profundidade caixa gaveta (mm)<input type="number" min="1" value={selected.drawerBoxDepth ?? ''} onChange={e => updateSelected({ drawerBoxDepth: e.target.value === '' ? null : Number(e.target.value) })} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+            </>
           </div>
           <button type="button" onClick={() => { setSnapshot(current => ({...current,modules:current.modules.filter(item => item.id !== selectedId)})); setSelectedId(''); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-700"><Trash2 size={14}/> Remover módulo</button>
         </div> : <p className="mt-2 text-xs text-slate-500">Adicione um módulo ou selecione um existente na planta para editar suas medidas e acabamento.</p>}</div>
