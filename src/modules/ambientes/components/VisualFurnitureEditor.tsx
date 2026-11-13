@@ -36,6 +36,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
   const [sheetWidth, setSheetWidth] = useState(2750);
   const [sheetHeight, setSheetHeight] = useState(1850);
   const [kerf, setKerf] = useState(3);
+  const [sheetPrices, setSheetPrices] = useState<Record<string, number>>({});
   const dragRef = useRef<{ id: string; pointerX: number; pointerY: number; x: number; y: number } | null>(null);
   const selected = snapshot.modules.find(item => item.id === selectedId);
   const engineering = useMemo(() => {
@@ -57,8 +58,10 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
     const cutPlan = sheetWidth > 0 && sheetHeight > 0 && parts.length
       ? optimizeCutList(parts.map(part => ({ id: part.id, width: part.width, height: part.height, quantity: part.quantity, material: part.material, grainSensitive: part.grainSensitive, allowRotation: part.allowRotation })), materials.map((material, index) => ({ id: `sheet-${index + 1}`, width: sheetWidth, height: sheetHeight, material })), kerf)
       : null;
-    return { eligibleCount: eligible.length, missingThickness: snapshot.modules.filter(item => !(Number(item.carcassThickness) > 0)).map(item => item.label), results, parts, blockers: results.flatMap(result => result.blockers), assumptions: results.flatMap(result => result.assumptions), cutPlan };
-  }, [snapshot.modules, sheetWidth, sheetHeight, kerf]);
+    const sheetMaterialCost = cutPlan?.sheets.reduce((sum, sheet) => sum + Math.max(0, sheetPrices[sheet.material] || 0), 0) ?? 0;
+    const missingSheetPrices = [...new Set(cutPlan?.sheets.map(sheet => sheet.material).filter(material => !(Number(sheetPrices[material]) > 0)) ?? [])];
+    return { eligibleCount: eligible.length, missingThickness: snapshot.modules.filter(item => !(Number(item.carcassThickness) > 0)).map(item => item.label), materials, sheetMaterialCost, missingSheetPrices, results, parts, blockers: results.flatMap(result => result.blockers), assumptions: results.flatMap(result => result.assumptions), cutPlan };
+  }, [snapshot.modules, sheetWidth, sheetHeight, kerf, sheetPrices]);
 
   useEffect(() => {
     if (!user) return;
@@ -319,6 +322,7 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
             <label className="text-xs font-semibold text-slate-600">Chapa · largura (mm)<input type="number" min="1" value={sheetWidth} onChange={e => setSheetWidth(Math.max(1, Number(e.target.value)))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
             <label className="text-xs font-semibold text-slate-600">Chapa · altura (mm)<input type="number" min="1" value={sheetHeight} onChange={e => setSheetHeight(Math.max(1, Number(e.target.value)))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
             <label className="col-span-2 text-xs font-semibold text-slate-600">Kerf / espessura do corte (mm)<input type="number" min="0" step="0.1" value={kerf} onChange={e => setKerf(Math.max(0, Number(e.target.value)))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2"/></label>
+            {engineering.materials.map(material => <label key={material} className="col-span-2 text-xs font-semibold text-slate-600">Preço por chapa · {material} (R$)<input type="number" min="0" step="0.01" value={sheetPrices[material] ?? ''} onChange={e => setSheetPrices(current => ({ ...current, [material]: Math.max(0, Number(e.target.value) || 0) }))} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2" placeholder="Informe o preço real da chapa"/></label>)}
           </div>
           {engineering.missingThickness.length > 0 && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Informe a espessura da caixa destes módulos para incluir na engenharia: {engineering.missingThickness.join(', ')}.</p>}
           {engineering.blockers.map((blocker, index) => <p key={index} className="mt-2 text-xs text-red-700">{blocker}</p>)}
@@ -330,6 +334,9 @@ export default function VisualFurnitureEditor({ projectId: initialProjectId }: {
             {engineering.cutPlan && <div className="rounded-lg bg-slate-50 p-3 text-xs">
               <p className="font-bold">Plano de corte preliminar</p>
               <p className="mt-1">{engineering.cutPlan.sheets.length} chapas · aproveitamento {engineering.cutPlan.utilizationPct.toFixed(1)}% · perda {(engineering.cutPlan.wasteArea / 1000000).toFixed(2)} m²</p>
+              {engineering.missingSheetPrices.length === 0 && engineering.sheetMaterialCost > 0 && <p className="mt-1 font-bold">Subtotal estimado das chapas: {engineering.sheetMaterialCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>}
+              {engineering.missingSheetPrices.length > 0 && <p className="mt-1 text-amber-800">Informe o preço por chapa para calcular o subtotal de material: {engineering.missingSheetPrices.join(', ')}.</p>}
+              <p className="mt-1 text-[11px] text-slate-500">Subtotal somente das chapas calculadas. Não inclui ferragens, fita de borda, usinagem, mão de obra, impostos, transporte ou perdas adicionais.</p>
               {engineering.cutPlan.unplaced.length > 0 && <p className="mt-1 text-red-700">{engineering.cutPlan.unplaced.length} peça(s) não couberam nas chapas informadas. Confira as dimensões e materiais.</p>}
               {engineering.cutPlan.sheets.map(sheet => <p key={sheet.id} className="mt-1">Chapa {sheet.id}: {sheet.material} · {sheet.placements.length} peças · {sheet.utilizationPct.toFixed(1)}%</p>)}
             </div>}
