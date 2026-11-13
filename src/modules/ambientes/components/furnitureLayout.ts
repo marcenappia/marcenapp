@@ -49,3 +49,15 @@ export function clampFurniturePosition(
     y: Math.max(0, Math.min(Math.max(0, room.depth - item.depth), position.y)),
   };
 }
+
+/** Checks room bounds and minimum clearance against every other placed module. */
+export function canPlaceFurniture(
+  item: FurnitureFootprint,
+  existing: FurnitureFootprint[],
+  room: RoomFootprint,
+  gap = DEFAULT_GAP,
+): boolean {
+  if (item.width <= 0 || item.depth <= 0 || item.x < 0 || item.y < 0
+    || item.x + item.width > room.width || item.y + item.depth > room.depth) return false;
+  return !existing.some((placed) => overlaps(item, placed, gap));
+}
