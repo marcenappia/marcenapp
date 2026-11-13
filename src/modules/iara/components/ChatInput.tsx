@@ -6,7 +6,7 @@ import { consumeIaraPhotoHandoff } from '../services/photoDestination';
 import { blobToDataUrl, clearIaraPendingUpload, createIaraPreviewUrl, loadIaraPendingUpload } from '../services/pendingUploadStorage';
 import { PhotoDestinationPanel } from './PhotoDestinationPanel';
 
-type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; blob?: Blob; previewUrl?: string };
+type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; blob?: Blob; previewUrl?: string; captureId?: string };
 export type SmartAction = IaraSmartAction & { prompt: string };
 
 const SMART_ACTIONS: Array<{ domain: SmartAction['domain']; title: string; items: SmartAction[] }> = [
@@ -75,6 +75,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
             baseRaw: '',
             maskRaw: '',
             kind: persisted.kind,
+            captureId: persisted.captureId,
           });
           return;
         }
@@ -205,7 +206,6 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         await onPhotoAttached?.(destination);
         setPhotoDestinationOpen(false);
         setPhotoDestinationHandled(true);
-        navigateTo?.('studio', { projeto: destination.projectId });
       }}
     />}
     {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="fixed inset-0 z-[100] bg-background flex flex-col">
