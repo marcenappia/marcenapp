@@ -126,12 +126,12 @@ Deno.test("ai-image: builds a deterministic scene-preservation prompt for refere
   assert(source.includes("generateImage(provider, providerPrompt"));
 });
 
-Deno.test("ai-image: provider fallback remains centralized in provider resolver", async () => {
+Deno.test("ai-image: provider fallback is resolved centrally and only across configured providers", async () => {
   const providerSource = await Deno.readTextFile(new URL("./provider.ts", import.meta.url));
   const imageSource = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
   assert(providerSource.includes("fallback"));
-  assert(imageSource.includes("const providers: AIProvider[] = [resolution.primary]"));
-  assert(!imageSource.includes("resolution.fallback"), "image generation must not silently switch providers");
+  assert(imageSource.includes("const providers: AIProvider[] = resolution.fallback"));
+  assert(imageSource.includes("for (const provider of providers)"));
 });
 
 Deno.test("ai-image: stores durable gallery path and refreshes signed URLs on replay", async () => {
