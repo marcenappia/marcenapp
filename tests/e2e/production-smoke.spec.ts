@@ -37,7 +37,7 @@ test.describe('Marcenapp production smoke', () => {
     const serviceWorkerResponse = await request.get('/sw.js');
     expect(serviceWorkerResponse.ok()).toBe(true);
     expect(serviceWorkerResponse.headers()['content-type']).toContain('javascript');
-    expect(await serviceWorkerResponse.text()).toContain('marcenapp-static-v1');
+    expect(await serviceWorkerResponse.text()).toContain('marcenapp-static-v3');
   });
 
   test('Service Worker keeps the app shell available offline', async ({ browser, baseURL }) => {
@@ -52,12 +52,12 @@ test.describe('Marcenapp production smoke', () => {
 
     // Recarrega uma vez online para que o Service Worker capture os bundles do app shell.
     await page.reload({ waitUntil: 'networkidle' });
-    await expect(page.getByRole('heading', { name: /Sua marcenaria trabalha\./i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Do ambiente real à produção\./i })).toBeVisible();
 
     await context.setOffline(true);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page).toHaveTitle(/Marcenapp/i);
-    await expect(page.getByRole('heading', { name: /Sua marcenaria trabalha\./i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Do ambiente real à produção\./i })).toBeVisible();
 
     await context.close();
   });
