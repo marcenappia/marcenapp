@@ -20,6 +20,7 @@ export default defineConfig({
   }),
   use: {
     baseURL: externalBaseURL ?? 'http://127.0.0.1:4173',
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
