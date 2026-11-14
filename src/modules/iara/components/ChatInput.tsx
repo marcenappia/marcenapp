@@ -3,10 +3,10 @@ import { Mic, MicOff, Send, X, Command, Ruler, Image, ClipboardList, Boxes, Scis
 import type { LucideProps } from 'lucide-react';
 import { IARA_SMART_ACTIONS, type IaraSmartAction } from '../message-system';
 import { consumeIaraPhotoHandoff } from '../services/photoDestination';
-import { blobToDataUrl, clearIaraPendingUpload, createIaraPreviewUrl, loadIaraPendingUpload } from '../services/pendingUploadStorage';
+import { blobToDataUrl, clearIaraPendingUpload, createIaraPreviewUrl, loadIaraPendingUpload, persistIaraPendingUpload, resumeIaraCapture } from '../services/pendingUploadStorage';
 import { PhotoDestinationPanel } from './PhotoDestinationPanel';
 
-type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; blob?: Blob; previewUrl?: string };
+type PendingUpload = { base64?: string; baseRaw?: string; maskRaw?: string; kind?: 'environment' | 'reference' | 'sketch' | 'plan'; blob?: Blob; previewUrl?: string; captureId?: string };
 export type SmartAction = IaraSmartAction & { prompt: string };
 
 const SMART_ACTIONS: Array<{ domain: SmartAction['domain']; title: string; items: SmartAction[] }> = [
@@ -33,7 +33,7 @@ interface ChatInputProps {
   setPendingUpload: (val: PendingUpload | null) => void; onSmartAction?: (action: SmartAction) => void; onPhotoAttached?: (destination: import('../services/photoDestination').PhotoDestination) => Promise<void>; navigateTo?: (id: string, params?: Record<string, string>) => void; projectId?: string | null;
 }
 
-export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction, onPhotoAttached, navigateTo, projectId }: ChatInputProps) => {
+export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, toggleRecording, isListening, pendingUpload, setPendingUpload, onSmartAction, onPhotoAttached, projectId }: ChatInputProps) => {
   const [open, setOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [oneShotOpen, setOneShotOpen] = useState(false);
@@ -67,6 +67,8 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       try {
         const persisted = await loadIaraPendingUpload();
         if (!cancelled && persisted && !pendingUploadRef.current) {
+          const captureId = resumeIaraCapture(persisted.captureId);
+          if (!persisted.captureId) await persistIaraPendingUpload(persisted.blob, persisted.kind, captureId);
           const previewUrl = createIaraPreviewUrl(persisted.blob);
           setPendingUpload({
             blob: persisted.blob,
@@ -75,6 +77,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
             baseRaw: '',
             maskRaw: '',
             kind: persisted.kind,
+            captureId,
           });
           return;
         }
@@ -86,7 +89,7 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
       // key was never cleared and re-hydrated a consumed photo on every remount.
       const handoff = consumeIaraPhotoHandoff();
       try { sessionStorage.removeItem('marcenapp.iara.pending-upload.v1'); } catch { /* ignore */ }
-      if (handoff && !cancelled && !pendingUploadRef.current) setPendingUpload(handoff);
+      if (handoff && !cancelled && !pendingUploadRef.current) setPendingUpload({ ...handoff, captureId: resumeIaraCapture() });
     };
     void restore();
     return () => { cancelled = true; };
@@ -205,7 +208,6 @@ export const ChatInput = ({ chatInput, setChatInput, onSend, onImageSelect, togg
         await onPhotoAttached?.(destination);
         setPhotoDestinationOpen(false);
         setPhotoDestinationHandled(true);
-        navigateTo?.('studio', { projeto: destination.projectId });
       }}
     />}
     {oneShotOpen && pendingUpload?.kind === 'environment' && <div role="dialog" aria-label="Dados do móvel" className="fixed inset-0 z-[100] bg-background flex flex-col">

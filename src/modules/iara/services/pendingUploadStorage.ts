@@ -8,6 +8,7 @@ export type PersistedIaraUpload = {
   blob: Blob;
   kind: IaraPendingUploadKind;
   createdAt: number;
+  captureId?: string;
 };
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -37,8 +38,19 @@ function openDatabase(): Promise<IDBDatabase> {
 let activeCaptureId: string | null = null;
 const LEGACY_SESSION_KEYS = ['marcenapp.iara.pending-upload.v1', 'marcenapp.iara.environment-photo-handoff.v1'];
 
+function createCaptureId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export function beginIaraCapture(): string {
-  activeCaptureId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  activeCaptureId = createCaptureId();
+  return activeCaptureId;
+}
+
+// Reclaim the durable capture after a reload so background writes and retries
+// continue to refer to the same photo instead of creating a new operation.
+export function resumeIaraCapture(captureId?: string): string {
+  activeCaptureId = captureId || createCaptureId();
   return activeCaptureId;
 }
 
@@ -51,7 +63,7 @@ export async function persistIaraPendingUpload(blob: Blob, kind: IaraPendingUplo
   const db = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put({ blob, kind, createdAt: Date.now() } satisfies PersistedIaraUpload, KEY);
+    tx.objectStore(STORE_NAME).put({ blob, kind, createdAt: Date.now(), captureId } satisfies PersistedIaraUpload, KEY);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error ?? new Error('Não foi possível guardar a foto da IARA.'));
     tx.onabort = () => reject(tx.error ?? new Error('Não foi possível guardar a foto da IARA.'));

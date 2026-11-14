@@ -5,7 +5,11 @@ const GITHUB_ISSUER = 'https://token.actions.githubusercontent.com';
 const GITHUB_AUDIENCE = 'marcenapp-e2e';
 const EXPECTED_REPOSITORY = 'marcenappia/marcenapp';
 const EXPECTED_REF = 'refs/heads/main';
-const EXPECTED_SUBJECT_PATTERN = /^repo:marcenappia@[^/]+\/marcenapp@[^:]+:(ref|environment):/;
+const EXPECTED_SUBJECTS = new Set([
+  'repo:marcenappia@325400678/marcenapp@1358660778:ref:refs/heads/main',
+  'repo:marcenappia@325400678/marcenapp@1358660778:environment:production-smoke',
+  'repo:marcenappia@325400678/marcenapp@1358660778:pull_request',
+]);
 // Production smoke authentication is validated inside this function; platform JWT verification stays disabled.
 const EXPECTED_WORKFLOWS = new Set(['Vercel Production Smoke', 'Playwright Tests']);
 const githubJwks = createRemoteJWKSet(
@@ -68,11 +72,17 @@ async function verifyGitHubActionsToken(request: Request): Promise<GitHubClaims>
   const claims = payload as GitHubClaims;
 
   if (claims.repository !== EXPECTED_REPOSITORY) throw new Error('invalid_repository');
-  if (claims.sub && !EXPECTED_SUBJECT_PATTERN.test(claims.sub)) throw new Error('invalid_subject');
+  if (!claims.sub || !EXPECTED_SUBJECTS.has(claims.sub)) throw new Error('invalid_subject');
   console.info('e2e oidc claims accepted', { sub: claims.sub, ref: claims.ref, workflow: claims.workflow, event_name: claims.event_name, run_id: claims.run_id });
   if (claims.workflow && !EXPECTED_WORKFLOWS.has(claims.workflow)) throw new Error('invalid_workflow');
-  if (claims.event_name && !['push', 'workflow_dispatch', 'schedule', 'deployment_status'].includes(claims.event_name)) {
+  if (claims.event_name && !['push', 'workflow_dispatch', 'schedule', 'deployment_status', 'pull_request'].includes(claims.event_name)) {
     throw new Error('invalid_event');
+  }
+  if (claims.event_name === 'pull_request' && claims.workflow !== 'Playwright Tests') {
+    throw new Error('invalid_pull_request_workflow');
+  }
+  if (claims.event_name !== 'pull_request' && claims.ref && claims.ref !== EXPECTED_REF) {
+    throw new Error('invalid_ref');
   }
   return claims;
 }

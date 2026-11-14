@@ -103,13 +103,13 @@ test.describe('Marcenapp public acceptance', () => {
   });
 
   test('public navigation anchors work', async ({ page }) => {
-    await page.getByRole('link', { name: 'Como funciona', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Como funciona', exact: true }).click();
     await expect(page).toHaveURL(/#fluxo$/);
     await expect(page.locator('#fluxo')).toBeVisible();
-    await page.getByRole('link', { name: 'Recursos', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Recursos', exact: true }).click();
     await expect(page).toHaveURL(/#recursos$/);
     await expect(page.locator('#recursos')).toBeVisible();
-    await page.getByRole('link', { name: 'Valores', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Valores', exact: true }).click();
     await expect(page).toHaveURL(/#valores$/);
     await expect(page.locator('#valores')).toBeVisible();
   });
@@ -118,9 +118,11 @@ test.describe('Marcenapp public acceptance', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('button', { name: 'Abrir menu' })).toBeVisible();
     await page.getByRole('button', { name: 'Abrir menu' }).click();
-    await expect(page.getByRole('button', { name: 'Começar agora' }).last()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Produto' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Recursos' })).toBeVisible();
+    const mobileNav = page.getByRole('navigation', { name: 'Menu' });
+    await expect(mobileNav.getByRole('link', { name: 'Como funciona' })).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: 'Recursos' })).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: 'Valores' })).toBeVisible();
+    await expect(mobileNav.getByRole('button', { name: 'Entrar' })).toBeVisible();
   });
 
   test('public purchase flow preserves the selected product', async ({ page }) => {

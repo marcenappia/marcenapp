@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BriefcaseBusiness, FolderPlus, LoaderCircle, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,7 +11,7 @@ import {
   type PhotoDestination,
 } from '../services/photoDestination';
 
-type PendingPhoto = { base64?: string; blob?: Blob; previewUrl?: string; kind?: string };
+type PendingPhoto = { base64?: string; blob?: Blob; previewUrl?: string; kind?: string; captureId?: string };
 type DestinationMode = 'menu' | 'new-client' | 'existing-client' | 'existing-project';
 type ClientOption = { id: string; nome: string };
 type ProjectOption = { id: string; nome: string | null; name: string | null; cliente_id: string | null };
@@ -34,6 +34,7 @@ export function PhotoDestinationPanel({ photo, currentProjectId = null, onCancel
   const [projectId, setProjectId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const createdTargetRef = useRef<{ key: string; projectId: string; clientId: string | null } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -57,7 +58,7 @@ export function PhotoDestinationPanel({ photo, currentProjectId = null, onCancel
 
   const attach = async (targetProjectId: string, targetClientId?: string | null) => {
     if (!user) throw new Error('Entre na sua conta para cadastrar esta foto.');
-    return attachIaraEnvironmentPhoto({ userId: user.id, projectId: targetProjectId, clientId: targetClientId, dataUrl: await dataUrl() });
+    return attachIaraEnvironmentPhoto({ userId: user.id, projectId: targetProjectId, clientId: targetClientId, dataUrl: await dataUrl(), correlationId: photo.captureId });
   };
 
   const attachCurrentProject = async () => {
@@ -82,12 +83,24 @@ export function PhotoDestinationPanel({ photo, currentProjectId = null, onCancel
       let destination: PhotoDestination;
       if (mode === 'new-client') {
         if (!clientName.trim() || !projectName.trim()) throw new Error('Informe o nome do cliente e da obra.');
-        const created = await createIaraClientAndProject({ userId: user.id, clientName, projectName });
-        destination = await attach(created.project.id, created.client.id);
+        const key = `new-client:${clientName.trim().toLowerCase()}:${projectName.trim().toLowerCase()}`;
+        let target = createdTargetRef.current?.key === key ? createdTargetRef.current : null;
+        if (!target) {
+          const created = await createIaraClientAndProject({ userId: user.id, clientName, projectName });
+          target = { key, projectId: created.project.id, clientId: created.client.id };
+          createdTargetRef.current = target;
+        }
+        destination = await attach(target.projectId, target.clientId);
       } else if (mode === 'existing-client') {
         if (!clientId || !projectName.trim()) throw new Error('Escolha o cliente e informe o nome da obra.');
-        const project = await createIaraProjectForClient({ userId: user.id, clientId, projectName });
-        destination = await attach(project.id, clientId);
+        const key = `existing-client:${clientId}:${projectName.trim().toLowerCase()}`;
+        let target = createdTargetRef.current?.key === key ? createdTargetRef.current : null;
+        if (!target) {
+          const project = await createIaraProjectForClient({ userId: user.id, clientId, projectName });
+          target = { key, projectId: project.id, clientId };
+          createdTargetRef.current = target;
+        }
+        destination = await attach(target.projectId, target.clientId);
       } else {
         if (!selectedProject) throw new Error('Escolha uma obra.');
         destination = await attach(selectedProject.id, selectedProject.cliente_id);
